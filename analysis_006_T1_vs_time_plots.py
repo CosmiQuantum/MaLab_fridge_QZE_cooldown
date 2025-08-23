@@ -126,8 +126,8 @@ class T1VsTime:
         #print(self.top_folder_dates)
         for folder_date in self.top_folder_dates:
             if self.fridge.upper() == 'QUIET':
-                outerFolder = f"/data/QICK_data/{self.run_name}/" + folder_date + "/"
-                outerFolder_save_plots = f"/data/QICK_data/{self.run_name}/" + folder_date + "_plots/"
+                outerFolder = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "/"
+                outerFolder_save_plots = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "_plots/"
             elif self.fridge.upper() == 'NEXUS':
                 outerFolder = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/" + folder_date + "/"
                 outerFolder_save_plots = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/" + folder_date + "_plots/"
@@ -228,8 +228,8 @@ class T1VsTime:
         #print(self.top_folder_dates)
         for folder_date in self.top_folder_dates:
             if self.fridge.upper() == 'QUIET':
-                outerFolder = f"/data/QICK_data/{self.run_name}/" + folder_date + "/study_data"
-                outerFolder_save_plots = f"/data/QICK_data/{self.run_name}/" + folder_date + "_plots/"
+                outerFolder = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "/study_data"
+                outerFolder_save_plots = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "_plots/"
             elif self.fridge.upper() == 'NEXUS':
                 outerFolder = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/" + folder_date + "/"
                 outerFolder_save_plots = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/" + folder_date + "_plots/"
@@ -317,8 +317,8 @@ class T1VsTime:
         #print(self.top_folder_dates)
         for folder_date in self.top_folder_dates:
             if self.fridge.upper() == 'QUIET':
-                outerFolder = f"/data/QICK_data/{self.run_name}/" + folder_date + "/study_data"
-                outerFolder_save_plots = f"/data/QICK_data/{self.run_name}/" + folder_date + "_plots/"
+                outerFolder = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "/study_data"
+                outerFolder_save_plots = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "_plots/"
             elif self.fridge.upper() == 'NEXUS':
                 outerFolder = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/" + folder_date + "/"
                 outerFolder_save_plots = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/" + folder_date + "_plots/"
@@ -516,9 +516,9 @@ class T1VsTime:
     def plot_without_errs(self, date_times, t1_vals, show_legends):
         #---------------------------------plot-----------------------------------------------------
         if self.fridge.upper() == 'QUIET':
-            analysis_folder = f"/data/QICK_data/{self.run_name}/benchmark_analysis_plots/"
+            analysis_folder = f"M:/_Data/20250822 - Olivia/{self.run_name}/benchmark_analysis_plots/"
             self.create_folder_if_not_exists(analysis_folder)
-            analysis_folder = f"/data/QICK_data/{self.run_name}/benchmark_analysis_plots/features_vs_time/"
+            analysis_folder = f"M:/_Data/20250822 - Olivia/{self.run_name}/benchmark_analysis_plots/features_vs_time/"
             self.create_folder_if_not_exists(analysis_folder)
         elif self.fridge.upper() == 'NEXUS':
             analysis_folder = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/benchmark_analysis_plots/"
@@ -606,9 +606,9 @@ class T1VsTime:
     def plot_with_errs(self, date_times, t1_vals, t1_fit_err, show_legends,exp_extension=''):
         # ---------------------------------plot-----------------------------------------------------
         if self.fridge.upper() == 'QUIET':
-            analysis_folder = f"/data/QICK_data/{self.run_name}/benchmark_analysis_plots/"
+            analysis_folder = f"M:/_Data/20250822 - Olivia/{self.run_name}/benchmark_analysis_plots/"
             self.create_folder_if_not_exists(analysis_folder)
-            analysis_folder = f"/data/QICK_data/{self.run_name}/benchmark_analysis_plots/features_vs_time/"
+            analysis_folder = f"M:/_Data/20250822 - Olivia/{self.run_name}/benchmark_analysis_plots/features_vs_time/"
             self.create_folder_if_not_exists(analysis_folder)
         elif self.fridge.upper() == 'NEXUS':
             analysis_folder = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/benchmark_analysis_plots/"
@@ -697,9 +697,9 @@ class T1VsTime:
 
     def plot_with_errs_single_plot(self, date_times, t1_vals, t1_fit_err, show_legends):
         if self.fridge.upper() == 'QUIET':
-            analysis_folder = f"/data/QICK_data/{self.run_name}/benchmark_analysis_plots/"
+            analysis_folder = f"M:/_Data/20250822 - Olivia/{self.run_name}/benchmark_analysis_plots/"
             self.create_folder_if_not_exists(analysis_folder)
-            analysis_folder = f"/data/QICK_data/{self.run_name}/benchmark_analysis_plots/features_vs_time/"
+            analysis_folder = f"M:/_Data/20250822 - Olivia/{self.run_name}/benchmark_analysis_plots/features_vs_time/"
             self.create_folder_if_not_exists(analysis_folder)
         elif self.fridge.upper() == 'NEXUS':
             analysis_folder = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/benchmark_analysis_plots/"
@@ -754,9 +754,9 @@ class T1VsTime:
 
     def plot_allan_deviation(self, date_times, vals, show_legends, label="T1"):
 
-        analysis_folder = f"/data/QICK_data/{self.run_name}/benchmark_analysis_plots/"
+        analysis_folder = f"M:/_Data/20250822 - Olivia/{self.run_name}/benchmark_analysis_plots/"
         self.create_folder_if_not_exists(analysis_folder)
-        analysis_folder = f"/data/QICK_data/{self.run_name}/benchmark_analysis_plots/allan_stats/"
+        analysis_folder = f"M:/_Data/20250822 - Olivia/{self.run_name}/benchmark_analysis_plots/allan_stats/"
         self.create_folder_if_not_exists(analysis_folder)
 
         font = 14

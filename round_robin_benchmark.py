@@ -3,7 +3,7 @@ import sys
 import os
 import numpy as np
 
-# from tprocv2_demos.qick_tprocv2_experiments_mux.long_qubit_spectroscopy import fh_config
+# from long_qubit_spectroscopy import fh_config
 
 np.set_printoptions(threshold=int(1e15)) #need this so it saves absolutely everything returned from the classes
 import datetime
@@ -33,9 +33,6 @@ from section_010_T2E_ge import T2EMeasurement
 from system_config import QICK_experiment
 from section_003_punch_out_ge_mux import PunchOut
 from expt_config import expt_cfg, list_of_all_qubits, tot_num_of_qubits, FRIDGE
-from test_active_reset import Active_Reset_test
-from analysis_021_plot_allRR_noqick import PlotRR_noQick
-from analysis_020_gef_ssf_fstate_plots import GEF_SSF_ANALYSIS
 ################################################ Run Configurations ####################################################
 st = time.time()
 #
@@ -61,8 +58,8 @@ multiply_qubit_reps_by = 2           # only has impact if the line two above is 
 Qs_to_look_at = [0,1,2,3,5]#[0,1,2,5]#,1,2,3,4,5]       # only list the qubits you want to do the RR for
 
 #Data saving info
-run_name = 'run7'
-device_name = '6transmon'
+run_name = 'bob_run_started_Aug_23'
+device_name = 'squill'
 substudy_txt_notes = ('FH Spec Study. We will move the source about 50cm away from the fridge')#('Active Reset Test')##('round robin with relax delays of 1000us for T1 and T2 measurements.')#('Active Reset Test')#('Normal Round Robin during cooldown, now everything works properly, set debug to false to run '
                       # 'overFalsenight and running in terminal with repeater script')
 
@@ -86,15 +83,15 @@ number_of_qubits = 6
 figure_quality = 200
 ################################################ Data Saving Setup ##################################################
 #Folders
-study = 'warm_up_res_data'
-sub_study = 'FH_Spec_Q2_Source_distance'#junkyard'#'AB_data_relax_delays_1000us'#'Active_Reset_Test'#'temperature_sweep'#'AB_tests_data'
+study = 'debug_and_setup'
+sub_study = 'rr'
 data_set = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
-if not os.path.exists(f"/data/QICK_data/{run_name}/"):
-    os.makedirs(f"/data/QICK_data/{run_name}/")
-if not os.path.exists(f"/data/QICK_data/{run_name}/{device_name}/"):
-    os.makedirs(f"/data/QICK_data/{run_name}/{device_name}/")
-studyFolder = os.path.join(f"/data/QICK_data/{run_name}/{device_name}/", study)
+if not os.path.exists(f"M:/_Data/20250822 - Olivia/{run_name}/"):
+    os.makedirs(f"M:/_Data/20250822 - Olivia/{run_name}/")
+if not os.path.exists(f"M:/_Data/20250822 - Olivia/{run_name}/{device_name}/"):
+    os.makedirs(f"M:/_Data/20250822 - Olivia/{run_name}/{device_name}/")
+studyFolder = os.path.join(f"M:/_Data/20250822 - Olivia/{run_name}/{device_name}/", study)
 if not os.path.exists(studyFolder):
     os.makedirs(studyFolder)
 subStudyFolder = os.path.join(studyFolder, sub_study)
@@ -379,7 +376,7 @@ if pre_optimize:
 
         # ################### length rabi test ################
         # from section_006p5_length_rabi_ge import LengthRabiExperiment
-        # len_rabi = LengthRabiExperiment(Q, tot_num_of_qubits, '/data/QICK_data/run6/6transmon/test/', 0,
+        # len_rabi = LengthRabiExperiment(Q, tot_num_of_qubits, 'M:/_Data/20250822 - Olivia/run6/6transmon/test/', 0,
         #                                signal, save_figs=True, experiment=experiment,
         #                                live_plot=live_plot,
         #                                increase_qubit_reps=increase_qubit_reps,

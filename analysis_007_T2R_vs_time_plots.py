@@ -117,8 +117,8 @@ class T2rVsTime:
         mean_values = {}
 
         for folder_date in self.top_folder_dates:
-            outerFolder = f"/data/QICK_data/{self.run_name}/" + folder_date + "/"
-            outerFolder_save_plots = f"/data/QICK_data/{self.run_name}/" + folder_date + "_plots/"
+            outerFolder = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "/"
+            outerFolder_save_plots = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "_plots/"
 
             # -------------------------------------------------------Load/Plot/Save T2------------------------------------------
             outerFolder_expt = outerFolder + "/Data_h5/T2_ge/"
@@ -183,9 +183,9 @@ class T2rVsTime:
 
     def plot_without_errs(self, date_times, t2_vals, show_legends):
         # ---------------------------------plot-----------------------------------------------------
-        analysis_folder = f"/data/QICK_data/{self.run_name}/benchmark_analysis_plots/"
+        analysis_folder = f"M:/_Data/20250822 - Olivia/{self.run_name}/benchmark_analysis_plots/"
         self.create_folder_if_not_exists(analysis_folder)
-        analysis_folder = f"/data/QICK_data/{self.run_name}/benchmark_analysis_plots/features_vs_time/"
+        analysis_folder = f"M:/_Data/20250822 - Olivia/{self.run_name}/benchmark_analysis_plots/features_vs_time/"
         self.create_folder_if_not_exists(analysis_folder)
 
         font = 14
@@ -239,9 +239,9 @@ class T2rVsTime:
 
     def plot_with_errs(self, date_times, t2_vals, t2_fit_err, show_legends):
         # ---------------------------------plot-----------------------------------------------------
-        analysis_folder = f"/data/QICK_data/{self.run_name}/benchmark_analysis_plots/"
+        analysis_folder = f"M:/_Data/20250822 - Olivia/{self.run_name}/benchmark_analysis_plots/"
         self.create_folder_if_not_exists(analysis_folder)
-        analysis_folder = f"/data/QICK_data/{self.run_name}/benchmark_analysis_plots/features_vs_time/"
+        analysis_folder = f"M:/_Data/20250822 - Olivia/{self.run_name}/benchmark_analysis_plots/features_vs_time/"
         self.create_folder_if_not_exists(analysis_folder)
 
         font = 14
@@ -301,9 +301,9 @@ class T2rVsTime:
         plt.close()
 
     def plot_with_errs_single_plot(self, date_times, t2_vals, t2_fit_err, show_legends):
-        analysis_folder = f"/data/QICK_data/{self.run_name}/benchmark_analysis_plots/"
+        analysis_folder = f"M:/_Data/20250822 - Olivia/{self.run_name}/benchmark_analysis_plots/"
         self.create_folder_if_not_exists(analysis_folder)
-        analysis_folder = f"/data/QICK_data/{self.run_name}/benchmark_analysis_plots/features_vs_time/"
+        analysis_folder = f"M:/_Data/20250822 - Olivia/{self.run_name}/benchmark_analysis_plots/features_vs_time/"
         self.create_folder_if_not_exists(analysis_folder)
         font = 14
         titles = [f"Qubit {i + 1}" for i in range(self.number_of_qubits)]
