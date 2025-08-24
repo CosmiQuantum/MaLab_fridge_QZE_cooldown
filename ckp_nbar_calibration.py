@@ -147,36 +147,83 @@ class CKPMeasurement:
         gain_sweep = np.linspace(self.config["start_gain"], self.config["end_gain"],num=self.config["gain_steps"])
         res_freq_sweep = np.linspace(self.config["res_freq_start"], self.config["res_freq_stop"], num=self.config["res_freq_steps"])
 
-        I_g = []
-        Q_g = []
-        I_e = []
-        Q_e = []
+        I_g_nested = []  # [gain][res_freq][IQ over qubit-freq sweep]
+        Q_g_nested = []
+        I_e_nested = []
+        Q_e_nested = []
+
+        sweep_points = []  # list of (gain, res_freq) actually used, in iteration order
+        qu_freq_sweep = None  # will capture once (assumed identical for g/e and across iterations)
 
         for g in gain_sweep:
-            for f in res_freq_sweep:
-                self.config['ckp_gain'] = np.round(g,3)
-                self.config['res_freq_ckp'][-1] = np.round(f, 6) #last channel pulse
-                ckp_g = CKPProgram_g(self.experiment.soccfg, reps=self.config['reps'], final_delay=self.config['relax_delay'],
-                             cfg=self.config)
-                ckp_e = CKPProgram_e(self.experiment.soccfg, reps=self.config['reps'],
-                                     final_delay=self.config['relax_delay'],
-                                     cfg=self.config)
+            # per-gain containers (these will be appended to the outer lists)
+            Ig_per_gain = []
+            Qg_per_gain = []
+            Ie_per_gain = []
+            Qe_per_gain = []
 
-                iq_list_g = ckp_g.acquire(self.experiment.soc, soft_avgs=self.config['rounds'], progress=self.qick_verbose)
+            for f in res_freq_sweep:
+                self.config['ckp_gain'] = float(np.round(g, 3))
+                self.config['res_freq_ckp'][-1] = float(np.round(f, 6))  # last channel pulse
+
+                ckp_g = CKPProgram_g(
+                    self.experiment.soccfg,
+                    reps=self.config['reps'],
+                    final_delay=self.config['relax_delay'],
+                    cfg=self.config
+                )
+                ckp_e = CKPProgram_e(
+                    self.experiment.soccfg,
+                    reps=self.config['reps'],
+                    final_delay=self.config['relax_delay'],
+                    cfg=self.config
+                )
+
+                # acquire |g>
+                iq_list_g = ckp_g.acquire(
+                    self.experiment.soc,
+                    soft_avgs=self.config['rounds'],
+                    progress=self.qick_verbose
+                )
                 i0_g = iq_list_g[self.QubitIndex][0, :, 0]
                 q0_g = iq_list_g[self.QubitIndex][0, :, 1]
-                I_g.append(i0_g)
-                Q_g.append(q0_g)
 
-                iq_list_e = ckp_e.acquire(self.experiment.soc, soft_avgs=self.config['rounds'], progress=self.qick_verbose)
+                # acquire |e>
+                iq_list_e = ckp_e.acquire(
+                    self.experiment.soc,
+                    soft_avgs=self.config['rounds'],
+                    progress=self.qick_verbose
+                )
                 i0_e = iq_list_e[self.QubitIndex][0, :, 0]
                 q0_e = iq_list_e[self.QubitIndex][0, :, 1]
-                I_e.append(i0_e)
-                Q_e.append(q0_e)
 
-                qu_freq_sweep = ckp_g.get_pulse_param("qubit_pulse","freq", as_array=True)
+                # append IQ vectors (over qubit-freq sweep) at the innermost level
+                Ig_per_gain.append(i0_g)
+                Qg_per_gain.append(q0_g)
+                Ie_per_gain.append(i0_e)
+                Qe_per_gain.append(q0_e)
 
-        return I_g, Q_g, I_e, Q_e, qu_freq_sweep, gain_sweep, res_freq_sweep, self.config
+                # record the sweep point
+                sweep_points.append((float(np.round(g, 3)), float(np.round(f, 6))))
+
+                # capture qubit frequency sweep array once
+                if qu_freq_sweep is None:
+                    qu_freq_sweep = ckp_g.get_pulse_param("qubit_pulse", "freq", as_array=True)
+
+            # finish this gain
+            I_g_nested.append(Ig_per_gain)
+            Q_g_nested.append(Qg_per_gain)
+            I_e_nested.append(Ie_per_gain)
+            Q_e_nested.append(Qe_per_gain)
+
+        # I_g_nested[g_idx][f_idx] -> np.array of I over qubit-freq points
+        # Q_g_nested[g_idx][f_idx] -> np.array of Q over qubit-freq points
+        # I_e_nested[g_idx][f_idx] -> np.array of I over qubit-freq points
+        # Q_e_nested[g_idx][f_idx] -> np.array of Q over qubit-freq points
+        # qu_freq_sweep            -> np.array of the qubit frequency axis (innermost)
+        # sweep_points             -> list of (gain, res_freq) for each (g,f) in iteration order
+
+        return (I_g_nested, Q_g_nested, I_e_nested, Q_e_nested, qu_freq_sweep, gain_sweep, res_freq_sweep, sweep_points, self.config)
 
     def set_res_gain_ge(self, QUBIT_INDEX, num_qubits=6):
         """Sets the gain for the selected qubit to 1, others to 0."""

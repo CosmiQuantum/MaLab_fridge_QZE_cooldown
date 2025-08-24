@@ -151,7 +151,6 @@ class starkT2RProgram(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
-        stark_ch = cfg['qubit_ampl_ch']
 
         self.add_loop("waitloop", cfg["steps"])
 
@@ -180,20 +179,17 @@ class starkT2RProgram(AveragerProgramV2):
                        )
 
         #self.add_gauss(ch=qubit_ch, name="stark_ramp", sigma=cfg['stark_sigma'], length = cfg['stark_sigma'] *2, maxv=cfg['stark_gain'])
-        self.add_pulse(ch=stark_ch, name="stark_tone",
+        self.add_pulse(ch=res_ch, name="stark_tone",
                        style="const",
-                       #envelope="stark_ramp",
-                       freq=cfg['qubit_freq_ge'] + cfg['detuning'],
-                       phase=cfg['qubit_phase'],
-                       gain=cfg['stark_gain'],
-                       length=cfg['wait_time'],
+                       length=5, #5us like archana/thorbeck paper
+                       mask=cfg["list_of_all_qubits"],
                        )
 
         self.add_pulse(ch=qubit_ch, name="qubit_pulse2",
                        style="arb",
                        envelope="ramp",
                        freq=cfg['qubit_freq_ge'],
-                       phase=cfg['qubit_phase'] + cfg['wait_time']*360*cfg['ramsey_freq'], # current phase + time * 2pi * ramsey freq
+                       phase=cfg['qubit_phase'] + cfg['wait_time']*360*cfg['ramsey_freq'], # current phase + wait_time * 2pi * ramsey freq (10mhz)
                        gain=cfg['pi_amp'] / 2,
                       )
 
@@ -201,9 +197,9 @@ class starkT2RProgram(AveragerProgramV2):
     def _body(self, cfg):
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse1", t=0)  # play probe pulse
         self.delay_auto(0.01, tag='wait')  # wait_time after last pulse
-        self.pulse(ch=cfg["qubit_ampl_ch"], name="stark_tone", t=0)
-        self.delay_auto(0.01, tag="wait stark")
-        self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse2", t=0)  # play probe pulse
+        self.pulse(ch=cfg["res_ch"], name="stark_tone", t=0) #play for 5 us
+        self.delay_auto(3, tag="wait stark") #now its probably done, wait 3us to readout
+        self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse2", t=0)  # pi/2 before readout
         self.delay_auto(0.01)  # wait_time after last pulse
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
         self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])

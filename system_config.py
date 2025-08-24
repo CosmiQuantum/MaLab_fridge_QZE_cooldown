@@ -13,7 +13,7 @@ import numpy as np
 class QICK_experiment:
     def __init__(self, folder, DAC_attenuator1 = 10, DAC_attenuator2 = 15, qubit_DAC_attenuator1 = 5,
                                      qubit_DAC_attenuator2 = 4, ADC_attenuator = 17, fridge = None):
-        if fridge == "QUIET":
+        if fridge == "QUIET" or fridge == "BOB":
             # Where do you want to save data
             self.outerFolder = folder
             self.create_folder_if_not_exists(self.outerFolder)
@@ -29,7 +29,7 @@ class QICK_experiment:
             self.soc, self.soccfg = makeProxy()
             print(self.soccfg)
 
-            self.FSGEN_CH      = 5 # 0 for "old QICK", 5 for RF board 7/21/2025
+            self.FSGEN_CH = 5 # 0 for "old QICK", 5 for RF board 7/21/2025
             self.FSGEN_AMPL_CH = 2
             self.MIXMUXGEN_CH  = 4 # Readout resonator DAC channel
             self.MUXRO_CH = [2, 3, 4, 5, 6, 7]
