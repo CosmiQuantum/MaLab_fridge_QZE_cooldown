@@ -378,9 +378,9 @@ class QTempsVsTime:
 
     def plot(self, date_times, temps, show_legends):
         #---------------------------------plot-----------------------------------------------------
-        analysis_folder = f"/data/QICK_data/{self.run_name}/benchmark_analysis_plots/"
+        analysis_folder = f"M:/_Data/20250822 - Olivia/{self.run_name}/benchmark_analysis_plots/"
         self.create_folder_if_not_exists(analysis_folder)
-        analysis_folder = f"/data/QICK_data/{self.run_name}/benchmark_analysis_plots/features_vs_time/"
+        analysis_folder = f"M:/_Data/20250822 - Olivia/{self.run_name}/benchmark_analysis_plots/features_vs_time/"
         self.create_folder_if_not_exists(analysis_folder)
 
         from datetime import datetime

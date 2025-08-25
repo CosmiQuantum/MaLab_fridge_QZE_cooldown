@@ -55,7 +55,7 @@ top_folder_dates = ['2025-02-21','2025-02-23','2025-03-11','2025-03-12','2025-03
 
 #
 date = '2025-03-28'
-outerFolder = f"/data/QICK_data/{run_name}/" + date + "/"
+outerFolder = f"M:/_Data/20250822 - Olivia/{run_name}/" + date + "/"
 # ################################################ 01: Get all data ######################################################
 res_spec_vs_time = ResonatorFreqVsTime(figure_quality, final_figure_quality, tot_num_of_qubits, top_folder_dates,
                                        save_figs, fit_saved, signal, run_name)
@@ -83,8 +83,8 @@ date_times_t2e, t2e_vals, t2e_fit_err = t2e_vs_time.run(return_errs=True)
 #
 # # # ####################################### 02: Plot All Individual Data Plots ###########################################
 #date = '2025-04-02'  #only plot all of the data for one date at a time because there is a lot
-#outerFolder = f"/data/QICK_data/{run_name}/" + date + "/"
-# outerFolder_save_plots = f"/data/QICK_data/{run_name}/" + date + "_plots/"
+#outerFolder = f"M:/_Data/20250822 - Olivia/{run_name}/" + date + "/"
+# outerFolder_save_plots = f"M:/_Data/20250822 - Olivia/{run_name}/" + date + "_plots/"
 # plotter = PlotAllRR(date, figure_quality, save_figs, fit_saved, signal, run_name, tot_num_of_qubits, outerFolder,
 #                   outerFolder_save_plots)
 # plotter.run(plot_res_spec = False, plot_q_spec = False, plot_rabi = False, plot_ss = True, plot_t1 = False,
@@ -200,7 +200,7 @@ t2e_vals_r2 = loaded_data['t2e_vals']
 # q1_temps = all_qubit_temps[0]
 #
 # # # ########################################## 16: Metrics Vs Temperature Plots ############################################
-# therm = GetThermData(f'/data/QICK_data/{run_name}/Thermometer_Data/')
+# therm = GetThermData(f'M:/_Data/20250822 - Olivia/{run_name}/Thermometer_Data/')
 # #mcp2_dates are just the dates over which thermometry data was taken, works for both datasets
 # mcp2_dates, mcp2_temps, magcan_temps = therm.run()
 #
@@ -321,15 +321,15 @@ plotter.scatter_plot_two_y_axis(date_times_q_spec, q_freqs, date_times_q_spec, q
 
 # plot SSF historgrams nicely
 #
-# outerFolder = '/data/QICK_data/run6/6transmon/Round_Robin_Benchmark/Data/2025-03-15/'
-# outerFolder_save_plots = f"/data/QICK_data/{run_name}/Round_Robin_Benchmark/Data/run3_ss_hist_plots/"
+# outerFolder = 'M:/_Data/20250822 - Olivia/run6/6transmon/Round_Robin_Benchmark/Data/2025-03-15/'
+# outerFolder_save_plots = f"M:/_Data/20250822 - Olivia/{run_name}/Round_Robin_Benchmark/Data/run3_ss_hist_plots/"
 # plotter = PlotAllRR('2025-03-15', figure_quality, save_figs, fit_saved, signal, run_name, tot_num_of_qubits, outerFolder,
 #                   outerFolder_save_plots)
 # plotter.run(plot_res_spec = False, plot_q_spec = False, plot_rabi = False, plot_ss = True, plot_ss_hist_only=True,
 #             ss_plot_title='Run 3', plot_t1 = False,
 #             plot_t2r = False, plot_t2e = False)
 # outerFolder = '/home/quietuser/Downloads/2024-12-17-20250316T015414Z-001/2024-12-17/'
-# outerFolder_save_plots = f"/data/QICK_data/{run_name}/Round_Robin_Benchmark/Data/run2_ss_hist_plots/"
+# outerFolder_save_plots = f"M:/_Data/20250822 - Olivia/{run_name}/Round_Robin_Benchmark/Data/run2_ss_hist_plots/"
 # plotter = PlotAllRR('2024-12-17', figure_quality, save_figs, fit_saved, signal, run_name, tot_num_of_qubits, outerFolder,
 #                   outerFolder_save_plots)
 # plotter.run(plot_res_spec = False, plot_q_spec = False, plot_rabi = False, plot_ss = True, plot_ss_hist_only=True,

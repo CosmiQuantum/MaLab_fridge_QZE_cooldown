@@ -11,11 +11,11 @@ import datetime
 # outerFolder = outerFolder1 + "/readout_opt/Gain_Freq_Sweeps/"
 
 #For QUIET
-#outerFolder1 = os.path.join("/data/QICK_data/6transmon_run6/", '2025-03-02')
-# outerFolder1 = os.path.join("/data/QICK_data/run6/6transmon/ef_studies/Optimization/", str(datetime.date.today())) # for RR folders
-# outerFolder = "/data/QICK_data/run7/6transmon/readout_optimization/unmasking_resgain/2025-07-18_21-34-17/study_data/Data_h5/2D_Gain_Freq_Sweeps"
-outerFolder = "/data/QICK_data/run7/6transmon/readout_optimization/qick_box_optimization/2025-07-29_22-13-25/study_data/Data_h5/2D_Gain_Freq_Sweeps"
-#/data/QICK_data/run7/6transmon/readout_optimization/junkyard/2025-07-28_12-25-16/study_data/Data_h5/2D_Gain_Freq_Sweeps
+#outerFolder1 = os.path.join("M:/_Data/20250822 - Olivia/6transmon_run6/", '2025-03-02')
+# outerFolder1 = os.path.join("M:/_Data/20250822 - Olivia/run6/6transmon/ef_studies/Optimization/", str(datetime.date.today())) # for RR folders
+# outerFolder = "M:/_Data/20250822 - Olivia/run7/6transmon/readout_optimization/unmasking_resgain/2025-07-18_21-34-17/study_data/Data_h5/2D_Gain_Freq_Sweeps"
+outerFolder = "M:/_Data/20250822 - Olivia/run7/6transmon/readout_optimization/qick_box_optimization/2025-07-29_22-13-25/study_data/Data_h5/2D_Gain_Freq_Sweeps"
+#M:/_Data/20250822 - Olivia/run7/6transmon/readout_optimization/junkyard/2025-07-28_12-25-16/study_data/Data_h5/2D_Gain_Freq_Sweeps
 print('For files inside: ', outerFolder)
 
 def find_max_fidelity(file_path):

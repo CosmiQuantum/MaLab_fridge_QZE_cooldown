@@ -4,7 +4,7 @@ from copy import deepcopy
 
 import numpy as np
 
-from tprocv2_demos.qick_tprocv2_experiments_mux.T2R_stark import starkT2RMeasurement
+from T2R_stark import starkT2RMeasurement
 
 np.set_printoptions(threshold=int(1e15)) #need this so it saves absolutely everything returned from the classes
 import datetime
@@ -41,11 +41,11 @@ thresholding = False                 # use internal QICK threshold for ratio of 
 increase_qubit_reps = False          # if you want to increase the reps for a qubit, set to True
 qubit_to_increase_reps_for = 0       # only has impact if previous line is True
 multiply_qubit_reps_by = 2           # only has impact if the line two above is True
-Qs_to_look_at = [0]        # only list the qubits you want to do the RR for
+Qs_to_look_at = [0,1,2,3,4,5]        # only list the qubits you want to do the RR for
 
 #Data saving info
-run_name = 'run7'
-device_name = '6transmon'
+run_name = 'bob_run_started_Aug_23'
+device_name = 'squill'
 substudy_txt_notes = ('testing')
 
 study = 'QZE_IBM'
@@ -110,11 +110,11 @@ data_set = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss": True, "rabi": True,
              "t1": True}
 
-if not os.path.exists(f"/data/QICK_data/{run_name}/"):
-    os.makedirs(f"/data/QICK_data/{run_name}/")
-if not os.path.exists(f"/data/QICK_data/{run_name}/{device_name}/"):
-    os.makedirs(f"/data/QICK_data/{run_name}/{device_name}/")
-studyFolder = os.path.join(f"/data/QICK_data/{run_name}/{device_name}/", study)
+if not os.path.exists(f"M:/_Data/20250822 - Olivia/{run_name}/"):
+    os.makedirs(f"M:/_Data/20250822 - Olivia/{run_name}/")
+if not os.path.exists(f"M:/_Data/20250822 - Olivia/{run_name}/{device_name}/"):
+    os.makedirs(f"M:/_Data/20250822 - Olivia/{run_name}/{device_name}/")
+studyFolder = os.path.join(f"M:/_Data/20250822 - Olivia/{run_name}/{device_name}/", study)
 if not os.path.exists(studyFolder):
     os.makedirs(studyFolder)
 subStudyFolder = os.path.join(studyFolder, sub_study)

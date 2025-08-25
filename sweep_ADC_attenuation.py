@@ -13,7 +13,7 @@ from section_001_time_of_flight import TOFExperiment
 
 #sweep_ADC_attenuator = [10,15,20,25,30] #np.linspace(5,20, 4)
 sweep_ADC_attenuator = np.linspace(0,30, 100)
-outerFolder = "/data/QICK_data/6transmon_run4a/" + str(datetime.date.today()) + "/TOF_ADC_test/"
+outerFolder = "M:/_Data/20250822 - Olivia/6transmon_run4a/" + str(datetime.date.today()) + "/TOF_ADC_test/"
 
 avg_mag_y_mid_DAC_atts = [] #list of 2 lists for each DAC att, each with 6 sublists for each Q
 avg_mag_y_oct_DAC_atts = []

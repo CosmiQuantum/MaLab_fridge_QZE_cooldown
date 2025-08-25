@@ -37,11 +37,11 @@ thresholding = False                 # use internal QICK threshold for ratio of 
 increase_qubit_reps = False          # if you want to increase the reps for a qubit, set to True
 qubit_to_increase_reps_for = 0       # only has impact if previous line is True
 multiply_qubit_reps_by = 2           # only has impact if the line two above is True
-Qs_to_look_at = [0]        # only list the qubits you want to do the RR for
+Qs_to_look_at = [0,1,2,3,4,5]        # only list the qubits you want to do the RR for
 
 #Data saving info
-run_name = 'run7'
-device_name = '6transmon'
+run_name = 'bob_run_started_Aug_23'
+device_name = 'squill'
 substudy_txt_notes = ('testing')
 
 study = 'QZE_IBM'
@@ -106,11 +106,11 @@ data_set = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss": True, "rabi": True,
              "t1": True}
 
-if not os.path.exists(f"/data/QICK_data/{run_name}/"):
-    os.makedirs(f"/data/QICK_data/{run_name}/")
-if not os.path.exists(f"/data/QICK_data/{run_name}/{device_name}/"):
-    os.makedirs(f"/data/QICK_data/{run_name}/{device_name}/")
-studyFolder = os.path.join(f"/data/QICK_data/{run_name}/{device_name}/", study)
+if not os.path.exists(f"M:/_Data/20250822 - Olivia/{run_name}/"):
+    os.makedirs(f"M:/_Data/20250822 - Olivia/{run_name}/")
+if not os.path.exists(f"M:/_Data/20250822 - Olivia/{run_name}/{device_name}/"):
+    os.makedirs(f"M:/_Data/20250822 - Olivia/{run_name}/{device_name}/")
+studyFolder = os.path.join(f"M:/_Data/20250822 - Olivia/{run_name}/{device_name}/", study)
 if not os.path.exists(studyFolder):
     os.makedirs(studyFolder)
 subStudyFolder = os.path.join(studyFolder, sub_study)
@@ -303,7 +303,7 @@ for QubitIndex in Qs_to_look_at:
         del saver_rabi
         del rabi_data
         ################### calibrate ################
-        ckp_keys = ['Dates', 'I_e', 'Q_e','I_g', 'Q_g', 'Qu Frequency Sweep', 'Res Gain Sweep', 'Round Num', 'Batch Num',
+        ckp_keys = ['Dates', 'I_e', 'Q_e','I_g', 'Q_g', 'Qu Frequency Sweep', 'Res Gain Sweep', 'Res Freq Sweep in order', 'Round Num', 'Batch Num',
                         'Exp Config',
                         'Syst Config']
 
@@ -318,7 +318,7 @@ for QubitIndex in Qs_to_look_at:
 
         ckp = CKPMeasurement(QubitIndex, tot_num_of_qubits, qubitFolder, j, signal, save_figs, res_freq_ckp, res_phase_ckp,
                                   experiment=experiment, fit_data=True, verbose=verbose, logger=logging)
-        ckp_I_g, ckp_Q_g, ckp_I_e, ckp_Q_e, ckp_qu_freq_sweep, ckp_gain_sweep, res_freq_sweep, sys_config_ckp = ckp.run()
+        ckp_I_g, ckp_Q_g, ckp_I_e, ckp_Q_e, ckp_qu_freq_sweep, ckp_gain_sweep, res_freq_sweep, sweep_in_order, sys_config_ckp = ckp.run()
 
         ckp_data[QubitIndex]['Dates'][0] = time.mktime(datetime.datetime.now().timetuple())
         ckp_data[QubitIndex]['I_e'][0] = ckp_I_e
@@ -327,6 +327,7 @@ for QubitIndex in Qs_to_look_at:
         ckp_data[QubitIndex]['Q_g'][0] = ckp_Q_g
         ckp_data[QubitIndex]['Qu Frequency Sweep'][0] = ckp_qu_freq_sweep
         ckp_data[QubitIndex]['Res Gain Sweep'][0] = ckp_gain_sweep
+        ckp_data[QubitIndex]['Res Freq Sweep in order'][0] = sweep_in_order
         ckp_data[QubitIndex]['Round Num'][0] = 0
         ckp_data[QubitIndex]['Batch Num'][0] = 0
         ckp_data[QubitIndex]['Exp Config'][0] = expt_cfg

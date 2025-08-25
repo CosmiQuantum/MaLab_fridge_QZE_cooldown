@@ -36,10 +36,10 @@ list_of_all_qubits = [0, 1, 2, 3, 4, 5] #for QUIET [0, 1, 2, 3, 4, 5], for NEXUS
 
 # For Quiet
 substudy = "qick_box_optimization"#unmasking_resgain"
-# outerFolder = os.path.join("/data/QICK_data/6transmon_run6/", str(datetime.date.today()))
-#outerFolder = os.path.join("/data/QICK_data/run6/6transmon/StarkShift/DAC0_check/Optimization/run2/", str(datetime.date.today()))
-#outerFolder = os.path.join(f"/data/QICK_data/run6/6transmon/TLS_Comprehensive_Study/readout_optimization_{datetime.date.today().strftime('%Y-%m-%d')}", datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-outerFolder = os.path.join(f"/data/QICK_data/run7/6transmon/readout_optimization/{substudy}/{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}/")
+# outerFolder = os.path.join("M:/_Data/20250822 - Olivia/6transmon_run6/", str(datetime.date.today()))
+#outerFolder = os.path.join("M:/_Data/20250822 - Olivia/run6/6transmon/StarkShift/DAC0_check/Optimization/run2/", str(datetime.date.today()))
+#outerFolder = os.path.join(f"M:/_Data/20250822 - Olivia/run6/6transmon/TLS_Comprehensive_Study/readout_optimization_{datetime.date.today().strftime('%Y-%m-%d')}", datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+outerFolder = os.path.join(f"M:/_Data/20250822 - Olivia/run7/6transmon/readout_optimization/{substudy}/{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}/")
 def create_folder_if_not_exists(folder_path):
     """Creates a folder at the given path if it doesn't already exist."""
     if not os.path.exists(folder_path):

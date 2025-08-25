@@ -118,7 +118,7 @@ class LengthRabiExperimentQZE:
                     if updated_config['qubit_length_ge'] > 0.11:
                         exp_spec=deepcopy(exp)
                         exp_spec.qubit_cfg['qubit_length_ge'] = length #update the length of the qubit pulse drive, this is used for zeno/stark pulse inside of qspec
-                        q_spec = QubitSpectroscopy(self.QubitIndex, tot_num_of_qubits, "/data/QICK_data/run6/6transmon/QZE/QZE_measurement/Documentation/", 0,
+                        q_spec = QubitSpectroscopy(self.QubitIndex, tot_num_of_qubits, "M:/_Data/20250822 - Olivia/run6/6transmon/QZE/QZE_measurement/Documentation/", 0,
                                                    'None', save_figs=True, experiment=exp_spec,
                                                    live_plot=False, verbose=False,
                                                    qick_verbose=True, zeno_stark=True, zeno_stark_pulse_gain=self.zeno_pulse_gain) #update the zeno gain inside the qspec class when redefining the lists for a 7th channel

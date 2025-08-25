@@ -1,8 +1,8 @@
 import numpy as np
 
-FRIDGE = "QUIET"  # change to "NEXUS" as needed
+FRIDGE = "BOB"
 
-if FRIDGE == "QUIET":
+if FRIDGE == "QUIET" or FRIDGE == "BOB":
     VNA_res = np.array([6223.097, 6284.61, 6343.95, 6414.9, 6481.4, 6547.09])#*1000  # run 5
     #VNA_res = np.array([6217.011, 6275.7973, 6335.1068, 6407.052, 6476.1091, 6538])
     # VNA_res = np.array([6191.519, 6216, 6292.321, 6405.85, 6432.959, 6468.441,]) # run 4a
@@ -326,7 +326,7 @@ if FRIDGE == "QUIET":
             "start_gain": 0.0,
             "end_gain": 1.0,
             "gain_steps": 7,
-            "ramsey_freq": 0.5, # [MHz]
+            "ramsey_freq": 10, # [MHz]
             "relax_delay": 1000,
             "wait_time": 0.0,  # [us]
             "stark_gain": 0.0,
