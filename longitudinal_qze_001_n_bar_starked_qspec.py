@@ -166,7 +166,6 @@ for QubitIndex in Qs_to_look_at:
 
         # Mask out all other resonators except this one
         experiment.readout_cfg['res_gain_ge'] = res_gain[QubitIndex]
-        experiment.readout_cfg['res_gain_ef'] = res_gains
         experiment.readout_cfg['res_length'] = res_leng_vals[QubitIndex]
         ################################ Do Res spec once per qubit and store the value ####################################
         if run_flags["res_spec"]:
@@ -178,7 +177,7 @@ for QubitIndex in Qs_to_look_at:
                 offset = freq_offsets[
                     QubitIndex]  # use optimized offset values or whats set at top of script based on pre_optimize flag
                 offset_res_freqs = [r + offset for r in res_freqs]
-                experiment.readout_cfg['res_freq_ge'] = offset_res_freqs
+                experiment.readout_cfg['res_freq_ge'] = offset_res_freqs[QubitIndex]
                 del res_spec
 
                 res_data[QubitIndex]['Dates'][0] = (
@@ -220,11 +219,11 @@ for QubitIndex in Qs_to_look_at:
                 print(qubit_freq)
                 if qspec_I_fit is None and qspec_Q_fit is None and qubit_freq is None:
                     if stored_qspec_list[QubitIndex] is not None:
-                        experiment.qubit_cfg['qubit_freq_ge'][QubitIndex] = stored_qspec_list[QubitIndex]
+                        experiment.qubit_cfg['qubit_freq_ge'] = stored_qspec_list[QubitIndex]
                         rr_logger.warning(f"Using previous stored value: {stored_qspec_list[QubitIndex]}")
                         recycled_qfreq = True
 
-                        experiment.qubit_cfg['qubit_freq_ge'][QubitIndex] = float(qubit_freq)
+                        experiment.qubit_cfg['qubit_freq_ge'] = float(qubit_freq)
                         stored_qspec_list[QubitIndex] = float(qubit_freq)
                         if verbose:
                             print(f"Using previous stored value: {qubit_freq}")
@@ -237,7 +236,7 @@ for QubitIndex in Qs_to_look_at:
                         continue
 
                 else:
-                    experiment.qubit_cfg['qubit_freq_ge'][QubitIndex] = float(qubit_freq)
+                    experiment.qubit_cfg['qubit_freq_ge'] = float(qubit_freq)
                     stored_qspec_list[QubitIndex] = float(qubit_freq)
 
                 qspec_data[QubitIndex]['Dates'][0] = (

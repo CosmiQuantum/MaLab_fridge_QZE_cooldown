@@ -273,7 +273,7 @@ if pre_optimize:
                                              save_figs=True, experiment=experiment, verbose=verbose,
                                              logger=rr_logger, qick_verbose=True)
             res_freqs, freq_pts, freq_center, amps, sys_config_rspec = res_spec.run()
-            experiment.readout_cfg['res_freq_ge'] = res_freqs
+            experiment.readout_cfg['res_freq_ge'] = res_freqs[QubitIndex]
             rr_logger.info(f"g-e ResSpec for qubit {Q}: {res_freqs}")
 
             res_data[Q]['Dates'][0] = (
@@ -437,7 +437,7 @@ while j < n:
                 res_freqs, freq_pts, freq_center, amps, sys_config_rspec = res_spec.run()
                 offset = freq_offsets[QubitIndex] #use optimized offset values or whats set at top of script based on pre_optimize flag
                 offset_res_freqs = [r + offset for r in res_freqs]
-                experiment.readout_cfg['res_freq_ge'] = offset_res_freqs
+                experiment.readout_cfg['res_freq_ge'] = offset_res_freqs[QubitIndex]
                 del res_spec
 
             except Exception as e:

@@ -88,12 +88,12 @@ for QubitIndex in Qs:
     res_spec = ResonanceSpectroscopy(QubitIndex, number_of_qubits, outerfolder_plots, j, True,
                                      experiment, unmasking_resgain = unmask)
     res_freqs, freq_pts, freq_center, amps, res_spec_config = res_spec.run()
-    experiment.readout_cfg['res_freq_ge'] = res_freqs
+    experiment.readout_cfg['res_freq_ge'] = res_freqs[QubitIndex]
 
     # incorporating offset (if you don't want to, then set all values inside freq_offsets to zero)
     offset = freq_offsets[QubitIndex]  # use optimized offset values
     offset_res_freqs = [r + offset for r in res_freqs]
-    experiment.readout_cfg['res_freq_ge'] = offset_res_freqs
+    experiment.readout_cfg['res_freq_ge'] = offset_res_freqs[QubitIndex]
 
     # Used later when optimizing res gains and freqs, decide if you want to set the offsets to zero or not for the first round
     this_res_freq = offset_res_freqs[QubitIndex]
@@ -112,7 +112,7 @@ for QubitIndex in Qs:
         print('QSpec fit didnt work, skipping the rest of this qubit')
         continue  # skip the rest of this qubit
 
-    experiment.qubit_cfg['qubit_freq_ge'][QubitIndex] = float(qubit_freq)
+    experiment.qubit_cfg['qubit_freq_ge'] = float(qubit_freq)
     print('Qubit freq for qubit ', QubitIndex + 1, ' is: ', float(qubit_freq))
     del q_spec
 
@@ -132,7 +132,7 @@ for QubitIndex in Qs:
         print('Rabi fit didnt work, skipping the rest of this qubit')
         continue  # skip the rest of this qubit
 
-    experiment.qubit_cfg['pi_amp'][QubitIndex] = float(pi_amp)
+    experiment.qubit_cfg['pi_amp'] = float(pi_amp)
     print('Pi amplitude for qubit ', QubitIndex + 1, ' is: ', float(pi_amp))
 
 
