@@ -1465,26 +1465,18 @@ class AmplitudeRabiProgram(AveragerProgramV2):
         qubit_ch = cfg['qubit_ch']
 
         # Define a generator for the readout pulses with the gains, phases, and mixer/mux frequencies
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=ro_ch[0],
-                         mux_freqs=cfg['res_freq_ge'],
-                         mux_gains=cfg['res_gain_ge'],
-                         mux_phases=cfg['res_phase'],
-                         mixer_freq=cfg['mixer_freq'])
-        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ge'], cfg['ro_phase']):
-            # We have many qubits and many readout channels, so go through all of them and declare a readout for each
-            # of them to tell the system how long the readout pulse is and qhat its freq and phase should be
-            self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=res_ch)
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         # Configure the hardware to set this sort of pulse that we can trigger later
         # This has a rectangle pulse becuase style="const"
-        self.add_pulse(ch=res_ch, name="res_pulse",
+        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
                        style="const",
                        length=cfg["res_length"],
-                       mask=cfg["list_of_all_qubits"],
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
                        )
-        # Tell the system via another generator how to set up the qubit drive pulse
-        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'], mixer_freq=cfg['qubit_mixer_freq'])
-        # Add a gaussian envolope for the pulse shape with wdith sigma and total length 4sigma
-        # print("cfg['sigma']", cfg['sigma'])
+        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
         self.add_gauss(ch=qubit_ch, name="ramp", sigma=cfg['sigma'], length=cfg['sigma'] * 4, even_length=False)
         # Add a pulse configuration to store in the hardware so you can just trigger it later on
         # Tell it to shape the pulse with the gaussian pulse we just defined as 'ramp'. then set the feq/phase/gain
@@ -1573,30 +1565,30 @@ class AmplitudeRabi_QZE_Program(AveragerProgramV2):
         qubit_ch = cfg['qubit_ch']
 
         # Configure the resonator (readout) generator
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=ro_ch[0],
-                         mux_freqs=cfg['res_freq_ge'],
-                         mux_gains=cfg['res_gain_ge'],
-                         mux_phases=cfg['res_phase'],
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
                          mixer_freq=cfg['mixer_freq'])
-        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ge'], cfg['ro_phase']):
-            self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=res_ch)
-
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         # Instead of one long readout pulse, define two pulses:
         # 1. A short projection pulse for the QZE (e.g., 9 ns)
         # 2. A final readout pulse (kept at your original res_length, e.g., 9 us)
         self.add_pulse(ch=res_ch, name="proj_pulse",
                        style="const",
                        length=self.projective_readout_pulse_len_us,  # new parameter, e.g., 9 ns
-                       mask=cfg["list_of_all_qubits"],
+                       freq = cfg['res_freq_ge'],
+                       phase = cfg['ro_phase'],
+                       gain = cfg['res_gain_ge']
                        )
+
         self.add_pulse(ch=res_ch, name="final_res_pulse",
                        style="const",
                        length=cfg["res_length"],  # final readout pulse remains as originally configured
-                       mask=cfg["list_of_all_qubits"],
+                       freq = cfg['res_freq_ge'],
+                       phase = cfg['ro_phase'],
+                       gain = cfg['res_gain_ge']
                        )
 
         # Set up the qubit drive generator
-        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'], mixer_freq=cfg['qubit_mixer_freq'])
+        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
         self.add_gauss(ch=qubit_ch, name="ramp", sigma=cfg['sigma'], length=cfg['sigma'] * 4 , even_length=False)
         self.add_pulse(ch=qubit_ch, name="qubit_pulse",
                        style="arb",

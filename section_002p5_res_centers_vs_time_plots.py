@@ -18,13 +18,13 @@ class KappaProgram(AveragerProgramV2):
                          mux_phases=cfg['res_phase'],
                          mixer_freq=cfg['mixer_freq'])
 
-        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ge'], cfg['ro_phase']):
-            self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=res_ch)
-
-        self.add_pulse(ch=res_ch, name="mymux",
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_chs,
                        style="const",
                        length=cfg["res_length"],
-                       mask=cfg["list_of_all_qubits"],
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
                        )
 
     def _body(self, cfg):

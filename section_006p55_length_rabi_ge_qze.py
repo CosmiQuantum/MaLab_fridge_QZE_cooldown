@@ -815,24 +815,19 @@ class LengthRabiProgram(AveragerProgramV2):
         qubit_ch = cfg['qubit_ch']
 
         # Define a generator for the readout pulses with the lens, phases, and mixer/mux frequencies
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=ro_ch[0],
-                         mux_freqs=cfg['res_freq_ge'],
-                         mux_gains=cfg['res_gain_ge'],
-                         mux_phases=cfg['res_phase'],
-                         mixer_freq=cfg['mixer_freq'])
-        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ge'], cfg['ro_phase']):
-            # We have many qubits and many readout channels, so go through all of them and declare a readout for each
-            # of them to tell the system how long the readout pulse is and qhat its freq and phase should be
-            self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=res_ch)
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         # Configure the hardware to set this sort of pulse that we can trigger later
         # This has a rectangle pulse becuase style="const"
         self.add_pulse(ch=res_ch, name="res_pulse",
                        style="const",
                        length=cfg["res_length"],
-                       mask=cfg["list_of_all_qubits"],
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
                        )
         # Tell the system via another generator how to set up the qubit drive pulse
-        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'], mixer_freq=cfg['qubit_mixer_freq'])
+        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
         self.add_pulse(ch=qubit_ch, name="qubit_pulse",
                        style="const",
                        length=cfg['qubit_length_ge'],
@@ -859,32 +854,30 @@ class QZE_gaus_pulse_RabiProgram(AveragerProgramV2):
 
         # generator for the readout and the resonator pulses (qze and readout, where cfg['res_gain_qze'] should have
         # varying lens in each loop iterationof calling this classfor the zeno pulse on ch 7)
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=ro_ch[0],
-                         mux_freqs=cfg['res_freq_qze'],
-                         mux_gains=cfg['res_gain_qze'],  # has 7 values not just 6, extra one for the zeno
-                         mux_phases=cfg['res_phase_qze'],
-                         mixer_freq=cfg['mixer_freq'])
-        #readout on each channel with the sampling frequency and length of readout (basically open the window in qick readout)
-        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ge'], cfg['ro_phase']):
-            self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=res_ch)  # length=readout length at end
-
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
 
         # final readout pulse (to measure the qubit state)
         self.add_pulse(ch=res_ch, name="res_pulse",
                        style="const",
                        length=cfg["res_length"],  # 9us as usual, should be same length as readout window above
-                       mask=cfg["list_of_all_qubits"])
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
+                       )
 
         # projection pulse (the short pulse used for projective measurement,7 ns)
         self.add_pulse(ch=res_ch, name="proj_pulse",
                        style="const",
                        length=cfg["zeno_pulse_width"],
-                       mask=cfg["qze_mask"],
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
                        )
 
         # generator for the qubit drive and add the qubit drive pulse.
         # drive pulse is continuous over the full duration:
-        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'], mixer_freq=cfg['qubit_mixer_freq'])
+        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
 
         self.add_pulse(ch=qubit_ch, name="qubit_pulse",
                        style="const",
@@ -927,32 +920,30 @@ class QZERabiProgram(AveragerProgramV2):
 
         # generator for the readout and the resonator pulses (qze and readout, where cfg['res_gain_qze'] should have
         # varying lens in each loop iterationof calling this classfor the zeno pulse on ch 7)
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=ro_ch[0],
-                         mux_freqs=cfg['res_freq_qze'],
-                         mux_gains=cfg['res_gain_qze'],  # has 7 values not just 6, extra one for the zeno
-                         mux_phases=cfg['res_phase_qze'],
-                         mixer_freq=cfg['mixer_freq'])
-        #readout on each channel with the sampling frequency and length of readout (basically open the window in qick readout)
-        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ge'], cfg['ro_phase']):
-            self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=res_ch)  # length=readout length at end
-
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
 
         # final readout pulse (to measure the qubit state)
         self.add_pulse(ch=res_ch, name="res_pulse",
                        style="const",
                        length=cfg["res_length"],  # 9us as usual, should be same length as readout window above
-                       mask=cfg["list_of_all_qubits"])
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
+                       )
 
         # projection pulse (the short pulse used for projective measurement,7 ns)
         self.add_pulse(ch=res_ch, name="proj_pulse",
                        style="const",
                        length=cfg["zeno_pulse_width"],
-                       mask=cfg["qze_mask"],
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
                        )
 
         # generator for the qubit drive and add the qubit drive pulse.
         # drive pulse is continuous over the full duration:
-        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'], mixer_freq=cfg['qubit_mixer_freq'])
+        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
 
         self.add_pulse(ch=qubit_ch, name="qubit_pulse",
                        style="const",
@@ -995,33 +986,31 @@ class QZE_constant_pulse_RabiProgram(AveragerProgramV2):
 
         # generator for the readout and the resonator pulses (qze and readout, where cfg['res_gain_qze'] should have
         # varying lens in each loop iterationof calling this classfor the zeno pulse on ch 7)
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=ro_ch[0],
-                         mux_freqs=cfg['res_freq_qze'],
-                         mux_gains=cfg['res_gain_qze'],  # has 7 values not just 6, extra one for the zeno
-                         mux_phases=cfg['res_phase_qze'],
-                         mixer_freq=cfg['mixer_freq'])
-        #readout on each channel with the sampling frequency and length of readout (basically open the window in qick readout)
-        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ge'], cfg['ro_phase']):
-            self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=res_ch)  # length=readout length at end
-
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
 
         # final readout pulse (to measure the qubit state)
         self.add_pulse(ch=res_ch, name="res_pulse",
                        style="const",
                        length=cfg["res_length"],  # 9us as usual, should be same length as readout window above
-                       mask=cfg["list_of_all_qubits"])
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
+                       )
 
         # projection pulse
         if cfg['qubit_length_ge'] > 0.11:
             self.add_pulse(ch=res_ch, name="proj_pulse",
                            style="const",
                            length=cfg['qubit_length_ge']-0.11+ 3,
-                           mask=cfg["qze_mask"],
+                           freq=cfg['res_freq_ge'],
+                           phase=cfg['ro_phase'],
+                           gain=cfg['res_gain_ge']
                            )
 
         # generator for the qubit drive and add the qubit drive pulse.
         # drive pulse is continuous over the full duration:
-        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'], mixer_freq=cfg['qubit_mixer_freq'])
+        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
 
         self.add_pulse(ch=qubit_ch, name="qubit_pulse", #for before we hit pi pulse len
                        style="const",
@@ -1073,33 +1062,31 @@ class RabiChevronAfterPiProgram(AveragerProgramV2):
 
         # generator for the readout and the resonator pulses (qze and readout, where cfg['res_gain_qze'] should have
         # varying lens in each loop iterationof calling this classfor the zeno pulse on ch 7)
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=ro_ch[0],
-                         mux_freqs=cfg['res_freq_qze'],
-                         mux_gains=cfg['res_gain_qze'],  # has 7 values not just 6, extra one for the zeno
-                         mux_phases=cfg['res_phase_qze'],
-                         mixer_freq=cfg['mixer_freq'])
-        #readout on each channel with the sampling frequency and length of readout (basically open the window in qick readout)
-        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ge'], cfg['ro_phase']):
-            self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=res_ch)  # length=readout length at end
-
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
 
         # final readout pulse (to measure the qubit state)
         self.add_pulse(ch=res_ch, name="res_pulse",
                        style="const",
                        length=cfg["res_length"],  # 9us as usual, should be same length as readout window above
-                       mask=cfg["list_of_all_qubits"])
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
+                       )
 
         # projection pulse
         if cfg['qubit_length_ge'] > cfg['qubit_pi_len']:
             self.add_pulse(ch=res_ch, name="proj_pulse",
                            style="const",
                            length=cfg['qubit_length_ge']-cfg['qubit_pi_len']+ cfg['res_ring_up_time'],
-                           mask=cfg["qze_mask"],
+                           freq=cfg['res_freq_ge'],
+                           phase=cfg['ro_phase'],
+                           gain=cfg['res_gain_ge']
                            )
 
         # generator for the qubit drive and add the qubit drive pulse.
         # drive pulse is continuous over the full duration:
-        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'], mixer_freq=cfg['qubit_mixer_freq'])
+        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
 
         self.add_pulse(ch=qubit_ch, name="qubit_pulse", #for before we hit pi pulse len
                        style="const",
@@ -1146,33 +1133,31 @@ class QZE_constant_pulse_gnd_RabiProgram(AveragerProgramV2):
 
         # generator for the readout and the resonator pulses (qze and readout, where cfg['res_gain_qze'] should have
         # varying lens in each loop iterationof calling this classfor the zeno pulse on ch 7)
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=ro_ch[0],
-                         mux_freqs=cfg['res_freq_qze'],
-                         mux_gains=cfg['res_gain_qze'],  # has 7 values not just 6, extra one for the zeno
-                         mux_phases=cfg['res_phase_qze'],
-                         mixer_freq=cfg['mixer_freq'])
-        #readout on each channel with the sampling frequency and length of readout (basically open the window in qick readout)
-        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ge'], cfg['ro_phase']):
-            self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=res_ch)  # length=readout length at end
-
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
 
         # final readout pulse (to measure the qubit state)
         self.add_pulse(ch=res_ch, name="res_pulse",
                        style="const",
                        length=cfg["res_length"],  # 9us as usual, should be same length as readout window above
-                       mask=cfg["list_of_all_qubits"])
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
+                       )
 
         # projection pulse
         if cfg['qubit_length_ge'] > cfg['qubit_pi_len']:
             self.add_pulse(ch=res_ch, name="proj_pulse",
                            style="const",
                            length=cfg['qubit_length_ge']-cfg['qubit_pi_len']+ cfg['res_ring_up_time'],
-                           mask=cfg["qze_mask"],
+                           freq=cfg['res_freq_ge'],
+                           phase=cfg['ro_phase'],
+                           gain=cfg['res_gain_ge']
                            )
 
         # generator for the qubit drive and add the qubit drive pulse.
         # drive pulse is continuous over the full duration:
-        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'], mixer_freq=cfg['qubit_mixer_freq'])
+        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
 
         self.add_pulse(ch=qubit_ch, name="qubit_pulse", #for before we hit pi pulse len
                        style="const",
@@ -1228,33 +1213,31 @@ class QZE_constant_pulse_3pulse_RabiProgram(AveragerProgramV2):
 
         # generator for the readout and the resonator pulses (qze and readout, where cfg['res_gain_qze'] should have
         # varying lens in each loop iterationof calling this classfor the zeno pulse on ch 7)
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=ro_ch[0],
-                         mux_freqs=cfg['res_freq_qze'],
-                         mux_gains=cfg['res_gain_qze'],  # has 7 values not just 6, extra one for the zeno
-                         mux_phases=cfg['res_phase_qze'],
-                         mixer_freq=cfg['mixer_freq'])
-        #readout on each channel with the sampling frequency and length of readout (basically open the window in qick readout)
-        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ge'], cfg['ro_phase']):
-            self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=res_ch)  # length=readout length at end
-
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
 
         # final readout pulse (to measure the qubit state)
         self.add_pulse(ch=res_ch, name="res_pulse",
                        style="const",
                        length=cfg["res_length"],  # 9us as usual, should be same length as readout window above
-                       mask=cfg["list_of_all_qubits"])
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
+                       )
 
         # projection pulse
         if cfg['qubit_length_ge'] > 0.11*3:
             self.add_pulse(ch=res_ch, name="proj_pulse",
                            style="const",
                            length=cfg['qubit_length_ge']-0.11*2+ 3,
-                           mask=cfg["qze_mask"],
+                           freq=cfg['res_freq_ge'],
+                           phase=cfg['ro_phase'],
+                           gain=cfg['res_gain_ge']
                            )
 
         # generator for the qubit drive and add the qubit drive pulse.
         # drive pulse is continuous over the full duration:
-        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'], mixer_freq=cfg['qubit_mixer_freq'])
+        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
 
         self.add_pulse(ch=qubit_ch, name="qubit_pulse", #for before we hit pi pulse len
                        style="const",
@@ -1328,33 +1311,31 @@ class QZE_constant_pulse_RabiProgram_unstarked_freq(AveragerProgramV2):
 
         # generator for the readout and the resonator pulses (qze and readout, where cfg['res_gain_qze'] should have
         # varying lens in each loop iterationof calling this classfor the zeno pulse on ch 7)
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=ro_ch[0],
-                         mux_freqs=cfg['res_freq_qze'],
-                         mux_gains=cfg['res_gain_qze'],  # has 7 values not just 6, extra one for the zeno
-                         mux_phases=cfg['res_phase_qze'],
-                         mixer_freq=cfg['mixer_freq'])
-        #readout on each channel with the sampling frequency and length of readout (basically open the window in qick readout)
-        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ge'], cfg['ro_phase']):
-            self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=res_ch)  # length=readout length at end
-
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
 
         # final readout pulse (to measure the qubit state)
         self.add_pulse(ch=res_ch, name="res_pulse",
                        style="const",
                        length=cfg["res_length"],  # 9us as usual, should be same length as readout window above
-                       mask=cfg["list_of_all_qubits"])
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
+                       )
 
         # projection pulse
         if cfg['qubit_length_ge'] > 0.11:
             self.add_pulse(ch=res_ch, name="proj_pulse",
                            style="const",
                            length=cfg['qubit_length_ge']-0.11,
-                           mask=cfg["qze_mask"],
+                           freq=cfg['res_freq_ge'],
+                           phase=cfg['ro_phase'],
+                           gain=cfg['res_gain_ge']
                            )
 
         # generator for the qubit drive and add the qubit drive pulse.
         # drive pulse is continuous over the full duration:
-        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'], mixer_freq=cfg['qubit_mixer_freq'])
+        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
 
         self.add_pulse(ch=qubit_ch, name="qubit_pulse",
                        style="const",
@@ -1386,33 +1367,31 @@ class QZE_constant_pulse_RabiProgram_WaitForResRingUp(AveragerProgramV2):
 
         # generator for the readout and the resonator pulses (qze and readout, where cfg['res_gain_qze'] should have
         # varying lens in each loop iterationof calling this classfor the zeno pulse on ch 7)
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=ro_ch[0],
-                         mux_freqs=cfg['res_freq_qze'],
-                         mux_gains=cfg['res_gain_qze'],  # has 7 values not just 6, extra one for the zeno
-                         mux_phases=cfg['res_phase_qze'],
-                         mixer_freq=cfg['mixer_freq'])
-        #readout on each channel with the sampling frequency and length of readout (basically open the window in qick readout)
-        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ge'], cfg['ro_phase']):
-            self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=res_ch)  # length=readout length at end
-
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
 
         # final readout pulse (to measure the qubit state)
         self.add_pulse(ch=res_ch, name="res_pulse",
                        style="const",
                        length=cfg["res_length"],  # 9us as usual, should be same length as readout window above
-                       mask=cfg["list_of_all_qubits"])
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
+                       )
 
         # projection pulse
         if cfg['qubit_length_ge'] > 0.11:
             self.add_pulse(ch=res_ch, name="proj_pulse",
                            style="const",
                            length=cfg['qubit_length_ge']-0.11 + 3, #plus res ring up time
-                           mask=cfg["qze_mask"],
+                           freq=cfg['res_freq_ge'],
+                           phase=cfg['ro_phase'],
+                           gain=cfg['res_gain_ge']
                            )
 
         # generator for the qubit drive and add the qubit drive pulse.
         # drive pulse is continuous over the full duration:
-        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'], mixer_freq=cfg['qubit_mixer_freq'])
+        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
 
         self.add_pulse(ch=qubit_ch, name="qubit_pulse", #for before we hit pi pulse len
                        style="const",
@@ -1463,32 +1442,30 @@ class QZERabiProgram(AveragerProgramV2):
 
         # generator for the readout and the resonator pulses (qze and readout, where cfg['res_gain_qze'] should have
         # varying lens in each loop iterationof calling this classfor the zeno pulse on ch 7)
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=ro_ch[0],
-                         mux_freqs=cfg['res_freq_qze'],
-                         mux_gains=cfg['res_gain_qze'],  # has 7 values not just 6, extra one for the zeno
-                         mux_phases=cfg['res_phase_qze'],
-                         mixer_freq=cfg['mixer_freq'])
-        #readout on each channel with the sampling frequency and length of readout (basically open the window in qick readout)
-        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ge'], cfg['ro_phase']):
-            self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=res_ch)  # length=readout length at end
-
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
 
         # final readout pulse (to measure the qubit state)
         self.add_pulse(ch=res_ch, name="res_pulse",
                        style="const",
                        length=cfg["res_length"],  # 9us as usual, should be same length as readout window above
-                       mask=cfg["list_of_all_qubits"])
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
+                       )
 
         # projection pulse (the short pulse used for projective measurement,7 ns)
         self.add_pulse(ch=res_ch, name="proj_pulse",
                        style="const",
                        length=cfg["zeno_pulse_width"],
-                       mask=cfg["qze_mask"],
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
                        )
 
         # generator for the qubit drive and add the qubit drive pulse.
         # drive pulse is continuous over the full duration:
-        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'], mixer_freq=cfg['qubit_mixer_freq'])
+        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
 
         self.add_pulse(ch=qubit_ch, name="qubit_pulse",
                        style="const",
@@ -1531,24 +1508,23 @@ class OscilliscopeQZEProgram(AveragerProgramV2):
         qubit_ch = cfg['qubit_ch']
 
         # generator for the readout pulses
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=ro_ch[0],
-                         mux_freqs=[f+10 for f in cfg['res_freq_qze']],
-                         mux_gains=cfg['res_gain_qze'], #has 7 values not just 6, extra one for the zeno
-                         mux_phases=cfg['res_phase_qze'],
-                         mixer_freq=cfg['mixer_freq'])
-        for ch, f, ph in zip(cfg['ro_ch'], [f+10 for f in cfg['res_freq_ge']], cfg['ro_phase']):
-            self.declare_readout(ch=ch, length=10, freq=f, phase=ph, gen_ch=res_ch) #length=cfg['res_length']
-
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         # final readout pulse (to measure the qubit state)
         self.add_pulse(ch=res_ch, name="res_pulse",
                        style="const",
                        length=9,  # 9us as usual  cfg["res_length"]
-                       mask=cfg["list_of_all_qubits"])
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
+                       )
         # projection pulse (the short pulse used for projective measurement,9 ns)
         self.add_pulse(ch=res_ch, name="proj_pulse",
                        style="const",
                        length=0.05, #0.007
-                       mask=cfg["qze_mask"],
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
                        )
 
         # generator for the qubit drive and add the qubit drive pulse.

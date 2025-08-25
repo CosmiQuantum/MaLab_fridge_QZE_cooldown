@@ -463,21 +463,17 @@ class PulseProbeSpectroscopyProgram(AveragerProgramV2):
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
 
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=ro_ch[0],
-                         mux_freqs=cfg['res_freq_ge'],
-                         mux_gains=cfg['res_gain_ge'],
-                         mux_phases=cfg['res_phase'],
-                         mixer_freq=cfg['mixer_freq'])
-        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ge'], cfg['ro_phase']):
-            self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=res_ch)
-        print(cfg["list_of_all_qubits"])
-        self.add_pulse(ch=res_ch, name="res_pulse",
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
                        style="const",
                        length=cfg["res_length"],
-                       mask=cfg["list_of_all_qubits"],
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
                        )
 
-        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'], mixer_freq=cfg['qubit_mixer_freq'])
+        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
         self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch[0],
                        style="const",
                        length=cfg['qubit_length_ge'],
@@ -500,22 +496,17 @@ class PulseProbeSpectroscopyProgram_WithStark(AveragerProgramV2):
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
 
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=ro_ch[0],
-                         mux_freqs=cfg['res_freq_qze'],
-                         mux_gains=cfg['res_gain_qze'],  # has 7 values not just 6, extra one for the zeno/stark
-                         mux_phases=cfg['res_phase_qze'],
-                         mixer_freq=cfg['mixer_freq'])
-
-        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ge'], cfg['ro_phase']):
-            self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=res_ch)
-
-        self.add_pulse(ch=res_ch, name="res_pulse",
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
                        style="const",
                        length=cfg["res_length"],
-                       mask=cfg["list_of_all_qubits"],
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
                        )
 
-        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'], mixer_freq=cfg['qubit_mixer_freq'])
+        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
         self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch[0],
                        style="const",
                        length=cfg['qubit_length_ge']-0.11,#
@@ -527,9 +518,10 @@ class PulseProbeSpectroscopyProgram_WithStark(AveragerProgramV2):
         self.add_pulse(ch=res_ch, name="proj_pulse",
                        style="const",
                        length=cfg['qubit_length_ge'] - 0.11,#
-                       mask=cfg['qze_mask'],
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
                        )
-
         self.add_loop("freqloop", cfg["steps"])
 
     def _body(self, cfg):
@@ -545,22 +537,17 @@ class PulseProbeSpectroscopyProgram_WithStark_WaitForRingUp(AveragerProgramV2):
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
 
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=ro_ch[0],
-                         mux_freqs=cfg['res_freq_qze'],
-                         mux_gains=cfg['res_gain_qze'],  # has 7 values not just 6, extra one for the zeno/stark
-                         mux_phases=cfg['res_phase_qze'],
-                         mixer_freq=cfg['mixer_freq'])
-
-        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ge'], cfg['ro_phase']):
-            self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=res_ch)
-
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         self.add_pulse(ch=res_ch, name="res_pulse",
                        style="const",
                        length=cfg["res_length"],
-                       mask=cfg["list_of_all_qubits"],
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
                        )
 
-        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'], mixer_freq=cfg['qubit_mixer_freq'])
+        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
         self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch[0],
                        style="const",
                        length=cfg['qubit_length_ge'] - cfg['qubit_pi_len'],  #
@@ -572,9 +559,10 @@ class PulseProbeSpectroscopyProgram_WithStark_WaitForRingUp(AveragerProgramV2):
         self.add_pulse(ch=res_ch, name="proj_pulse",
                        style="const",
                        length=cfg['qubit_length_ge'] - cfg['qubit_pi_len'] + cfg['res_ring_up_time'],  #add ring up time, 2us
-                       mask=cfg['qze_mask'],
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
                        )
-
         self.add_loop("freqloop", cfg["steps"])
 
     def _body(self, cfg):
@@ -794,29 +782,24 @@ class QZEStyleStarkedFreq(AveragerProgramV2):
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
 
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=ro_ch[0],
-                         mux_freqs=cfg['res_freq_qze'],
-                         mux_gains=cfg['res_gain_qze'],  # has 7 values not just 6, extra one for the zeno
-                         mux_phases=cfg['res_phase_qze'],
-                         mixer_freq=cfg['mixer_freq'])
-        # readout on each channel with the sampling frequency and length of readout (basically open the window in qick readout)
-        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ge'], cfg['ro_phase']):
-            self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph,
-                                 gen_ch=res_ch)  # length=readout length at end
-
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         self.add_pulse(ch=res_ch, name="proj_pulse",
                        style="const",
                        length=cfg['qubit_length_ge']  + cfg['res_ring_up_time']- cfg['qubit_pi_len'],
-                       mask=cfg["qze_mask"],
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
                        )
-
-        self.add_pulse(ch=res_ch, name="readout_pulse",
+        self.add_pulse(ch=res_ch, name="readout_pulse", ro_ch=ro_ch,
                        style="const",
-                       length=cfg['res_length'],
-                       mask=cfg['list_of_all_qubits'], #only play readout tone
+                       length=cfg["res_length"],
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
                        )
 
-        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'], mixer_freq=cfg['qubit_mixer_freq'])
+        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
         self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch[0],  # for before we hit pi pulse len
                        style="const",
                        length=cfg['qubit_length_ge']  - cfg['qubit_pi_len'],
@@ -914,27 +897,24 @@ class ResStarkShift2DProgram(AveragerProgramV2):
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
 
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=ro_ch[0],
-                         mux_freqs=cfg['res_freq_stark'], # res of interest frequency at QubitIndex and 7
-                         mux_gains=cfg['stark_gain'], # readout gain, stark gain
-                         mux_phases=cfg['res_phase_stark'], # res of interest phase repeated at QubitIndex and 7
-                         mixer_freq=cfg['mixer_freq'])
-        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ge'], cfg['ro_phase']):
-            self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=res_ch)
-
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         self.add_pulse(ch=res_ch, name="stark_tone",
                        style="const",
                        length=cfg['stark_length'],
-                       mask=cfg['stark_mask'], #only play stark tone
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
                        )
-
         self.add_pulse(ch=res_ch, name="readout_pulse",
                        style="const",
                        length=cfg['res_length'],
-                       mask=cfg['list_of_all_qubits'], #only play readout tone
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
                        )
 
-        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'], mixer_freq=cfg['qubit_mixer_freq'])
+        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
         # self.add_gauss(ch=qubit_ch, name="ramp", sigma=cfg['sigma'], length=cfg['sigma'] * 4, even_length=False)
         # self.add_pulse(ch=qubit_ch, name="qubit_pulse",
         #                style="arb",
