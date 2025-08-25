@@ -265,8 +265,7 @@ if pre_optimize:
                 fridge=FRIDGE
             )
             # Set resonator configuration for this qubit
-            res_gains = experiment.mask_gain_res(Q, IndexGain=res_gain[Q], num_qubits=tot_num_of_qubits)
-            experiment.readout_cfg['res_gain_ge'] = res_gains
+            experiment.readout_cfg['res_gain_ge'] = res_gain[Q]
             experiment.readout_cfg['res_length'] = res_leng_vals[Q]
 
             res_data = create_data_dict(res_keys, save_r, list_of_all_qubits)
@@ -305,7 +304,7 @@ if pre_optimize:
                                        qick_verbose=True, increase_reps=True, increase_reps_to=500)
             (qspec_I, qspec_Q, qspec_freqs, qspec_I_fit, qspec_Q_fit,
              qubit_freq, sys_config_qspec) = q_spec.run()
-            experiment.qubit_cfg['qubit_freq_ge'][Q] = float(qubit_freq)
+            experiment.qubit_cfg['qubit_freq_ge'] = float(qubit_freq)
             stored_qspec = float(qubit_freq)
             rr_logger.info(f"Tune-up: g-e Qubit {Q + 1} frequency: {stored_qspec}")
             del q_spec
@@ -344,7 +343,7 @@ if pre_optimize:
                                            verbose=verbose, logger=rr_logger,
                                            qick_verbose=True)
             (rabi_I, rabi_Q, rabi_gains, rabi_fit, stored_pi_amp, sys_config_rabi) = rabi.run()
-            experiment.qubit_cfg['pi_amp'][Q] = float(stored_pi_amp)
+            experiment.qubit_cfg['pi_amp'] = float(stored_pi_amp)
             rr_logger.info(f"Tune-up: g-e Pi amplitude for qubit {Q + 1}: {float(stored_pi_amp)}")
             with open(log_file, "a", encoding="utf-8") as file:
                 file.write("\n" + f'g-e Pi Amplitude Used for optimization: {float(stored_pi_amp)}')
@@ -420,10 +419,8 @@ while j < n:
                                      qubit_DAC_attenuator2 = 4, ADC_attenuator = 30, fridge=FRIDGE) # ADC_attenuator MUST be above 16dB
         experiment.create_folder_if_not_exists(optimizationFolder)
 
-        #Mask out all other resonators except this one
-        res_gains = experiment.mask_gain_res(QubitIndex, IndexGain=res_gain[QubitIndex], num_qubits=tot_num_of_qubits)
-        experiment.readout_cfg['res_gain_ge'] = res_gains
-        experiment.readout_cfg['res_gain_ef'] = res_gains
+        experiment.readout_cfg['res_gain_ge'] = res_gain[QubitIndex]
+        experiment.readout_cfg['res_gain_ef'] = res_gain[QubitIndex]
         experiment.readout_cfg['res_length'] = res_leng_vals[QubitIndex]
 
         ###################################################### TOF #####################################################
@@ -472,11 +469,11 @@ while j < n:
 
                 if qspec_I_fit is None and qspec_Q_fit is None and qubit_freq is None:
                     if stored_qspec_list[QubitIndex] is not None:
-                        experiment.qubit_cfg['qubit_freq_ge'][QubitIndex] = stored_qspec_list[QubitIndex]
+                        experiment.qubit_cfg['qubit_freq_ge'] = stored_qspec_list[QubitIndex]
                         rr_logger.warning(f"Using previous stored value: {stored_qspec_list[QubitIndex]}")
                         recycled_qfreq = True
                         qubit_freq = stored_qspec_list[QubitIndex]
-                        experiment.qubit_cfg['qubit_freq_ge'][QubitIndex] = float(qubit_freq)
+                        experiment.qubit_cfg['qubit_freq_ge'] = float(qubit_freq)
                         stored_qspec_list[QubitIndex] = float(qubit_freq)
                         if verbose:
                             print(f"Using previous stored value: {qubit_freq}")
@@ -488,7 +485,7 @@ while j < n:
 
                     continue
                 else:
-                    experiment.qubit_cfg['qubit_freq_ge'][QubitIndex] = float(qubit_freq)
+                    experiment.qubit_cfg['qubit_freq_ge'] = float(qubit_freq)
                     stored_qspec_list[QubitIndex] = float(qubit_freq)
                 rr_logger.info(f"g-e Qubit {QubitIndex + 1} frequency: {float(qubit_freq)}")
                 if verbose:
@@ -520,7 +517,7 @@ while j < n:
                 if verbose: print('g-e Rabi fit didnt work, skipping the rest of this qubit')
                 continue  # skip the rest of this qubit
 
-            experiment.qubit_cfg['pi_amp'][QubitIndex] = float(pi_amp)
+            experiment.qubit_cfg['pi_amp'] = float(pi_amp)
             rr_logger.info(f'g-e Pi amplitude for qubit {QubitIndex + 1} is: {float(pi_amp)}')
             if verbose: print('g-e Pi amplitude for qubit ', QubitIndex + 1, ' is: ', float(pi_amp))
             del rabi
@@ -754,7 +751,7 @@ while j < n:
                 print('Rabi fit didnt work, skipping the rest of this qubit')
                 continue  # skip the rest of this qubit
 
-            experiment.qubit_cfg['pi_ef_amp'][QubitIndex] = float(efpi_amp)
+            experiment.qubit_cfg['pi_ef_amp'] = float(efpi_amp)
             print('ef Pi amplitude for qubit ', QubitIndex + 1, ' is: ', float(efpi_amp))
             del efrabi
         #
@@ -839,7 +836,7 @@ while j < n:
                 print('Rabi fit didnt work, skipping the rest of this qubit')
                 continue  # skip the rest of this qubit
 
-            experiment.qubit_cfg['pi_fh_amp'][QubitIndex] = float(fhpi_amp)
+            experiment.qubit_cfg['pi_fh_amp'] = float(fhpi_amp)
             print('fh Pi amplitude for qubit ', QubitIndex + 1, ' is: ', float(fhpi_amp))
             del fhrabi
         ########################################### g-e-f Single Shot Measurements ############################################

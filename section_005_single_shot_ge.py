@@ -413,11 +413,10 @@ class GainFrequencySweep:
 
 
                 # Update config with current gain and frequency values
-                fresh_experiment.readout_cfg['res_freq_ge'][self.qubit_index]= freq
+                fresh_experiment.readout_cfg['res_freq_ge']= freq
                 fresh_experiment.readout_cfg['res_length'] = readout_length  # Set the optimal readout length for the qubit
 
-                res_gains = fresh_experiment.mask_gain_res(self.qubit_index, gain, num_qubits=tot_num_of_qubits)
-                fresh_experiment.readout_cfg['res_gain_ge'] = res_gains
+                fresh_experiment.readout_cfg['res_gain_ge'] = gain
 
                 # Initialize SingleShotGE instance for fidelity calculation
                 round_num = 0

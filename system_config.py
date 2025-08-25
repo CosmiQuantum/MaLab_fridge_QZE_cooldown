@@ -54,14 +54,14 @@ class QICK_experiment:
             # Hardware Configuration
             self.hw_cfg = {
                 # DAC
-                "qubit_ch": [self.FSGEN_CH] * 6,  # Qubit Channel Port, Full-speed DAC
-                "qubit_ampl_ch": [self.FSGEN_AMPL_CH] * 6,
-                "res_ch": [self.MIXMUXGEN_CH] * 6,  # Single Tone Readout Port, MUX DAC
-                "qubit_ch_ef": [self.FSGEN_CH]*6, # Qubit ef Channel, Full-speed DAC
+                "qubit_ch": self.FSGEN_CH,  # Qubit Channel Port, Full-speed DAC
+                "qubit_ampl_ch": self.FSGEN_AMPL_CH ,
+                "res_ch": self.MIXMUXGEN_CH ,  # Single Tone Readout Port, MUX DAC
+                "qubit_ch_ef": self.FSGEN_CH, # Qubit ef Channel, Full-speed DAC
                 "nqz_qubit": 1,
                 "nqz_res": 2,
                 # ADC
-                "ro_ch": [self.MUXRO_CH] * 6,  # MUX readout channel
+                "ro_ch": self.MUXRO_CH,  # MUX readout channel
                 "list_of_all_qubits": [0, 1, 2, 3, 4, 5]
             }
 
@@ -90,15 +90,15 @@ class QICK_experiment:
                 "res_freq_fh": [6223.016, 6284.544, 6343.861, 6414.893, 6414.893, 6546.754],  # [MHz]
                 "res_gain_fh": [0.95,0.9,0.95,0.55,0.55,0.95],  # [DAC units]
                 "res_length": 2.0,  # [us] (1.0 for res spec)
-                "res_phase": [0,0,0,0,0,0],#[ -180+((1.281174-2.6703) * 180/np.pi), -10, 85,
+                "res_phase": 0,#[ -180+((1.281174-2.6703) * 180/np.pi), -10, 85,
                             #   0, 150,
                             # -90], #Joyce 3/11
                 #"res_phase": [(0.19-0.38) * 180/np.pi, (2.07-3.12-1.16) * 180/np.pi, (-0.35+2.28) * 180/np.pi,
                    #           (-1.36+1.68+1.1) * 180/np.pi, (-2.4-1.5) * 180/np.pi, (-0.56+1.18) * 180/np.pi],
                 # [-0.1006 *360/np.pi, -2.412527*360/np.pi, -1.821284*360/np.pi, -1.90962*360/np.pi, -0.566479*360/np.pi, -0.5941687*360/np.pi], # Rotation Angle From QICK Function, is the ang of 10 ss angles per qubit
                 # "res_phase": [0]*6,#[-0.1006 *360/np.pi, -2.412527*360/np.pi, -1.821284*360/np.pi, -1.90962*360/np.pi, -0.566479*360/np.pi, -0.5941687*360/np.pi], # Rotation Angle From QICK Function, is the ang of 10 ss angles per qubit
-                "ro_phase": [0, 0, 0, 0, 0, 0],  # Rotation Angle From QICK Function
-                "threshold": [-5.84, 1, -5, -3, -1, 4], #Joyce 3/11
+                "ro_phase": 0,  # Rotation Angle From QICK Function
+                "threshold": 0, #Joyce 3/11
                 #"threshold": [7.3961, -12.5812, 4.8613, -7.5323, 7.0689, 4.6805], # Threshold for Distinguish g/e, from QICK Function
                 "res_ring_up_time": 4,  # Olivia May 17th
                 "qubit_is_in_g_threshold": 100000, #100000,#-8837,
@@ -117,7 +117,7 @@ class QICK_experiment:
                 #"qubit_freq_ge": [4184.13, 3821.142, 4156.58, 4459.19, 4471.10, 4997.87], #old
                 #"qubit_freq_ge": [4184.15, 3821.156, 4156.88, 4459.12, 4471.18, 4998.04],  # Freqs of Qubit g/e Transition, old
                 "qubit_gain_ge": [0.02, 0.02, 0.02, 0.05, 0.05, 0.11],#[0.04, 0.12, 0.06, 0.04, 0.13, 0.18],#[0.05] * 6, #[1] * 6,
-                "qubit_ampl_gain_ge": [0.025] *6,
+                "qubit_ampl_gain_ge": 0.025,
                 "qubit_pi_len": 0.11, # Olivia May 17th
                 # [0.4287450656184295, 0.4287450656184295, 0.4903077560386716, 0.6, 0.4903077560386716, 0.4287450656184295], # For spec pulse
                 "qubit_length_ge": 15,  # 15 [us] for spec Pulse
@@ -127,10 +127,10 @@ class QICK_experiment:
                 "qubit_freq_ftores": [4016.3, 3644.76, 3988.44, 4292.73, 4303.18, 4833.17],
                 "qubit_gain_ef":  [0.001, 0.001, 0.0075, 0.1, 0.15, 0.005],# [0.03, 0.14, 0.04, 0.1, 0.15, 0.08],#
                 "qubit_gain_fh": [0.001, 0.015, 0.0075, 0.1, 0.15, 0.005],
-                'qubit_gain_ftores': [1]*6,#[0.2, 0.14, 0.04, 0.17, 0.13, 0.08],
+                'qubit_gain_ftores': 1,#[0.2, 0.14, 0.04, 0.17, 0.13, 0.08],
                 # [0.01, 0.05, 0.05, 0.05, 0.01, 0.5], # [DAC units] Pulse Gain
                 "qubit_length_ef": 22, #22.0,
-                "qubit_length_ftores": [22]*6,  # 25.0,
+                "qubit_length_ftores": 22,  # 25.0,
                 "qubit_phase": 0,  # [deg]
                 #"sigma": [0.15]*6,  # [us] for Gaussian Pulse (5+10 DAC atten for qubit)
                 "sigma_ampl": [0.03, 0.03, 0.05, 0.04, 0.05, 0.05], #DAC 0 04/07

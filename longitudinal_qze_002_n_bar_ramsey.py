@@ -167,8 +167,7 @@ for QubitIndex in Qs_to_look_at:
         experiment.create_folder_if_not_exists(optimizationFolder)
 
         # Mask out all other resonators except this one
-        res_gains = experiment.mask_gain_res(QubitIndex, IndexGain=res_gain[QubitIndex], num_qubits=tot_num_of_qubits)
-        experiment.readout_cfg['res_gain_ge'] = res_gains
+        experiment.readout_cfg['res_gain_ge'] = res_gain[QubitIndex]
         experiment.readout_cfg['res_gain_ef'] = res_gains
         experiment.readout_cfg['res_length'] = res_leng_vals[QubitIndex]
         ################################ Do Res spec once per qubit and store the value ####################################

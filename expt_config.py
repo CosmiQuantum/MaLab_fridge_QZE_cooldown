@@ -127,8 +127,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         "power_rabi_ge": {
             "reps": 100,#500,
             "rounds": 1,  # 5
-            "start": [0] * 6,  # [DAC units]
-            "stop": [1] * 6,#[1.0] * 6,  # [DAC units]
+            "start": 0,  # [DAC units]
+            "stop": 1,#[1.0] * 6,  # [DAC units]
             "steps": 150, #50,
             "relax_delay": 1000,#1000,#1000,#1000,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
@@ -137,8 +137,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         "length_rabi_ge": {
             "reps": 100,#500,
             "rounds": 1,
-            "start": [0.01] * 6,  # [us]
-            "stop": [25] * 6,#[0.7] * 6,  # [us]
+            "start": 0.01,  # [us]
+            "stop": 25,#[0.7] * 6,  # [us]
             "steps": 500,
             "relax_delay": 1000,# [us]
             "list_of_all_qubits": list_of_all_qubits,
@@ -147,8 +147,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         "length_rabi_Qtemps": {
             "reps": 400,#500,
             "rounds": 1,
-            "start": [0.02] * 6,  # [us]
-            "stop": [2] * 6,#[0.7] * 6,  # [us]
+            "start": 0.02,  # [us]
+            "stop": 2,#[0.7] * 6,  # [us]
             "steps": 200,
             "relax_delay": 1000,# [us]
             "list_of_all_qubits": list_of_all_qubits,
@@ -156,8 +156,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         "length_rabi_ge_pi_len": { #for the zeno tests, bare qubit frequency rabi
             "reps": 300,  # 500,
             "rounds": 1,
-            "start": [0.01] * 6,  # [us]
-            "stop": [4] * 6,  # [0.7] * 6,  # [us]
+            "start": 0.01,  # [us]
+            "stop": 4,  # [0.7] * 6,  # [us]
             "steps": 60,
             "relax_delay": 1000,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
@@ -165,8 +165,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         "length_rabi_ge_qze": {
             "reps": 400,  # 500,
             "rounds": 1, #600
-            "start": [0.01] * 6,  # [us]
-            "stop": [10] * 6,   #[3] * 6,   # [us]
+            "start": 0.01,  # [us]
+            "stop": 10,   #[3] * 6,   # [us]
             "steps": 150,  # 140,
             "relax_delay": 1000,# [us]
             "list_of_all_qubits": list_of_all_qubits,
@@ -179,8 +179,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "reps": 200,
             "reps2": 850, #this is only used for the experiment that uses e-f rabi to calculate qubit temperatures.
             "rounds": 1,
-            "start": [0.0] * 6,  # [DAC units]
-            "stop": [1.0] * 6,  # [DAC units]
+            "start": 0.0,  # [DAC units]
+            "stop": 1.0,  # [DAC units]
             "steps": 155,
             "relax_delay": 1000,  # [us]
         },
@@ -188,16 +188,16 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "reps": 200,
             "reps2": 850,  # this is only used for the experiment that uses e-f rabi to calculate qubit temperatures.
             "rounds": 1,
-            "start": [0.0] * 6,  # [DAC units]
-            "stop": [1.0] * 6,  # [DAC units]
+            "start": 0.0,  # [DAC units]
+            "stop": 1.0,  # [DAC units]
             "steps": 155,
             "relax_delay": 1000,  # [us]
         },
         "T1_ge": {
             "reps": 200, #300
             "rounds": 1, #1
-            "start":  [10] * 6,#[0.0] * 6,  # [us]
-            "stop": [11] * 6,#[200]*6, #[250.0] * 6,  # [us] ### Should be ~10x T1! Should change this per qubit.
+            "start":  10,#[0.0] * 6,  # [us]
+            "stop": 11,#[200]*6, #[250.0] * 6,  # [us] ### Should be ~10x T1! Should change this per qubit.
             "steps": 1, #60
             "relax_delay": 1000,  # [us] ### Should be >10x T1!
             "wait_time": 0.0,  # [us]
@@ -207,8 +207,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         "T1_IBM_qze": {
             "reps": 1000,  # 300
             "rounds": 1,  # 1
-            "start": [30] * 6,  # [us]
-            "stop": [31] * 6,  # [250.0] * 6,  # [us] ### Should be ~10x T1! Should change this per qubit.
+            "start": 30,  # [us]
+            "stop": 31,  # [250.0] * 6,  # [us] ### Should be ~10x T1! Should change this per qubit.
             "steps": 1,
             "relax_delay": 1000,  # [us] ### Should be >10x T1!
             "wait_time": 30,  # [us]
@@ -218,8 +218,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         "T1_fe": {
             "reps": 200,  # 300
             "rounds": 1,  # 1
-            "start": [0.0] * 6,  # [us]
-            "stop": [200] * 6,  # [250.0] * 6,  # [us] ### Should be ~10x T1! Should change this per qubit.
+            "start": 0.0,  # [us]
+            "stop": 200,  # [250.0] * 6,  # [us] ### Should be ~10x T1! Should change this per qubit.
             "steps": 150,
             "relax_delay": 1000,  # [us] ### Should be >10x T1!
             "wait_time": 0.0,  # [us]
@@ -229,8 +229,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         "T1_fg": {
             "reps": 200,  # 300
             "rounds": 1,  # 1
-            "start": [0.0] * 6,  # [us]
-            "stop": [200] * 6,  # [250.0] * 6,  # [us] ### Should be ~10x T1! Should change this per qubit.
+            "start": 0.0,  # [us]
+            "stop": 200,  # [250.0] * 6,  # [us] ### Should be ~10x T1! Should change this per qubit.
             "steps": 150,
             "relax_delay": 1000,  # [us] ### Should be >10x T1!
             "wait_time": 0.0,  # [us]
@@ -320,8 +320,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         "Ramsey_stark": {
             "reps": 200,  # 300
             "rounds": 1,  # 10
-            "start": [0.02] * 6,  # [us]
-            "stop": [10] * 6,  # [us]
+            "start": 0.02,  # [us]
+            "stop": 10,  # [us]
             "steps": 100,
             "start_gain": 0.0,
             "end_gain": 1.0,
@@ -351,8 +351,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         "Ramsey_ge": {
             "reps": 500, #300
             "rounds": 1,#10
-            "start": [0.0] * 6, # [us]
-            "stop":  [60] * 6, # [us]
+            "start": 0.0, # [us]
+            "stop":  60, # [us]
             "steps": 100,
             "ramsey_freq": 0.12,  # [MHz]
             "relax_delay": 1000, # [us] the time to wait to let the qubit to relax to gnd again after exciting it (make it way above T1)
@@ -363,8 +363,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         "SpinEcho_ge": {
             "reps": 500,
             "rounds": 1,
-            "start": [0.0] * 6, # [us]
-            "stop":  [80] * 6, # [us]
+            "start": 0.0, # [us]
+            "stop":  80, # [us]
             "steps": 100,
             "ramsey_freq": 0.12,  # [MHz]
             "relax_delay": 1000, # [us]

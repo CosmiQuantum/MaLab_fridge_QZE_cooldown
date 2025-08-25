@@ -550,12 +550,11 @@ class GainFrequencySweep:
                 # print('EF Readout Gain-Freq Optimimization: Running for res_gain: ', gain, '...')
                 print('EF Readout Gain-Freq Optimimization: Running for res_freq: ', freq, 'gain', gain)
                 # Update config with current gain and frequency values
-                fresh_experiment.readout_cfg['res_freq_ef'][self.qubit_index] = freq
+                fresh_experiment.readout_cfg['res_freq_ef'] = freq
                 fresh_experiment.readout_cfg[
                     'res_length'] = readout_length  # Set the optimal readout length for the qubit
 
-                res_gains = fresh_experiment.mask_gain_res(self.qubit_index, gain, num_qubits=tot_num_of_qubits)
-                fresh_experiment.readout_cfg['res_gain_ef'] = res_gains
+                fresh_experiment.readout_cfg['res_gain_ef'] = gain
 
                 # Initialize SingleShotGE instance for fidelity calculation
                 round_num = 0
@@ -569,8 +568,8 @@ class GainFrequencySweep:
                     # Set specific configuration values for each iteration
 
                     # res_gains = experiment.set_gain_filter_ge(QubitIndex, gain)  # Set gain for current qubit only
-                    res_gains = experiment.mask_gain_res(self.qubit_index, IndexGain=gain)
-                    experiment.readout_cfg['res_gain_ef'] = res_gains
+
+                    experiment.readout_cfg['res_gain_ef'] = gain
 
                     if fid_states == 'ge':
                         single_shot = SingleShot(self.qubit_index, self.number_of_qubits, self.output_folder, round_num,

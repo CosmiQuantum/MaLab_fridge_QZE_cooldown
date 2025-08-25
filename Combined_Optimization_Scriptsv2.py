@@ -80,9 +80,7 @@ for QubitIndex in Qs:
                                      qubit_DAC_attenuator2 = 4, ADC_attenuator = 17,
                                  fridge=FRIDGE)
 
-    # Mask out all other resonators except this one
-    res_gains = experiment.mask_gain_res(QubitIndex, IndexGain=res_gain[QubitIndex])
-    experiment.readout_cfg['res_gain_ge'] = res_gains
+    experiment.readout_cfg['res_gain_ge'] = res_gain[QubitIndex]
     experiment.readout_cfg['res_length'] = res_leng_vals[QubitIndex]
 
     ################################################## Res spec ####################################################
@@ -172,8 +170,8 @@ for QubitIndex in Qs:
                 # Set gain for the current qubit
                 gain = res_gain[QubitIndex]
                 #res_gains = experiment.set_gain_filter_ge(QubitIndex, gain)  # Set gain for current qubit only
-                res_gains = experiment.mask_gain_res(QubitIndex, IndexGain=gain)
-                experiment.readout_cfg['res_gain_ge'] = res_gains
+
+                experiment.readout_cfg['res_gain_ge'] = gain
 
                 ss = SingleShot(QubitIndex, number_of_qubits, outerFolder,  j, save_figs, experiment, unmasking_resgain = unmask)  # updated way
                 fid, angle, iq_list_g, iq_list_e, ss_config = ss.run()
