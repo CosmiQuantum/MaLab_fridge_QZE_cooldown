@@ -12,15 +12,19 @@ class CKPProgram_g(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
-
+        self.add_readoutconfig(ch=ro_ch, name="myro",
+                               freq=cfg['freq'],
+                               gen_ch=res_ch,
+                               outsel='product')
+        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
         self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         self.add_pulse(ch=res_ch, name="stark_tone",
                        style="const",
                        length=cfg['ckp_length'],
-                       freq=cfg['res_freq_ge'],
+                       freq=cfg['res_freq_ckp'],
                        phase=cfg['ro_phase'],
-                       gain=cfg['res_gain_ge']
+                       gain=cfg['ckp_gain']
                        )
         self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
                        style="const",
@@ -56,15 +60,19 @@ class CKPProgram_e(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
-
+        self.add_readoutconfig(ch=ro_ch, name="myro",
+                               freq=cfg['freq'],
+                               gen_ch=res_ch,
+                               outsel='product')
+        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
         self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         self.add_pulse(ch=res_ch, name="stark_tone",
                        style="const",
                        length=cfg['ckp_length'],
-                       freq=cfg['res_freq_ge'],
+                       freq=cfg['res_freq_ckp'],
                        phase=cfg['ro_phase'],
-                       gain=cfg['res_gain_ge']
+                       gain=cfg['ckp_gain']
                        )
         self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
                        style="const",
@@ -158,7 +166,7 @@ class CKPMeasurement:
 
             for f in res_freq_sweep:
                 self.config['ckp_gain'] = float(np.round(g, 3))
-                self.config['res_freq_ckp'][-1] = float(np.round(f, 6))  # last channel pulse
+                self.config['res_freq_ckp'] = float(np.round(f, 6))  # last channel pulse
 
                 ckp_g = CKPProgram_g(
                     self.experiment.soccfg,

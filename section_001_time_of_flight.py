@@ -35,7 +35,11 @@ class TOFExperiment:
             def _initialize(self, cfg):
                 ro_chs = cfg['ro_ch']
                 gen_ch = cfg['res_ch']
-
+                self.add_readoutconfig(ch=ro_chs, name="myro",
+                                       freq=cfg['freq'],
+                                       gen_ch=gen_ch,
+                                       outsel='product')
+                self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
                 self.declare_gen(
                     ch=gen_ch, nqz=cfg['nqz_res'], ro_ch=ro_chs[0],
                     mux_freqs=[f+1 for f in cfg['res_freq_ge']],

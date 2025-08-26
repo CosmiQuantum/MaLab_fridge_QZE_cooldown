@@ -813,7 +813,11 @@ class LengthRabiProgram(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
-
+        self.add_readoutconfig(ch=ro_ch, name="myro",
+                               freq=cfg['freq'],
+                               gen_ch=res_ch,
+                               outsel='product')
+        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         # Define a generator for the readout pulses with the lens, phases, and mixer/mux frequencies
         self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
         self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
@@ -851,7 +855,11 @@ class QZE_gaus_pulse_RabiProgram(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
-
+        self.add_readoutconfig(ch=ro_ch, name="myro",
+                               freq=cfg['freq'],
+                               gen_ch=res_ch,
+                               outsel='product')
+        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         # generator for the readout and the resonator pulses (qze and readout, where cfg['res_gain_qze'] should have
         # varying lens in each loop iterationof calling this classfor the zeno pulse on ch 7)
         self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
@@ -917,7 +925,11 @@ class QZERabiProgram(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
-
+        self.add_readoutconfig(ch=ro_ch, name="myro",
+                               freq=cfg['freq'],
+                               gen_ch=res_ch,
+                               outsel='product')
+        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         # generator for the readout and the resonator pulses (qze and readout, where cfg['res_gain_qze'] should have
         # varying lens in each loop iterationof calling this classfor the zeno pulse on ch 7)
         self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
@@ -983,7 +995,11 @@ class QZE_constant_pulse_RabiProgram(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
-
+        self.add_readoutconfig(ch=ro_ch, name="myro",
+                               freq=cfg['freq'],
+                               gen_ch=res_ch,
+                               outsel='product')
+        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         # generator for the readout and the resonator pulses (qze and readout, where cfg['res_gain_qze'] should have
         # varying lens in each loop iterationof calling this classfor the zeno pulse on ch 7)
         self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
@@ -1059,7 +1075,11 @@ class RabiChevronAfterPiProgram(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
-
+        self.add_readoutconfig(ch=ro_ch, name="myro",
+                               freq=cfg['freq'],
+                               gen_ch=res_ch,
+                               outsel='product')
+        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         # generator for the readout and the resonator pulses (qze and readout, where cfg['res_gain_qze'] should have
         # varying lens in each loop iterationof calling this classfor the zeno pulse on ch 7)
         self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
@@ -1130,7 +1150,11 @@ class QZE_constant_pulse_gnd_RabiProgram(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
-
+        self.add_readoutconfig(ch=ro_ch, name="myro",
+                               freq=cfg['freq'],
+                               gen_ch=res_ch,
+                               outsel='product')
+        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         # generator for the readout and the resonator pulses (qze and readout, where cfg['res_gain_qze'] should have
         # varying lens in each loop iterationof calling this classfor the zeno pulse on ch 7)
         self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
@@ -1210,7 +1234,11 @@ class QZE_constant_pulse_3pulse_RabiProgram(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
-
+        self.add_readoutconfig(ch=ro_ch, name="myro",
+                               freq=cfg['freq'],
+                               gen_ch=res_ch,
+                               outsel='product')
+        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         # generator for the readout and the resonator pulses (qze and readout, where cfg['res_gain_qze'] should have
         # varying lens in each loop iterationof calling this classfor the zeno pulse on ch 7)
         self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
@@ -1308,7 +1336,11 @@ class QZE_constant_pulse_RabiProgram_unstarked_freq(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
-
+        self.add_readoutconfig(ch=ro_ch, name="myro",
+                               freq=cfg['freq'],
+                               gen_ch=res_ch,
+                               outsel='product')
+        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         # generator for the readout and the resonator pulses (qze and readout, where cfg['res_gain_qze'] should have
         # varying lens in each loop iterationof calling this classfor the zeno pulse on ch 7)
         self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
@@ -1364,7 +1396,11 @@ class QZE_constant_pulse_RabiProgram_WaitForResRingUp(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
-
+        self.add_readoutconfig(ch=ro_ch, name="myro",
+                               freq=cfg['freq'],
+                               gen_ch=res_ch,
+                               outsel='product')
+        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         # generator for the readout and the resonator pulses (qze and readout, where cfg['res_gain_qze'] should have
         # varying lens in each loop iterationof calling this classfor the zeno pulse on ch 7)
         self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
@@ -1439,7 +1475,11 @@ class QZERabiProgram(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
-
+        self.add_readoutconfig(ch=ro_ch, name="myro",
+                               freq=cfg['freq'],
+                               gen_ch=res_ch,
+                               outsel='product')
+        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         # generator for the readout and the resonator pulses (qze and readout, where cfg['res_gain_qze'] should have
         # varying lens in each loop iterationof calling this classfor the zeno pulse on ch 7)
         self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
@@ -1506,7 +1546,11 @@ class OscilliscopeQZEProgram(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
-
+        self.add_readoutconfig(ch=ro_ch, name="myro",
+                               freq=cfg['freq'],
+                               gen_ch=res_ch,
+                               outsel='product')
+        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         # generator for the readout pulses
         self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
         self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
@@ -1567,7 +1611,11 @@ class OscilliscopeExampleProgram(AveragerProgramV2):
 
         ro_chs = cfg['ro_ch']
         gen_ch = cfg['res_ch']
-
+        self.add_readoutconfig(ch=ro_chs, name="myro",
+                               freq=cfg['freq'],
+                               gen_ch=gen_ch,
+                               outsel='product')
+        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         self.declare_gen(
             ch=gen_ch, nqz=cfg['nqz_res'], ro_ch=ro_chs[0],
             mux_freqs=cfg['res_freq_qze'],

@@ -16,7 +16,11 @@ class T1ProgramIBMZeno(AveragerProgramV2):
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
 
-
+        self.add_readoutconfig(ch=ro_ch, name="myro",
+                               freq=cfg['freq'],
+                               gen_ch=res_ch,
+                               outsel='product')
+        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
 
         self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
@@ -27,13 +31,13 @@ class T1ProgramIBMZeno(AveragerProgramV2):
                        phase=cfg['ro_phase'],
                        gain=cfg['res_gain_ge']
                        )
-        print(cfg['wait_time'])
+
         self.add_pulse(ch=res_ch, name="qze_pulse",
                        style="const",
                        length=cfg['wait_time'],
-                       freq=cfg['res_freq_ge'],
-                       phase=cfg['ro_phase'],
-                       gain=cfg['res_gain_ge']
+                       freq=cfg['res_freq_qze'],
+                       phase=cfg['res_phase_qze'],
+                       gain=cfg['res_gain_qze']
                        )
 
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
@@ -81,24 +85,16 @@ class T1Measurement_with_Zeno:
         self.set_relax_delay = set_relax_delay
         self.logger = logger if logger is not None else logging.getLogger("custom_logger_for_rr_only")
         self.zeno_pulse_gain = zeno_pulse_gain
-        if unmasking_resgain:
-            self.exp_cfg["list_of_all_qubits"] = [QubitIndex]
+
         self.exp_cfg["wait_time"] = slice
         self.logger = logger if logger is not None else logging.getLogger("custom_logger_for_rr_only")
-        qze_mask = np.arange(0, self.number_of_qubits + 1)
-        qze_mask = np.delete(qze_mask, QubitIndex)
-        self.exp_cfg['qze_mask'] = [0,6]#qze_mask
 
-        self.experiment.readout_cfg['res_gain_qze'] = [0, 0, 0, 0, 0, 0, self.zeno_pulse_gain]
-        self.experiment.readout_cfg['res_gain_qze'][QubitIndex] = self.experiment.readout_cfg['res_gain_ge'][QubitIndex]
 
-        self.experiment.readout_cfg['res_freq_qze'] = self.experiment.readout_cfg['res_freq_ge']
-        self.experiment.readout_cfg['res_phase_qze'] = self.experiment.readout_cfg['res_phase']
+        self.experiment.readout_cfg['res_gain_qze'] = self.zeno_pulse_gain
+        self.experiment.readout_cfg['res_freq_qze'] = self.experiment.readout_cfg['res_freq_ge'][self.QubitIndex]
+        self.experiment.readout_cfg['res_phase_qze'] = self.experiment.readout_cfg['res_phase'][self.QubitIndex]
 
-        if len(self.experiment.readout_cfg['res_freq_qze']) < 7:  # otherise it keeps appending
-            self.experiment.readout_cfg['res_freq_qze'].append(experiment.readout_cfg['res_freq_qze'][self.QubitIndex])
-            self.experiment.readout_cfg['res_phase_qze'].append(
-                experiment.readout_cfg['res_phase_qze'][self.QubitIndex])
+
 
         if experiment is not None:
             self.q_config = all_qubit_state(self.experiment, self.number_of_qubits)
@@ -129,8 +125,7 @@ class T1Measurement_with_Zeno:
             else:
                 iq_list = t1.acquire(self.experiment.soc, soft_avgs=self.config['rounds'], progress=True)
 
-            print(iq_list[self.QubitIndex][:, 0])
-            print(iq_list[self.QubitIndex][:, 1])
+
             I = iq_list[self.QubitIndex][:, 0]
             Q = iq_list[self.QubitIndex][:, 1]
             delay_times = self.config['wait_time']

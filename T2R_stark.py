@@ -153,7 +153,11 @@ class starkT2RProgram(AveragerProgramV2):
         qubit_ch = cfg['qubit_ch']
 
         self.add_loop("waitloop", cfg["steps"])
-
+        self.add_readoutconfig(ch=ro_ch, name="myro",
+                               freq=cfg['freq'],
+                               gen_ch=res_ch,
+                               outsel='product')
+        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
         self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
@@ -180,7 +184,7 @@ class starkT2RProgram(AveragerProgramV2):
                        length=5, #5us like archana/thorbeck paper
                        freq=cfg['res_freq_ge'],
                        phase=cfg['ro_phase'],
-                       gain=cfg['res_gain_ge']
+                       gain=cfg['stark_gain']
                        )
         self.add_pulse(ch=qubit_ch, name="qubit_pulse2",
                        style="arb",

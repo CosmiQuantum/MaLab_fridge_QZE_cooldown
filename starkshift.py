@@ -89,7 +89,11 @@ class StarkShift2DProgram(AveragerProgramV2):
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
         stark_ch = cfg['qubit_ampl_ch']
-
+        self.add_readoutconfig(ch=ro_ch, name="myro",
+                               freq=cfg['freq'],
+                               gen_ch=res_ch,
+                               outsel='product')
+        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
         self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         # self.add_pulse(ch=res_ch, name="stark_tone",
@@ -177,7 +181,7 @@ class ResStarkShift2D:
         gain_sweep = np.linspace(self.config['start_gain'], self.config['end_gain'], self.config['gain_steps'])
         for g in gain_sweep:
             gain = round(g, 3)
-            self.config['stark_gain'] = np.concatenate((res_gain_ge, [gain]))  #readout pulse gain, stark tone gain
+            self.config['stark_gain'] = gain  #readout pulse gain, stark tone gain
             prog = ResStarkShift2DProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay = 0.5, cfg=self.config)
             iq_list = prog.acquire(self.experiment.soc, soft_avgs=self.exp_cfg["rounds"], progress=True) #check soft_avgs
             I.append(iq_list[self.QubitIndex][0,:,0])
@@ -227,7 +231,11 @@ class ResStarkShift2DProgram(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
-        print(cfg['stark_gain'], cfg['stark_mask'])
+        self.add_readoutconfig(ch=ro_ch, name="myro",
+                               freq=cfg['freq'],
+                               gen_ch=res_ch,
+                               outsel='product')
+        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
         self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         self.add_pulse(ch=res_ch, name="stark_tone",
@@ -235,7 +243,7 @@ class ResStarkShift2DProgram(AveragerProgramV2):
                        length=cfg['stark_length'],
                        freq=cfg['res_freq_ge'],
                        phase=cfg['ro_phase'],
-                       gain=cfg['res_gain_ge']
+                       gain=cfg['stark_gain']
                        )
 
         self.add_pulse(ch=res_ch, name="readout_pulse",
@@ -443,7 +451,11 @@ class StarkShiftSpectroscopyProgram(AveragerProgramV2):
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
         stark_ch = cfg['qubit_ampl_ch']
-
+        self.add_readoutconfig(ch=ro_ch, name="myro",
+                               freq=cfg['freq'],
+                               gen_ch=res_ch,
+                               outsel='product')
+        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
         self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         self.add_pulse(ch=res_ch, name="readout_pulse",
@@ -580,7 +592,11 @@ class ResStarkShiftSpectroscopyProgram(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
-
+        self.add_readoutconfig(ch=ro_ch, name="myro",
+                               freq=cfg['freq'],
+                               gen_ch=res_ch,
+                               outsel='product')
+        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
         self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         self.add_pulse(ch=res_ch, name="stark_tone",
