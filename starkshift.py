@@ -39,7 +39,7 @@ class StarkShift2D:
             self.config['end_freq'] = np.abs(self.config['max_freq'])
 
         prog = StarkShift2DProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay = 0.5, cfg=self.config)
-        iq_list = prog.acquire(self.experiment.soc, soft_avgs=self.exp_cfg["rounds"], progress=True) #check soft_avgs
+        iq_list = prog.acquire(self.experiment.soc, rounds=self.exp_cfg["rounds"], progress=True) #check soft_avgs
         I = iq_list[self.QubitIndex][0,:,:,0]
         Q = iq_list[self.QubitIndex][0,:,:,1]
 
@@ -89,13 +89,15 @@ class StarkShift2DProgram(AveragerProgramV2):
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
         stark_ch = cfg['qubit_ampl_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
         self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         # self.add_pulse(ch=res_ch, name="stark_tone",
         #                style="const",
         #                length=cfg['stark_length'],
@@ -146,7 +148,7 @@ class StarkShift2DProgram(AveragerProgramV2):
         self.pulse(ch=cfg['qubit_ch'], name="qubit_pulse", t=cfg['qubit_pulse_delay']) #play qubit pulse with delay
         self.delay(t=cfg['stark_length'] + cfg['readout_pulse_delay']) #wait for stark tone to finish and for resonator to reach vacuum
         self.pulse(ch=cfg['res_ch'], name="readout_pulse", t=0)
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 class ResStarkShift2D:
     def __init__(self, QubitIndex, number_of_qubits, outerFolder, res_freq_stark, res_phase_stark, save_figs, experiment=None, signal=None, unmasking_resgain=False):
@@ -183,7 +185,7 @@ class ResStarkShift2D:
             gain = round(g, 3)
             self.config['stark_gain'] = gain  #readout pulse gain, stark tone gain
             prog = ResStarkShift2DProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay = 0.5, cfg=self.config)
-            iq_list = prog.acquire(self.experiment.soc, soft_avgs=self.exp_cfg["rounds"], progress=True) #check soft_avgs
+            iq_list = prog.acquire(self.experiment.soc, rounds=self.exp_cfg["rounds"], progress=True) #check soft_avgs
             I.append(iq_list[self.QubitIndex][0,:,0])
             Q.append(iq_list[self.QubitIndex][0,:,1])
 
@@ -231,13 +233,15 @@ class ResStarkShift2DProgram(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
         self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         self.add_pulse(ch=res_ch, name="stark_tone",
                        style="const",
                        length=cfg['stark_length'],
@@ -279,7 +283,7 @@ class ResStarkShift2DProgram(AveragerProgramV2):
         self.pulse(ch=cfg['qubit_ch'], name="qubit_pulse", t=cfg['qubit_pulse_delay']) #play qubit pulse with delay
         self.delay(t=cfg['stark_length'] + cfg['readout_pulse_delay']) #wait for stark tone to finish and for resonator to reach vacuum
         self.pulse(ch=cfg['res_ch'], name="readout_pulse", t=0)
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 # TLS SPECTROSCOPY ############################################################################
 
@@ -329,7 +333,7 @@ class StarkShiftSpec:
             prog = StarkShiftSpectroscopyProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay=self.config['relax_delay'],
                                                  cfg=self.config)
 
-            iq_list = prog.acquire(self.experiment.soc, soft_avgs=self.config["rounds"],
+            iq_list = prog.acquire(self.experiment.soc, rounds=self.config["rounds"],
                                 threshold=self.experiment.readout_cfg["threshold"],
                                 angle=self.experiment.readout_cfg["ro_phase"],
                                 progress=True)
@@ -350,7 +354,7 @@ class StarkShiftSpec:
         prog_neg = StarkShiftSpectroscopyProgram(self.experiment.soccfg, reps=self.config['reps'],
                                              final_delay=self.config['relax_delay'],
                                              cfg=self.config)
-        iq_list = prog_neg.acquire(self.experiment.soc, soft_avgs=self.config["rounds"],
+        iq_list = prog_neg.acquire(self.experiment.soc, rounds=self.config["rounds"],
                                  threshold=self.experiment.readout_cfg["threshold"],
                                  angle=self.experiment.readout_cfg["ro_phase"],
                                  progress=True)
@@ -372,7 +376,7 @@ class StarkShiftSpec:
                                              final_delay=self.config['relax_delay'],
                                              cfg=self.config)
 
-        iq_list = prog_pos.acquire(self.experiment.soc, soft_avgs=self.config["rounds"],
+        iq_list = prog_pos.acquire(self.experiment.soc, rounds=self.config["rounds"],
                                threshold=self.experiment.readout_cfg["threshold"],
                                angle=self.experiment.readout_cfg["ro_phase"],
                                progress=True)
@@ -451,13 +455,15 @@ class StarkShiftSpectroscopyProgram(AveragerProgramV2):
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
         stark_ch = cfg['qubit_ampl_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
         self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         self.add_pulse(ch=res_ch, name="readout_pulse",
                                style="const",
                                length=cfg['res_length'],
@@ -496,7 +502,7 @@ class StarkShiftSpectroscopyProgram(AveragerProgramV2):
         self.delay_auto(t=0.01, tag='wait stark')  # wait for stark tone to finish
         self.delay(t=cfg['readout_pulse_delay']) #wait for resonator to return to vacuum
         self.pulse(ch=cfg['res_ch'], name="readout_pulse", t=0)  # play readout pulse
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])  # get readout
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])  # get readout
 
 class ResStarkShiftSpec:
     def __init__(self, QubitIndex, number_of_qubits, outerFolder, res_freq_stark, res_phase_stark, save_figs, experiment=None):
@@ -533,7 +539,7 @@ class ResStarkShiftSpec:
             self.config['res_gain_stark'] = np.concatenate((res_gain_ge, gain))
             prog = ResStarkShiftSpectroscopyProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay=self.config['relax_delay'],
                                                  cfg=self.config)
-            iq_list = prog.acquire(self.experiment.soc, soft_avgs=self.config["rounds"],
+            iq_list = prog.acquire(self.experiment.soc, rounds=self.config["rounds"],
                                    threshold=self.experiment.readout_cfg["threshold"],
                                    angle=self.experiment.readout_cfg["ro_phase"],
                                    progress=False)
@@ -592,13 +598,15 @@ class ResStarkShiftSpectroscopyProgram(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
         self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         self.add_pulse(ch=res_ch, name="stark_tone",
                                style="const",
                                length=cfg['stark_length'],
@@ -632,4 +640,4 @@ class ResStarkShiftSpectroscopyProgram(AveragerProgramV2):
         self.delay_auto(t=0.0, tag='wait stark')  # wait for stark tone to finish
         self.delay(t=cfg['readout_pulse_delay']) #wait for resonator to return to vacuum
         self.pulse(ch=cfg['res_ch'], name="readout_pulse", t=0)  # play readout pulse
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])  # get readout
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])  # get readout

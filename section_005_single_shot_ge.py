@@ -22,7 +22,7 @@ class SingleShotProgram(AveragerProgramV2):
         gen_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
         self.add_readoutconfig(ch=ro_chs, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=gen_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
@@ -65,13 +65,15 @@ class SingleShotProgram_g(AveragerProgramV2):
         ro_chs = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
         self.add_readoutconfig(ch=ro_chs, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_chs,
                        style="const",
                        length=cfg["res_length"],
@@ -85,7 +87,7 @@ class SingleShotProgram_g(AveragerProgramV2):
     def _body(self, cfg):
         self.delay_auto(0.01)
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)  # play probe pulse
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
         # relax delay ...
 
 
@@ -94,13 +96,15 @@ class SingleShotProgram_e(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
         self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
                        style="const",
                        length=cfg["res_length"],
@@ -127,7 +131,7 @@ class SingleShotProgram_e(AveragerProgramV2):
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)  # play pulse
         self.delay_auto(0.0)
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)  # play probe pulse
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 class SingleShot:
     def __init__(self, QubitIndex, number_of_qubits,  outerFolder, round_num, save_figs=False, experiment = None,
@@ -164,11 +168,11 @@ class SingleShot:
         # Run the single shot programs (g and e)
         ssp_g = SingleShotProgram_g(soccfg,  reps=1, final_delay=self.config['relax_delay'],
                                     cfg=self.config)
-        iq_list_g = ssp_g.acquire(soc, soft_avgs=1, progress=False)
+        iq_list_g = ssp_g.acquire(soc, rounds=1, progress=False)
 
         ssp_e = SingleShotProgram_e(soccfg,  reps=1, final_delay=self.config['relax_delay'],
                                     cfg=self.config)
-        iq_list_e = ssp_e.acquire(soc, soft_avgs=1, progress=False)
+        iq_list_e = ssp_e.acquire(soc, rounds=1, progress=False)
 
         # Use the fidelity calculation from SingleShotGE
         fidelity, _, _, _,_ = self.hist_ssf(
@@ -180,11 +184,11 @@ class SingleShot:
 
     def run(self):
         ssp_g = SingleShotProgram_g(self.experiment.soccfg, reps=1, final_delay=self.config['relax_delay'], cfg=self.config)
-        iq_list_g = ssp_g.acquire(self.experiment.soc, soft_avgs=1, progress=True)
+        iq_list_g = ssp_g.acquire(self.experiment.soc, rounds=1, progress=True)
         g_shots= ssp_g.get_raw()
 
         ssp_e = SingleShotProgram_e(self.experiment.soccfg, reps=1, final_delay=self.config['relax_delay'], cfg=self.config)
-        iq_list_e = ssp_e.acquire(self.experiment.soc, soft_avgs=1, progress=True)
+        iq_list_e = ssp_e.acquire(self.experiment.soc, rounds=1, progress=True)
         e_shots= ssp_e.get_raw()
         # print('e_shots[0]',e_shots[0])
 

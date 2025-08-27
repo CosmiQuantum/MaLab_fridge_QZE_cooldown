@@ -65,7 +65,7 @@ class EFQubitSpectroscopy:
         if self.live_plot:
             efI, efQ, effreqs = self.live_plotting(efqspec, self.experiment.soc)
         else:
-            efiq_list = efqspec.acquire(self.experiment.soc, soft_avgs=self.exp_cfg["rounds"], progress=self.qick_verbose)
+            efiq_list = efqspec.acquire(self.experiment.soc, rounds=self.exp_cfg["rounds"], progress=self.qick_verbose)
             efI = efiq_list[self.QubitIndex][0, :, 0]
             efQ = efiq_list[self.QubitIndex][0, :, 1]
             effreqs = efqspec.get_pulse_param('qubit_pulse', "freq", as_array=True)
@@ -80,7 +80,7 @@ class EFQubitSpectroscopy:
         assert viz.check_connection(timeout_seconds=5), "Visdom server not connected!"
         viz.close(win=None)  # close previous plots
         for ii in range(self.config["rounds"]):
-            iq_list = qspec.acquire(soc, soft_avgs=1, progress=True)
+            iq_list = qspec.acquire(soc, rounds=1, progress=True)
             freqs = qspec.get_pulse_param('qubit_pulse', "freq", as_array=True)
 
             this_I = iq_list[self.QubitIndex][0, :, 0]
@@ -279,13 +279,15 @@ class EFPulseProbeSpectroscopyProgram(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
         self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
 
         self.add_gauss(ch=qubit_ch, name="ramp", sigma=cfg['sigma'], length=cfg['sigma'] * 4, even_length=False)
@@ -325,5 +327,5 @@ class EFPulseProbeSpectroscopyProgram(AveragerProgramV2):
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)  # play e-f pulse
         self.delay_auto(t=0.01, tag='waiting')  # Wait til qubit e-f pulse is done before proceeding
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0) #readout
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 

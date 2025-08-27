@@ -64,13 +64,13 @@ class EF_AmplitudeRabiExperiment:
             # The QICK will run the 'body' method in AmplitudeRabiProgram repeatedly for the iterations set in the
             # initalize loop when this aquire def is used
             # if thresholding:
-            #     iq_list = amp_rabi.acquire(self.experiment.soc, soft_avgs=self.config["rounds"],
+            #     iq_list = amp_rabi.acquire(self.experiment.soc, rounds=self.config["rounds"],
             #                                threshold=self.experiment.readout_cfg["threshold"],
             #                                angle=self.experiment.readout_cfg["ro_phase"], progress=self.qick_verbose)
             # else:
-            #     iq_list = amp_rabi.acquire(self.experiment.soc, soft_avgs=self.config["rounds"],
+            #     iq_list = amp_rabi.acquire(self.experiment.soc, rounds=self.config["rounds"],
             #                                progress=self.qick_verbose)
-            iq_list = amp_rabi.acquire(self.experiment.soc, soft_avgs=self.config["rounds"], progress=self.qick_verbose)
+            iq_list = amp_rabi.acquire(self.experiment.soc, rounds=self.config["rounds"], progress=self.qick_verbose)
             I = iq_list[self.QubitIndex][0, :, 0]
             Q = iq_list[self.QubitIndex][0, :, 1]
         # get the gains that were used so you can use to plot on the x axis
@@ -89,7 +89,7 @@ class EF_AmplitudeRabiExperiment:
         assert viz.check_connection(timeout_seconds=5), "Visdom server not connected!"
 
         for ii in range(self.config["rounds"]):
-            iq_list = amp_rabi.acquire(soc, soft_avgs=1, progress=True)
+            iq_list = amp_rabi.acquire(soc, rounds=1, progress=True)
             gains = amp_rabi.get_pulse_param('qubit_pulse', "gain", as_array=True)
 
             this_I = iq_list[self.QubitIndex][0, :, 0]
@@ -286,14 +286,16 @@ class EF_AmplitudeRabiProgram(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
         self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
 
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
                        style="const",
                        length=cfg["res_length"],
@@ -334,7 +336,7 @@ class EF_AmplitudeRabiProgram(AveragerProgramV2):
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0) #  play pulse: variable-gain fh pi
         self.delay_auto(t=0.0, tag='waiting') #wait
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0) #probe pulse
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
     #For temperature calculations, DO NOT USE (just storing this here for now)
     # def _body(self, cfg):
@@ -345,7 +347,7 @@ class EF_AmplitudeRabiProgram(AveragerProgramV2):
     #     self.delay_auto(t=0.0, tag='waiting after pi')  # Wait til ge pi pulse is done before proceeding
     #
     #     self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0) #probe pulse
-    #     self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+    #     self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
     #
     # def _body(self, cfg):
     #     self.pulse(ch=self.cfg["qubit_ch"], name="pi_ge", t=0)  # play ge pi pulse
@@ -358,4 +360,4 @@ class EF_AmplitudeRabiProgram(AveragerProgramV2):
     #     self.delay_auto(t=0.0, tag='waiting after pi')  # Wait til ge pi pulse is done before proceeding
     #
     #     self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)  # probe pulse
-    #     self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+    #     self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])

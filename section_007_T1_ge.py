@@ -14,13 +14,15 @@ class T1Program(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
         self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         self.add_pulse(ch=res_ch, name="res_pulse",
                        style="const",
                        length=cfg["res_length"],
@@ -45,7 +47,7 @@ class T1Program(AveragerProgramV2):
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)  # play probe pulse
         self.delay_auto(cfg['wait_time'] + 0.01, tag='wait')  # wait_time after last pulse
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 
 class T1Measurement:
@@ -99,11 +101,11 @@ class T1Measurement:
             I, Q, delay_times = self.live_plotting(t1, thresholding)
         else:
             if thresholding:
-                iq_list = t1.acquire(self.experiment.soc, soft_avgs=self.config['rounds'],
+                iq_list = t1.acquire(self.experiment.soc, rounds=self.config['rounds'],
                                            threshold=self.experiment.readout_cfg["threshold"],
                                            angle=self.experiment.readout_cfg["ro_phase"], progress=True)
             else:
-                iq_list = t1.acquire(self.experiment.soc, soft_avgs=self.config['rounds'], progress=True)
+                iq_list = t1.acquire(self.experiment.soc, rounds=self.config['rounds'], progress=True)
 
 
             I = iq_list[self.QubitIndex][0, :, 0]
@@ -134,13 +136,13 @@ class T1Measurement:
         if not viz.check_connection(timeout_seconds=5):
             raise RuntimeError("Visdom server not connected!")
         for ii in range(self.config["rounds"]):
-            #iq_list = t1.acquire(self.experiment.soc, soft_avgs=1, progress=True)
+            #iq_list = t1.acquire(self.experiment.soc, rounds=1, progress=True)
             if thresholding:
-                iq_list = t1.acquire(self.experiment.soc, soft_avgs=1,
+                iq_list = t1.acquire(self.experiment.soc, rounds=1,
                                            threshold=self.experiment.readout_cfg["threshold"],
                                            angle=self.experiment.readout_cfg["ro_phase"], progress=True)
             else:
-                iq_list = t1.acquire(self.experiment.soc, soft_avgs=1, progress=True)
+                iq_list = t1.acquire(self.experiment.soc, rounds=1, progress=True)
             delay_times = t1.get_time_param('wait', "t", as_array=True)
 
             this_I = iq_list[self.QubitIndex][0, :, 0]

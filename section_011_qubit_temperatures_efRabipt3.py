@@ -47,7 +47,7 @@ class Temps_EFAmpRabiExperiment:
         if self.live_plot:
             I1, Q1, gains1 = self.live_plotting(amp_rabi1, soc)
         else:
-            iq_list1 = amp_rabi1.acquire(soc, soft_avgs=self.config["rounds"], progress=True)
+            iq_list1 = amp_rabi1.acquire(soc, rounds=self.config["rounds"], progress=True)
             I1 = iq_list1[self.QubitIndex][0, :, 0]
             Q1 = iq_list1[self.QubitIndex][0, :, 1]
             gains1 = amp_rabi1.get_pulse_param('qubit_pulse', "gain", as_array=True)
@@ -59,7 +59,7 @@ class Temps_EFAmpRabiExperiment:
         if self.live_plot:
             I2, Q2, gains2 = self.live_plotting(amp_rabi2, soc)
         else:
-            iq_list2 = amp_rabi2.acquire(soc, soft_avgs=self.config["rounds"], progress=True)
+            iq_list2 = amp_rabi2.acquire(soc, rounds=self.config["rounds"], progress=True)
             I2 = iq_list2[self.QubitIndex][0, :, 0]
             Q2 = iq_list2[self.QubitIndex][0, :, 1]
             gains2 = amp_rabi2.get_pulse_param('qubit_pulse', "gain", as_array=True)
@@ -75,7 +75,7 @@ class Temps_EFAmpRabiExperiment:
         assert viz.check_connection(timeout_seconds=5), "Visdom server not connected!"
 
         for ii in range(self.config["rounds"]):
-            iq_list = amp_rabi.acquire(soc, soft_avgs=1, progress=True)
+            iq_list = amp_rabi.acquire(soc, rounds=1, progress=True)
             gains = amp_rabi.get_pulse_param('qubit_pulse', "gain", as_array=True)
 
             this_I = iq_list[self.QubitIndex][0, :, 0]
@@ -311,14 +311,16 @@ class AmplitudeRabiProgram1(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
         self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
 
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         self.add_pulse(ch=res_ch, name="res_pulse",
                        style="const",
                        length=cfg["res_length"],
@@ -357,21 +359,23 @@ class AmplitudeRabiProgram1(AveragerProgramV2):
         self.delay_auto(t=0.0, tag='waiting after pi')  # Wait til ge pi pulse is done before proceeding
 
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)  # probe pulse
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 class AmplitudeRabiProgram2(AveragerProgramV2):
     def _initialize(self, cfg):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
         self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
 
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         self.add_pulse(ch=res_ch, name="res_pulse",
                        style="const",
                        length=cfg["res_length"],
@@ -414,4 +418,4 @@ class AmplitudeRabiProgram2(AveragerProgramV2):
         self.delay_auto(t=0.0, tag='2nd waiting after pi')  # Wait til g-e pi pulse is done before proceeding
 
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)  # probe pulse
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])

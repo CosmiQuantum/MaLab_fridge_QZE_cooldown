@@ -14,7 +14,7 @@ class SingleToneSpectroscopyProgram(AveragerProgramV2):
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
         self.add_readoutconfig(ch=ro_chs, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
@@ -46,7 +46,7 @@ class SingleToneSpectroscopyProgram(AveragerProgramV2):
     def _body(self, cfg):
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)  # play pi pulse
         self.delay_auto(0.01)  # wait_time after last pulse
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'], ddr4=True)
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'], ddr4=True)
         self.pulse(ch=cfg['res_ch'], name="mymux", t=0)
 
 
@@ -85,7 +85,7 @@ class ResonanceSpectroscopyEF:
             self.config["res_freq_ge"] = fcenter + f
             prog = SingleToneSpectroscopyProgram(self.experiment.soccfg, reps=self.exp_cfg["reps"], final_delay=0.5,
                                                  cfg=self.config)
-            iq_list = prog.acquire(self.experiment.soc, soft_avgs=self.exp_cfg["rounds"], progress=self.qick_verbose)
+            iq_list = prog.acquire(self.experiment.soc, rounds=self.exp_cfg["rounds"], progress=self.qick_verbose)
             for i in range(len(self.config['res_freq_ge'])):
                 amps[i][index] = np.abs(iq_list[i][:, 0] + 1j * iq_list[i][:, 1])
         amps = np.array(amps)

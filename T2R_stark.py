@@ -152,14 +152,15 @@ class starkT2RProgram(AveragerProgramV2):
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
 
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
         self.add_loop("waitloop", cfg["steps"])
         self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
                        style="const",
                        length=cfg["res_length"],
@@ -203,7 +204,7 @@ class starkT2RProgram(AveragerProgramV2):
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse2", t=0)  # pi/2 before readout
         self.delay_auto(0.01)  # wait_time after last pulse
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 class starkT2RMeasurement:
     def __init__(self, QubitIndex, number_of_qubits, outerFolder, round_num, signal, save_figs, experiment = None,
@@ -395,11 +396,11 @@ class starkT2RMeasurement:
                          cfg=self.config)
 
             if thresholding:
-                iq_list = ramsey.acquire(self.experiment.soc, soft_avgs=self.config['rounds'],
+                iq_list = ramsey.acquire(self.experiment.soc, rounds=self.config['rounds'],
                                          threshold=self.experiment.readout_cfg["threshold"],
                                          angle=self.experiment.readout_cfg["ro_phase"], progress=self.qick_verbose)
             else:
-                iq_list = ramsey.acquire(self.experiment.soc, soft_avgs=self.config['rounds'], progress=self.qick_verbose)
+                iq_list = ramsey.acquire(self.experiment.soc, rounds=self.config['rounds'], progress=self.qick_verbose)
 
             i0 = iq_list[self.QubitIndex][0, :, 0]
             q0 = iq_list[self.QubitIndex][0, :, 1]

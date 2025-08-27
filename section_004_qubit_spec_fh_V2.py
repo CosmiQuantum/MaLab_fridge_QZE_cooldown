@@ -48,7 +48,7 @@ class FHQubitSpectroscopy:
         if self.live_plot:
             efI, efQ, effreqs = self.live_plotting(efqspec, self.experiment.soc)
         else:
-            efiq_list = efqspec.acquire(self.experiment.soc, soft_avgs=self.exp_cfg["rounds"], progress=True)
+            efiq_list = efqspec.acquire(self.experiment.soc, rounds=self.exp_cfg["rounds"], progress=True)
             efI = efiq_list[self.QubitIndex][0, :, 0]
             efQ = efiq_list[self.QubitIndex][0, :, 1]
             effreqs = efqspec.get_pulse_param('qubit_pulse', "freq", as_array=True)
@@ -63,7 +63,7 @@ class FHQubitSpectroscopy:
         assert viz.check_connection(timeout_seconds=5), "Visdom server not connected!"
         viz.close(win=None)  # close previous plots
         for ii in range(self.config["rounds"]):
-            iq_list = qspec.acquire(soc, soft_avgs=1, progress=True)
+            iq_list = qspec.acquire(soc, rounds=1, progress=True)
             freqs = qspec.get_pulse_param('qubit_pulse', "freq", as_array=True)
 
             this_I = iq_list[self.QubitIndex][0, :, 0]
@@ -263,7 +263,7 @@ class FHPulseProbeSpectroscopyProgram(AveragerProgramV2):
         gen_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
         self.add_readoutconfig(ch=ro_chs, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=gen_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
@@ -320,4 +320,4 @@ class FHPulseProbeSpectroscopyProgram(AveragerProgramV2):
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)  # play f-h pulse
         self.delay_auto(t=0.01, tag='waiting')  # Wait til qubit e-f pulse is done before proceeding
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0) #readout
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])

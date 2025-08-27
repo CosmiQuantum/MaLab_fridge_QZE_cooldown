@@ -88,7 +88,7 @@ class LengthRabiExperimentQZE:
         )
         iq_list = amp_rabi.acquire(
             self.experiment.soc,
-            soft_avgs=self.config["rounds"],
+            rounds=self.config["rounds"],
             progress=self.qick_verbose
         )
 
@@ -153,7 +153,7 @@ class LengthRabiExperimentQZE:
                 )
             iq_list = amp_rabi.acquire(
                 self.experiment.soc,
-                soft_avgs=updated_config["rounds"],
+                rounds=updated_config["rounds"],
                 progress=self.qick_verbose
             )
 
@@ -228,7 +228,7 @@ class LengthRabiExperimentQZE:
 
             iq_list = amp_rabi.acquire(
                 self.experiment.soc,
-                soft_avgs=updated_config["rounds"],
+                rounds=updated_config["rounds"],
                 progress=self.qick_verbose
             )
 
@@ -309,7 +309,7 @@ class LengthRabiExperimentQZE:
 
             iq_list = amp_rabi.acquire(
                 self.experiment.soc,
-                soft_avgs=updated_config["rounds"],
+                rounds=updated_config["rounds"],
                 progress=self.qick_verbose
             )
 
@@ -334,7 +334,7 @@ class LengthRabiExperimentQZE:
     def run_oscilliscope_simple(self, thresholding=False):
 
         prog = OscilliscopeExampleProgram(self.experiment.soccfg, reps=1, final_delay=0.1, cfg=self.config)
-        iq_list = prog.acquire_decimated(self.experiment.soc, soft_avgs=self.config['soft_avgs'])
+        iq_list = prog.acquire_decimated(self.experiment.soc, rounds=self.config['soft_avgs'])
 
 
         I = iq_list[self.QubitIndex][:, 0]
@@ -373,7 +373,7 @@ class LengthRabiExperimentQZE:
                 updated_config['res_gain_qze'][-1] = zeno_gain
 
                 prog = OscilliscopeQZEProgram(self.experiment.soccfg, reps=1, final_delay=0.5, cfg=updated_config)
-                iq_list = prog.acquire_decimated(self.experiment.soc, soft_avgs=updated_config['soft_avgs'])
+                iq_list = prog.acquire_decimated(self.experiment.soc, rounds=updated_config['soft_avgs'])
 
                 I = iq_list[self.QubitIndex][:, 0]
                 Q = iq_list[self.QubitIndex][:, 1]
@@ -415,11 +415,11 @@ class LengthRabiExperimentQZE:
 
         for ii in range(self.config["rounds"]):
             if thresholding:
-                iq_list = amp_rabi.acquire(self.experiment.soc, soft_avgs=1,
+                iq_list = amp_rabi.acquire(self.experiment.soc, rounds=1,
                                            threshold=self.experiment.readout_cfg["threshold"],
                                            angle=self.experiment.readout_cfg["ro_phase"], progress=self.qick_verbose)
             else:
-                iq_list = amp_rabi.acquire(self.experiment.soc, soft_avgs=1, progress=self.qick_verbose)
+                iq_list = amp_rabi.acquire(self.experiment.soc, rounds=1, progress=self.qick_verbose)
             lens = amp_rabi.get_pulse_param('qubit_pulse', "gain", as_array=True)
 
             this_I = iq_list[self.QubitIndex][0, :, 0]
@@ -813,14 +813,16 @@ class LengthRabiProgram(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
         self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         # Define a generator for the readout pulses with the lens, phases, and mixer/mux frequencies
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         # Configure the hardware to set this sort of pulse that we can trigger later
         # This has a rectangle pulse becuase style="const"
         self.add_pulse(ch=res_ch, name="res_pulse",
@@ -848,22 +850,24 @@ class LengthRabiProgram(AveragerProgramV2):
         self.delay_auto(t=0, tag='waiting')
 
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 class QZE_gaus_pulse_RabiProgram(AveragerProgramV2):
     def _initialize(self, cfg):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
         self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         # generator for the readout and the resonator pulses (qze and readout, where cfg['res_gain_qze'] should have
         # varying lens in each loop iterationof calling this classfor the zeno pulse on ch 7)
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
 
         # final readout pulse (to measure the qubit state)
         self.add_pulse(ch=res_ch, name="res_pulse",
@@ -918,22 +922,24 @@ class QZE_gaus_pulse_RabiProgram(AveragerProgramV2):
         self.delay_auto(t=0, tag='waiting') #auto wait for those pulses to be done
         #immediately after the qubit pulse ends, trigger the readout resonator pulse (9us long).
         self.pulse(ch=cfg['res_ch'], name="res_pulse")
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 class QZERabiProgram(AveragerProgramV2):
     def _initialize(self, cfg):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
         self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         # generator for the readout and the resonator pulses (qze and readout, where cfg['res_gain_qze'] should have
         # varying lens in each loop iterationof calling this classfor the zeno pulse on ch 7)
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
 
         # final readout pulse (to measure the qubit state)
         self.add_pulse(ch=res_ch, name="res_pulse",
@@ -988,22 +994,24 @@ class QZERabiProgram(AveragerProgramV2):
         self.delay_auto(t=0, tag='waiting') #auto wait for those pulses to be done
         #immediately after the qubit pulse ends, trigger the readout resonator pulse (9us long).
         self.pulse(ch=cfg['res_ch'], name="res_pulse")
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 class QZE_constant_pulse_RabiProgram(AveragerProgramV2):
     def _initialize(self, cfg):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
         self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         # generator for the readout and the resonator pulses (qze and readout, where cfg['res_gain_qze'] should have
         # varying lens in each loop iterationof calling this classfor the zeno pulse on ch 7)
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
 
         # final readout pulse (to measure the qubit state)
         self.add_pulse(ch=res_ch, name="res_pulse",
@@ -1068,22 +1076,24 @@ class QZE_constant_pulse_RabiProgram(AveragerProgramV2):
         self.delay_auto(t=0, tag='waiting') #auto wait for those pulses to be done
         #immediately after the qubit pulse ends, trigger the readout resonator pulse (9us long).
         self.pulse(ch=cfg['res_ch'], name="res_pulse")
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 class RabiChevronAfterPiProgram(AveragerProgramV2):
     def _initialize(self, cfg):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
         self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         # generator for the readout and the resonator pulses (qze and readout, where cfg['res_gain_qze'] should have
         # varying lens in each loop iterationof calling this classfor the zeno pulse on ch 7)
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
 
         # final readout pulse (to measure the qubit state)
         self.add_pulse(ch=res_ch, name="res_pulse",
@@ -1143,22 +1153,24 @@ class RabiChevronAfterPiProgram(AveragerProgramV2):
         self.delay(t=cfg['res_ring_up_time'])  # wait for ring down that will happen in qze, but of course the resonator doesnt actually have photons here
         # immediately after the qubit pulse ends, trigger the readout resonator pulse (9us long).
         self.pulse(ch=cfg['res_ch'], name="res_pulse")
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 class QZE_constant_pulse_gnd_RabiProgram(AveragerProgramV2):
     def _initialize(self, cfg):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
         self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         # generator for the readout and the resonator pulses (qze and readout, where cfg['res_gain_qze'] should have
         # varying lens in each loop iterationof calling this classfor the zeno pulse on ch 7)
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
 
         # final readout pulse (to measure the qubit state)
         self.add_pulse(ch=res_ch, name="res_pulse",
@@ -1226,7 +1238,7 @@ class QZE_constant_pulse_gnd_RabiProgram(AveragerProgramV2):
         self.delay(t=cfg['res_ring_up_time'])  # wait for ring down that will happen in qze, but of course the resonator doesnt actually have photons here
         #immediately after the qubit pulse ends, trigger the readout resonator pulse (9us long).
         self.pulse(ch=cfg['res_ch'], name="res_pulse")
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 
 class QZE_constant_pulse_3pulse_RabiProgram(AveragerProgramV2):
@@ -1234,15 +1246,17 @@ class QZE_constant_pulse_3pulse_RabiProgram(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
         self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         # generator for the readout and the resonator pulses (qze and readout, where cfg['res_gain_qze'] should have
         # varying lens in each loop iterationof calling this classfor the zeno pulse on ch 7)
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
 
         # final readout pulse (to measure the qubit state)
         self.add_pulse(ch=res_ch, name="res_pulse",
@@ -1328,7 +1342,7 @@ class QZE_constant_pulse_3pulse_RabiProgram(AveragerProgramV2):
         self.delay_auto(t=0, tag='waiting') #auto wait for those pulses to be done
         #immediately after the qubit pulse ends, trigger the readout resonator pulse (9us long).
         self.pulse(ch=cfg['res_ch'], name="res_pulse")
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 
 class QZE_constant_pulse_RabiProgram_unstarked_freq(AveragerProgramV2):
@@ -1336,15 +1350,17 @@ class QZE_constant_pulse_RabiProgram_unstarked_freq(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
         self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         # generator for the readout and the resonator pulses (qze and readout, where cfg['res_gain_qze'] should have
         # varying lens in each loop iterationof calling this classfor the zeno pulse on ch 7)
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
 
         # final readout pulse (to measure the qubit state)
         self.add_pulse(ch=res_ch, name="res_pulse",
@@ -1389,22 +1405,24 @@ class QZE_constant_pulse_RabiProgram_unstarked_freq(AveragerProgramV2):
         self.delay_auto(t=0, tag='waiting') #auto wait for those pulses to be done
         #immediately after the qubit pulse ends, trigger the readout resonator pulse (9us long).
         self.pulse(ch=cfg['res_ch'], name="res_pulse")
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 class QZE_constant_pulse_RabiProgram_WaitForResRingUp(AveragerProgramV2):
     def _initialize(self, cfg):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
         self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         # generator for the readout and the resonator pulses (qze and readout, where cfg['res_gain_qze'] should have
         # varying lens in each loop iterationof calling this classfor the zeno pulse on ch 7)
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
 
         # final readout pulse (to measure the qubit state)
         self.add_pulse(ch=res_ch, name="res_pulse",
@@ -1467,7 +1485,7 @@ class QZE_constant_pulse_RabiProgram_WaitForResRingUp(AveragerProgramV2):
         self.delay_auto(t=0, tag='waiting') #auto wait for those pulses to be done
         #immediately after the qubit pulse ends, trigger the readout resonator pulse (9us long).
         self.pulse(ch=cfg['res_ch'], name="res_pulse")
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 
 class QZERabiProgram(AveragerProgramV2):
@@ -1475,15 +1493,17 @@ class QZERabiProgram(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
         self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         # generator for the readout and the resonator pulses (qze and readout, where cfg['res_gain_qze'] should have
         # varying lens in each loop iterationof calling this classfor the zeno pulse on ch 7)
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
 
         # final readout pulse (to measure the qubit state)
         self.add_pulse(ch=res_ch, name="res_pulse",
@@ -1538,7 +1558,7 @@ class QZERabiProgram(AveragerProgramV2):
         self.delay_auto(t=0, tag='waiting') #auto wait for those pulses to be done
         #immediately after the qubit pulse ends, trigger the readout resonator pulse (9us long).
         self.pulse(ch=cfg['res_ch'], name="res_pulse")
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 
 class OscilliscopeQZEProgram(AveragerProgramV2):
@@ -1546,14 +1566,16 @@ class OscilliscopeQZEProgram(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
         self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         # generator for the readout pulses
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         # final readout pulse (to measure the qubit state)
         self.add_pulse(ch=res_ch, name="res_pulse",
                        style="const",
@@ -1604,7 +1626,7 @@ class OscilliscopeQZEProgram(AveragerProgramV2):
         #self.delay_auto(t=0.5, tag='waiting')  # auto wait for those pulses to be done
         # # immediately after the qubit pulse ends, trigger the readout resonator pulse (9us long).
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=Tdrive+0.5)
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 class OscilliscopeExampleProgram(AveragerProgramV2):
     def _initialize(self, cfg):
@@ -1612,7 +1634,7 @@ class OscilliscopeExampleProgram(AveragerProgramV2):
         ro_chs = cfg['ro_ch']
         gen_ch = cfg['res_ch']
         self.add_readoutconfig(ch=ro_chs, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=gen_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
@@ -1644,7 +1666,7 @@ class OscilliscopeExampleProgram(AveragerProgramV2):
 
     def _body(self, cfg):
 
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=0, ddr4=True)
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=0, ddr4=True)
         self.pulse(ch=cfg['res_ch'], name="mymux", t=0)
         self.delay_auto(t=3, tag='waiting')
         self.pulse(ch=cfg['res_ch'], name="mygaus", t=0)

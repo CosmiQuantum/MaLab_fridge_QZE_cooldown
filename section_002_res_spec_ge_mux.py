@@ -12,13 +12,15 @@ class SingleToneSpectroscopyProgram(AveragerProgramV2):
     def _initialize(self, cfg):
         ro_chs = cfg['ro_ch']
         res_ch = cfg['res_ch']
+        # print(cfg['res_length'],cfg['res_freq_ge'],cfg['res_gain_ge'],cfg['ro_phase'])
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
         self.add_readoutconfig(ch=ro_chs, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
 
         self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_chs,
                        style="const",
@@ -29,8 +31,9 @@ class SingleToneSpectroscopyProgram(AveragerProgramV2):
                        )
 
     def _body(self, cfg):
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'], ddr4=True)
-        self.pulse(ch=cfg['res_ch'], name="mymux", t=0)
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'], ddr4=True)
+        self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+
 
 class ResonanceSpectroscopy:
     def __init__(self, QubitIndex, number_of_qubits, outerFolder, round_num, save_figs, experiment = None,
@@ -61,15 +64,14 @@ class ResonanceSpectroscopy:
     def run(self):
         fpts = self.exp_cfg["start"] + self.exp_cfg["step_size"] * np.arange(self.exp_cfg["steps"])
         fcenter = self.config['res_freq_ge']
-        amps = np.zeros((len(fcenter), len(fpts)))
 
-        for index, f in enumerate(tqdm(fpts)):
+        amps = []
+        for index,f in enumerate(tqdm(fpts)):
             self.config["res_freq_ge"] = fcenter + f
             prog = SingleToneSpectroscopyProgram(self.experiment.soccfg, reps=self.exp_cfg["reps"], final_delay=0.5, cfg=self.config)
-            iq_list = prog.acquire(self.experiment.soc, soft_avgs=self.exp_cfg["rounds"], progress=self.qick_verbose)
-            for i in range(len(self.config['res_freq_ge'])):
-                #amps[i][index]= iq_list[i][:,0]
-                amps[i][index] = np.abs(iq_list[i][:, 0] + 1j * iq_list[i][:, 1])
+            iq_list = prog.acquire(self.experiment.soc, rounds=self.exp_cfg["rounds"], progress=self.qick_verbose)
+            amp = np.abs(iq_list[0][0][0] + 1j * iq_list[0][0][1])
+            amps.append(amp)
         amps = np.array(amps)
         res_freqs = self.plot_results(fpts, fcenter, amps) #return freqs from plotting loop so we can use to update experiment
 
@@ -87,21 +89,20 @@ class ResonanceSpectroscopy:
             'legend.fontsize': 14,
         })
 
-        for i in range(self.number_of_qubits):
-            plt.subplot(2, 3, i + 1)
-            #plt.plot(fpts + fcenter[i], amps[i], '-', linewidth=1.5)
-            plt.plot([f + fcenter[i] for f in fpts], amps[i], '-', linewidth=1.5)
-            freq_r = fpts[np.argmin(amps[i])] + fcenter[i]
-            res_freqs.append(freq_r)
-            if i == self.QubitIndex:
-                plt.axvline(freq_r, linestyle='--', color='orange', linewidth=1.5)
-                plt.title(f"Resonator {i + 1} {freq_r:.3f} MHz", pad=10)
-            else:
-                plt.title(f"Resonator {i + 1}", pad=10)
-            plt.xlabel("Frequency (MHz)")
-            plt.ylabel("Amplitude (a.u.)")
 
-            plt.ylim(plt.ylim()[0] - 0.05 * (plt.ylim()[1] - plt.ylim()[0]), plt.ylim()[1])
+        plt.subplot(2, 3, 1)
+        #plt.plot(fpts + fcenter[i], amps[i], '-', linewidth=1.5)
+        plt.plot([f + fcenter for f in fpts], amps, '-', linewidth=1.5)
+        freq_r = fpts[np.argmin(amps)] + fcenter
+        res_freqs.append(freq_r)
+
+        plt.axvline(freq_r, linestyle='--', color='orange', linewidth=1.5)
+        plt.title(f"Resonator {self.QubitIndex + 1} {freq_r:.3f} MHz", pad=10)
+
+        plt.xlabel("Frequency (MHz)")
+        plt.ylabel("Amplitude (a.u.)")
+
+        plt.ylim(plt.ylim()[0] - 0.05 * (plt.ylim()[1] - plt.ylim()[0]), plt.ylim()[1])
 
         if self.experiment is not None:
             plt.suptitle(f"MUXed resonator spectroscopy {self.config['reps']}*{self.config['rounds']} avgs", fontsize=24, y=0.95)

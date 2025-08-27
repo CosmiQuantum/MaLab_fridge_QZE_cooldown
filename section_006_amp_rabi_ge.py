@@ -69,11 +69,11 @@ class AmplitudeRabiExperiment:
                                                  projective_readout_pulse_len_us = self.projective_readout_pulse_len_us,
                                                  time_between_projective_readout_pulses = self.time_between_projective_readout_pulses)
             if thresholding:
-                iq_list = amp_rabi.acquire(self.experiment.soc, soft_avgs=self.config["rounds"],
+                iq_list = amp_rabi.acquire(self.experiment.soc, rounds=self.config["rounds"],
                                            threshold=self.experiment.readout_cfg["threshold"],
                                            angle=self.experiment.readout_cfg["ro_phase"], progress=self.qick_verbose)
             else:
-                iq_list = amp_rabi.acquire(self.experiment.soc, soft_avgs=self.config["rounds"],
+                iq_list = amp_rabi.acquire(self.experiment.soc, rounds=self.config["rounds"],
                                            progress=self.qick_verbose)
         else:
             amp_rabi = AmplitudeRabiProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay=self.config['relax_delay'], cfg=self.config)
@@ -88,11 +88,11 @@ class AmplitudeRabiExperiment:
                 # The QICK will run the 'body' method in AmplitudeRabiProgram repeatedly for the iterations set in the
                 # initalize loop when this aquire def is used
                 if thresholding:
-                    iq_list = amp_rabi.acquire(self.experiment.soc, soft_avgs=self.config["rounds"],
+                    iq_list = amp_rabi.acquire(self.experiment.soc, rounds=self.config["rounds"],
                                                threshold=self.experiment.readout_cfg["threshold"],
                                                angle=self.experiment.readout_cfg["ro_phase"], progress=self.qick_verbose)
                 else:
-                    iq_list = amp_rabi.acquire(self.experiment.soc, soft_avgs=self.config["rounds"], progress=self.qick_verbose)
+                    iq_list = amp_rabi.acquire(self.experiment.soc, rounds=self.config["rounds"], progress=self.qick_verbose)
 
                 I = iq_list[self.QubitIndex][0][ :, 0]
                 Q = iq_list[self.QubitIndex][0][ :, 1]
@@ -119,11 +119,11 @@ class AmplitudeRabiExperiment:
 
         for ii in range(self.config["rounds"]):
             if thresholding:
-                iq_list = amp_rabi.acquire(self.experiment.soc, soft_avgs=1,
+                iq_list = amp_rabi.acquire(self.experiment.soc, rounds=1,
                                            threshold=self.experiment.readout_cfg["threshold"],
                                            angle=self.experiment.readout_cfg["ro_phase"], progress=self.qick_verbose)
             else:
-                iq_list = amp_rabi.acquire(self.experiment.soc, soft_avgs=1, progress=self.qick_verbose)
+                iq_list = amp_rabi.acquire(self.experiment.soc, rounds=1, progress=self.qick_verbose)
             gains = amp_rabi.get_pulse_param('qubit_pulse', "gain", as_array=True)
 
             this_I = iq_list[self.QubitIndex][0, :, 0]
@@ -1463,14 +1463,16 @@ class AmplitudeRabiProgram(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
         self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         # Define a generator for the readout pulses with the gains, phases, and mixer/mux frequencies
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         # Configure the hardware to set this sort of pulse that we can trigger later
         # This has a rectangle pulse becuase style="const"
         self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
@@ -1510,7 +1512,7 @@ class AmplitudeRabiProgram(AveragerProgramV2):
         # Readout pulse to look at qubit state
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
         # Trigger the readout channels to start collecting the data
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
         ################ Active Reset #################################
         # Wait for readout to be completed
@@ -1519,7 +1521,7 @@ class AmplitudeRabiProgram(AveragerProgramV2):
         # self.label("Readout and check conditions")
         # # n = n + 1
         # self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)  # play probe pulse
-        # self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        # self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
         #
         # # # Wait for readout to be completed
         # self.wait_auto(cfg['res_length']  + 0.2)
@@ -1568,13 +1570,12 @@ class AmplitudeRabi_QZE_Program(AveragerProgramV2):
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
         self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         # Configure the resonator (readout) generator
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-                         mixer_freq=cfg['mixer_freq'])
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], mixer_freq=cfg['mixer_freq'])
         self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         # Instead of one long readout pulse, define two pulses:
         # 1. A short projection pulse for the QZE (e.g., 9 ns)
@@ -1626,5 +1627,5 @@ class AmplitudeRabi_QZE_Program(AveragerProgramV2):
         self.pulse(ch=cfg['res_ch'], name="final_res_pulse", t=t_final)
 
         # Trigger the readout channels to collect the data.
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 

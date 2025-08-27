@@ -64,13 +64,13 @@ class FH_AmplitudeRabiExperiment:
             # The QICK will run the 'body' method in AmplitudeRabiProgram repeatedly for the iterations set in the
             # initalize loop when this aquire def is used
             # if thresholding:
-            #     iq_list = amp_rabi.acquire(self.experiment.soc, soft_avgs=self.config["rounds"],
+            #     iq_list = amp_rabi.acquire(self.experiment.soc, rounds=self.config["rounds"],
             #                                threshold=self.experiment.readout_cfg["threshold"],
             #                                angle=self.experiment.readout_cfg["ro_phase"], progress=self.qick_verbose)
             # else:
-            #     iq_list = amp_rabi.acquire(self.experiment.soc, soft_avgs=self.config["rounds"],
+            #     iq_list = amp_rabi.acquire(self.experiment.soc, rounds=self.config["rounds"],
             #                                progress=self.qick_verbose)
-            iq_list = amp_rabi.acquire(self.experiment.soc, soft_avgs=self.config["rounds"], progress=self.qick_verbose)
+            iq_list = amp_rabi.acquire(self.experiment.soc, rounds=self.config["rounds"], progress=self.qick_verbose)
             I = iq_list[self.QubitIndex][0, :, 0]
             Q = iq_list[self.QubitIndex][0, :, 1]
         # get the gains that were used so you can use to plot on the x axis
@@ -89,7 +89,7 @@ class FH_AmplitudeRabiExperiment:
         assert viz.check_connection(timeout_seconds=5), "Visdom server not connected!"
 
         for ii in range(self.config["rounds"]):
-            iq_list = amp_rabi.acquire(soc, soft_avgs=1, progress=True)
+            iq_list = amp_rabi.acquire(soc, rounds=1, progress=True)
             gains = amp_rabi.get_pulse_param('qubit_pulse', "gain", as_array=True)
 
             this_I = iq_list[self.QubitIndex][0, :, 0]
@@ -287,7 +287,7 @@ class FH_AmplitudeRabiProgram(AveragerProgramV2):
         gen_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
         self.add_readoutconfig(ch=ro_chs, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=gen_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
@@ -345,7 +345,7 @@ class FH_AmplitudeRabiProgram(AveragerProgramV2):
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0) #  play pulse: variable-gain fh pi
         self.delay_auto(t=0.0, tag='waiting') #wait
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0) #probe pulse
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
     #For temperature calculations, DO NOT USE (just storing this here for now)
     # def _body(self, cfg):
@@ -356,7 +356,7 @@ class FH_AmplitudeRabiProgram(AveragerProgramV2):
     #     self.delay_auto(t=0.0, tag='waiting after pi')  # Wait til ge pi pulse is done before proceeding
     #
     #     self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0) #probe pulse
-    #     self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+    #     self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
     #
     # def _body(self, cfg):
     #     self.pulse(ch=self.cfg["qubit_ch"], name="pi_ge", t=0)  # play ge pi pulse
@@ -369,4 +369,4 @@ class FH_AmplitudeRabiProgram(AveragerProgramV2):
     #     self.delay_auto(t=0.0, tag='waiting after pi')  # Wait til ge pi pulse is done before proceeding
     #
     #     self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)  # probe pulse
-    #     self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+    #     self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])

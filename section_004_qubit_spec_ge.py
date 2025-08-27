@@ -84,7 +84,7 @@ class QubitSpectroscopy:
         if self.live_plot:
             I, Q, freqs = self.live_plotting(qspec)
         else:
-            iq_list = qspec.acquire(self.experiment.soc, soft_avgs=self.exp_cfg["rounds"], progress=self.qick_verbose)
+            iq_list = qspec.acquire(self.experiment.soc, rounds=self.exp_cfg["rounds"], progress=self.qick_verbose)
             I = iq_list[self.QubitIndex][0, :, 0]
             Q = iq_list[self.QubitIndex][0, :, 1]
             freqs = qspec.get_pulse_param('qubit_pulse', "freq", as_array=True)
@@ -119,7 +119,7 @@ class QubitSpectroscopy:
         else:
             qspec = PulseProbeSpectroscopyProgram_WithStark(self.experiment.soccfg, reps=self.config['reps']*2, final_delay=0.5, cfg=self.config)
 
-        iq_list = qspec.acquire(self.experiment.soc, soft_avgs=self.exp_cfg["rounds"],)
+        iq_list = qspec.acquire(self.experiment.soc, rounds=self.exp_cfg["rounds"],)
         I = iq_list[self.QubitIndex][0, :, 0]
         Q = iq_list[self.QubitIndex][0, :, 1]
         freqs = qspec.get_pulse_param('qubit_pulse', "freq", as_array=True)
@@ -134,7 +134,7 @@ class QubitSpectroscopy:
             raise RuntimeError("Visdom server not connected!")
         viz.close(win=None)  # close previous plots
         for ii in range(self.config["rounds"]):
-            iq_list = qspec.acquire(self.experiment.soc, soft_avgs=1, progress=self.qick_verbose)
+            iq_list = qspec.acquire(self.experiment.soc, rounds=1, progress=self.qick_verbose)
             freqs = qspec.get_pulse_param('qubit_pulse', "freq", as_array=True)
 
             this_I = iq_list[self.QubitIndex][0, :, 0]
@@ -462,13 +462,15 @@ class PulseProbeSpectroscopyProgram(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
         self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
                        style="const",
                        length=cfg["res_length"],
@@ -492,20 +494,22 @@ class PulseProbeSpectroscopyProgram(AveragerProgramV2):
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)  # play probe pulse
         self.delay_auto(t=0.01, tag='waiting')  # Wait til qubit pulse is done before proceeding
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 class PulseProbeSpectroscopyProgram_WithStark(AveragerProgramV2):
     def _initialize(self, cfg):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
         self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
                        style="const",
                        length=cfg["res_length"],
@@ -537,20 +541,22 @@ class PulseProbeSpectroscopyProgram_WithStark(AveragerProgramV2):
         self.pulse(ch=cfg["qubit_ch"], name="qubit_pulse", t=0)  # play probe pulse
         self.delay_auto(t=0, tag='waiting')  # Wait til qubit pulse is done before proceeding
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 class PulseProbeSpectroscopyProgram_WithStark_WaitForRingUp(AveragerProgramV2):
     def _initialize(self, cfg):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
         self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         self.add_pulse(ch=res_ch, name="res_pulse",
                        style="const",
                        length=cfg["res_length"],
@@ -583,7 +589,7 @@ class PulseProbeSpectroscopyProgram_WithStark_WaitForRingUp(AveragerProgramV2):
         self.delay_auto(t=0.0, tag='wait')  # wait for stark tone to finish
         self.delay(t=cfg['res_ring_up_time']) #wait for ring down
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0) #ring down time, then res readout pulse
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 class QZEStyleResStarkShift2D:
     def __init__(self, QubitIndex, number_of_qubits, outerFolder, res_freq_stark, res_phase_stark, save_figs,
@@ -636,7 +642,7 @@ class QZEStyleResStarkShift2D:
         self.config['reps'] = self.config['reps']
         prog = QZEStyleStarkedFreq(self.experiment.soccfg, reps=self.config['reps'], final_delay = 0.5, cfg=self.config)
 
-        iq_list = prog.acquire(self.experiment.soc, soft_avgs=self.exp_cfg["rounds"], progress=True)
+        iq_list = prog.acquire(self.experiment.soc, rounds=self.exp_cfg["rounds"], progress=True)
         I = iq_list[self.QubitIndex][0, :, 0]
         Q = iq_list[self.QubitIndex][0, :, 1]
 
@@ -793,13 +799,15 @@ class QZEStyleStarkedFreq(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
         self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         self.add_pulse(ch=res_ch, name="proj_pulse",
                        style="const",
                        length=cfg['qubit_length_ge']  + cfg['res_ring_up_time']- cfg['qubit_pi_len'],
@@ -830,7 +838,7 @@ class QZEStyleStarkedFreq(AveragerProgramV2):
         self.pulse(ch=cfg['qubit_ch'], name="qubit_pulse", t=cfg['res_ring_up_time']) #play qubit pulse with delay
         self.delay_auto(t=0.5,tag='waiting') #cfg['res_ring_up_time']
         self.pulse(ch=cfg['res_ch'], name="readout_pulse", t=0)
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 class ResStarkShift2DAdapted:
     def __init__(self, QubitIndex, number_of_qubits, outerFolder, res_freq_stark, res_phase_stark, save_figs, experiment=None, signal=None):
@@ -864,7 +872,7 @@ class ResStarkShift2DAdapted:
             gain = round(g, 3)
             self.config['stark_gain'] = np.concatenate((res_gain_ge, [gain]))  #readout pulse gain, stark tone gain
             prog = ResStarkShift2DProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay = 0.5, cfg=self.config)
-            iq_list = prog.acquire(self.experiment.soc, soft_avgs=self.exp_cfg["rounds"], progress=True) #check soft_avgs
+            iq_list = prog.acquire(self.experiment.soc, rounds=self.exp_cfg["rounds"], progress=True) #check soft_avgs
             I.append(iq_list[self.QubitIndex][0,:,0])
             Q.append(iq_list[self.QubitIndex][0,:,1])
 
@@ -912,13 +920,15 @@ class ResStarkShift2DProgram(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
         self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         self.add_pulse(ch=res_ch, name="stark_tone",
                        style="const",
                        length=cfg['stark_length'],
@@ -959,4 +969,4 @@ class ResStarkShift2DProgram(AveragerProgramV2):
         self.pulse(ch=cfg['qubit_ch'], name="qubit_pulse", t=cfg['qubit_pulse_delay']) #play qubit pulse with delay
         self.delay(t=cfg['stark_length'] + cfg['readout_pulse_delay']) #wait for stark tone to finish and for resonator to reach vacuum
         self.pulse(ch=cfg['res_ch'], name="readout_pulse", t=0)
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])

@@ -150,13 +150,15 @@ class T2EProgram(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
         self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         self.add_pulse(ch=res_ch, name="res_pulse",
                        style="const",
                        length=cfg["res_length"],
@@ -201,7 +203,7 @@ class T2EProgram(AveragerProgramV2):
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse2", t=0)  # play pulse
         self.delay_auto(0.01)  # wait_time after last pulse
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 class T2EMeasurement:
     def __init__(self, QubitIndex, number_of_qubits, outerFolder, round_num, signal, save_figs, experiment = None,
@@ -394,11 +396,11 @@ class T2EMeasurement:
             I, Q, delay_times = self.live_plotting(echo, thresholding)
         else:
             if thresholding:
-                iq_list = echo.acquire(self.experiment.soc, soft_avgs=self.config['rounds'],
+                iq_list = echo.acquire(self.experiment.soc, rounds=self.config['rounds'],
                                            threshold=self.experiment.readout_cfg["threshold"],
                                            angle=self.experiment.readout_cfg["ro_phase"], progress=self.qick_verbose)
             else:
-                iq_list = echo.acquire(self.experiment.soc, soft_avgs=self.config['rounds'], progress=self.qick_verbose)
+                iq_list = echo.acquire(self.experiment.soc, rounds=self.config['rounds'], progress=self.qick_verbose)
 
             I = iq_list[self.QubitIndex][0, :, 0]
             Q = iq_list[self.QubitIndex][0, :, 1]
@@ -423,11 +425,11 @@ class T2EMeasurement:
             raise RuntimeError("Visdom server not connected!")
         for ii in range(self.config["rounds"]):
             if thresholding:
-                iq_list = echo.acquire(self.experiment.soc, soft_avgs=1,
+                iq_list = echo.acquire(self.experiment.soc, rounds=1,
                                        threshold=self.experiment.readout_cfg["threshold"],
                                        angle=self.experiment.readout_cfg["ro_phase"], progress=self.qick_verbose)
             else:
-                iq_list = echo.acquire(self.experiment.soc, soft_avgs=1, progress=self.qick_verbose)
+                iq_list = echo.acquire(self.experiment.soc, rounds=1, progress=self.qick_verbose)
 
             delay_times1 = echo.get_time_param('wait1', "t", as_array=True)
             delay_times2 = echo.get_time_param('wait2', "t", as_array=True)

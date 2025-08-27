@@ -3,10 +3,10 @@ import numpy as np
 FRIDGE = "BOB"
 
 if FRIDGE == "QUIET" or FRIDGE == "BOB":
-    VNA_res = np.array([6223.097, 6284.61, 6343.95, 6414.9, 6481.4, 6547.09])#*1000  # run 5
+    VNA_res = np.array([7148.575, 7170.545, 7203.345, 7228.037, 7263.677, 7286.697])#*1000  # run 5
     #VNA_res = np.array([6217.011, 6275.7973, 6335.1068, 6407.052, 6476.1091, 6538])
     # VNA_res = np.array([6191.519, 6216, 6292.321, 6405.85, 6432.959, 6468.441,]) # run 4a
-    VNA_qubit = np.array([4184.1, 3823.37, 4162.9, 4467.37, 4467.23, 5006.13])  # Freqs of Qubit g/e Transition
+    VNA_qubit = np.array([2780, 2980, 2873, 3096, 3043, 3093])  # Freqs of Qubit g/e Transition
     #VNA_qubit = np.array([4189.8105, 3820.4723, 4156.53, 4462.374, 4471.4036, 4997.86])
     ef_freqs = np.array([4009.81, 3645.58, 3988.21, 4292.73, 4292.73, 4838.86]) # Freqs of Qubit e/f Transition, updated for run 7
     fh_freqs = np.array([3820.97, 3450.85, 3798.97, 4110, 4660, 4660.28])
@@ -18,17 +18,17 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
     expt_cfg = {
         "tof": {
             "reps": 1, #reps doesnt make a difference here, leave it at 1
-            "soft_avgs": 100,
+            "soft_avgs": 400,
             "relax_delay": 0,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
 
         "res_spec": {
-            "reps": 400,
+            "reps": 500,
             "rounds": 1,
-            "start": -30,  # -4 #[MHz]
-            "step_size": 0.3,#0.01,  # [MHz]
-            "steps": 200,#,200,#70
+            "start": -1, #[MHz]
+            "step_size": 0.003,  # [MHz]
+            "steps": 500,#,200,#70
             "relax_delay": 5,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },

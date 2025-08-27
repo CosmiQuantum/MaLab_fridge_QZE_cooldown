@@ -34,48 +34,43 @@ class TOFExperiment:
         class MuxProgram(AveragerProgramV2):
             def _initialize(self, cfg):
                 ro_chs = cfg['ro_ch']
-                gen_ch = cfg['res_ch']
-                self.add_readoutconfig(ch=ro_chs, name="myro",
-                                       freq=cfg['freq'],
-                                       gen_ch=gen_ch,
-                                       outsel='product')
-                self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-                self.declare_gen(
-                    ch=gen_ch, nqz=cfg['nqz_res'], ro_ch=ro_chs[0],
-                    mux_freqs=[f+1 for f in cfg['res_freq_ge']],
-                    mux_gains= cfg['res_gain_ge'], #[1,0,0,0,0,0],#cfg['res_gain_ge'], #[1,0,0,0,0,0]
-                    mux_phases=cfg['res_phase'],
-                    mixer_freq=cfg['mixer_freq']
-                )
-                for ch, f, ph in zip(cfg['ro_ch'], [f+1 for f in cfg['res_freq_ge']], cfg['ro_phase']):
-                    self.declare_readout(
-                        ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=gen_ch
-                    )
+                res_ch = cfg['res_ch']
+                self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+                self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
 
-                self.add_pulse(
-                    ch=gen_ch, name="mymux",
-                    style="const",
-                    length=cfg["res_length"],
-                    mask=cfg["list_of_all_qubits"],
-                )
+                self.add_readoutconfig(ch=ro_chs, name="myro",
+                                       freq=cfg['res_freq_ge'],
+                                       gen_ch=res_ch,
+                                       outsel='product')
+
+                self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
+                # print(cfg["res_length"],cfg['ro_phase'],cfg['res_gain_ge'])
+                self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_chs,
+                               style="const",
+                               length=cfg["res_length"],
+                               freq=cfg['res_freq_ge'],
+                               phase=cfg['ro_phase'],
+                               gain=cfg['res_gain_ge']
+                               )
 
             def _body(self, cfg):
-                self.trigger(ros=cfg['ro_ch'], pins=[0], t=0, ddr4=True)
-                self.pulse(ch=cfg['res_ch'], name="mymux", t=0)
+                self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+                self.trigger(ros=[cfg['ro_ch']], pins=[0], t=0, ddr4=True)
 
         prog = MuxProgram(self.experiment.soccfg, reps=1, final_delay=0.5, cfg=self.config)
-        iq_list = prog.acquire_decimated(self.experiment.soc, soft_avgs=self.config['soft_avgs'])
+        iq_list = prog.acquire_decimated(self.experiment.soc, rounds=self.config['soft_avgs'])
+        t = prog.get_time_axis(ro_index=0)
         if self.save_figs:
             (average_y_mag_values_last, average_y_mag_values_mid, average_y_mag_values_oct, DAC_attenuator1, DAC_attenuator2, ADC_attenuator) = self.plot_results(prog, iq_list)
         else:
             (average_y_mag_values_last, average_y_mag_values_mid, average_y_mag_values_oct, DAC_attenuator1, DAC_attenuator2, ADC_attenuator) = None, None, None, None, None, None,
 
-        return (average_y_mag_values_last, average_y_mag_values_mid, average_y_mag_values_oct, DAC_attenuator1, DAC_attenuator2, ADC_attenuator)
+        return t, iq_list, self.config
 
 
     def plot_results(self, prog, iq_list):
         t = prog.get_time_axis(ro_index=0)
-        fig, axes = plt.subplots(len(self.config['ro_ch']), 1, figsize=(12, 12))
+        fig, axes = plt.subplots(1, 1, figsize=(12, 12))
         phase_offsets=[]
         average_y_mag_values_mid = []
         average_y_I_values_mid = []
@@ -86,58 +81,58 @@ class TOFExperiment:
         average_y_mag_values_last = []
         average_y_I_values_last = []
         average_y_Q_values_last = []
-        for i, ch in enumerate(self.config['ro_ch']):
-            plot = axes[i]
-            plot.plot(t, iq_list[i][:, 0], label="I value")
-            plot.plot(t, iq_list[i][:, 1], label="Q value")
-            magnitude = np.abs(iq_list[i].dot([1, 1j]))
-            plot.plot(t, magnitude, label="magnitude")
-            plot.legend()
-            plot.set_ylabel("a.u.")
-            plot.set_xlabel("us")
-            plot.axvline(0.6, c='r')
 
-            phase_offset = np.angle(iq_list[i].dot([1, 1j]).sum(), deg=True)
-            # print("measured phase %f degrees" % (phase_offset))
-            phase_offsets.append(phase_offset)
+        plot = axes
+        plot.plot(t, iq_list[0][:, 0], label="I value")
+        plot.plot(t, iq_list[0][:, 1], label="Q value")
+        magnitude = np.abs(iq_list[0].dot([1, 1j]))
+        plot.plot(t, magnitude, label="magnitude")
+        plot.legend()
+        plot.set_ylabel("a.u.")
+        plot.set_xlabel("us")
+        plot.axvline(0.4, c='r')
+
+        phase_offset = np.angle(iq_list[0].dot([1, 1j]).sum(), deg=True)
+        # print("measured phase %f degrees" % (phase_offset))
+        phase_offsets.append(phase_offset)
 
 
-            # Find indices of the middle three x-values
-            mid_index = len(t) // 2
-            indices_mid = [mid_index - 15, mid_index, mid_index + 15] #average 7 values
+        # Find indices of the middle three x-values
+        mid_index = len(t) // 2
+        indices_mid = [mid_index - 15, mid_index, mid_index + 15] #average 7 values
 
-            one_eighth_index = len(t) // 15
-            indices_oct = [one_eighth_index - 1, one_eighth_index, one_eighth_index + 1]
+        one_eighth_index = len(t) // 15
+        indices_oct = [one_eighth_index - 1, one_eighth_index, one_eighth_index + 1]
 
-            indices_last = slice(-15, None)  # this will grab the last 7 elements
+        indices_last = slice(-15, None)  # this will grab the last 7 elements
 
-            # Calculate average y-values for I, Q, and magnitude
-            avg_i_mid = np.mean(iq_list[i][indices_mid, 0])
-            avg_q_mid = np.mean(iq_list[i][indices_mid, 1])
-            avg_mag_mid = np.mean(magnitude[indices_mid])
+        # Calculate average y-values for I, Q, and magnitude
+        avg_i_mid = np.mean(iq_list[0][indices_mid, 0])
+        avg_q_mid = np.mean(iq_list[0][indices_mid, 1])
+        avg_mag_mid = np.mean(magnitude[indices_mid])
 
-            # Calculate average y-values for I, Q, and magnitude
-            avg_i_oct = np.mean(iq_list[i][indices_oct, 0])
-            avg_q_oct = np.mean(iq_list[i][indices_oct, 1])
-            avg_mag_oct = np.mean(magnitude[indices_oct])
+        # Calculate average y-values for I, Q, and magnitude
+        avg_i_oct = np.mean(iq_list[0][indices_oct, 0])
+        avg_q_oct = np.mean(iq_list[0][indices_oct, 1])
+        avg_mag_oct = np.mean(magnitude[indices_oct])
 
-            # Calculate average y-values for I, Q, and magnitude
-            avg_i_last = np.mean(iq_list[i][indices_last, 0])
-            avg_q_last = np.mean(iq_list[i][indices_last, 1])
-            avg_mag_last = np.mean(magnitude[indices_last])
+        # Calculate average y-values for I, Q, and magnitude
+        avg_i_last = np.mean(iq_list[0][indices_last, 0])
+        avg_q_last = np.mean(iq_list[0][indices_last, 1])
+        avg_mag_last = np.mean(magnitude[indices_last])
 
-            # Append the average magnitude to the list, you can change this to average I or Q.
-            average_y_mag_values_mid.append(avg_mag_mid)
-            average_y_I_values_mid.append(avg_i_mid)
-            average_y_Q_values_mid.append(avg_q_mid)
+        # Append the average magnitude to the list, you can change this to average I or Q.
+        average_y_mag_values_mid.append(avg_mag_mid)
+        average_y_I_values_mid.append(avg_i_mid)
+        average_y_Q_values_mid.append(avg_q_mid)
 
-            average_y_mag_values_oct.append(avg_mag_oct)
-            average_y_I_values_oct.append(avg_i_oct)
-            average_y_Q_values_oct.append(avg_q_oct)
+        average_y_mag_values_oct.append(avg_mag_oct)
+        average_y_I_values_oct.append(avg_i_oct)
+        average_y_Q_values_oct.append(avg_q_oct)
 
-            average_y_mag_values_last.append(avg_mag_last)
-            average_y_I_values_last.append(avg_i_last)
-            average_y_Q_values_last.append(avg_q_last)
+        average_y_mag_values_last.append(avg_mag_last)
+        average_y_I_values_last.append(avg_i_last)
+        average_y_Q_values_last.append(avg_q_last)
         if self.title:
             plt.suptitle(f"TOF DAC_Att_1:{self.experiment.DAC_attenuator1} DAC_Att_2:{self.experiment.DAC_attenuator2} ADC_Att:{self.experiment.ADC_attenuator}", fontsize=24, y=0.95)
 

@@ -63,7 +63,7 @@ device_name = 'squill'
 substudy_txt_notes = ('testing round robin to see if i can see things using loopback')
 
 # set which of the following you'd like to run to 'True'
-run_flags = {"tof": True, "res_spec": True, "q_spec": False, "ss": False, "rabi":False, "ss_gef": False, "test_act":False, "fh_rabi":False,
+run_flags = {"tof": False, "res_spec": True, "q_spec": False, "ss": False, "rabi":False, "ss_gef": False, "test_act":False, "fh_rabi":False,
              "t1": False, "t2r": False, "t2e": False, "ef_res_spec":False, "ef_q_spec": False, "fh_q_spec":False, "rabi_pop_meas": False, "ef_Rabi":False, "ef_ss": False}
 
 # optimization outputs from qick board, unmasking set to true
@@ -78,7 +78,7 @@ number_of_qubits = 6
 figure_quality = 200
 ################################################ Data Saving Setup ##################################################
 #Folders
-study = 'debug_and_setup'
+study = 'finding_res'
 sub_study = 'rr'
 data_set = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
@@ -130,6 +130,8 @@ def create_data_dict(keys, save_r, qs):
     return {Q: {key: np.empty(save_r, dtype=object) for key in keys} for Q in range(len(qs))}
 
 # Define what to save to h5 files
+tof_keys = ['Dates', 'iq_list','t', 'Round Num', 'Batch Num', 'Exp Config',
+            'Syst Config']
 res_keys = ['Dates', 'freq_pts', 'freq_center', 'Amps', 'Found Freqs', 'Round Num', 'Batch Num', 'Exp Config',
             'Syst Config']
 qspec_keys = ['Dates', 'I', 'Q', 'Frequencies', 'I Fit', 'Q Fit', 'Round Num', 'Batch Num','Recycled QFreq',
@@ -159,6 +161,7 @@ if live_plot:
                            "http://localhost:8097/ on firefox")
 
 # initialize a dictionary to store those values
+tof_data = create_data_dict(tof_keys, save_r, list_of_all_qubits)
 res_data = create_data_dict(res_keys, save_r, list_of_all_qubits)
 qspec_data = create_data_dict(qspec_keys, save_r, list_of_all_qubits)
 rabi_data = create_data_dict(rabi_keys, save_r, list_of_all_qubits)
@@ -422,11 +425,12 @@ while j < n:
         experiment.readout_cfg['res_gain_ge'] = res_gain[QubitIndex]
         experiment.readout_cfg['res_gain_ef'] = res_gain[QubitIndex]
         experiment.readout_cfg['res_length'] = res_leng_vals[QubitIndex]
+        experiment.readout_cfg['res_freq_ge'] = experiment.readout_cfg['res_freq_ge'][QubitIndex]
 
         ###################################################### TOF #####################################################
         if run_flags["tof"]:
             tof        = TOFExperiment(QubitIndex, studyDocumentationFolder, experiment, j, save_figs, unmasking_resgain = unmask)
-            tof.run()
+            t, iq_list, tof_config = tof.run()
             del tof
 
         ################################################# g-e Res spec ####################################################
@@ -437,7 +441,7 @@ while j < n:
                 res_freqs, freq_pts, freq_center, amps, sys_config_rspec = res_spec.run()
                 offset = freq_offsets[QubitIndex] #use optimized offset values or whats set at top of script based on pre_optimize flag
                 offset_res_freqs = [r + offset for r in res_freqs]
-                experiment.readout_cfg['res_freq_ge'] = offset_res_freqs[QubitIndex]
+                experiment.readout_cfg['res_freq_ge'] = offset_res_freqs[0]
                 del res_spec
 
             except Exception as e:
@@ -905,6 +909,17 @@ while j < n:
         ############################################### Collect Results ################################################
         if save_data_h5:
             # ---------------------Collect g-e Res Spec Results----------------
+            if run_flags["tof"]:
+                tof_data[QubitIndex]['Dates'][j - batch_num * save_r - 1] = (
+                    time.mktime(datetime.datetime.now().timetuple()))
+                tof_data[QubitIndex]['t'][j - batch_num * save_r - 1] = t
+                tof_data[QubitIndex]['iq_list'][j - batch_num * save_r - 1] = iq_list
+                tof_data[QubitIndex]['Round Num'][j - batch_num * save_r - 1] = j
+                tof_data[QubitIndex]['Batch Num'][j - batch_num * save_r - 1] = batch_num
+                tof_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = expt_cfg
+                tof_data[QubitIndex]['Syst Config'][j - batch_num * save_r - 1] = tof_config
+
+            # ---------------------Collect g-e Res Spec Results----------------
             if run_flags["res_spec"]:
                 res_data[QubitIndex]['Dates'][j - batch_num * save_r - 1] = (
                     time.mktime(datetime.datetime.now().timetuple()))
@@ -1128,6 +1143,12 @@ while j < n:
         if j % save_r == 0:
             batch_num+=1
 
+            # -----------------------------save tof----------------------------
+            if run_flags["tof"]:
+                saver_res = Data_H5(subStudyDataFolder, tof_data, batch_num, save_r)
+                saver_res.save_to_h5('tof')
+                del saver_res
+                del res_data
             # --------------------------save g-e Res Spec-----------------------
             if run_flags["res_spec"]:
                 saver_res = Data_H5(subStudyDataFolder, res_data, batch_num, save_r)

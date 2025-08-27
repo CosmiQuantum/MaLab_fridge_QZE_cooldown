@@ -25,7 +25,7 @@ class GEF_SingleShotProgram(AveragerProgramV2):
         gen_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
         self.add_readoutconfig(ch=ro_chs, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=gen_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
@@ -69,7 +69,7 @@ class SingleShotProgram_g(AveragerProgramV2):
         gen_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
         self.add_readoutconfig(ch=ro_chs, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=gen_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
@@ -91,7 +91,7 @@ class SingleShotProgram_g(AveragerProgramV2):
     def _body(self, cfg):
         self.delay_auto(0.01)
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)  # play probe pulse
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
         # relax delay ...
 
 
@@ -101,7 +101,7 @@ class SingleShotProgram_e(AveragerProgramV2):
         gen_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
         self.add_readoutconfig(ch=ro_chs, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=gen_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
@@ -135,7 +135,7 @@ class SingleShotProgram_e(AveragerProgramV2):
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)  # play pulse
         self.delay_auto(0.0)
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)  # play probe pulse
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 
 class SingleShotProgram_f(AveragerProgramV2):
@@ -144,7 +144,7 @@ class SingleShotProgram_f(AveragerProgramV2):
         gen_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
         self.add_readoutconfig(ch=ro_chs, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=gen_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
@@ -189,7 +189,7 @@ class SingleShotProgram_f(AveragerProgramV2):
         self.pulse(ch=self.cfg["qubit_ch"], name="ef_pi_pulse", t=0)  # play pulse
         self.delay_auto(0.0)
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)  # play probe pulse
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 
 class SingleShotProgram_h(AveragerProgramV2):
@@ -198,7 +198,7 @@ class SingleShotProgram_h(AveragerProgramV2):
         gen_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
         self.add_readoutconfig(ch=ro_chs, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=gen_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
@@ -255,7 +255,7 @@ class SingleShotProgram_h(AveragerProgramV2):
         self.pulse(ch=self.cfg["qubit_ch"], name="fh_pi_pulse", t=0)  # play pulse
         self.delay_auto(0.0)
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)  # play probe pulse
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 
 class SingleShot_ef:
@@ -294,15 +294,15 @@ class SingleShot_ef:
         # print('output [plots folder path from fidelity_test', outerfolder_plots)
         # Run the single shot programs (g and e)
         # ssp_g = SingleShotProgram_g(self.experiment.soccfg, reps=1, final_delay=self.config['relax_delay'], cfg=self.config)
-        # iq_list_g = ssp_g.acquire(self.experiment.soccfg, soft_avgs=1, progress=True)
+        # iq_list_g = ssp_g.acquire(self.experiment.soccfg, rounds=1, progress=True)
         print('config', self.config)
         ssp_e = SingleShotProgram_e(self.experiment.soccfg, reps=1, final_delay=self.config['relax_delay'],
                                     cfg=self.config)
-        iq_list_e = ssp_e.acquire(self.experiment.soc, soft_avgs=1, progress=True)
+        iq_list_e = ssp_e.acquire(self.experiment.soc, rounds=1, progress=True)
 
         ssp_f = SingleShotProgram_f(self.experiment.soccfg, reps=1, final_delay=self.config['relax_delay'],
                                     cfg=self.config)
-        iq_list_f = ssp_f.acquire(self.experiment.soc, soft_avgs=1, progress=True)
+        iq_list_f = ssp_f.acquire(self.experiment.soc, rounds=1, progress=True)
 
         # Use the fidelity calculation from SingleShotGE
         # fid, theta_ef, ie_new, qe_new, if_new, qf_new, threshold_ef = self.hist_ssf(self.config["res_freq_ef"][self.QubitIndex],  self.config["res_gain_ef"][self.QubitIndex], outerfolder_plots,
@@ -320,19 +320,19 @@ class SingleShot_ef:
     def run(self):
         ssp_g = SingleShotProgram_g(self.experiment.soccfg, reps=1, final_delay=self.config['relax_delay'],
                                     cfg=self.config)
-        iq_list_g = ssp_g.acquire(self.experiment.soc, soft_avgs=1, progress=True)
+        iq_list_g = ssp_g.acquire(self.experiment.soc, rounds=1, progress=True)
 
         ssp_e = SingleShotProgram_e(self.experiment.soccfg, reps=1, final_delay=self.config['relax_delay'],
                                     cfg=self.config)
-        iq_list_e = ssp_e.acquire(self.experiment.soc, soft_avgs=1, progress=True)
+        iq_list_e = ssp_e.acquire(self.experiment.soc, rounds=1, progress=True)
 
         ssp_f = SingleShotProgram_f(self.experiment.soccfg, reps=1, final_delay=self.config['relax_delay'],
                                     cfg=self.config)
-        iq_list_f = ssp_f.acquire(self.experiment.soc, soft_avgs=1, progress=True)
+        iq_list_f = ssp_f.acquire(self.experiment.soc, rounds=1, progress=True)
 
         ssp_h = SingleShotProgram_h(self.experiment.soccfg, reps=1, final_delay=self.config['relax_delay'],
                                     cfg=self.config)
-        iq_list_h = ssp_h.acquire(self.experiment.soc, soft_avgs=1, progress=True)
+        iq_list_h = ssp_h.acquire(self.experiment.soc, rounds=1, progress=True)
 
         fid, fid_fh, theta_ef, theta_fh, ie_new, qe_new, if_new, qf_new, threshold_ef, ih_new, qh_new, threshold_fh = self.plot_results(self.outerFolder, iq_list_g, iq_list_e,
                                                                         iq_list_f, iq_list_h, self.QubitIndex)

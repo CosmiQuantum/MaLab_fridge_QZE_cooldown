@@ -12,7 +12,7 @@ class KappaProgram(AveragerProgramV2):
         ro_chs = cfg['ro_ch']
         res_ch = cfg['res_ch']
         self.add_readoutconfig(ch=ro_chs, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
@@ -32,7 +32,7 @@ class KappaProgram(AveragerProgramV2):
                        )
 
     def _body(self, cfg):
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'], ddr4=True)
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'], ddr4=True)
         self.pulse(ch=cfg['res_ch'], name="mymux", t=0)
 
 
@@ -73,7 +73,7 @@ class KappaPunchOutMeasurement:
             self.config["res_freq_ge"] = fcenter + f
 
             prog = KappaProgram(self.experiment.soccfg, reps=self.exp_cfg["reps"], final_delay=0.5, cfg=self.config)
-            iq_list = prog.acquire(self.experiment.soc, soft_avgs=self.exp_cfg["rounds"], progress=self.qick_verbose)
+            iq_list = prog.acquire(self.experiment.soc, rounds=self.exp_cfg["rounds"], progress=self.qick_verbose)
             for i in range(len(self.config['res_freq_ge'])):
                 amps[i][index] = np.abs(iq_list[i][:, 0] + 1j * iq_list[i][:, 1])
         amps = np.array(amps)

@@ -14,7 +14,7 @@ class SingleToneSpectroscopyProgram(AveragerProgramV2):
         res_ch = cfg['res_ch']
 
         self.add_readoutconfig(ch=ro_chs, name="myro",
-                               freq=cfg['freq'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
@@ -35,7 +35,7 @@ class SingleToneSpectroscopyProgram(AveragerProgramV2):
                        )
 
     def _body(self, cfg):
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'], ddr4=True)
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'], ddr4=True)
         self.pulse(ch=cfg['res_ch'], name="mymux", t=0)
 
 class PunchOut:
@@ -83,7 +83,7 @@ class PunchOut:
                 self.config["res_freq_ge"] = fcenter + f
                 prog = SingleToneSpectroscopyProgram(soccfg, reps=self.exp_cfg["reps"], final_delay=0.5,
                                                      cfg=self.config)
-                iq_list = prog.acquire(soc, soft_avgs=self.exp_cfg["rounds"], progress=False)
+                iq_list = prog.acquire(soc, rounds=self.exp_cfg["rounds"], progress=False)
                 for i in range(len(self.config['res_freq_ge'])):
                     amps[i][index] = np.abs(iq_list[i][:, 0] + 1j * iq_list[i][:, 1])
             amps = np.array(amps)
@@ -212,7 +212,7 @@ class TWPAConsistency:
                 self.config["res_freq_ge"] = f
                 prog = SingleToneSpectroscopyProgram(soccfg, reps=self.exp_cfg["reps"], final_delay=0.5,
                                                      cfg=self.config)
-                iq_list = prog.acquire(soc, soft_avgs=self.exp_cfg["rounds"], progress=False)
+                iq_list = prog.acquire(soc, rounds=self.exp_cfg["rounds"], progress=False)
                 for i in range(len(self.config['res_freq_ge'])):
                     amps[i][index] = np.abs(iq_list[i][:, 0] + 1j * iq_list[i][:, 1])
                     gains[i][n] = np.max(amps[i]) - np.min(amps[i])
