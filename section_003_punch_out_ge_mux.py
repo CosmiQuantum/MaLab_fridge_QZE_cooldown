@@ -13,19 +13,15 @@ class SingleToneSpectroscopyProgram(AveragerProgramV2):
         ro_chs = cfg['ro_ch']
         res_ch = cfg['res_ch']
 
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
         self.add_readoutconfig(ch=ro_chs, name="myro",
                                freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
 
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=ro_chs[0],
-                         mux_freqs=cfg['res_freq_ge'],
-                         mux_gains=cfg['res_gain_ge'],
-                         mux_phases=cfg['res_phase'],
-                         mixer_freq=cfg['mixer_freq'])
-
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
         self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_chs,
                        style="const",
                        length=cfg["res_length"],
@@ -36,7 +32,8 @@ class SingleToneSpectroscopyProgram(AveragerProgramV2):
 
     def _body(self, cfg):
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'], ddr4=True)
-        self.pulse(ch=cfg['res_ch'], name="mymux", t=0)
+        self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+
 
 class PunchOut:
     def __init__(self, QubitIndex, number_of_qubits, outerFolder, experiment, unmasking_resgain=False):
@@ -77,15 +74,18 @@ class PunchOut:
         frequency_sweeps = []
         for p in power_sweep:
             power = round(p, 3)
-            self.config['res_gain_ge'] = [power for i in range(0, self.number_of_qubits)]
-            amps = np.zeros((len(fcenter), len(fpts)))
+            self.config['res_gain_ge'] = power
+
+            amps = []
             for index, f in enumerate(tqdm(fpts)):
-                self.config["res_freq_ge"] = fcenter + f
+                self.config["res_freq_ge"] = [fcenter + f]
+                self.config["res_freq_ge"]=self.config["res_freq_ge"][0][self.QubitIndex]
+
                 prog = SingleToneSpectroscopyProgram(soccfg, reps=self.exp_cfg["reps"], final_delay=0.5,
                                                      cfg=self.config)
                 iq_list = prog.acquire(soc, rounds=self.exp_cfg["rounds"], progress=False)
-                for i in range(len(self.config['res_freq_ge'])):
-                    amps[i][index] = np.abs(iq_list[i][:, 0] + 1j * iq_list[i][:, 1])
+                amp = np.abs(iq_list[0][0][0] + 1j * iq_list[0][0][1])
+                amps.append(amp)
             amps = np.array(amps)
             frequency_sweeps.append(amps)
 
@@ -143,15 +143,23 @@ class PunchOut:
             'legend.fontsize': 14,  # Legend font size
         })
         for power_index in range(len(power_sweep)):
-            for i in range(self.number_of_qubits):
+            for i in range(6):
                 plt.subplot(2, 3, i + 1)
-                plt.plot(fpts + fcenter[i], frequency_sweeps[power_index][i], '-', linewidth=1.5,
+                plt.plot(fpts + fcenter[i], frequency_sweeps[power_index], '-', linewidth=1.5,
                          label=round(power_sweep[power_index], 3))
 
                 plt.xlabel("Frequency (MHz)", fontweight='normal')
                 plt.ylabel("Amplitude (a.u)", fontweight='normal')
                 plt.title(f"Resonator {i + 1}", pad=10)
                 plt.legend(loc='upper left', fontsize='6', title='Gain')
+            # for i in range(self.number_of_qubits):
+            #     plt.subplot(2, 3,  i+1)
+            #     plt.plot([f + fcenter for f in fpts][i],  frequency_sweeps[power_index][i], '-', linewidth=1.5)
+            #
+            #     plt.xlabel("Frequency (MHz)", fontweight='normal')
+            #     plt.ylabel("Amplitude (a.u)", fontweight='normal')
+            #     plt.title(f"Resonator {self.QubitIndex + 1}", pad=10)
+            #     plt.legend(loc='upper left', fontsize='6', title='Gain')
 
         # Add a main title to the figure
         plt.suptitle(f"Resonance At Various Probe Gains DAC_Att_{DAC_att}, ADC_ATT_{ADC_att}", fontsize=24, y=0.95)

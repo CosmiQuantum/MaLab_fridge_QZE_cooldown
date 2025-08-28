@@ -46,7 +46,7 @@ save_figs = True                     # save plots for everything as you go along
 live_plot = False                     # for live plotting do "visdom" in comand line and then open http://localhost:8097/ on firefox
 fit_data = False                    # fit the data here and save or plot the fits?
 save_data_h5 = True                  # save all of the data to h5 files?
-verbose = False                      # print everything to the console in real time, good for debugging, bad for memory
+verbose = True                    # print everything to the console in real time, good for debugging, bad for memory
 qick_verbose = True                 # qick verbose prints the progress bar for each qick experiment as it is happening (the red bar that fills out as more experiment rounds/reps are being done)
 debug_mode = True                   # if True, it disables the continuing function of RR if an error pops up in a class -- errors now stop the RR script
 thresholding = False                 # use internal QICK threshold for ratio of Binary values on y for rabi/t1/t2r/t2e, or analog avg when false
@@ -63,12 +63,12 @@ device_name = 'squill'
 substudy_txt_notes = ('testing round robin to see if i can see things using loopback')
 
 # set which of the following you'd like to run to 'True'
-run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss": False, "rabi":False, "ss_gef": False, "test_act":False, "fh_rabi":False,
+run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss": False, "rabi":True, "ss_gef": False, "test_act":False, "fh_rabi":False,
              "t1": False, "t2r": False, "t2e": False, "ef_res_spec":False, "ef_q_spec": False, "fh_q_spec":False, "rabi_pop_meas": False, "ef_Rabi":False, "ef_ss": False}
 
 # optimization outputs from qick board, unmasking set to true
 res_leng_vals = [5.0,5.5,5.5,6.0,6.0,6.0]
-res_gain = [1,1,1,1,1,1]
+res_gain = [0.8]*6
 freq_offsets = [0,0,0,0,0,0]#[0.1190, 0.0238, -0.1190, 0.2143, -0.0714, 0.0238] # # all updated on 7/29/2025 except R5, we need to debug res spec for that resonator
 
 qubit_freqs_ef = [None]*6
@@ -78,7 +78,7 @@ number_of_qubits = 6
 figure_quality = 200
 ################################################ Data Saving Setup ##################################################
 #Folders
-study = 'finding_qubits'
+study = 'optimize_sigma'
 sub_study = 'rr'
 data_set = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
@@ -441,6 +441,7 @@ while j < n:
                 res_spec   = ResonanceSpectroscopy(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j, save_figs,
                                                    experiment = experiment, verbose = verbose, logger = rr_logger, unmasking_resgain = unmask)
                 res_freqs, freq_pts, freq_center, amps, sys_config_rspec = res_spec.run()
+
                 offset = freq_offsets[QubitIndex] #use optimized offset values or whats set at top of script based on pre_optimize flag
                 offset_res_freqs = [r + offset for r in res_freqs]
                 experiment.readout_cfg['res_freq_ge'] = offset_res_freqs[0]

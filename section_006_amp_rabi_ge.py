@@ -94,8 +94,9 @@ class AmplitudeRabiExperiment:
                 else:
                     iq_list = amp_rabi.acquire(self.experiment.soc, rounds=self.config["rounds"], progress=self.qick_verbose)
 
-                I = iq_list[self.QubitIndex][0][ :, 0]
-                Q = iq_list[self.QubitIndex][0][ :, 1]
+            iq_list = iq_list[0][0].T
+            I = (iq_list[0])
+            Q = (iq_list[1])
 
             #get the gains that were used so you can use to plot on the x axis
             gains = amp_rabi.get_pulse_param('qubit_pulse', "gain", as_array=True)

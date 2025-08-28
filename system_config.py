@@ -29,7 +29,7 @@ class QICK_experiment:
             self.soc, self.soccfg = makeProxy()
             print(self.soccfg)
 
-            self.FSGEN_CH = 1 # 0 for "old QICK", 5 for RF board 7/21/2025
+            self.FSGEN_CH = 1
             self.FSGEN_AMPL_CH = 2 # not used on 4x2
             self.MIXMUXGEN_CH  = 0 # Readout resonator DAC channel
             self.MUXRO_CH = 0
@@ -67,7 +67,7 @@ class QICK_experiment:
 
             # Readout Configuration
             self.readout_cfg = {
-                "trig_time": 0.6,  # [Clock ticks] - get this value from TOF experiment (updated by Sara July 22 2025 QICK box)
+                "trig_time": 0.4,  # [Clock ticks] - get this value from TOF experiment (updated by Sara July 22 2025 QICK box)
 
                 # Changes related to the resonator output channel
                 "mixer_freq": 6000,  # [MHz]
@@ -107,7 +107,7 @@ class QICK_experiment:
 
             # Qubit Configuration
             self.qubit_cfg = {
-                "qubit_freq_ge": [2780, 2980, 2873, 3096, 3043, 3093],  # Joyce 3/11
+                "qubit_freq_ge": [2766, 2980, 2873, 3096, 3043, 3093],  # Joyce 3/11
                 "qubit_freq_chevron_detuned_ge": [4189.7582, 3820.4723, 4161.3726, 4463.15226, 4471.43854, 4997.86], # Olivia May 17
                 "qubit_freq_ge_starked": [4189.737678, 3820.4723, 4161.3726, 4463.15226, 4471.4469, 4997.86], # Olivia 4/04 for zeno/stark tone
                 "fwhm_w01_starked": None, #for err bars
@@ -116,11 +116,11 @@ class QICK_experiment:
                 #"qubit_freq_ge": [4184.14, 3821.144, 4156.57, 4459.19, 4471.12, 4997.86], #old
                 #"qubit_freq_ge": [4184.13, 3821.142, 4156.58, 4459.19, 4471.10, 4997.87], #old
                 #"qubit_freq_ge": [4184.15, 3821.156, 4156.88, 4459.12, 4471.18, 4998.04],  # Freqs of Qubit g/e Transition, old
-                "qubit_gain_ge": [1,1,1,1,1,1],#[0.04, 0.12, 0.06, 0.04, 0.13, 0.18],#[0.05] * 6, #[1] * 6,
+                "qubit_gain_ge": [0.005]*6,#[0.04, 0.12, 0.06, 0.04, 0.13, 0.18],#[0.05] * 6, #[1] * 6,
                 "qubit_ampl_gain_ge": 0.025,
                 "qubit_pi_len": 0.11, # Olivia May 17th
                 # [0.4287450656184295, 0.4287450656184295, 0.4903077560386716, 0.6, 0.4903077560386716, 0.4287450656184295], # For spec pulse
-                "qubit_length_ge": 15,  # 15 [us] for spec Pulse
+                "qubit_length_ge": 5,  # 15 [us] for spec Pulse
                 "qubit_freq_ef": [4009.81, 3645.58, 3988.21, 4292.73, 4292.73, 4838.86], #Q4 not fixed, looks like it shifted quite a lot
                 # [MHz] Freqs of Qubit e/f Transition
                 "qubit_freq_fh": [4016.3, 3450.8, 3988.44, 4292.73, 4292.73, 4833.17],
@@ -134,7 +134,7 @@ class QICK_experiment:
                 "qubit_phase": 0,  # [deg]
                 #"sigma": [0.15]*6,  # [us] for Gaussian Pulse (5+10 DAC atten for qubit)
                 "sigma_ampl": [0.03, 0.03, 0.05, 0.04, 0.05, 0.05], #DAC 0 04/07
-                "sigma": [0.15, 0.42, 0.25, 0.29, 0.28, 1],  # DAC 2 04/07 [us] for Gaussian Pulse (5+10 DAC atten for qubit). Updated on 7/17 by Arianna
+                "sigma": [0.03, 0.021, 0.02, 0.013, 0.02, 0.006],  # DAC 2 04/07 [us] for Gaussian Pulse (5+10 DAC atten for qubit). Updated on 7/17 by Arianna
                 #"sigma": [0.05, 0.09, 0.07, 0.065, 0.09, 0.3],  # Goal: cut sigma in half [us] for Gaussian Pulse (5+4 DAC atten for qubit)
                 # "pi_amp": [0.92, 0.87, 0.75, 0.73, 0.77, 0.78], # old RR values
                 "sigma_ef": [0.15, 0.2, 0.25, 0.29, 0.28, 0.5],  # [us] for Gaussian Pulse, #Arianna 3/27

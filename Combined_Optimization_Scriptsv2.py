@@ -35,11 +35,11 @@ list_of_all_qubits = [0, 1, 2, 3, 4, 5] #for QUIET [0, 1, 2, 3, 4, 5], for NEXUS
 # outerFolder = os.path.join("/home/nexusadmin/qick/NEXUS_sandbox/Data/Run30", str(datetime.date.today())) #change run number in each new run
 
 # For Quiet
-substudy = "qick_box_optimization"#unmasking_resgain"
+substudy = "readout_optimization"#unmasking_resgain"
 # outerFolder = os.path.join("M:/_Data/20250822 - Olivia/6transmon_run6/", str(datetime.date.today()))
 #outerFolder = os.path.join("M:/_Data/20250822 - Olivia/run6/6transmon/StarkShift/DAC0_check/Optimization/run2/", str(datetime.date.today()))
 #outerFolder = os.path.join(f"M:/_Data/20250822 - Olivia/run6/6transmon/TLS_Comprehensive_Study/readout_optimization_{datetime.date.today().strftime('%Y-%m-%d')}", datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-outerFolder = os.path.join(f"M:/_Data/20250822 - Olivia/run7/6transmon/readout_optimization/{substudy}/{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}/")
+outerFolder = os.path.join(f"M:/_Data/20250822 - Olivia//bob_run_started_Aug_23/squill/{substudy}/{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}/")
 def create_folder_if_not_exists(folder_path):
     """Creates a folder at the given path if it doesn't already exist."""
     if not os.path.exists(folder_path):
@@ -58,12 +58,12 @@ n = 1  # Number of rounds
 n_loops = 4  # Number of repetitions per length to average
 
 # List of qubits to measure
-Qs = [0]
+Qs = [1,2,3,4,5]
 
 #Change for NEXUS vs QUIET
-res_leng_vals = [7.0, 5.1, 5.1, 5.6, 5.6, 5.6] # all updated on 7/29/2025
-res_gain = [0.8, 0.9, 0.95, 0.51, 0.61, 0.95] # all updated on 7/29/2025 except R5, we need to debug res spec for that resonator
-freq_offsets = [0.1190, 0.0238, -0.1190, 0.2143, -0.0714, 0.0238] # # all updated on 7/29/2025 except R5, we need to debug res spec for that resonator
+res_leng_vals = [5,5,5,5,5,5] # all updated on 7/29/2025
+res_gain = [0.8,0.8,0.8,0.8,0.8,0.8] # all updated on 7/29/2025 except R5, we need to debug res spec for that resonator
+freq_offsets = [0,0,0,0,0,0] # # all updated on 7/29/2025 except R5, we need to debug res spec for that resonator
 punch_out_vals = [1.0, 0.925, 1.0, 0.55, 0.663, 1.0] #updated 7/29/2025
 
 optimal_lengths = [None] * 6 # creates list where the script will be storing the optimal readout lengths for each qubit. We currently have 6 qubits in total.
@@ -81,23 +81,28 @@ for QubitIndex in Qs:
                                  fridge=FRIDGE)
 
     experiment.readout_cfg['res_gain_ge'] = res_gain[QubitIndex]
+    experiment.readout_cfg['res_gain_ef'] = res_gain[QubitIndex]
     experiment.readout_cfg['res_length'] = res_leng_vals[QubitIndex]
+    experiment.readout_cfg['res_freq_ge'] = experiment.readout_cfg['res_freq_ge'][QubitIndex]
+
+    experiment.qubit_cfg['qubit_freq_ge'] = experiment.qubit_cfg['qubit_freq_ge'][QubitIndex]
+    experiment.qubit_cfg['qubit_gain_ge'] = experiment.qubit_cfg['qubit_gain_ge'][QubitIndex]
 
     ################################################## Res spec ####################################################
 
     res_spec = ResonanceSpectroscopy(QubitIndex, number_of_qubits, outerfolder_plots, j, True,
                                      experiment, unmasking_resgain = unmask)
     res_freqs, freq_pts, freq_center, amps, res_spec_config = res_spec.run()
-    experiment.readout_cfg['res_freq_ge'] = res_freqs[QubitIndex]
 
-    # incorporating offset (if you don't want to, then set all values inside freq_offsets to zero)
-    offset = freq_offsets[QubitIndex]  # use optimized offset values
+    offset = freq_offsets[
+        QubitIndex]  # use optimized offset values or whats set at top of script based on pre_optimize flag
     offset_res_freqs = [r + offset for r in res_freqs]
-    experiment.readout_cfg['res_freq_ge'] = offset_res_freqs[QubitIndex]
+    experiment.readout_cfg['res_freq_ge'] = offset_res_freqs[0]
+
 
     # Used later when optimizing res gains and freqs, decide if you want to set the offsets to zero or not for the first round
-    this_res_freq = offset_res_freqs[QubitIndex]
-    res_freq_ge[QubitIndex] = float(this_res_freq)
+    this_res_freq = offset_res_freqs
+    res_freq_ge = float(this_res_freq[0])
 
     del res_spec
 

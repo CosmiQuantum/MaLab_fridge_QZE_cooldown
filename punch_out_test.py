@@ -2,7 +2,7 @@ import sys
 import os
 import numpy as np
 # sys.path.append(os.path.abspath("/home/qubituser/Documents/GitHub/tprocv2_demos/qick_tprocv2_experiments_mux/")) # for QUIET
-sys.path.append(os.path.abspath("/home/nexusadmin/Documents/GitHub/tprocv2_demos/qick_tprocv2_experiments_mux_nexus/")) # for NEXUS
+#sys.path.append(os.path.abspath("/home/nexusadmin/Documents/GitHub/tprocv2_demos/qick_tprocv2_experiments_mux_nexus/")) # for NEXUS
 from system_config import QICK_experiment
 from section_003_punch_out_ge_mux import PunchOut
 import datetime
@@ -12,8 +12,8 @@ number_of_qubits = 6  #currently 4 for NEXUS, 6 for QUIET
 # sweep_DAC_attenuator1 =[] #np.linspace(5,20, 4)
 # sweep_DAC_attenuator2 =[10]#[15,20,25,30] #np.linspace(5,20,4)
 
-substudy = 'junkyard'
-outerFolder = os.path.join(f"M:/_Data/20250822 - Olivia/run7/6transmon/readout_optimization/{substudy}/{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}/")
+substudy = 'punchout'
+outerFolder = os.path.join(f"M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{substudy}/{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}/")
 outerfolder_plots = outerFolder + "/documentation/"
 #outerFolder = os.path.join("/home/nexusadmin/qick/NEXUS_sandbox/Data/Run30/", str(datetime.date.today())) # for NEXUS
 # for att_1 in sweep_DAC_attenuator1:
@@ -40,7 +40,7 @@ Qubit_index= 0 #starts at 0
 Unmask = True
 punch_out   = PunchOut(Qubit_index, number_of_qubits, outerfolder_plots, experiment, Unmask)
 
-start_gain, stop_gain, num_points =  0.1, 1, 5 # for QUIET 0.55, 0.775, 5 #
+start_gain, stop_gain, num_points =  0.1, 1, 15 # for QUIET 0.55, 0.775, 5 #
 #start_gain, stop_gain, num_points = 0.0, 0.8, 10 # for NEXUS
 
 punch_out.run(experiment.soccfg, experiment.soc, start_gain, stop_gain, num_points, DAC_att, ADC_att, plot_Center_shift = True, plot_res_sweeps = True)

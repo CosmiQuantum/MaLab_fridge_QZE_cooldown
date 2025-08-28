@@ -77,7 +77,6 @@ class QubitSpectroscopy:
 
         if self.increase_reps:
             self.config['reps'] = self.increase_reps_to
-
         qspec = PulseProbeSpectroscopyProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay=0.5, cfg=self.config)
 
         # iq_lists= []
@@ -491,9 +490,18 @@ class PulseProbeSpectroscopyProgram(AveragerProgramV2):
                        gain=cfg['qubit_gain_ge'],
                        )
 
+        # self.add_pulse(ch=qubit_ch, name="noise_pulse",
+        #            style="const",
+        #            length=10,
+        #            freq=cfg['qubit_freq_ge'],
+        #            phase=0,
+        #            gain=cfg['qubit_gain_ge'],
+        #            mode='periodic'
+        #            )
 
 
     def _body(self, cfg):
+        # self.pulse(ch=self.cfg["qubit_ch"], name="noise_pulse", t=0)
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)  # play probe pulse
         self.delay_auto(t=0.01, tag='waiting')  # Wait til qubit pulse is done before proceeding
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)

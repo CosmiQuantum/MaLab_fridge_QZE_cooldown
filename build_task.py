@@ -24,6 +24,7 @@ def add_single_qubit_experiment(expt_cfg, expt_name, QubitIndex):
 
     # # Simple Single Parameter Experiments
     if "stop" in exp_cfg:
+        # print(exp_cfg["start"],exp_cfg["stop"])
         start = exp_cfg["start"][QubitIndex]
         stop = exp_cfg["stop"][QubitIndex]
     
