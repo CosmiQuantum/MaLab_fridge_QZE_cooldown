@@ -63,13 +63,13 @@ device_name = 'squill'
 substudy_txt_notes = ('testing round robin to see if i can see things using loopback')
 
 # set which of the following you'd like to run to 'True'
-run_flags = {"tof": False, "res_spec": True, "q_spec": False, "ss": False, "rabi":False, "ss_gef": False, "test_act":False, "fh_rabi":False,
+run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss": False, "rabi":False, "ss_gef": False, "test_act":False, "fh_rabi":False,
              "t1": False, "t2r": False, "t2e": False, "ef_res_spec":False, "ef_q_spec": False, "fh_q_spec":False, "rabi_pop_meas": False, "ef_Rabi":False, "ef_ss": False}
 
 # optimization outputs from qick board, unmasking set to true
 res_leng_vals = [5.0,5.5,5.5,6.0,6.0,6.0]
-res_gain = [0.95,0.9,0.95,0.55,0.55,0.95]
-freq_offsets = [-0.2143, 0, -0.16, -0.16, -0.16, -0.16,]#[0.1190, 0.0238, -0.1190, 0.2143, -0.0714, 0.0238] # # all updated on 7/29/2025 except R5, we need to debug res spec for that resonator
+res_gain = [1,1,1,1,1,1]
+freq_offsets = [0,0,0,0,0,0]#[0.1190, 0.0238, -0.1190, 0.2143, -0.0714, 0.0238] # # all updated on 7/29/2025 except R5, we need to debug res spec for that resonator
 
 qubit_freqs_ef = [None]*6
 increase_steps_to_ef = 600
@@ -78,7 +78,7 @@ number_of_qubits = 6
 figure_quality = 200
 ################################################ Data Saving Setup ##################################################
 #Folders
-study = 'finding_res'
+study = 'finding_qubits'
 sub_study = 'rr'
 data_set = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
@@ -276,7 +276,7 @@ if pre_optimize:
                                              save_figs=True, experiment=experiment, verbose=verbose,
                                              logger=rr_logger, qick_verbose=True)
             res_freqs, freq_pts, freq_center, amps, sys_config_rspec = res_spec.run()
-            experiment.readout_cfg['res_freq_ge'] = res_freqs[QubitIndex]
+            experiment.readout_cfg['res_freq_ge'] = res_freqs[Q]
             rr_logger.info(f"g-e ResSpec for qubit {Q}: {res_freqs}")
 
             res_data[Q]['Dates'][0] = (
@@ -427,6 +427,8 @@ while j < n:
         experiment.readout_cfg['res_length'] = res_leng_vals[QubitIndex]
         experiment.readout_cfg['res_freq_ge'] = experiment.readout_cfg['res_freq_ge'][QubitIndex]
 
+        experiment.qubit_cfg['qubit_freq_ge'] = experiment.qubit_cfg['qubit_freq_ge'][QubitIndex]
+        experiment.qubit_cfg['qubit_gain_ge'] = experiment.qubit_cfg['qubit_gain_ge'][QubitIndex]
         ###################################################### TOF #####################################################
         if run_flags["tof"]:
             tof        = TOFExperiment(QubitIndex, studyDocumentationFolder, experiment, j, save_figs, unmasking_resgain = unmask)
@@ -880,31 +882,31 @@ while j < n:
                 #                                            provided_sigma_num)
             del ss
         ########################################## e-f Single Shot Measurements ############################################
-        if run_flags["test_act"]:
-            # try:
-
-            act = Active_Reset_test(QubitIndex, number_of_qubits, studyDocumentationFolder, j,
-                                             save_figs, experiment=experiment, unmasking_resgain=unmask)
-            act_idata, act_qdata, no_act_idata, no_act_qdata, act_cfg = act.run()
-                # iq_list_g, iq_list_e, iq_list_f, ie_new, qe_new, if_new, qf_new, theta_ef, threshold_ef, self.config
-                # I_e = iq_list_e[QubitIndex][0].T[0]
-                # Q_e = iq_list_e[QubitIndex][0].T[1]
-                # I_f = iq_list_f[QubitIndex][0].T[0]
-                # Q_f = iq_list_f[QubitIndex][0].T[1]
-
-                # fid_ef, theta_ef, ie_new, if_new, threshold_ef = ss_ef.hist_ssf(
-                #     data=[I_e, Q_e, I_f, Q_f], cfg=sys_config_ss_ef, plot=save_figs)
-                # idata, qdata = act.run()
-                # fid, theta_ef, ie_new, qe_new, if_new, qf_new, threshold_ef
-                # print(sys_config_ss_ef)
-            # except Exception as e:
-            #     if debug_mode:
-            #         raise  # In debug mode, re-raise the exception immediately
-            #     else:
-            #         rr_logger.exception(f'Got the following error, continuing: {e}')
-            #         if verbose: print(f'Got the following error, continuing: {e}')
-            #         continue  # skip the rest of this qubit
-            del act
+        # if run_flags["test_act"]:
+        #     # try:
+        #
+        #     act = Active_Reset_test(QubitIndex, number_of_qubits, studyDocumentationFolder, j,
+        #                                      save_figs, experiment=experiment, unmasking_resgain=unmask)
+        #     act_idata, act_qdata, no_act_idata, no_act_qdata, act_cfg = act.run()
+        #         # iq_list_g, iq_list_e, iq_list_f, ie_new, qe_new, if_new, qf_new, theta_ef, threshold_ef, self.config
+        #         # I_e = iq_list_e[QubitIndex][0].T[0]
+        #         # Q_e = iq_list_e[QubitIndex][0].T[1]
+        #         # I_f = iq_list_f[QubitIndex][0].T[0]
+        #         # Q_f = iq_list_f[QubitIndex][0].T[1]
+        #
+        #         # fid_ef, theta_ef, ie_new, if_new, threshold_ef = ss_ef.hist_ssf(
+        #         #     data=[I_e, Q_e, I_f, Q_f], cfg=sys_config_ss_ef, plot=save_figs)
+        #         # idata, qdata = act.run()
+        #         # fid, theta_ef, ie_new, qe_new, if_new, qf_new, threshold_ef
+        #         # print(sys_config_ss_ef)
+        #     # except Exception as e:
+        #     #     if debug_mode:
+        #     #         raise  # In debug mode, re-raise the exception immediately
+        #     #     else:
+        #     #         rr_logger.exception(f'Got the following error, continuing: {e}')
+        #     #         if verbose: print(f'Got the following error, continuing: {e}')
+        #     #         continue  # skip the rest of this qubit
+        #     del act
 
         ############################################### Collect Results ################################################
         if save_data_h5:

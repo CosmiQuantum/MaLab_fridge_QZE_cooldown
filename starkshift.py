@@ -113,7 +113,7 @@ class StarkShift2DProgram(AveragerProgramV2):
                        )
 
         self.declare_gen(ch=stark_ch, nqz=cfg['nqz_qubit'])
-        self.add_pulse(ch=stark_ch, name="stark_tone", ro_ch=ro_ch[0],
+        self.add_pulse(ch=stark_ch, name="stark_tone", ro_ch=ro_ch,
                        style="const",
                        length=cfg['stark_length'],
                        freq=cfg['qubit_freq_ge'] + cfg['detuning'],
@@ -132,7 +132,7 @@ class StarkShift2DProgram(AveragerProgramV2):
         #                gain=cfg['pi_amp'],
         #                )
 
-        self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch[0],
+        self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch,
                        style="const",
                        length=cfg['qubit_length_ge'],
                        freq=QickSweep1D("qubit_pulse_loop", cfg["qubit_freq_ge"] + cfg["start_freq"], cfg["qubit_freq_ge"] + cfg["end_freq"]),
@@ -268,7 +268,7 @@ class ResStarkShift2DProgram(AveragerProgramV2):
         #                gain=cfg['pi_amp'],
         #                )
 
-        self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch[0],
+        self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch,
                        style="const",
                        length=cfg['qubit_length_ge'],
                        freq=QickSweep1D("qubit_pulse_loop", cfg['qubit_freq_ge'] + cfg["start_freq"], cfg['qubit_freq_ge'] + cfg["end_freq"]),

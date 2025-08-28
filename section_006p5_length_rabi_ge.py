@@ -978,7 +978,7 @@ class QZE_constant_pulse_RabiProgram(AveragerProgramV2):
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         # generator for the readout and the resonator pulses (qze and readout, where cfg['res_gain_qze'] should have
         # varying lens in each loop iterationof calling this classfor the zeno pulse on ch 7)
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=ro_ch[0],
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=ro_ch,
                          mux_freqs=cfg['res_freq_qze'],
                          mux_gains=cfg['res_gain_qze'],  # has 7 values not just 6, extra one for the zeno
                          mux_phases=cfg['res_phase_qze'],

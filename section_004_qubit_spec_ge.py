@@ -85,8 +85,9 @@ class QubitSpectroscopy:
             I, Q, freqs = self.live_plotting(qspec)
         else:
             iq_list = qspec.acquire(self.experiment.soc, rounds=self.exp_cfg["rounds"], progress=self.qick_verbose)
-            I = iq_list[self.QubitIndex][0, :, 0]
-            Q = iq_list[self.QubitIndex][0, :, 1]
+            iq_list = iq_list[0][0].T
+            I = (iq_list[0])
+            Q = (iq_list[1])
             freqs = qspec.get_pulse_param('qubit_pulse', "freq", as_array=True)
             self.plot_results(I, Q, freqs, config=self.config,
                               return_fwhm=return_fwhm)
@@ -352,6 +353,7 @@ class QubitSpectroscopy:
             if self.verbose: print("Error during Lorentzian fit:", e)
             self.logger.info(f'Error during Lorentzian fit: {e}')
             # Return all desired results including the error on the Q fit
+            mean_I, mean_Q, I_fit, Q_fit, largest_amp_curve_mean, largest_amp_curve_fwhm, qspec_fit_err = None, None, None, None, None,None,None
         return mean_I, mean_Q, I_fit, Q_fit, largest_amp_curve_mean, largest_amp_curve_fwhm, qspec_fit_err
 
     def fit_lorenzian_two_peaks(self, I, Q, freqs ):
@@ -480,7 +482,8 @@ class PulseProbeSpectroscopyProgram(AveragerProgramV2):
                        )
 
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
-        self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch[0],
+        self.add_loop("freqloop", cfg["steps"])
+        self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch,
                        style="const",
                        length=cfg['qubit_length_ge'],
                        freq=cfg['qubit_freq_ge'],
@@ -488,7 +491,7 @@ class PulseProbeSpectroscopyProgram(AveragerProgramV2):
                        gain=cfg['qubit_gain_ge'],
                        )
 
-        self.add_loop("freqloop", cfg["steps"])
+
 
     def _body(self, cfg):
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)  # play probe pulse
@@ -519,7 +522,7 @@ class PulseProbeSpectroscopyProgram_WithStark(AveragerProgramV2):
                        )
 
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
-        self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch[0],
+        self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch,
                        style="const",
                        length=cfg['qubit_length_ge']-0.11,#
                        freq=cfg['qubit_freq_ge'],
@@ -566,7 +569,7 @@ class PulseProbeSpectroscopyProgram_WithStark_WaitForRingUp(AveragerProgramV2):
                        )
 
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
-        self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch[0],
+        self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch,
                        style="const",
                        length=cfg['qubit_length_ge'] - cfg['qubit_pi_len'],  #
                        freq=cfg['qubit_freq_ge'],
@@ -824,7 +827,7 @@ class QZEStyleStarkedFreq(AveragerProgramV2):
                        )
 
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
-        self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch[0],  # for before we hit pi pulse len
+        self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch,  # for before we hit pi pulse len
                        style="const",
                        length=cfg['qubit_length_ge']  - cfg['qubit_pi_len'],
                        freq=cfg['qubit_freq_ge'],  # [0] # only should be one value,
@@ -954,7 +957,7 @@ class ResStarkShift2DProgram(AveragerProgramV2):
         #                gain=cfg['pi_amp'],
         #                )
 
-        self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch[0],
+        self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch,
                        style="const",
                        length=cfg['qubit_length_ge'],
                        freq=QickSweep1D("qubit_pulse_loop", cfg['qubit_freq_ge'] + cfg["start_freq"], cfg['qubit_freq_ge'] + cfg["end_freq"]),
