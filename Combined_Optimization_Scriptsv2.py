@@ -177,9 +177,12 @@ for QubitIndex in Qs:
                 #res_gains = experiment.set_gain_filter_ge(QubitIndex, gain)  # Set gain for current qubit only
 
                 experiment.readout_cfg['res_gain_ge'] = gain
+                try:
+                    ss = SingleShot(QubitIndex, number_of_qubits, outerFolder,  j, save_figs, experiment, unmasking_resgain = unmask)  # updated way
+                    fid, angle, iq_list_g, iq_list_e, ss_config = ss.run()
+                except:
+                    continue
 
-                ss = SingleShot(QubitIndex, number_of_qubits, outerFolder,  j, save_figs, experiment, unmasking_resgain = unmask)  # updated way
-                fid, angle, iq_list_g, iq_list_e, ss_config = ss.run()
                 print(ss_config)
                 fids.append(fid)
 
