@@ -439,8 +439,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
     # #
 
         "Readout_Optimization":{
-            "steps": 100, # shots
-            "py_avg": 50,
+            "steps": 3000, # shots
+            "py_avg": 1,
             "gain_start" : [0, 0, 0, 0],
             "gain_stop" : [1, 0, 0, 0],
             "gain_step" : 0.1,

@@ -72,7 +72,7 @@ res_freq_ge = [None] * 6 # creates list where the script will be storing the fre
 j=0 #round number, from RR code. Not really used here since we just run it once for each qubit
 
 # lengs = np.arange(0.1, 6, 0.5)
-lengs = np.arange(3.5, 8.5, 0.5)
+lengs = np.arange(1.5, 8.5, 0.1)
 start=time.time()
 for QubitIndex in Qs:
     # Get the config for this qubit

@@ -205,7 +205,7 @@ class SingleShot:
         # Q_g = iq_list_g[self.QubitIndex][:, :, 0, 1][0]
         # I_e = iq_list_e[self.QubitIndex][:, :, 0, 0][0]
         # Q_e = iq_list_e[self.QubitIndex][:, :, 0, 1][0]
-        
+
 
         fid, threshold, angle, ig_new, ie_new = self.hist_ssf(data=[I_g, Q_g, I_e, Q_e], cfg=self.config, plot=self.save_figs,  fig_quality=fig_quality)
         if self.verbose: print('Optimal fidelity after rotation = %.3f' % fid)
