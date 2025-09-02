@@ -176,8 +176,8 @@ class SingleShot:
 
         # Use the fidelity calculation from SingleShotGE
         fidelity, _, _, _,_ = self.hist_ssf(
-            data=[iq_list_g[self.QubitIndex][0].T[0], iq_list_g[self.QubitIndex][0].T[1],
-                  iq_list_e[self.QubitIndex][0].T[0], iq_list_e[self.QubitIndex][0].T[1]],
+            data=[iq_list_g[0][0].T[0], iq_list_g[0][0].T[1],
+                  iq_list_e[0][0].T[0], iq_list_e[0][0].T[1]],
             cfg=self.config, plot=False)
 
         return fidelity
@@ -192,8 +192,8 @@ class SingleShot:
         e_shots= ssp_e.get_raw()
         # print('e_shots[0]',e_shots[0])
 
-        # fid, angle = self.plot_results(iq_list_g, iq_list_e, self.QubitIndex)
-        fid, angle = self.plot_results(g_shots, e_shots, self.QubitIndex)
+        fid, angle = self.plot_results(iq_list_g, iq_list_e, self.QubitIndex)
+        #fid, angle = self.plot_results(g_shots, e_shots, self.QubitIndex)
         return fid, angle, iq_list_g, iq_list_e, self.config
 
     def plot_results(self, iq_list_g, iq_list_e, QubitIndex,  fig_quality=100):
@@ -438,8 +438,20 @@ class GainFrequencySweep:
                 # Initialize SingleShotGE instance for fidelity calculation
                 round_num = 0
                 save_figs = False
-                single_shot = SingleShot(self.qubit_index, self.number_of_qubits,  self.output_folder, round_num, save_figs, fresh_experiment, unmasking_resgain = self.unmasking_resgain)
-                fidelity = single_shot.fidelity_test(fresh_experiment.soccfg, fresh_experiment.soc)
+                import time
+
+                while True:
+                    try:
+                        single_shot = SingleShot(
+                            self.qubit_index, self.number_of_qubits, self.output_folder,
+                            round_num, save_figs, fresh_experiment,
+                            unmasking_resgain=self.unmasking_resgain
+                        )
+                        fidelity = single_shot.fidelity_test(fresh_experiment.soccfg, fresh_experiment.soc)
+                        break  #it worked
+                    except Exception as e:
+                        print(f"[retry] SingleShot failed: {e}. Trying again in 2s…")
+                        time.sleep(2)
                 fid_results.append(fidelity)
                 del fresh_experiment
                 del single_shot
