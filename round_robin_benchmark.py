@@ -55,7 +55,7 @@ unmask = False                          # Do you want to use the unmasking featu
 qubit_to_increase_reps_for = 0       # only has impact if previous line is True
 multiply_qubit_reps_by = 2           # only has impact if the line two above is True
 
-Qs_to_look_at = [1,2,3,4,5]     # only list the qubits you want to do the RR for
+Qs_to_look_at = [3,4,5]     # only list the qubits you want to do the RR for
 
 #Data saving info
 run_name = 'bob_run_started_Aug_23'
@@ -63,13 +63,17 @@ device_name = 'squill'
 substudy_txt_notes = ('taking a look at everything over time')
 
 # set which of the following you'd like to run to 'True'
-run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss": True, "rabi":True, "ss_gef": False, "test_act":False, "fh_rabi":False,
-             "t1":False, "t2r": False, "t2e": False, "ef_res_spec":False, "ef_q_spec": False, "fh_q_spec":False, "rabi_pop_meas": False, "ef_Rabi":False, "ef_ss": False}
+run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss": False, "rabi": False, "ss_gef": False, "test_act": False, "fh_rabi": False,
+             "t1": False, "t2r": False, "t2e": False, "ef_res_spec": False, "ef_q_spec": False, "fh_q_spec": False, "rabi_pop_meas": False, "ef_Rabi": False, "ef_ss": False}
+
+# run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss": True, "rabi":True, "ss_gef": True, "test_act":False, "fh_rabi":True,
+#              "t1":True, "t2r": True, "t2e": True, "ef_res_spec":True, "ef_q_spec": True, "fh_q_spec":True, "rabi_pop_meas": True, "ef_Rabi":True, "ef_ss": True}
+
 
 # optimization outputs from qick board, unmasking set to true
-res_leng_vals = [5,4.2,8.3,3.3,5,8.2]
-res_gain = [0.8]*6
-freq_offsets = [0,0,0,0,0,0]#[0.1190, 0.0238, -0.1190, 0.2143, -0.0714, 0.0238] # # all updated on 7/29/2025 except R5, we need to debug res spec for that resonator
+res_leng_vals = [5,4.2,8.3,7.9,7.5,6.4]
+res_gain = [1,1,1,0.62, 0.77, 0.77]
+freq_offsets = [0,0,0,-0.25,-0.15,0.15]#[0.1190, 0.0238, -0.1190, 0.2143, -0.0714, 0.0238] # # all updated on 7/29/2025 except R5, we need to debug res spec for that resonator
 
 qubit_freqs_ef = [None]*6
 increase_steps_to_ef = 600
@@ -78,7 +82,7 @@ number_of_qubits = 6
 figure_quality = 200
 ################################################ Data Saving Setup ##################################################
 #Folders
-study = 'qfreq_optimization'#'weekend benchmark'
+study = 'find_higher_transistions' #'post_optimization_benchmark'
 sub_study = 'rr'
 data_set = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 

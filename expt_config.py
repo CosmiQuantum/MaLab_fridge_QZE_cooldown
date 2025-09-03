@@ -34,21 +34,21 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "res_spec_ef": {
-            "reps": 200,
+            "reps": 500,
             "rounds": 1,
             "start": -2,  # [MHz]
-            "step_size": 0.05,  # [MHz]
-            "steps": 100,
+            "step_size": 0.005,  # [MHz]
+            "steps": 300,
             "relax_delay": 2000,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
 
         "qubit_spec_ge": {
-            "reps": 30, #500
-            "rounds": 500,#25, #10
-            "start": list(VNA_qubit-40), # [MHz] #-300 #-10 # -4
-            "stop": list(VNA_qubit+40), # [MHz] #+10 # 4
-            "steps": 200, # 400
+            "reps": 50,
+            "rounds": 4000,#500,
+            "start": list(VNA_qubit-400), # [MHz] -40
+            "stop": list(VNA_qubit+40), # [MHz] +40
+            "steps": 2000,#200,
             "relax_delay": 2000, # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
@@ -64,8 +64,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "qubit_spec_ge_high_gain": {
-            "reps": 500,  # 300
-            "rounds": 1,  # 10
+            "reps": 50,  # 300
+            "rounds": 500,  # 10
             "start": list(VNA_qubit - 30),  # [MHz]
             "stop": list(VNA_qubit + 30),  # [MHz]
             "steps": 600,  # 100
@@ -87,8 +87,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "qubit_spec_ef": {
-            "reps": 5000,  # 300
-            "rounds": 1,  # 10
+            "reps": 100,  # 300
+            "rounds": 1000,  # 10
             "start": list(ef_freqs - 0.2),# 0.2),  # [MHz] #-300 #-6
             "stop":  list(ef_freqs + 0.2),#0.2),  # [MHz] #6
             "steps": 220,  # 1000 #450
@@ -96,8 +96,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "list_of_all_qubits": list_of_all_qubits,
         },
         "qubit_spec_fh": {
-            "reps": 20000,  # 300
-            "rounds": 1,  # 10
+            "reps": 10,  # 300
+            "rounds": 20000,  # 10
             "start": list(fh_freqs - 0.3), # [MHz] #-300 #-6
             "stop": list(fh_freqs +  0.2),  # [MHz] #6
             "steps": 180,#450,  # 1000 #450
@@ -125,8 +125,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "power_rabi_ge": {
-            "reps": 10,#500,
-            "rounds": 50,  # 5
+            "reps": 20,#500,
+            "rounds": 100,  # 5
             "start": [0] * 6,  # [DAC units]
             "stop": [1.0] * 6,  # [DAC units]
             "steps": 50, #50,
@@ -145,8 +145,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "length_rabi_Qtemps": {
-            "reps": 400,#500,
-            "rounds": 1,
+            "reps": 10,#500,
+            "rounds": 400,
             "start": 0.02,  # [us]
             "stop": 2,#[0.7] * 6,  # [us]
             "steps": 200,
@@ -154,8 +154,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "list_of_all_qubits": list_of_all_qubits,
         },
         "length_rabi_ge_pi_len": { #for the zeno tests, bare qubit frequency rabi
-            "reps": 300,  # 500,
-            "rounds": 1,
+            "reps": 10,  # 500,
+            "rounds": 300,
             "start": 0.01,  # [us]
             "stop": 4,  # [0.7] * 6,  # [us]
             "steps": 60,
@@ -176,18 +176,18 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "power_rabi_ef": {
-            "reps": 200,
+            "reps": 20,
             "reps2": 850, #this is only used for the experiment that uses e-f rabi to calculate qubit temperatures.
-            "rounds": 1,
+            "rounds": 400,
             "start": 0.0,  # [DAC units]
             "stop": 1.0,  # [DAC units]
             "steps": 155,
             "relax_delay": 2000,  # [us]
         },
         "power_rabi_fh": {
-            "reps": 200,
+            "reps": 20,
             "reps2": 850,  # this is only used for the experiment that uses e-f rabi to calculate qubit temperatures.
-            "rounds": 1,
+            "rounds": 400,
             "start": 0.0,  # [DAC units]
             "stop": 1.0,  # [DAC units]
             "steps": 155,
@@ -195,7 +195,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
         "T1_ge": {
             "reps": 20, #300
-            "rounds": 50, #1
+            "rounds": 100, #1
             "start":  10,#[0.0] * 6,  # [us]
             "stop": 11,#[200]*6, #[250.0] * 6,  # [us] ### Should be ~10x T1! Should change this per qubit.
             "steps": 1, #60
@@ -217,7 +217,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
 
         "T1_fe": {
             "reps": 20,  # 300
-            "rounds": 50,  # 1
+            "rounds": 300,  # 1
             "start": 0.0,  # [us]
             "stop": 200,  # [250.0] * 6,  # [us] ### Should be ~10x T1! Should change this per qubit.
             "steps": 150,
@@ -228,7 +228,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
 
         "T1_fg": {
             "reps": 20,  # 300
-            "rounds": 50,  # 1
+            "rounds": 300,  # 1
             "start": 0.0,  # [us]
             "stop": 200,  # [250.0] * 6,  # [us] ### Should be ~10x T1! Should change this per qubit.
             "steps": 150,
@@ -238,7 +238,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
         "ckp_nbar_calibration":{
             "reps": 20,
-            "rounds": 50,
+            "rounds": 300,
             "list_of_all_qubits": list_of_all_qubits,
             "qubit_pulse_delay": 3,  # [us] time to wait for qubit pulse after stark tone is sent
             "stark_length": 19,  # [us] stark tone length for 2D scan, overlaps qubit pulse
@@ -259,7 +259,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
         "res_stark_shift_2D": {
             "reps": 20,
-            "rounds": 50,
+            "rounds": 300,
             "list_of_all_qubits": list_of_all_qubits,
             "qubit_pulse_delay": 3, #[us] time to wait for qubit pulse after stark tone is sent
             "stark_length": 19,  # [us] stark tone length for 2D scan, overlaps qubit pulse
@@ -278,7 +278,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
 
         "stark_shift_2D": {
             "reps": 20,
-            "rounds": 50,
+            "rounds": 300,
             "list_of_all_qubits": list_of_all_qubits,
             "qubit_pulse_delay": 0.5,  # [us] time to wait for qubit pulse after stark tone is sent
             "stark_length": 16,  # [us] stark tone length for 2D scan, overlaps qubit pulse
@@ -297,7 +297,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
 
         "stark_shift_spec": {
             "reps": 20,
-            "rounds": 50,
+            "rounds": 300,
             "list_of_all_qubits": list_of_all_qubits,
             "stark_length": 25, # [us] stark tone length for TLS spectroscopy, try 10-30% of T1
             "max_shift": 20, # [MHz] specify frequency range of stark shift
@@ -319,7 +319,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
 
         "Ramsey_stark": {
             "reps": 20,  # 300
-            "rounds": 50,  # 10
+            "rounds": 300,  # 10
             "start": 0.02,  # [us]
             "stop": 10,  # [us]
             "steps": 100,
@@ -350,7 +350,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
 
         "Ramsey_ge": {
             "reps": 20, #300
-            "rounds": 50,#10
+            "rounds": 300,#10
             "start": 0.0, # [us]
             "stop":  60, # [us]
             "steps": 100,
@@ -362,7 +362,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
 
         "SpinEcho_ge": {
             "reps": 20,
-            "rounds":50,
+            "rounds":300,
             "start": 0.0, # [us]
             "stop":  80, # [us]
             "steps": 100,
