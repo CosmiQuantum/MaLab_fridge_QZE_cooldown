@@ -49,8 +49,10 @@ class FHQubitSpectroscopy:
             efI, efQ, effreqs = self.live_plotting(efqspec, self.experiment.soc)
         else:
             efiq_list = efqspec.acquire(self.experiment.soc, rounds=self.exp_cfg["rounds"], progress=True)
-            efI = efiq_list[self.QubitIndex][0, :, 0]
-            efQ = efiq_list[self.QubitIndex][0, :, 1]
+            efiq_list = efiq_list[0][0].T
+            efI = (efiq_list[0])
+            efQ = (efiq_list[1])
+
             effreqs = efqspec.get_pulse_param('qubit_pulse', "freq", as_array=True)
             #print(effreqs)
         self.plot_results(efI, efQ, effreqs, config=self.config)
@@ -65,9 +67,9 @@ class FHQubitSpectroscopy:
         for ii in range(self.config["rounds"]):
             iq_list = qspec.acquire(soc, rounds=1, progress=True)
             freqs = qspec.get_pulse_param('qubit_pulse', "freq", as_array=True)
-
-            this_I = iq_list[self.QubitIndex][0, :, 0]
-            this_Q = iq_list[self.QubitIndex][0, :, 1]
+            iq_list = iq_list[0][0].T
+            this_I = (iq_list[0])
+            this_Q = (iq_list[1])
 
             if I is None:  # ii == 0
                 I, Q = this_I, this_Q

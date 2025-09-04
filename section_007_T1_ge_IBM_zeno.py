@@ -161,9 +161,9 @@ class T1Measurement_with_Zeno:
             else:
                 iq_list = t1.acquire(self.experiment.soc, rounds=1, progress=True)
             delay_times = t1.get_time_param('wait', "t", as_array=True)
-
-            this_I = iq_list[self.QubitIndex][0, :, 0]
-            this_Q = iq_list[self.QubitIndex][0, :, 1]
+            iq_list = iq_list[0][0].T
+            this_I = (iq_list[0])
+            this_Q = (iq_list[1])
 
             if I is None:  # ii == 0
                 I, Q = this_I, this_Q

@@ -402,8 +402,9 @@ class T2EMeasurement:
             else:
                 iq_list = echo.acquire(self.experiment.soc, rounds=self.config['rounds'], progress=self.qick_verbose)
 
-            I = iq_list[self.QubitIndex][0, :, 0]
-            Q = iq_list[self.QubitIndex][0, :, 1]
+            iq_list = iq_list[0][0].T
+            I = (iq_list[0])
+            Q = (iq_list[1])
             delay_times1 = echo.get_time_param('wait1', "t", as_array=True)
             delay_times2 = echo.get_time_param('wait2', "t", as_array=True)
             delay_times = delay_times1+delay_times2
@@ -434,9 +435,9 @@ class T2EMeasurement:
             delay_times1 = echo.get_time_param('wait1', "t", as_array=True)
             delay_times2 = echo.get_time_param('wait2', "t", as_array=True)
             delay_times = delay_times1 + delay_times2
-
-            this_I = iq_list[self.QubitIndex][0, :, 0]
-            this_Q = iq_list[self.QubitIndex][0, :, 1]
+            iq_list = iq_list[0][0].T
+            this_I = (iq_list[0])
+            this_Q = (iq_list[1])
 
             if I is None:  # ii == 0
                 I, Q = this_I, this_Q

@@ -8,8 +8,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
     # VNA_res = np.array([6191.519, 6216, 6292.321, 6405.85, 6432.959, 6468.441,]) # run 4a
     VNA_qubit = np.array([2766, 2980, 2873, 3096, 3043, 3093])  # Freqs of Qubit g/e Transition
     #VNA_qubit = np.array([4189.8105, 3820.4723, 4156.53, 4462.374, 4471.4036, 4997.86])
-    ef_freqs = np.array([4009.81, 3645.58, 3988.21, 4292.73, 4292.73, 4838.86]) # Freqs of Qubit e/f Transition, updated for run 7
-    fh_freqs = np.array([3820.97, 3450.85, 3798.97, 4110, 4660, 4660.28])
+    ef_freqs = np.array([2616, 2830, 2723, 2946, 2893, 2943]) # Freqs of Qubit e/f Transition, updated for run 7
+    fh_freqs = np.array([2466, 2680, 2573, 2796, 2743, 2793])
     # Set this for your experiment
     tot_num_of_qubits = 6
 
@@ -44,11 +44,11 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "qubit_spec_ge": {
-            "reps": 50,
-            "rounds": 4000,#500,
-            "start": list(VNA_qubit-400), # [MHz] -40
+            "reps": 10,
+            "rounds": 500,#500,
+            "start": list(VNA_qubit-40), # [MHz] -40
             "stop": list(VNA_qubit+40), # [MHz] +40
-            "steps": 2000,#200,
+            "steps": 200,#200,
             "relax_delay": 2000, # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },

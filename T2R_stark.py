@@ -402,8 +402,9 @@ class starkT2RMeasurement:
             else:
                 iq_list = ramsey.acquire(self.experiment.soc, rounds=self.config['rounds'], progress=self.qick_verbose)
 
-            i0 = iq_list[self.QubitIndex][0, :, 0]
-            q0 = iq_list[self.QubitIndex][0, :, 1]
+            iq_list = iq_list[0][0].T
+            i0 = (iq_list[0])
+            q0 = (iq_list[1])
             I.append(i0)
             Q.append(q0)
             delay_times = ramsey.get_pulse_param("stark_tone","length", as_array=True)

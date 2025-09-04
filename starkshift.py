@@ -186,8 +186,11 @@ class ResStarkShift2D:
             self.config['stark_gain'] = gain  #readout pulse gain, stark tone gain
             prog = ResStarkShift2DProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay = 0.5, cfg=self.config)
             iq_list = prog.acquire(self.experiment.soc, rounds=self.exp_cfg["rounds"], progress=True) #check soft_avgs
-            I.append(iq_list[self.QubitIndex][0,:,0])
-            Q.append(iq_list[self.QubitIndex][0,:,1])
+            iq_list = iq_list[0][0].T
+            ilist = (iq_list[0])
+            qlist = (iq_list[1])
+            I.append(ilist)
+            Q.append(qlist)
 
         qu_freq_sweep = prog.get_pulse_param('qubit_pulse', "freq", as_array=True)
 

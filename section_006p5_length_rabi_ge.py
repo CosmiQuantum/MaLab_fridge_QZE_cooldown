@@ -83,9 +83,9 @@ class LengthRabiExperiment:
             rounds=self.config["rounds"],
             progress=self.qick_verbose
         )
-
-        I = iq_list[self.QubitIndex][0, :, 0]
-        Q = iq_list[self.QubitIndex][0, :, 1]
+        iq_list = iq_list[0][0].T
+        I = (iq_list[0])
+        Q = (iq_list[1])
 
         #get the lens that were used so you can use to plot on the x axis
         lengths = amp_rabi.get_pulse_param('qubit_pulse', "length", as_array=True)
@@ -392,9 +392,9 @@ class LengthRabiExperiment:
             else:
                 iq_list = amp_rabi.acquire(self.experiment.soc, rounds=1, progress=self.qick_verbose)
             lens = amp_rabi.get_pulse_param('qubit_pulse', "gain", as_array=True)
-
-            this_I = iq_list[self.QubitIndex][0, :, 0]
-            this_Q = iq_list[self.QubitIndex][0, :, 1]
+            iq_list = iq_list[0][0].T
+            this_I = (iq_list[0])
+            this_Q = (iq_list[1])
 
             if I is None:  # ii == 0
                 I, Q = this_I, this_Q

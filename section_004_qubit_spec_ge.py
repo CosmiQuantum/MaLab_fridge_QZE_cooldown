@@ -120,8 +120,10 @@ class QubitSpectroscopy:
             qspec = PulseProbeSpectroscopyProgram_WithStark(self.experiment.soccfg, reps=self.config['reps']*2, final_delay=0.5, cfg=self.config)
 
         iq_list = qspec.acquire(self.experiment.soc, rounds=self.exp_cfg["rounds"],)
-        I = iq_list[self.QubitIndex][0, :, 0]
-        Q = iq_list[self.QubitIndex][0, :, 1]
+        iq_list = iq_list[0][0].T
+        I = (iq_list[0])
+        Q = (iq_list[1])
+
         freqs = qspec.get_pulse_param('qubit_pulse', "freq", as_array=True)
 
         largest_amp_curve_mean, I_fit, Q_fit, fwhm = self.plot_results(I, Q, freqs, config = self.config, sigma_guess = 10, return_fwhm=True)
@@ -136,9 +138,11 @@ class QubitSpectroscopy:
         for ii in range(self.config["rounds"]):
             iq_list = qspec.acquire(self.experiment.soc, rounds=1, progress=self.qick_verbose)
             freqs = qspec.get_pulse_param('qubit_pulse', "freq", as_array=True)
-
-            this_I = iq_list[self.QubitIndex][0, :, 0]
-            this_Q = iq_list[self.QubitIndex][0, :, 1]
+            iq_list = iq_list[0][0].T
+            this_I = (iq_list[0])
+            this_Q = (iq_list[1])
+            #this_I = iq_list[self.QubitIndex][0, :, 0]
+            #this_Q = iq_list[self.QubitIndex][0, :, 1]
 
             if I is None:  # ii == 0
                 I, Q = this_I, this_Q
@@ -654,8 +658,12 @@ class QZEStyleResStarkShift2D:
         prog = QZEStyleStarkedFreq(self.experiment.soccfg, reps=self.config['reps'], final_delay = 0.5, cfg=self.config)
 
         iq_list = prog.acquire(self.experiment.soc, rounds=self.exp_cfg["rounds"], progress=True)
-        I = iq_list[self.QubitIndex][0, :, 0]
-        Q = iq_list[self.QubitIndex][0, :, 1]
+        iq_list = iq_list[0][0].T
+        I = (iq_list[0])
+        Q = (iq_list[1])
+
+        #I = iq_list[self.QubitIndex][0, :, 0]
+        #Q = iq_list[self.QubitIndex][0, :, 1]
 
         qu_freq_sweep = prog.get_pulse_param('qubit_pulse', "freq", as_array=True)
         starked_freq, fit, fit_err, fwhm = self.plot_results(I, Q, qu_freq_sweep, config = self.config, sigma_guess = 1, return_fwhm=True)
@@ -884,8 +892,11 @@ class ResStarkShift2DAdapted:
             self.config['stark_gain'] = np.concatenate((res_gain_ge, [gain]))  #readout pulse gain, stark tone gain
             prog = ResStarkShift2DProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay = 0.5, cfg=self.config)
             iq_list = prog.acquire(self.experiment.soc, rounds=self.exp_cfg["rounds"], progress=True) #check soft_avgs
-            I.append(iq_list[self.QubitIndex][0,:,0])
-            Q.append(iq_list[self.QubitIndex][0,:,1])
+            iq_list = iq_list[0][0].T
+            Ilist = (iq_list[0])
+            Qlist = (iq_list[1])
+            I.append(Ilist)
+            Q.append(Qlist)
 
         qu_freq_sweep = prog.get_pulse_param('qubit_pulse', "freq", as_array=True)
         self.plot( I, Q, qu_freq_sweep, gain_sweep)

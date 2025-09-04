@@ -77,9 +77,9 @@ class Temps_EFAmpRabiExperiment:
         for ii in range(self.config["rounds"]):
             iq_list = amp_rabi.acquire(soc, rounds=1, progress=True)
             gains = amp_rabi.get_pulse_param('qubit_pulse', "gain", as_array=True)
-
-            this_I = iq_list[self.QubitIndex][0, :, 0]
-            this_Q = iq_list[self.QubitIndex][0, :, 1]
+            iq_list = iq_list[0][0].T
+            this_I = (iq_list[0])
+            this_Q = (iq_list[1])
 
             if I is None:  # ii == 0
                 I, Q = this_I, this_Q
