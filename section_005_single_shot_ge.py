@@ -21,21 +21,21 @@ class SingleShotProgram(AveragerProgramV2):
         ro_chs = cfg['ro_chs']
         gen_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
+        self.declare_gen(ch=gen_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
         self.add_readoutconfig(ch=ro_chs, name="myro",
                                freq=cfg['res_freq_ge'],
                                gen_ch=gen_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-        self.declare_gen(ch=gen_ch, nqz=cfg['nqz'], ro_ch=ro_chs[0],
-                         mux_freqs=cfg['f_res'],
-                         mux_gains=cfg['res_gain'],
-                         mux_phases=cfg['res_phase'],
-                         mixer_freq=cfg['mixer_freq'])
         self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
-        self.add_pulse(ch=gen_ch, name="res_pulse",
+        self.add_pulse(ch=gen_ch, name="res_pulse", ro_ch=ro_chs,
                        style="const",
-                       length=cfg["res_len"],
-                       mask=cfg["list_of_all_qubits"],
+                       length=cfg["res_length"],
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
                        )
 
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
@@ -124,7 +124,10 @@ class SingleShotProgram_e(AveragerProgramV2):
                        phase=cfg['qubit_phase'],
                        gain=cfg['pi_amp'],
                        )
-
+        print('cfg[pi_amp]',cfg['pi_amp'])
+        print('cfg[qubit_freq_ge]', cfg['qubit_freq_ge'])
+        print('cfg[res_freq_ge]', cfg['res_freq_ge'])
+        print('cfg[res_gain_ge]', cfg['res_gain_ge'])
         self.add_loop("shotloop", cfg["steps"])  # number of total shots
 
     def _body(self, cfg):

@@ -24,8 +24,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "res_spec": {
-            "reps": 500, #shots at one freq
-            "rounds": 1, #sweeps through each freq and average
+            "reps": 10,#30, #shots at one freq
+            "rounds": 50,#100, #sweeps through each freq and average
             "start": -0.7, #[MHz]
             "step_size": 0.005,  # [MHz]
             "steps": 200,#,200,#70
@@ -196,9 +196,9 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         "T1_ge": {
             "reps": 20, #300
             "rounds": 100, #1
-            "start":  10,#[0.0] * 6,  # [us]
-            "stop": 11,#[200]*6, #[250.0] * 6,  # [us] ### Should be ~10x T1! Should change this per qubit.
-            "steps": 1, #60
+            "start":  0,  # [us]
+            "stop": 500,  # [us] ### Should be ~10x T1! Should change this per qubit.
+            "steps": 100,
             "relax_delay": 2000,  # [us] ### Should be >10x T1!
             "wait_time": 0.0,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
@@ -349,10 +349,10 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "Ramsey_ge": {
-            "reps": 20, #300
-            "rounds": 300,#10
+            "reps": 10, #300
+            "rounds": 100,#10
             "start": 0.0, # [us]
-            "stop":  60, # [us]
+            "stop":  200, # [us]
             "steps": 100,
             "ramsey_freq": 0.12,  # [MHz]
             "relax_delay": 2000, # [us] the time to wait to let the qubit to relax to gnd again after exciting it (make it way above T1)
@@ -361,10 +361,10 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "SpinEcho_ge": {
-            "reps": 20,
-            "rounds":300,
+            "reps": 10,
+            "rounds":100,
             "start": 0.0, # [us]
-            "stop":  80, # [us]
+            "stop":  200, # [us]
             "steps": 100,
             "ramsey_freq": 0.12,  # [MHz]
             "relax_delay": 2000, # [us]

@@ -3,7 +3,8 @@ from qick.asm_v2 import AveragerProgramV2
 from tqdm import tqdm
 from build_state import *
 from expt_config import *
-import copy
+import matplotlib.pyplot as plt
+import os, datetime
 import datetime
 import time
 from windfreak import SynthHD
@@ -53,59 +54,175 @@ class PunchOut:
         self.config = {**self.q_config[self.Qubit], **self.exp_cfg}
         print(f'Punch Out configuration: ', self.config)
 
-    def run(self, soccfg, soc, start_gain, stop_gain, num_points, DAC_att, ADC_att, plot_Center_shift = True, plot_res_sweeps = True):
-        fpts = self.exp_cfg["start"] + self.exp_cfg["step_size"] * np.arange(self.exp_cfg["steps"])
-        fcenter = self.config['res_freq_ge']
+    def run(self, soccfg, soc, start_gain, stop_gain, num_points, DAC_att, ADC_att,
+            plot_Center_shift=True, plot_res_sweeps=True):
 
-        resonance_vals, power_sweep, frequency_sweeps = self.sweep_power(soccfg, soc, fpts, fcenter, start_gain, stop_gain, num_points)
+        fpts = self.exp_cfg["start"] + self.exp_cfg["step_size"] * np.arange(self.exp_cfg["steps"])
+
+        fcenter = np.asarray(self.config['res_freq_ge']).astype(float)
+
+        resonance_vals, power_sweep, frequency_sweeps = self.sweep_power(
+            soccfg, soc, fpts, fcenter, start_gain, stop_gain, num_points
+        )
 
         if plot_Center_shift:
+          
             self.plot_center_shift(resonance_vals, power_sweep, DAC_att, ADC_att)
 
         if plot_res_sweeps:
-            self.plot_res_sweeps(fpts, fcenter, frequency_sweeps, power_sweep, DAC_att, ADC_att,)
+            self.plot_res_sweeps(fpts, fcenter, frequency_sweeps, power_sweep, DAC_att, ADC_att)
 
         return
 
+    def _amp_from_iq(self,iq_list):
+        arr = np.asarray(iq_list)
+        try:
+            if arr.shape[-1] == 2:
+                I = arr[..., 0].mean()
+                Q = arr[..., 1].mean()
+                return float(np.abs(I + 1j * Q))
+            # Fallback: try to interpret as [I, Q] nested somewhere
+            I = float(arr.flat[0])
+            Q = float(arr.flat[1])
+            return float(np.abs(I + 1j * Q))
+        except Exception:
+            return float(np.abs(arr).mean())
+
     def sweep_power(self, soccfg, soc, fpts, fcenter, start_gain, stop_gain, num_points):
         power_sweep = np.linspace(start_gain, stop_gain, num_points)
+        N = int(self.number_of_qubits)
+        F = len(fpts)
+        P = len(power_sweep)
 
+        frequency_sweeps = np.zeros((P, N, F), dtype=float)
         resonance_vals = []
-        frequency_sweeps = []
-        for p in power_sweep:
-            power = round(p, 3)
+        original_qindex = getattr(self, "QubitIndex", None)
+
+        for pi, p in enumerate(power_sweep):
+            power = round(float(p), 3)
             self.config['res_gain_ge'] = power
 
-            amps = []
-            for index, f in enumerate(tqdm(fpts)):
-                self.config["res_freq_ge"] = [fcenter + f]
-                self.config["res_freq_ge"]=self.config["res_freq_ge"][0][self.QubitIndex]
+            freq_res_for_power = []
+            for qi in range(N):
+                self.QubitIndex = qi
 
-                prog = SingleToneSpectroscopyProgram(soccfg, reps=self.exp_cfg["reps"], final_delay=0.5,
-                                                     cfg=self.config)
-                iq_list = prog.acquire(soc, rounds=self.exp_cfg["rounds"], progress=False)
-                amp = np.abs(iq_list[0][0][0] + 1j * iq_list[0][0][1])
-                amps.append(amp)
-            amps = np.array(amps)
-            frequency_sweeps.append(amps)
+                amps_q = np.zeros(F, dtype=float)
+                center_q = float(fcenter[qi])
 
-            freq_res = []
-            for i in range(self.number_of_qubits):
-                freq_res.append(round(float(fpts[np.argmin(amps[i])] + fcenter[i]), 3))
-            resonance_vals.append(freq_res)
+                for fi, df in enumerate(fpts):
+                    self.config["res_freq_ge"] = float(center_q + df)
+
+                    prog = SingleToneSpectroscopyProgram(
+                        soccfg, reps=self.exp_cfg["reps"], final_delay=0.5, cfg=self.config
+                    )
+                    iq_list = prog.acquire(soc, rounds=self.exp_cfg["rounds"], progress=True)
+                    amps_q[fi] = self._amp_from_iq(iq_list)
+
+                frequency_sweeps[pi, qi, :] = amps_q
+
+                min_idx = int(np.argmin(amps_q))
+                freq_res_for_power.append(round(float(fpts[min_idx] + center_q), 3))
+
+            resonance_vals.append(freq_res_for_power)
+
+        if original_qindex is not None:
+            self.QubitIndex = original_qindex
+
         return resonance_vals, power_sweep, frequency_sweeps
 
+    def plot_res_sweeps(self, fpts, fcenter, frequency_sweeps, power_sweep, DAC_att, ADC_att):
+        P, N, F = frequency_sweeps.shape
+
+        plt.figure(figsize=(12, 8))
+        plt.rcParams.update({
+            'font.size': 14,
+            'axes.titlesize': 18,
+            'axes.labelsize': 16,
+            'xtick.labelsize': 14,
+            'ytick.labelsize': 14,
+            'legend.fontsize': 10,
+        })
+
+        for qi in range(N):
+            plt.subplot(2, 3, qi + 1)
+            x = fpts + float(fcenter[qi])
+            for pi in range(P):
+                plt.plot(x, frequency_sweeps[pi, qi, :], '-', linewidth=1.5,
+                         label=str(round(power_sweep[pi], 3)))
+            plt.xlabel("Frequency (MHz)", fontweight='normal')
+            plt.ylabel("Amplitude (a.u)", fontweight='normal')
+            plt.title(f"Resonator {qi + 1}", pad=10)
+            if qi == 0:
+                plt.legend(loc='upper left', title='Gain')
+
+        plt.suptitle(f"Resonance At Various Probe Gains DAC_Att_{DAC_att}, ADC_ATT_{ADC_att}",
+                     fontsize=24, y=0.95)
+
+        plt.tight_layout(pad=2.0)
+        outerFolder_expt = os.path.join(self.outerFolder, "punch_out")
+        self.experiment.create_folder_if_not_exists(outerFolder_expt)
+        now = datetime.datetime.now()
+        formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
+        file_name = os.path.join(
+            outerFolder_expt,
+            f"{formatted_datetime}_punch_out_res_sweep_DAC_Att_{DAC_att}_ADC_ATT_{ADC_att}.png"
+        )
+        plt.savefig(file_name, dpi=300)
+        from section_008_save_data_to_h5 import Data_H5
+        import numpy as np, time, copy
+
+        sweeps = np.asarray(frequency_sweeps)
+        P, N, F = sweeps.shape
+        fpts_arr = np.asarray(fpts, dtype=float)
+        fcenter_arr = np.asarray(fcenter, dtype=float)
+        power_arr = np.asarray(power_sweep, float)
+
+        resonance_vals = np.empty((P, N), dtype=float)
+        for pi in range(P):
+            for qi in range(N):
+                min_idx = int(np.argmin(sweeps[pi, qi, :]))
+                resonance_vals[pi, qi] = float(fpts_arr[min_idx] + fcenter_arr[qi])
+
+
+        def _create_data_dict(keys, num_qubits):
+            d = {Q: {k: np.empty(1, dtype=object) for k in keys} for Q in range(num_qubits)}
+            return d
+
+        punchout_keys = ['Dates', 'freq_pts', 'freq_center', 'Amps', 'Found Freqs',
+                         'Power Sweep', 'Round Num', 'Batch Num', 'Exp Config', 'Syst Config']
+        punchout_data = _create_data_dict(punchout_keys, N)
+
+        now_epoch = time.mktime(datetime.datetime.now().timetuple())
+
+        for Q in range(N):
+            punchout_data[Q]['Dates'][0] = now_epoch
+            punchout_data[Q]['freq_pts'][0] = fpts_arr
+            punchout_data[Q]['freq_center'][0] = fcenter_arr[Q]
+            punchout_data[Q]['Amps'][0] = sweeps[:, Q, :]
+            punchout_data[Q]['Found Freqs'][0] = resonance_vals[:, Q]  # (P,)
+            punchout_data[Q]['Power Sweep'][0] = power_arr  # (P,)
+            punchout_data[Q]['Round Num'][0] = 0
+            punchout_data[Q]['Batch Num'][0] = 0
+            punchout_data[Q]['Exp Config'][0] = copy.deepcopy(self.exp_cfg)
+            punchout_data[Q]['Syst Config'][0] = copy.deepcopy(self.config)
+
+        base = f"{formatted_datetime}_punch_out_res_sweep_DAC_Att_{DAC_att}_ADC_ATT_{ADC_att}"
+        saver_punch = Data_H5(outerFolder_expt, punchout_data, 0, 1)
+        saver_punch.save_to_h5('punch_out_ge')
+        del saver_punch
+        del punchout_data
+        plt.close()
+        return
     def plot_center_shift(self, resonance_vals, power_sweep,DAC_att, ADC_att ):
         plt.figure(figsize=(12, 8))
 
-        # Set larger font sizes
         plt.rcParams.update({
-            'font.size': 14,  # Base font size
-            'axes.titlesize': 18,  # Title font size
-            'axes.labelsize': 16,  # Axis label font size
-            'xtick.labelsize': 14,  # X-axis tick label size
-            'ytick.labelsize': 14,  # Y-axis tick label size
-            'legend.fontsize': 14,  # Legend font size
+            'font.size': 14,
+            'axes.titlesize': 18,
+            'axes.labelsize': 16,
+            'xtick.labelsize': 14,
+            'ytick.labelsize': 14,
+            'legend.fontsize': 14,
         })
 
         for i in range(self.number_of_qubits):
@@ -116,7 +233,6 @@ class PunchOut:
             plt.ylabel("Freq (MHz)", fontweight='normal')
             plt.title(f"Resonator {i + 1}", pad=10)
 
-        # Add a main title to the figure
         plt.suptitle(f"Frequency vs Probe Gain, _DAC_Att_{DAC_att}, ADC_ATT_{ADC_att}", fontsize=24, y=0.95)
 
         plt.tight_layout(pad=2.0)
@@ -130,49 +246,6 @@ class PunchOut:
         plt.close()
         return
 
-    def plot_res_sweeps(self, fpts, fcenter, frequency_sweeps, power_sweep, DAC_att, ADC_att):
-        plt.figure(figsize=(12, 8))
-
-        # Set larger font sizes
-        plt.rcParams.update({
-            'font.size': 14,  # Base font size
-            'axes.titlesize': 18,  # Title font size
-            'axes.labelsize': 16,  # Axis label font size
-            'xtick.labelsize': 14,  # X-axis tick label size
-            'ytick.labelsize': 14,  # Y-axis tick label size
-            'legend.fontsize': 14,  # Legend font size
-        })
-        for power_index in range(len(power_sweep)):
-            for i in range(6):
-                plt.subplot(2, 3, i + 1)
-                plt.plot(fpts + fcenter[i], frequency_sweeps[power_index], '-', linewidth=1.5,
-                         label=round(power_sweep[power_index], 3))
-
-                plt.xlabel("Frequency (MHz)", fontweight='normal')
-                plt.ylabel("Amplitude (a.u)", fontweight='normal')
-                plt.title(f"Resonator {i + 1}", pad=10)
-                plt.legend(loc='upper left', fontsize='6', title='Gain')
-            # for i in range(self.number_of_qubits):
-            #     plt.subplot(2, 3,  i+1)
-            #     plt.plot([f + fcenter for f in fpts][i],  frequency_sweeps[power_index][i], '-', linewidth=1.5)
-            #
-            #     plt.xlabel("Frequency (MHz)", fontweight='normal')
-            #     plt.ylabel("Amplitude (a.u)", fontweight='normal')
-            #     plt.title(f"Resonator {self.QubitIndex + 1}", pad=10)
-            #     plt.legend(loc='upper left', fontsize='6', title='Gain')
-
-        # Add a main title to the figure
-        plt.suptitle(f"Resonance At Various Probe Gains DAC_Att_{DAC_att}, ADC_ATT_{ADC_att}", fontsize=24, y=0.95)
-
-        plt.tight_layout(pad=2.0)
-        outerFolder_expt = os.path.join(self.outerFolder, "punch_out")
-        self.experiment.create_folder_if_not_exists(outerFolder_expt)
-        now = datetime.datetime.now()
-        formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
-        file_name = os.path.join(outerFolder_expt, f"{formatted_datetime}_punch_out_res_sweep_DAC_Att_{DAC_att}_ADC_ATT_{ADC_att}.png")
-        plt.savefig(file_name, dpi=300)
-        plt.close()
-        return
 
 
 class TWPAConsistency:

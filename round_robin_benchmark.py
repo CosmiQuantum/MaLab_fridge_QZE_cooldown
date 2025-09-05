@@ -43,19 +43,19 @@ ssf_avgs_per_opt_pt = 5
 save_r = 1                           # how many rounds to save after
 signal = 'None'                      # 'I', or 'Q' depending on where the signal is (after optimization). Put 'None' if no optimization
 save_figs = True                     # save plots for everything as you go along the RR script?
-live_plot = False                     # for live plotting do "visdom" in comand line and then open http://localhost:8097/ on firefox
-fit_data = True                    # fit the data here and save or plot the fits?
+live_plot = False                    # for live plotting do "visdom" in comand line and then open http://localhost:8097/ on firefox
+fit_data = True                      # fit the data here and save or plot the fits?
 save_data_h5 = True                  # save all of the data to h5 files?
-verbose = True                    # print everything to the console in real time, good for debugging, bad for memory
-qick_verbose = True                 # qick verbose prints the progress bar for each qick experiment as it is happening (the red bar that fills out as more experiment rounds/reps are being done)
-debug_mode = True                  # if True, it disables the continuing function of RR if an error pops up in a class -- errors now stop the RR script
+verbose = True                       # print everything to the console in real time, good for debugging, bad for memory
+qick_verbose = True                  # qick verbose prints the progress bar for each qick experiment as it is happening (the red bar that fills out as more experiment rounds/reps are being done)
+debug_mode = True                    # if True, it disables the continuing function of RR if an error pops up in a class -- errors now stop the RR script
 thresholding = False                 # use internal QICK threshold for ratio of Binary values on y for rabi/t1/t2r/t2e, or analog avg when false
 increase_qubit_reps = False          # if you want to increase the reps for a qubit, set to True
-unmask = False                          # Do you want to use the unmasking feature to increase resonator gain?
+unmask = True                        # Do you want to use the unmasking feature to increase resonator gain?
 qubit_to_increase_reps_for = 0       # only has impact if previous line is True
 multiply_qubit_reps_by = 2           # only has impact if the line two above is True
 
-Qs_to_look_at = [3,4,5]     # only list the qubits you want to do the RR for
+Qs_to_look_at = [5]     # only list the qubits you want to do the RR for
 
 #Data saving info
 run_name = 'bob_run_started_Aug_23'
