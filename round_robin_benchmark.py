@@ -44,11 +44,11 @@ save_r = 1                           # how many rounds to save after
 signal = 'None'                      # 'I', or 'Q' depending on where the signal is (after optimization). Put 'None' if no optimization
 save_figs = True                     # save plots for everything as you go along the RR script?
 live_plot = False                    # for live plotting do "visdom" in comand line and then open http://localhost:8097/ on firefox
-fit_data = True                      # fit the data here and save or plot the fits?
+fit_data = False                      # fit the data here and save or plot the fits?
 save_data_h5 = True                  # save all of the data to h5 files?
 verbose = True                       # print everything to the console in real time, good for debugging, bad for memory
 qick_verbose = True                  # qick verbose prints the progress bar for each qick experiment as it is happening (the red bar that fills out as more experiment rounds/reps are being done)
-debug_mode = True                    # if True, it disables the continuing function of RR if an error pops up in a class -- errors now stop the RR script
+debug_mode = False                    # if True, it disables the continuing function of RR if an error pops up in a class -- errors now stop the RR script
 thresholding = False                 # use internal QICK threshold for ratio of Binary values on y for rabi/t1/t2r/t2e, or analog avg when false
 increase_qubit_reps = False          # if you want to increase the reps for a qubit, set to True
 unmask = True                        # Do you want to use the unmasking feature to increase resonator gain?
@@ -72,7 +72,7 @@ run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss": True, "rabi":
 
 # optimization outputs from qick board, unmasking set to true
 res_leng_vals = [5,4.2,8.3,7.9,7.5,6.4]
-res_gain = [1,1,1,0.62, 0.77, 0.77]
+res_gain =  [0.7, 0.643, 0.607, 0.57, 0.64, 0.75]
 freq_offsets = [0,0,0,-0.25,-0.15,0.15]#[0.1190, 0.0238, -0.1190, 0.2143, -0.0714, 0.0238] # # all updated on 7/29/2025 except R5, we need to debug res spec for that resonator
 
 qubit_freqs_ef = [None]*6
@@ -82,7 +82,7 @@ number_of_qubits = 6
 figure_quality = 200
 ################################################ Data Saving Setup ##################################################
 #Folders
-study = 'benchmark_debug'#'find_higher_transistions'
+study = 'benchmark'#'find_higher_transistions'
 sub_study = 'rr'
 data_set = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 

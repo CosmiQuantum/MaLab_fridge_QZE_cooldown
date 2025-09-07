@@ -35,7 +35,7 @@ list_of_all_qubits = [0,1,2,3,4,5]
 # outerFolder = os.path.join("/home/nexusadmin/qick/NEXUS_sandbox/Data/Run30", str(datetime.date.today())) #change run number in each new run
 
 # For Quiet
-substudy = 'readout_gain_offset_optimization_round2'#'readout_length_opt_round2'#"readout_gain_offset_optimization"
+substudy = 'readout_gain_offset_optimization_q6'#'readout_length_opt_round2'#"readout_gain_offset_optimization"
 # outerFolder = os.path.join("M:/_Data/20250822 - Olivia/6transmon_run6/", str(datetime.date.today()))
 #outerFolder = os.path.join("M:/_Data/20250822 - Olivia/run6/6transmon/StarkShift/DAC0_check/Optimization/run2/", str(datetime.date.today()))
 #outerFolder = os.path.join(f"M:/_Data/20250822 - Olivia/run6/6transmon/TLS_Comprehensive_Study/readout_optimization_{datetime.date.today().strftime('%Y-%m-%d')}", datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
@@ -58,13 +58,13 @@ n = 1  # Number of rounds
 n_loops = 4  # Number of repetitions per length to average
 
 # List of qubits to measure
-Qs = [3,4,5]
+Qs = [3,4]
 
 #Change for NEXUS vs QUIET
 res_leng_vals = [5,4.2,8.3,7.9,7.5,6.4]
-res_gain = [1,1,1,0.62, 0.77, 0.77]
-freq_offsets = [0,0,0,-0.25,-0.15,0.15] # # all updated on 7/29/2025 except R5, we need to debug res spec for that resonator
-punch_out_vals = [1.0, 0.925, 1.0, 0.55, 0.663, 1.0] #updated 7/29/2025
+res_gain = [0.7, 0.643, 0.607, 0.57, 0.64, 0.75]
+freq_offsets = [0,0,0,-0.25,-0.15,0.15]
+punch_out_vals =  [0.7, 0.643, 0.607, 0.57, 0.64, 0.75]
 
 optimal_lengths = [None] * 6 # creates list where the script will be storing the optimal readout lengths for each qubit. We currently have 6 qubits in total.
 res_freq_ge = [None] * 6 # creates list where the script will be storing the freq of each resonator, to use in the 2d sweep
