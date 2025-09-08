@@ -8,32 +8,7 @@ import os, datetime
 import datetime
 import time
 from windfreak import SynthHD
-
-class SingleToneSpectroscopyProgram(AveragerProgramV2):
-    def _initialize(self, cfg):
-        ro_chs = cfg['ro_ch']
-        res_ch = cfg['res_ch']
-
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
-
-        self.add_readoutconfig(ch=ro_chs, name="myro",
-                               freq=cfg['res_freq_ge'],
-                               gen_ch=res_ch,
-                               outsel='product')
-        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-
-        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_chs,
-                       style="const",
-                       length=cfg["res_length"],
-                       freq=cfg['res_freq_ge'],
-                       phase=cfg['ro_phase'],
-                       gain=cfg['res_gain_ge']
-                       )
-
-    def _body(self, cfg):
-        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'], ddr4=True)
-        self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+from section_002_res_spec_ge_mux import SingleToneSpectroscopyProgram
 
 
 class PunchOut:
@@ -103,25 +78,48 @@ class PunchOut:
             self.config['res_gain_ge'] = power
 
             freq_res_for_power = []
+            all_freqs=self.config['res_freq_ge']
             for qi in range(N):
                 self.QubitIndex = qi
 
-                amps_q = np.zeros(F, dtype=float)
-                center_q = float(fcenter[qi])
 
-                for fi, df in enumerate(fpts):
-                    self.config["res_freq_ge"] = float(center_q + df)
 
-                    prog = SingleToneSpectroscopyProgram(
-                        soccfg, reps=self.exp_cfg["reps"], final_delay=0.5, cfg=self.config
-                    )
-                    iq_list = prog.acquire(soc, rounds=self.exp_cfg["rounds"], progress=True)
-                    amps_q[fi] = self._amp_from_iq(iq_list)
+                fpts = self.exp_cfg["start"] + self.exp_cfg["step_size"] * np.arange(self.exp_cfg["steps"])
+                fcenter = all_freqs[self.QubitIndex]
 
-                frequency_sweeps[pi, qi, :] = amps_q
+                amps = []
+                for index, f in enumerate(tqdm(fpts)):
+                    self.config["res_freq_ge"] = fcenter + f
+                    prog = SingleToneSpectroscopyProgram(self.experiment.soccfg, reps=self.exp_cfg["reps"],
+                                                         final_delay=0.5, cfg=self.config)
+                    iq_list = prog.acquire(self.experiment.soc, rounds=self.exp_cfg["rounds"],
+                                           progress=True)
+                    amp = np.abs(iq_list[0][0][0] + 1j * iq_list[0][0][1])
+                    amps.append(amp)
+                amps = np.array(amps)
 
-                min_idx = int(np.argmin(amps_q))
-                freq_res_for_power.append(round(float(fpts[min_idx] + center_q), 3))
+                # amps_q = np.zeros(F, dtype=float)
+                # center_q = float(fcenter[qi])
+                #
+                # for fi, df in enumerate(fpts):
+                #     self.config["res_freq_ge"] = float(center_q + df)
+                #
+                #
+                #     prog = SingleToneSpectroscopyProgram(
+                #         soccfg, reps=self.exp_cfg["reps"], final_delay=0.5, cfg=self.config
+                #     )
+                #     iq_list = prog.acquire(soc, rounds=self.exp_cfg["rounds"], progress=True)
+                #     amps_q[fi] = self._amp_from_iq(iq_list)
+
+
+
+
+
+
+                frequency_sweeps[pi, qi, :] = amps
+
+                min_idx = int(np.argmin(amps))
+                freq_res_for_power.append(round(float(fpts[min_idx] + fcenter), 3))
 
             resonance_vals.append(freq_res_for_power)
 

@@ -25,7 +25,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
 
         "res_spec": {
             "reps": 10,#30, #shots at one freq
-            "rounds": 50,#100, #sweeps through each freq and average
+            "rounds": 60,#100, #sweeps through each freq and average
             "start": -0.7, #[MHz]
             "step_size": 0.005,  # [MHz]
             "steps": 200,#,200,#70
@@ -126,7 +126,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
 
         "power_rabi_ge": {
             "reps": 20,#500,
-            "rounds": 100,  # 5
+            "rounds": 200,  # 5
             "start": [0] * 6,  # [DAC units]
             "stop": [1.0] * 6,  # [DAC units]
             "steps": 50, #50,
@@ -195,7 +195,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
         "T1_ge": {
             "reps": 20, #300
-            "rounds": 100, #1
+            "rounds": 200, #1
             "start":  0,  # [us]
             "stop": 500,  # [us] ### Should be ~10x T1! Should change this per qubit.
             "steps": 100,

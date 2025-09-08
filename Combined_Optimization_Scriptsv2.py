@@ -58,13 +58,13 @@ n = 1  # Number of rounds
 n_loops = 4  # Number of repetitions per length to average
 
 # List of qubits to measure
-Qs = [3,4]
+Qs = [5, 3, 4]
 
 #Change for NEXUS vs QUIET
-res_leng_vals = [5,4.2,8.3,7.9,7.5,6.4]
-res_gain = [0.7, 0.643, 0.607, 0.57, 0.64, 0.75]
-freq_offsets = [0,0,0,-0.25,-0.15,0.15]
-punch_out_vals =  [0.7, 0.643, 0.607, 0.57, 0.64, 0.75]
+res_leng_vals = [5,4.2,8.3,7.9,7.5,15]
+res_gain = [0.7, 0.643, 0.607, 0.1, 0.1, 0.1]
+freq_offsets = [0,0,0,0,0,0.6]
+punch_out_vals =  [0.7, 0.643, 0.607, 0.1, 0.1, 0.1]
 
 optimal_lengths = [None] * 6 # creates list where the script will be storing the optimal readout lengths for each qubit. We currently have 6 qubits in total.
 res_freq_ge = [None] * 6 # creates list where the script will be storing the freq of each resonator, to use in the 2d sweep
@@ -72,7 +72,7 @@ res_freq_ge = [None] * 6 # creates list where the script will be storing the fre
 j=0 #round number, from RR code. Not really used here since we just run it once for each qubit
 
 # lengs = np.arange(0.1, 6, 0.5)
-lengs = np.arange(1.5, 8.5, 0.1)
+lengs = np.arange(1, 20, 1)#np.arange(6, 8.5, 0.1)
 start=time.time()
 for QubitIndex in Qs:
     # Get the config for this qubit
@@ -150,7 +150,7 @@ for QubitIndex in Qs:
     #MAKE DEEP COPY OF CONFIG, IMPORTANT!!!
     tuned_experiment = copy.deepcopy(experiment)
 
-    # # #-----------Sweeping Readout Length----------------------------
+    # #-----------Sweeping Readout Length----------------------------
     QubitIndex = int(QubitIndex)  # Ensure QubitIndex is an integer
 
     avg_fids = []
@@ -262,7 +262,7 @@ for QubitIndex in Qs:
     # #     gain_range = [0.8, 1.0]
     # # elif QubitIndex == 3 or QubitIndex == 4:
     # #     gain_range = [0.46,0.66]  # Gain range in a.u.
-    # gain_range=[0.5,res_gain[QubitIndex]]
+    # gain_range=[0.1,res_gain[QubitIndex]]
     # freq_steps = 10
     # gain_steps = 10
     #
@@ -270,7 +270,7 @@ for QubitIndex in Qs:
     # # Select the reference frequency for the current resonator
     # reference_frequency = res_freq_ge
     #
-    # freq_range = [reference_frequency -0.5, reference_frequency + 0.5]# Frequency range in MHz
+    # freq_range = [reference_frequency -0.5, reference_frequency + 2.5]# Frequency range in MHz
     # #freq_range = [reference_frequency -0.2, (reference_frequency + 0.2) + 1]  # Frequency range in MHz
     #
     # experiment = copy.deepcopy(tuned_experiment)

@@ -440,7 +440,7 @@ class GainFrequencySweep:
 
                 # Initialize SingleShotGE instance for fidelity calculation
                 round_num = 0
-                save_figs = False
+                save_figs = True
                 import time
 
                 while True:

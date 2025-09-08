@@ -71,9 +71,9 @@ run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss": True, "rabi":
 
 
 # optimization outputs from qick board, unmasking set to true
-res_leng_vals = [5,4.2,8.3,7.9,7.5,6.4]
-res_gain =  [0.7, 0.643, 0.607, 0.57, 0.64, 0.75]
-freq_offsets = [0,0,0,-0.25,-0.15,0.15]#[0.1190, 0.0238, -0.1190, 0.2143, -0.0714, 0.0238] # # all updated on 7/29/2025 except R5, we need to debug res spec for that resonator
+res_leng_vals = [5,4.2,8.3,7.9,7.5,15]
+res_gain = [0.7, 0.643, 0.607, 0.1, 0.1, 0.1]
+freq_offsets = [0,0,0,0,0,0.6]
 
 qubit_freqs_ef = [None]*6
 increase_steps_to_ef = 600
