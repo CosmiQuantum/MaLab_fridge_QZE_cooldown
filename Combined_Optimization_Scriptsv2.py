@@ -62,9 +62,9 @@ Qs = [5, 3, 4]
 
 #Change for NEXUS vs QUIET
 res_leng_vals = [5,4.2,8.3,7.9,7.5,15]
-res_gain = [0.7, 0.643, 0.607, 0.1, 0.1, 0.1]
-freq_offsets = [0,0,0,0,0,0.6]
-punch_out_vals =  [0.7, 0.643, 0.607, 0.1, 0.1, 0.1]
+res_gain = [0.7, 0.643, 0.607, 0.64, 0.64, 0.67]
+freq_offsets = [0,0,0,0,0,0]#0.6]
+punch_out_vals =  [0.7, 0.643, 0.607, 0.64, 0.64, 0.67]
 
 optimal_lengths = [None] * 6 # creates list where the script will be storing the optimal readout lengths for each qubit. We currently have 6 qubits in total.
 res_freq_ge = [None] * 6 # creates list where the script will be storing the freq of each resonator, to use in the 2d sweep
@@ -72,22 +72,22 @@ res_freq_ge = [None] * 6 # creates list where the script will be storing the fre
 j=0 #round number, from RR code. Not really used here since we just run it once for each qubit
 
 # lengs = np.arange(0.1, 6, 0.5)
-lengs = np.arange(1, 20, 1)#np.arange(6, 8.5, 0.1)
+lengs = np.arange(1, 20, 3)#np.arange(6, 8.5, 0.1)
 start=time.time()
 for QubitIndex in Qs:
     # Get the config for this qubit
     experiment = QICK_experiment(outerFolder, DAC_attenuator1 = 10, DAC_attenuator2 = 15, qubit_DAC_attenuator1 = 5,
                                      qubit_DAC_attenuator2 = 4, ADC_attenuator = 17,
                                  fridge=FRIDGE)
-
-    experiment.readout_cfg['res_gain_ge'] = 1
-    experiment.readout_cfg['res_gain_ef'] = 1
+    print(experiment.readout_cfg['res_gain_ge'])
+    experiment.readout_cfg['res_gain_ge'] = res_gain[QubitIndex]
+    experiment.readout_cfg['res_gain_ef'] = experiment.readout_cfg['res_gain_ef'][QubitIndex]
     experiment.readout_cfg['res_length'] = res_leng_vals[QubitIndex]
     experiment.readout_cfg['res_freq_ge'] = experiment.readout_cfg['res_freq_ge'][QubitIndex]
 
     experiment.qubit_cfg['qubit_freq_ge'] = experiment.qubit_cfg['qubit_freq_ge'][QubitIndex]
     experiment.qubit_cfg['qubit_gain_ge'] = experiment.qubit_cfg['qubit_gain_ge'][QubitIndex]
-
+    print( experiment.qubit_cfg['qubit_gain_ge'])
     ################################################## Res spec ####################################################
 
     res_spec = ResonanceSpectroscopy(QubitIndex, number_of_qubits, outerfolder_plots, j, True,
@@ -103,7 +103,8 @@ for QubitIndex in Qs:
     # Used later when optimizing res gains and freqs, decide if you want to set the offsets to zero or not for the first round
     this_res_freq = offset_res_freqs
     res_freq_ge = float(this_res_freq[0])
-
+    experiment.readout_cfg['res_freq_ge'] = res_freq_ge
+    print(experiment.readout_cfg['res_freq_ge'])
     del res_spec
 
     ################################################## Qubit spec ##################################################
@@ -120,11 +121,6 @@ for QubitIndex in Qs:
     experiment.qubit_cfg['qubit_freq_ge'] = float(qubit_freq)
     print('Qubit freq for qubit ', QubitIndex + 1, ' is: ', float(qubit_freq))
     del q_spec
-
-    experiment.readout_cfg['res_freq_ge'] = offset_res_freqs[0]
-    experiment.readout_cfg['res_gain_ge'] = res_gain[QubitIndex]
-    experiment.readout_cfg['res_gain_ef'] = res_gain[QubitIndex]
-    experiment.readout_cfg['res_length'] = res_leng_vals[QubitIndex]
 
 
     ###################################################### Rabi ####################################################
@@ -179,10 +175,10 @@ for QubitIndex in Qs:
                 experiment.readout_cfg['res_length'] = leng  # Set the current readout pulse length
 
                 # Set gain for the current qubit
-                gain = res_gain[QubitIndex]
+                #gain = res_gain[QubitIndex]
                 #res_gains = experiment.set_gain_filter_ge(QubitIndex, gain)  # Set gain for current qubit only
 
-                experiment.readout_cfg['res_gain_ge'] = gain
+                #experiment.readout_cfg['res_gain_ge'] = gain
                 try:
                     ss = SingleShot(QubitIndex, number_of_qubits, outerFolder,  j, save_figs, experiment, unmasking_resgain = unmask)  # updated way
                     fid, angle, iq_list_g, iq_list_e, ss_config = ss.run()

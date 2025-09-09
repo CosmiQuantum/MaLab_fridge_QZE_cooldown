@@ -73,16 +73,15 @@ class PunchOut:
         resonance_vals = []
         original_qindex = getattr(self, "QubitIndex", None)
 
+        all_freqs = copy.deepcopy(self.config['res_freq_ge'])
         for pi, p in enumerate(power_sweep):
             power = round(float(p), 3)
             self.config['res_gain_ge'] = power
 
             freq_res_for_power = []
-            all_freqs=self.config['res_freq_ge']
+
             for qi in range(N):
                 self.QubitIndex = qi
-
-
 
                 fpts = self.exp_cfg["start"] + self.exp_cfg["step_size"] * np.arange(self.exp_cfg["steps"])
                 fcenter = all_freqs[self.QubitIndex]

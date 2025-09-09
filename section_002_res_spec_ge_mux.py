@@ -12,7 +12,7 @@ class SingleToneSpectroscopyProgram(AveragerProgramV2):
     def _initialize(self, cfg):
         ro_chs = cfg['ro_ch']
         res_ch = cfg['res_ch']
-        # print(cfg['res_length'],cfg['res_freq_ge'],cfg['res_gain_ge'],cfg['ro_phase'])
+        print(cfg['res_length'],cfg['res_freq_ge'],cfg['res_gain_ge'],cfg['ro_phase'])
         self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
         self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
 
@@ -94,6 +94,9 @@ class ResonanceSpectroscopy:
         #plt.plot(fpts + fcenter[i], amps[i], '-', linewidth=1.5)
         plt.plot([f + fcenter for f in fpts], amps, '-', linewidth=1.5)
         freq_r = fpts[np.argmin(amps)] + fcenter
+
+        print(freq_r)
+
         res_freqs.append(freq_r)
 
         plt.axvline(freq_r, linestyle='--', color='orange', linewidth=1.5)

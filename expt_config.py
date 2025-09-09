@@ -24,8 +24,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "res_spec": {
-            "reps": 10,#30, #shots at one freq
-            "rounds": 60,#100, #sweeps through each freq and average
+            "reps": 500, #shots at one freq
+            "rounds": 15, #sweeps through each freq and average
             "start": -0.7, #[MHz]
             "step_size": 0.005,  # [MHz]
             "steps": 200,#,200,#70
