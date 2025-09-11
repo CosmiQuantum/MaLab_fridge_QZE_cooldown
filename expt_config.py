@@ -41,7 +41,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "qubit_spec_ge": {
-            "reps": 10,
+            "reps": 1,
             "rounds": 500,#500,
             "start": list(VNA_qubit-40), # [MHz] -40
             "stop": list(VNA_qubit+40), # [MHz] +40

@@ -55,7 +55,7 @@ unmask = True                        # Do you want to use the unmasking feature 
 qubit_to_increase_reps_for = 0       # only has impact if previous line is True
 multiply_qubit_reps_by = 2           # only has impact if the line two above is True
 
-Qs_to_look_at = [0,1,2,3,4,5]     # only list the qubits you want to do the RR for
+Qs_to_look_at = [5]     # only list the qubits you want to do the RR for
 
 #Data saving info
 run_name = 'bob_run_started_Aug_23'
@@ -69,7 +69,7 @@ run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss": False, "rabi"
 
 # optimization outputs from qick board, unmasking set to true
 res_leng_vals = [15]*6#[5,4.2,8.3,7.9,7.5,15]
-res_gain = [0.2]*6 #[0.7, 0.67, 0.9, 0.9, 0.7, 0.78]
+res_gain = [0.1]*6 #[0.7, 0.67, 0.9, 0.9, 0.7, 0.78]
 freq_offsets = [0,0,0,0,0,0]
 
 qubit_freqs_ef = [None]*6
@@ -79,7 +79,7 @@ number_of_qubits = 6
 figure_quality = 200
 ################################################ Data Saving Setup ##################################################
 #Folders
-study = 'find_qubits'#'find_higher_transistions'
+study ='check_ssf'#'find_higher_transistions'
 sub_study = 'rr'
 data_set = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
