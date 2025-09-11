@@ -122,12 +122,12 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "power_rabi_ge": {
-            "reps": 20,#500,
-            "rounds": 200,  # 5
-            "start": 0,#[0] * 6,  # [DAC units]
-            "stop": 1,#[1.0] * 6,  # [DAC units]
-            "steps": 50, #50,
-            "relax_delay": 2000,#1000,#1000,#1000,  # [us]
+            "reps": 20,
+            "rounds": 50,
+            "start": 0, # [DAC units]
+            "stop": 1,  # [DAC units]
+            "steps": 70,
+            "relax_delay": 2000,# [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
 
