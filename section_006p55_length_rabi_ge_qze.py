@@ -825,7 +825,7 @@ class LengthRabiProgram(AveragerProgramV2):
         # Define a generator for the readout pulses with the lens, phases, and mixer/mux frequencies
         # Configure the hardware to set this sort of pulse that we can trigger later
         # This has a rectangle pulse becuase style="const"
-        self.add_pulse(ch=res_ch, name="res_pulse",
+        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
                        style="const",
                        length=cfg["res_length"],
                        freq=cfg['res_freq_ge'],
@@ -870,7 +870,7 @@ class QZE_gaus_pulse_RabiProgram(AveragerProgramV2):
         # varying lens in each loop iterationof calling this classfor the zeno pulse on ch 7)
 
         # final readout pulse (to measure the qubit state)
-        self.add_pulse(ch=res_ch, name="res_pulse",
+        self.add_pulse(ch=res_ch, name="res_pulse",ro_ch=ro_ch,
                        style="const",
                        length=cfg["res_length"],  # 9us as usual, should be same length as readout window above
                        freq=cfg['res_freq_ge'],
@@ -942,7 +942,7 @@ class QZERabiProgram(AveragerProgramV2):
         # varying lens in each loop iterationof calling this classfor the zeno pulse on ch 7)
 
         # final readout pulse (to measure the qubit state)
-        self.add_pulse(ch=res_ch, name="res_pulse",
+        self.add_pulse(ch=res_ch, name="res_pulse",ro_ch=ro_ch,
                        style="const",
                        length=cfg["res_length"],  # 9us as usual, should be same length as readout window above
                        freq=cfg['res_freq_ge'],
@@ -1014,7 +1014,7 @@ class QZE_constant_pulse_RabiProgram(AveragerProgramV2):
         # varying lens in each loop iterationof calling this classfor the zeno pulse on ch 7)
 
         # final readout pulse (to measure the qubit state)
-        self.add_pulse(ch=res_ch, name="res_pulse",
+        self.add_pulse(ch=res_ch, name="res_pulse",ro_ch=ro_ch,
                        style="const",
                        length=cfg["res_length"],  # 9us as usual, should be same length as readout window above
                        freq=cfg['res_freq_ge'],
@@ -1096,7 +1096,7 @@ class RabiChevronAfterPiProgram(AveragerProgramV2):
         # varying lens in each loop iterationof calling this classfor the zeno pulse on ch 7)
 
         # final readout pulse (to measure the qubit state)
-        self.add_pulse(ch=res_ch, name="res_pulse",
+        self.add_pulse(ch=res_ch, name="res_pulse",ro_ch=ro_ch,
                        style="const",
                        length=cfg["res_length"],  # 9us as usual, should be same length as readout window above
                        freq=cfg['res_freq_ge'],
@@ -1173,7 +1173,7 @@ class QZE_constant_pulse_gnd_RabiProgram(AveragerProgramV2):
         # varying lens in each loop iterationof calling this classfor the zeno pulse on ch 7)
 
         # final readout pulse (to measure the qubit state)
-        self.add_pulse(ch=res_ch, name="res_pulse",
+        self.add_pulse(ch=res_ch, name="res_pulse",ro_ch=ro_ch,
                        style="const",
                        length=cfg["res_length"],  # 9us as usual, should be same length as readout window above
                        freq=cfg['res_freq_ge'],
@@ -1259,7 +1259,7 @@ class QZE_constant_pulse_3pulse_RabiProgram(AveragerProgramV2):
         # varying lens in each loop iterationof calling this classfor the zeno pulse on ch 7)
 
         # final readout pulse (to measure the qubit state)
-        self.add_pulse(ch=res_ch, name="res_pulse",
+        self.add_pulse(ch=res_ch, name="res_pulse",ro_ch=ro_ch,
                        style="const",
                        length=cfg["res_length"],  # 9us as usual, should be same length as readout window above
                        freq=cfg['res_freq_ge'],

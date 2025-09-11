@@ -23,7 +23,7 @@ class FG_T1Program(AveragerProgramV2):
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-        self.add_pulse(ch=res_ch, name="res_pulse",
+        self.add_pulse(ch=res_ch, name="res_pulse",ro_ch=ro_ch,
                        style="const",
                        length=cfg["res_length"],
                        freq=cfg['res_freq_ge'],
@@ -81,7 +81,7 @@ class FE_T1Program(AveragerProgramV2):
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-        self.add_pulse(ch=res_ch, name="res_pulse",
+        self.add_pulse(ch=res_ch, name="res_pulse",ro_ch=ro_ch,
                        style="const",
                        length=cfg["res_length"],
                        freq=cfg['res_freq_ge'],

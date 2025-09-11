@@ -63,8 +63,8 @@ device_name = 'squill'
 substudy_txt_notes = ('getting coherence  working')
 
 # set which of the following you'd like to run to 'True'
-run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss": False, "rabi": False, "ss_gef": False, "test_act": False, "fh_rabi": False,
-             "t1": False, "t2r": False, "t2e": False, "ef_res_spec": False, "ef_q_spec": False, "fh_q_spec": False, "rabi_pop_meas": False, "ef_Rabi": False, "ef_ss": False}
+run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss": True, "rabi": True, "ss_gef": False, "test_act": False, "fh_rabi": False,
+             "t1": True, "t2r": False, "t2e": False, "ef_res_spec": False, "ef_q_spec": False, "fh_q_spec": False, "rabi_pop_meas": False, "ef_Rabi": False, "ef_ss": False}
 
 
 # optimization outputs from qick board, unmasking set to true
@@ -79,7 +79,7 @@ number_of_qubits = 6
 figure_quality = 200
 ################################################ Data Saving Setup ##################################################
 #Folders
-study ='check_ssf'#'find_higher_transistions'
+study ='debugging_t1'#'find_higher_transistions'
 sub_study = 'rr'
 data_set = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 

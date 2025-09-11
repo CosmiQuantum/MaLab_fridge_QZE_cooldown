@@ -10,7 +10,6 @@ import logging
 
 class T1Program(AveragerProgramV2):
     def _initialize(self, cfg):
-
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
@@ -23,14 +22,13 @@ class T1Program(AveragerProgramV2):
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-        self.add_pulse(ch=res_ch, name="res_pulse",
+        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
                        style="const",
                        length=cfg["res_length"],
                        freq=cfg['res_freq_ge'],
                        phase=cfg['ro_phase'],
                        gain=cfg['res_gain_ge']
                        )
-
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
         self.add_gauss(ch=qubit_ch, name="ramp", sigma=cfg['sigma'], length=cfg['sigma'] * 4, even_length=False)
         self.add_pulse(ch=qubit_ch, name="qubit_pulse",
@@ -40,15 +38,15 @@ class T1Program(AveragerProgramV2):
                        phase=cfg['qubit_phase'],
                        gain=cfg['pi_amp'],
                        )
-
+        print('t1 config in the program', cfg)
         self.add_loop("waitloop", cfg["steps"])
 
     def _body(self, cfg):
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)  # play probe pulse
+        print('wait_time',cfg['wait_time'])
         self.delay_auto(cfg['wait_time'] + 0.01, tag='wait')  # wait_time after last pulse
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
-
 
 class T1Measurement:
     def __init__(self, QubitIndex, number_of_qubits,  outerFolder, round_num, signal, save_figs, experiment = None,
