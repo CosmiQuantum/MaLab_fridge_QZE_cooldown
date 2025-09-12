@@ -45,7 +45,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "rounds": 500,#500,
             "start": list(VNA_qubit-40), # [MHz] -40
             "stop": list(VNA_qubit+40), # [MHz] +40
-            "steps": 200,#200,
+            "steps": 400,#200,
             "relax_delay": 2000, # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
