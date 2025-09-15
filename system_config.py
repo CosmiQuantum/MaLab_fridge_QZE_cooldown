@@ -107,13 +107,13 @@ class QICK_experiment:
 
             # Qubit Configuration
             self.qubit_cfg = {
-                "qubit_freq_ge": [2780, 2980, 2873, 3096, 3043, 3093],#[2766, 2980, 2873, 3096, 3043, 3093],  # Joyce 3/11
+                "qubit_freq_ge": [2780, 2980, 2885, 3096, 3043, 3093],#[2766, 2980, 2873, 3096, 3043, 3093],  # Joyce 3/11
                 "qubit_freq_chevron_detuned_ge": [4189.7582, 3820.4723, 4161.3726, 4463.15226, 4471.43854, 4997.86], # Olivia May 17
                 "qubit_freq_ge_starked": [4189.737678, 3820.4723, 4161.3726, 4463.15226, 4471.4469, 4997.86], # Olivia 4/04 for zeno/stark tone
                 "fwhm_w01_starked": None, #for err bars
                 "fwhm_w01": None, #for err bars
 
-                "qubit_gain_ge": [0.005,0.005,0.01,0.01,0.007, 0.004],# [0.007]*6, #[1] * 6,
+                "qubit_gain_ge": [0.003,0.002,0.002,0.001,0.0005, 0.001],# [0.007]*6, #[1] * 6,
                 "qubit_ampl_gain_ge": 0.025,
                 "qubit_pi_len": 0.11, # Olivia May 17th
                 # [0.4287450656184295, 0.4287450656184295, 0.4903077560386716, 0.6, 0.4903077560386716, 0.4287450656184295], # For spec pulse

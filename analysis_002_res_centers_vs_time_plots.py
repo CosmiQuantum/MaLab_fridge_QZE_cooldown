@@ -115,7 +115,7 @@ class ResonatorFreqVsTime:
         mean_values = {}
 
         for folder_date in self.top_folder_dates:
-            outerFolder = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "/"
+            outerFolder = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "/study_data"
             outerFolder_save_plots = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "_plots/"
 
             # ------------------------------------------Load/Plot/Save Res Spec------------------------------------
@@ -128,6 +128,7 @@ class ResonatorFreqVsTime:
             h5_files = glob.glob(os.path.join(outerFolder_expt, "*.h5"))
 
             for h5_file in h5_files:
+
                 save_round = h5_file.split('Num_per_batch')[-1].split('.')[0]
                 H5_class_instance = Data_H5(h5_file)
                 #H5_class_instance.print_h5_contents(h5_file)
@@ -147,14 +148,13 @@ class ResonatorFreqVsTime:
                         date = datetime.datetime.fromtimestamp(
                             load_data[f'Res{exp_extension}'][q_key].get('Dates', [])[0][dataset])  # single date per dataset
 
-                        freq_pts = self.process_h5_data(load_data[f'Res{exp_extension}'][q_key].get('freq_pts', [])[0][
-                                                       dataset].decode())  # comes in as an array but put into a byte string, need to convert to list
-                        freq_center = self.process_h5_data(load_data[f'Res{exp_extension}'][q_key].get('freq_center', [])[0][
-                                                          dataset].decode())  # comes in as an array but put into a string, need to convert to list
+                        freq_pts = self.process_h5_data(load_data[f'Res{exp_extension}'][q_key].get('freq_pts', [])[0][0].decode())
+
+                        freq_center = self.process_h5_data( str(load_data[f'Res{exp_extension}'][q_key].get('freq_center', [])[0][0]))
                         freqs_found = self.string_to_float_list(load_data[f'Res{exp_extension}'][q_key].get('Found Freqs', [])[0][
                                                                dataset].decode())  # comes in as a list of floats in string format, need to convert
                         amps = self.process_string_of_nested_lists(
-                            load_data[f'Res{exp_extension}'][q_key].get('Amps', [])[0][dataset].decode())  # list of lists
+                            load_data[f'Res{exp_extension}'][q_key].get('Amps', [])[0][0].decode())  # list of lists
                         round_num = load_data[f'Res{exp_extension}'][q_key].get('Round Num', [])[0][dataset]  # already a float
                         batch_num = load_data[f'Res{exp_extension}'][q_key].get('Batch Num', [])[0][dataset]
 
@@ -201,7 +201,6 @@ class ResonatorFreqVsTime:
 
             x = date_times[i]
             y = resonator_centers[i]
-
             # Convert strings to datetime objects.
             datetime_objects = [datetime.strptime(date_string, "%Y-%m-%d %H:%M:%S") for date_string in x]
 
@@ -233,3 +232,255 @@ class ResonatorFreqVsTime:
         plt.savefig(analysis_folder + f'Res_Centers{exp_extension}.pdf', transparent=True, dpi=self.final_figure_quality)
 
         #plt.show()
+    def plot_both_transitions(self, date_times_ge,
+        resonator_centers_ge,
+        date_times_fe=None,
+        resonator_centers_fe=None,
+        show_legends=True,
+        exp_extension=""
+    ):
+        """
+        Plot resonator centers vs time for both GE and FE transitions on the same subplots.
+        - date_times_ge / resonator_centers_ge: lists (len = number_of_qubits) of equal-length sequences
+          of "%Y-%m-%d %H:%M:%S" strings and float values (MHz) for the GE transition.
+        - date_times_fe / resonator_centers_fe: same structure for the FE transition (optional).
+        """
+
+        # --------------------------------- setup + folders ---------------------------------
+        analysis_root = f"M:/_Data/20250822 - Olivia/{self.run_name}/benchmark_analysis_plots/"
+        self.create_folder_if_not_exists(analysis_root)
+        analysis_folder = f"{analysis_root}features_vs_time/"
+        self.create_folder_if_not_exists(analysis_folder)
+
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from matplotlib.ticker import FormatStrFormatter
+        import matplotlib.dates as mdates
+        from datetime import datetime
+
+        font = 14
+        ge_color = "tab:blue"
+        fe_color = "tab:orange"
+
+        # Figure: same 2x3 grid (assumes up to 6 resonators)
+        fig, axes = plt.subplots(2, 3, figsize=(12, 8))
+        axes = axes.flatten()
+
+        # Nice overall title
+        ext = exp_extension.split("_")[0]
+        fig.suptitle(f"Resonator centers vs Time {ext} (GE & FE)", fontsize=font)
+
+        # Date tick formatter
+        locator = mdates.AutoDateLocator()
+        formatter = mdates.ConciseDateFormatter(locator)
+
+        def _sorted_xy(times_str_list, y_vals):
+            """Return datetime-sorted (x, y). Accepts empty/None gracefully."""
+            if not times_str_list or not y_vals or len(times_str_list) == 0 or len(y_vals) == 0:
+                return np.array([]), np.array([])
+            dt = [datetime.strptime(ts, "%Y-%m-%d %H:%M:%S") for ts in times_str_list]
+            pairs = sorted(zip(dt, y_vals), key=lambda t: t[0])  # oldest -> newest
+            xs, ys = zip(*pairs) if pairs else ([], [])
+            return np.asarray(xs), np.asarray(ys)
+
+        for i, ax in enumerate(axes[: self.number_of_qubits]):
+            ax.set_title(f"Res {i + 1}", fontsize=font)
+
+            # ----------------------------- GE data -----------------------------
+            x_ge, y_ge = _sorted_xy(date_times_ge[i], resonator_centers_ge[i])
+            if x_ge.size:
+                ax.scatter(x_ge, y_ge, s=14, label="GE", color=ge_color)
+
+            # ----------------------------- FE data (optional) -----------------------------
+            if date_times_fe is not None and resonator_centers_fe is not None:
+                x_fe, y_fe = _sorted_xy(date_times_fe[i], resonator_centers_fe[i])
+                if x_fe.size:
+                    ax.scatter(x_fe, y_fe, s=20, label="FE", color=fe_color)
+
+            # Axes formatting
+            ax.xaxis.set_major_locator(locator)
+            ax.xaxis.set_major_formatter(formatter)
+            ax.yaxis.set_major_formatter(FormatStrFormatter("%.1f"))
+            ax.tick_params(axis="both", which="major", labelsize=8)
+            plt.setp(ax.get_xticklabels(), rotation=45, ha="right")
+
+            ax.set_xlabel("Time", fontsize=font - 2)
+            ax.set_ylabel("Resonator Center (MHz)", fontsize=font - 2)
+
+
+            if show_legends:
+                ax.legend(edgecolor="black", fontsize=8)
+
+        # If there are fewer than 6 qubits, hide unused subplots
+        for j in range(self.number_of_qubits, len(axes)):
+            axes[j].set_visible(False)
+
+        plt.tight_layout(rect=(0, 0, 1, 0.96))
+        plt.savefig(
+            analysis_folder + f"Res_Centers_GE_FE{exp_extension}.pdf",
+            transparent=True,
+            dpi=self.final_figure_quality,
+        )
+        plt.close(fig)
+
+    def plot_both_transitions_hist(
+        self,
+        date_times_ge,
+        resonator_centers_ge,
+        date_times_fe=None,
+        resonator_centers_fe=None,
+        show_legends=True,
+        exp_extension="",
+        bins=30                       # "fd" => Freedman–Diaconis; or pass an int for fixed bins
+    ):
+        """
+        For each resonator (subplot), histogram the resonator-center values for GE (and FE if provided).
+        Titles include mean (μ) and sample standard deviation (σ) in MHz.
+
+        Parameters
+        ----------
+        date_times_ge : list[list[str]]
+            Unused here; preserved to mirror plot_both_transitions signature.
+        resonator_centers_ge : list[list[float]]
+            Per-resonator GE center values (MHz).
+        date_times_fe : list[list[str]] or None
+            Unused here; preserved to mirror plot_both_transitions signature.
+        resonator_centers_fe : list[list[float]] or None
+            Per-resonator FE center values (MHz) (optional).
+        show_legends : bool
+            Whether to show the legend.
+        exp_extension : str
+            Suffix added to saved filename.
+        bins : "fd" or int or sequence
+            Binning mode for histograms (default "fd"). You can pass an int for fixed bin count.
+        """
+
+        # --------------------------------- setup + folders ---------------------------------
+        analysis_root = f"M:/_Data/20250822 - Olivia/{self.run_name}/benchmark_analysis_plots/"
+        self.create_folder_if_not_exists(analysis_root)
+        analysis_folder = f"{analysis_root}histograms/"
+        self.create_folder_if_not_exists(analysis_folder)
+
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from matplotlib.ticker import FormatStrFormatter
+
+        font = 14
+        ge_color = "tab:blue"
+        fe_color = "tab:orange"
+
+        # Figure: same 2x3 grid (assumes up to 6 resonators)
+        fig, axes = plt.subplots(2, 3, figsize=(12, 8))
+        axes = axes.flatten()
+
+        ext = exp_extension.split("_")[0]
+        fig.suptitle(f"Resonator Centers Histograms {ext} (GE & FE)", fontsize=font)
+
+        def _clean_vals(vs):
+            """Return finite float numpy array; empty if None/empty."""
+            if vs is None:
+                return np.array([])
+            arr = np.asarray(vs, dtype=float)
+            if arr.size == 0:
+                return arr
+            return arr[np.isfinite(arr)]
+
+        def _stats(arr):
+            """Return (mu, sigma, n). Use sample std (ddof=1) when n>1."""
+            n = int(arr.size)
+            if n == 0:
+                return np.nan, np.nan, 0
+            mu = float(np.mean(arr))
+            sigma = float(np.std(arr, ddof=1)) if n > 1 else 0.0
+            return mu, sigma, n
+
+        # loop resonators
+        for i, ax in enumerate(axes[: self.number_of_qubits]):
+            ge_vals = _clean_vals(resonator_centers_ge[i]) if i < len(resonator_centers_ge) else np.array([])
+            fe_vals = _clean_vals(resonator_centers_fe[i]) if (resonator_centers_fe is not None and i < len(resonator_centers_fe)) else np.array([])
+
+            # Shared bin edges per resonator for fair comparison
+            combined = np.concatenate([ge_vals, fe_vals]) if fe_vals.size else ge_vals
+            if combined.size >= 2:
+                try:
+                    # numpy's Freedman–Diaconis
+                    bin_edges = np.histogram_bin_edges(combined, bins=bins)
+                except Exception:
+                    # fallback if numpy can't compute edges (e.g., all values equal)
+                    bin_edges = np.histogram_bin_edges(combined, bins='auto')
+            elif combined.size == 1:
+                # make a small window around the single value
+                v = combined[0]
+                span = max(abs(v) * 0.01, 0.1)  # 1% or 0.1 MHz minimum span
+                bin_edges = np.linspace(v - span, v + span, 5)
+            else:
+                bin_edges = np.linspace(0, 1, 5)  # dummy; plot will be empty
+
+            # Plot histograms
+            plotted_any = False
+            if ge_vals.size:
+                ax.hist(
+                    ge_vals,
+                    bins=bin_edges,
+                    alpha=0.45,
+                    label="GE",
+                    color=ge_color,
+                    edgecolor="black",
+                    linewidth=0.5,
+                )
+                mu_ge, sig_ge, n_ge = _stats(ge_vals)
+                ax.axvline(mu_ge, color=ge_color, linestyle="--", linewidth=1.2)
+                plotted_any = True
+            else:
+                mu_ge = sig_ge = n_ge = np.nan
+
+            if fe_vals.size:
+                ax.hist(
+                    fe_vals,
+                    bins=bin_edges,
+                    alpha=0.45,
+                    label="FE",
+                    color=fe_color,
+                    edgecolor="black",
+                    linewidth=0.5,
+                )
+                mu_fe, sig_fe, n_fe = _stats(fe_vals)
+                ax.axvline(mu_fe, color=fe_color, linestyle="--", linewidth=1.2)
+                plotted_any = True
+            else:
+                mu_fe = sig_fe = n_fe = np.nan
+
+            # Title with stats
+            title_parts = [f"Res {i + 1}"]
+            if not np.isnan(mu_ge):
+                title_parts.append(f"GE μ={mu_ge:.1f} σ={sig_ge:.1f} \n (n={int(n_ge)})")
+            if not np.isnan(mu_fe):
+                title_parts.append(f"FE μ={mu_fe:.1f} σ={sig_fe:.1f} \n (n={int(n_fe)})")
+            ax.set_title(" | ".join(title_parts), fontsize=10)
+
+            # Axes formatting
+            ax.set_xlabel("Resonator Center (MHz)", fontsize=font - 2)
+            ax.set_ylabel("Count", fontsize=font - 2)
+            ax.xaxis.set_major_formatter(FormatStrFormatter("%.1f"))
+            ax.tick_params(axis="both", which="major", labelsize=8)
+
+
+            if show_legends and plotted_any:
+                ax.legend(edgecolor="black", fontsize=8)
+
+            # If nothing to plot, soften the panel
+            if not plotted_any:
+                ax.set_facecolor("#f5f5f5")
+                ax.text(0.5, 0.5, "No data", ha="center", va="center", transform=ax.transAxes, fontsize=10)
+            plt.setp(ax.get_xticklabels(), rotation=45, ha="right")
+        # Hide unused subplots
+        for j in range(self.number_of_qubits, len(axes)):
+            axes[j].set_visible(False)
+
+        plt.tight_layout(rect=(0, 0, 1, 0.96))
+        plt.savefig(
+            analysis_folder + f"Res_Centers_Hist_GE_FE{exp_extension}.pdf",
+            transparent=True,
+            dpi=self.final_figure_quality,
+        )
+        plt.close(fig)

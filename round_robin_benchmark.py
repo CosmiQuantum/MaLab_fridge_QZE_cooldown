@@ -44,7 +44,7 @@ save_r = 1                           # how many rounds to save after
 signal = 'None'                      # 'I', or 'Q' depending on where the signal is (after optimization). Put 'None' if no optimization
 save_figs = True                     # save plots for everything as you go along the RR script?
 live_plot = False                    # for live plotting do "visdom" in comand line and then open http://localhost:8097/ on firefox
-fit_data = False                      # fit the data here and save or plot the fits?
+fit_data = True                      # fit the data here and save or plot the fits?
 save_data_h5 = True                  # save all of the data to h5 files?
 verbose = True                       # print everything to the console in real time, good for debugging, bad for memory
 qick_verbose = True                  # qick verbose prints the progress bar for each qick experiment as it is happening (the red bar that fills out as more experiment rounds/reps are being done)
@@ -55,22 +55,24 @@ unmask = True                        # Do you want to use the unmasking feature 
 qubit_to_increase_reps_for = 0       # only has impact if previous line is True
 multiply_qubit_reps_by = 2           # only has impact if the line two above is True
 
-Qs_to_look_at = [5]     # only list the qubits you want to do the RR for
+Qs_to_look_at = [3]#[4,5,0,1,2,3]     # only list the qubits you want to do the RR for
 
 #Data saving info
 run_name = 'bob_run_started_Aug_23'
 device_name = 'squill'
 substudy_txt_notes = ('getting coherence  working')
+study ='finding_qubits_3_4'
+sub_study = 'rr'
 
 # set which of the following you'd like to run to 'True'
-run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss": True, "rabi": True, "ss_gef": False, "test_act": False, "fh_rabi": False,
-             "t1": True, "t2r": False, "t2e": False, "ef_res_spec": False, "ef_q_spec": False, "fh_q_spec": False, "rabi_pop_meas": False, "ef_Rabi": False, "ef_ss": False}
+run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss":  True, "rabi":  True, "ss_gef": False, "test_act": False, "fh_rabi": False,
+             "t1":  True, "t2r": True, "t2r_correction":True, "t2e":  True, "ef_res_spec": True, "ef_q_spec": False, "fh_q_spec": False, "rabi_pop_meas": False, "ef_Rabi": False, "ef_ss": False}
 
 
 # optimization outputs from qick board, unmasking set to true
-res_leng_vals = [15]*6#[5,4.2,8.3,7.9,7.5,15]
-res_gain = [0.1]*6 #[0.7, 0.67, 0.9, 0.9, 0.7, 0.78]
-freq_offsets = [0,0,0,0,0,0]
+res_leng_vals = [19]*6#[5,4.2,8.3,7.9,7.5,15]
+res_gain = [0.15,0.2, 0.2, 0.2, 0.15, 0.2]
+freq_offsets = [0, -0.15, -0.15,-0.15, -0.15, -0.15]
 
 qubit_freqs_ef = [None]*6
 increase_steps_to_ef = 600
@@ -79,8 +81,7 @@ number_of_qubits = 6
 figure_quality = 200
 ################################################ Data Saving Setup ##################################################
 #Folders
-study ='debugging_t1'#'find_higher_transistions'
-sub_study = 'rr'
+
 data_set = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 if not os.path.exists(f"M:/_Data/20250822 - Olivia/{run_name}/"):
@@ -537,7 +538,26 @@ while j < n:
             #         rr_logger.exception(f'Got the following error, continuing: {e}')
             #         if verbose: print(f'Got the following error, continuing: {e}')
             #         continue #skip the rest of this qubit
+            ###################################################### g-e T2R_correction #####################################################
+            if run_flags["t2r_correction"]:
+                try:
+                    t2r = T2RMeasurement(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j, signal, save_figs,
+                                         experiment=experiment, live_plot=live_plot, fit_data=True,
+                                         increase_qubit_reps=increase_qubit_reps,
+                                         qubit_to_increase_reps_for=qubit_to_increase_reps_for,
+                                         multiply_qubit_reps_by=multiply_qubit_reps_by,
+                                         verbose=verbose, logger=rr_logger, unmasking_resgain=unmask, correction=True)
+                    fit_fringes = t2r.run(
+                        thresholding=thresholding, correction=True)
+                    del t2r
 
+                except Exception as e:
+                    if debug_mode:
+                        raise e  # In debug mode, re-raise the exception immediately
+                    else:
+                        rr_logger.exception(f'Got the following error, continuing: {e}')
+                        if verbose: print(f'Got the following error, continuing: {e}')
+                        continue  # skip the rest of this qubit
         ########################################## g-e Single Shot Measurements ############################################
         if run_flags["ss"]:
             # try:

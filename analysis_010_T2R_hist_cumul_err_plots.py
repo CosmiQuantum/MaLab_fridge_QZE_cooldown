@@ -117,7 +117,7 @@ class T2rHistCumulErrPlots:
         dates = {i: [] for i in range(self.number_of_qubits)}
 
         for folder_date in self.top_folder_dates:
-            outerFolder = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "/"
+            outerFolder = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "/study_data/"
             outerFolder_save_plots = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "_plots/"
 
             outerFolder_expt = outerFolder + "/Data_h5/T2_ge/"
@@ -201,7 +201,7 @@ class T2rHistCumulErrPlots:
 
 
             if len(t2r_vals[i]) >1:
-                optimal_bin_num = 45 #self.optimal_bins(t2r_vals[i])
+                optimal_bin_num = self.optimal_bins(t2r_vals[i])
 
                 # Fit a Gaussian to the raw data instead of the histogram
                 # get the mean and standard deviation of the data

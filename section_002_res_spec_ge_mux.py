@@ -136,7 +136,7 @@ class ResonanceSpectroscopy:
         res_freqs = []
 
         for i in range(self.number_of_qubits):
-            freq_r = fpts[np.argmin(amps[i])] + fcenter[i]
+            freq_r = fpts[np.argmin(amps[0])] + fcenter[0]
             res_freqs.append(freq_r)
 
         res_freqs = [round(x, 7) for x in res_freqs]

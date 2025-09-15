@@ -200,12 +200,15 @@ class T2RProgram(AveragerProgramV2):
 class T2RMeasurement:
     def __init__(self, QubitIndex, number_of_qubits, outerFolder, round_num, signal, save_figs, experiment = None,
                  live_plot = None, fit_data = None, increase_qubit_reps = False, qubit_to_increase_reps_for = None,
-                 multiply_qubit_reps_by = 0, verbose = False, logger = None, qick_verbose=True, unmasking_resgain = False):
+                 multiply_qubit_reps_by = 0, verbose = False, logger = None, qick_verbose=True, unmasking_resgain = False, correction=False):
         self.qick_verbose = qick_verbose
         self.QubitIndex = QubitIndex
         self.outerFolder = outerFolder
         self.fit_data = fit_data
-        self.expt_name = "Ramsey_ge"
+        if correction:
+            self.expt_name = "Ramsey_ge_correction"
+        else:
+            self.expt_name = "Ramsey_ge"
         self.Qubit = 'Q' + str(self.QubitIndex)
         self.experiment = experiment
         self.exp_cfg = expt_cfg[self.expt_name]
@@ -379,7 +382,7 @@ class T2RMeasurement:
         t2r_err = out['T2'][1] #in ns
         return fit_type(x, popt) * y_normal, t2r_est, t2r_err, plot_sig
 
-    def run(self, thresholding=False):
+    def run(self, thresholding=False,correction=False):
         now = datetime.datetime.now()
         ramsey = T2RProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay=self.config['relax_delay'],
                          cfg=self.config)

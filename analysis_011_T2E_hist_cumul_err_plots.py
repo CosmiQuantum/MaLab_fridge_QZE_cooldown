@@ -117,7 +117,7 @@ class T2eHistCumulErrPlots:
 
         for folder_date in self.top_folder_dates:
             if self.fridge.upper() == 'QUIET':
-                outerFolder = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "/"
+                outerFolder = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "/study_data/"
                 outerFolder_save_plots = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "_plots/"
             elif self.fridge.upper() == 'NEXUS':
                 outerFolder = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/" + folder_date + "/"
@@ -241,7 +241,7 @@ class T2eHistCumulErrPlots:
 
 
             if len(t2e_vals[i]) >1:
-                optimal_bin_num = 45#self.optimal_bins(t2e_vals[i])
+                optimal_bin_num = self.optimal_bins(t2e_vals[i])
 
                 # Fit a Gaussian to the raw data instead of the histogram
                 # get the mean and standard deviation of the data

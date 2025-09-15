@@ -120,20 +120,19 @@ class QubitFreqsVsTime:
         mean_values = {}
         for folder_date in self.top_folder_dates:
             if self.fridge.upper() == 'QUIET':
-                outerFolder = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "/"
+                outerFolder = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date+ "/study_data" + "/"
                 outerFolder_save_plots = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "_plots/"
             elif self.fridge.upper() == 'NEXUS':
-                outerFolder = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/" + folder_date + "/"
+                outerFolder = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/" + folder_date+ "/study_data" + "/"
                 outerFolder_save_plots = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/" + folder_date + "_plots/"
             else:
                 raise ValueError("fridge must be either 'QUIET' or 'NEXUS'")
 
             # ------------------------------------------Load/Plot/Save Q Spec------------------------------------
             if '_' in exp_extension:
-                outerFolder_expt = outerFolder + f"/Data_h5/QSpec{exp_extension}/"
+                outerFolder_expt = outerFolder + f"/Data_h5/qspec{exp_extension}/"
             else:
-                outerFolder_expt = outerFolder + "/Data_h5/QSpec_ge/"
-
+                outerFolder_expt = outerFolder + "/Data_h5/qspec_ge/"
 
             h5_files = glob.glob(os.path.join(outerFolder_expt, "*.h5"))
 

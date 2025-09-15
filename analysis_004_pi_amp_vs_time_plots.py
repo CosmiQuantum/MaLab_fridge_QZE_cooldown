@@ -117,7 +117,7 @@ class PiAmpsVsTime:
         date_times = {i: [] for i in range(self.number_of_qubits)}
         mean_values = {}
         for folder_date in self.top_folder_dates:
-            outerFolder = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "/"
+            outerFolder = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "/study_data"+ "/"
             outerFolder_save_plots = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "_plots/"
 
             # ------------------------------------------------Load/Plot/Save Rabi---------------------------------------
@@ -502,9 +502,7 @@ class PiAmpsVsTime:
         from datetime import datetime
 
         for i, ax in enumerate(axes):
-
             ax.set_title(titles[i], fontsize = font)
-
             x = date_times[i]
             y = pi_amps[i]
 
@@ -517,17 +515,11 @@ class PiAmpsVsTime:
             if combined:
 
                 # Unpack them back into separate lists, in order from latest to most recent.
-                sorted_x, sorted_y = zip(*combined)
-                ax.scatter(sorted_x, sorted_y, color=colors[i])
-
-                sorted_x = np.asarray(sorted(x))
-
-                num_points = 5
-                indices = np.linspace(0, len(sorted_x) - 1, num_points, dtype=int)
-
-                # Set new x-ticks using the datetime objects at the selected indices
+                sorted_x, sorted_y = zip(*combined)  # datetimes + y
+                sorted_x = np.array(sorted_x)
+                indices = np.linspace(0, len(sorted_x) - 1, 5, dtype=int)
                 ax.set_xticks(sorted_x[indices])
-                ax.set_xticklabels([dt for dt in sorted_x[indices]], rotation=45)
+                ax.set_xticklabels([sorted_x[j].strftime('%Y-%m-%d %H:%M:%S') for j in indices], rotation=45)
 
                 ax.scatter(x, y, color=colors[i])
                 if show_legends:
