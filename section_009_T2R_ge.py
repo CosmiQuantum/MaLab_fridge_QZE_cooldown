@@ -200,11 +200,12 @@ class T2RProgram(AveragerProgramV2):
 class T2RMeasurement:
     def __init__(self, QubitIndex, number_of_qubits, outerFolder, round_num, signal, save_figs, experiment = None,
                  live_plot = None, fit_data = None, increase_qubit_reps = False, qubit_to_increase_reps_for = None,
-                 multiply_qubit_reps_by = 0, verbose = False, logger = None, qick_verbose=True, unmasking_resgain = False, correction=False):
+                 multiply_qubit_reps_by = 0, verbose = False, logger = None, qick_verbose=True, unmasking_resgain = False, correction=False, correction_round=1):
         self.qick_verbose = qick_verbose
         self.QubitIndex = QubitIndex
         self.outerFolder = outerFolder
         self.fit_data = fit_data
+        self.correction_round=correction_round
         if correction:
             self.expt_name = "Ramsey_ge_correction"
         else:
@@ -236,7 +237,7 @@ class T2RMeasurement:
             if self.verbose: print(f'Q {self.QubitIndex + 1} Round {self.round_num} T2R configuration: ', self.config)
             self.logger.info(f'Q {self.QubitIndex + 1} Round {self.round_num} T2R configuration:{self.config}')
 
-    def t2_fit(self, x_data, I, Q, verbose = False, guess=None, plot=False):
+    def t2_fit(self, x_data, I, Q, verbose = False, guess=None, plot=False, return_freq=False):
         #fitting code adapted from https://github.com/qua-platform/py-qua-tools/blob/37c741ade5a8f91888419c6fd23fd34e14372b06/qualang_tools/plot/fitting.py
 
         if abs(I[-1] - I[0]) > abs(Q[-1] - Q[0]):
@@ -339,6 +340,17 @@ class T2RMeasurement:
             p0=[1, 1, 1, guess_phase, 1, 1],
         )
 
+        # T2 = popt[4]
+        # T2_err = np.sqrt(pcov[4][4])
+        #
+        # self.T2 = T2
+        # self.T2_err = T2_err
+        #
+        # self.freq_correction = popt[1] - self.detuning
+        # self.freq_err = pcov[1][1]
+
+
+
         perr = np.sqrt(np.diag(pcov))
 
         # Output the fitting function and its parameters
@@ -380,7 +392,10 @@ class T2RMeasurement:
             plt.legend(loc="upper right")
         t2r_est = out['T2'][0] #in ns
         t2r_err = out['T2'][1] #in ns
-        return fit_type(x, popt) * y_normal, t2r_est, t2r_err, plot_sig
+        if return_freq:
+            return fit_type(x, popt) * y_normal, t2r_est, t2r_err, plot_sig, out['f'][0]
+        else:
+            return fit_type(x, popt) * y_normal, t2r_est, t2r_err, plot_sig
 
     def run(self, thresholding=False,correction=False):
         now = datetime.datetime.now()
@@ -411,6 +426,36 @@ class T2RMeasurement:
             self.plot_results(I, Q, delay_times, now, fit, t2r_est, t2r_err, plot_sig)
 
         return  t2r_est, t2r_err, I, Q, delay_times, fit, self.config
+
+    def adjust_qspec(self, thresholding=False,correction=False):
+        now = datetime.datetime.now()
+        ramsey = T2RProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay=self.config['relax_delay'],
+                         cfg=self.config)
+
+        # for live plotting open http://localhost:8097/ on firefox
+        if self.live_plot:
+            I, Q, delay_times = self.live_plotting(ramsey, thresholding)
+        else:
+            if thresholding:
+                iq_list = ramsey.acquire(self.experiment.soc, rounds=self.config['rounds'],
+                                         threshold=self.experiment.readout_cfg["threshold"],
+                                         angle=self.experiment.readout_cfg["ro_phase"], progress=self.qick_verbose)
+            else:
+                iq_list = ramsey.acquire(self.experiment.soc, rounds=self.config['rounds'], progress=self.qick_verbose)
+            iq_list = iq_list[0][0].T
+            I = (iq_list[0])
+            Q = (iq_list[1])
+            delay_times = ramsey.get_time_param('wait', "t", as_array=True)
+
+        if self.fit_data:
+            fit, t2r_est, t2r_err, plot_sig, freq = self.t2_fit(delay_times, I, Q, return_freq=True)
+        else:
+            fit, t2r_est, t2r_err, plot_sig = None, None, None, None
+
+        if self.save_figs:
+            self.plot_results(I, Q, delay_times, now, fit, t2r_est, t2r_err, plot_sig)
+
+        return t2r_est, t2r_err, I, Q, delay_times, fit, self.config, freq
 
     def live_plotting(self, ramsey, thresholding):
         I = Q = expt_mags = expt_phases = expt_pop = None
@@ -511,7 +556,8 @@ class T2RMeasurement:
         # Adjust the top margin to make room for the title
         plt.subplots_adjust(top=0.93)
         if self.save_figs:
-            outerFolder_expt = os.path.join(self.outerFolder, self.expt_name)
+            outerFolder_expt = os.path.join(self.outerFolder, self.expt_name + '_'+self.correction_round)
+
             self.create_folder_if_not_exists(outerFolder_expt)
             now = datetime.datetime.now()
             formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")

@@ -25,8 +25,10 @@ class AmplitudeRabiExperiment:
     def __init__(self, QubitIndex, number_of_qubits, outerFolder, round_num, signal, save_shots=False, save_figs = True, experiment = None,
                  live_plot = None, increase_qubit_reps = False, qubit_to_increase_reps_for = None,
                  multiply_qubit_reps_by = 0, verbose = False, logger = None, qick_verbose=True, QZE=False,
-                 projective_readout_pulse_len_us=9,  time_between_projective_readout_pulses=None, expt_name = "power_rabi_ge", unmasking_resgain = False):
+                 projective_readout_pulse_len_us=9,  time_between_projective_readout_pulses=None, expt_name = "power_rabi_ge",
+                 unmasking_resgain = False, correction=False):
         self.qick_verbose = qick_verbose
+        self.correction=correction
         self.QubitIndex = QubitIndex
         self.number_of_qubits = number_of_qubits
         self.outerFolder = outerFolder
@@ -244,7 +246,10 @@ class AmplitudeRabiExperiment:
             plt.subplots_adjust(top=0.93)
 
             if self.save_figs:
-                outerFolder_expt = os.path.join(self.outerFolder, self.expt_name + "_plots")
+                if self.correction:
+                    outerFolder_expt = os.path.join(self.outerFolder, self.expt_name +'_correction'+ "_plots")
+                else:
+                    outerFolder_expt = os.path.join(self.outerFolder, self.expt_name +  "_plots")
                 self.create_folder_if_not_exists(outerFolder_expt)
                 now = datetime.datetime.now()
                 formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
