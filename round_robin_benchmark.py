@@ -580,7 +580,8 @@ while j < n:
                                                    increase_qubit_reps=increase_qubit_reps,
                                                    qubit_to_increase_reps_for=qubit_to_increase_reps_for,
                                                    multiply_qubit_reps_by=multiply_qubit_reps_by,
-                                                   verbose=verbose, logger=rr_logger, unmasking_resgain=unmask, correction=True)
+                                                   verbose=verbose, logger=rr_logger, unmasking_resgain=unmask,
+                                                   correction=True)
                     (rabi_I_corrected, rabi_Q_corrected, rabi_gains_corrected, rabi_fit_corrected, pi_amp_corrected,
                      sys_config_rabi_corrected) = rabi.run(thresholding=thresholding)
 
