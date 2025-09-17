@@ -53,11 +53,9 @@ study = 'QZE_IBM'
 
 ################################################ optimization outputs ##################################################
 # Optimization parameters for resonator spectroscopy
-res_leng_vals = [5.0,5.5,5.5,6.0,6.0,6.0]#[7.0, 5.1, 5.1, 5.6, 5.6, 5.6] # all updated on 7/29/2025
-res_gain = [0.95,0.9,0.95,0.55,0.55,0.95]#[0.8, 0.9, 0.95, 0.51, 0.61, 0.95] # all updated on
-# 7/29/2025 except R5, we need to debug res spec for that resonator
-freq_offsets = [-0.2143, 0, -0.16, -0.16, -0.16, -0.16,]#[0.1190, 0.0238, -0.1190, 0.2143, -0.0714, 0.0238] # # all updated on 7/29/2025 except R5, we need to debug res spec for that resonator
-
+res_leng_vals = [19]*6#[5,4.2,8.3,7.9,7.5,15]
+res_gain = [0.15,0.2, 0.2, 0.2, 0.15, 0.15]
+freq_offsets = [0, -0.15, -0.15,-0.15, -0.15, -0.15]
 ####################################################### RR #############################################################
 
 def create_data_dict(keys, save_r, qs):
@@ -82,6 +80,8 @@ t2e_keys = ['T2E', 'Errors', 'Dates', 'I', 'Q', 'Delay Times', 'Fit', 'Round Num
 rabi_keys_ef_Qtemps = ['Dates', 'Qfreq_ge', 'I1', 'Q1', 'Gains1', 'Fit1', 'I2', 'Q2', 'Gains2', 'Fit2', 'Round Num', 'Batch Num', 'Exp Config', 'Syst Config']
 ss_keys_gef = ['Fidelity', 'Angle_ef', 'Dates', 'I_g', 'Q_g', 'I_e', 'Q_e', 'I_f', 'Q_f', 'Round Num', 'Batch Num', 'Exp Config',
            'Syst Config']
+t2r_correction_keys = ['T2', 'Errors', 'Dates', 'I', 'Q', 'Correction Freq', 'Delay Times', 'Fit', 'Round Num', 'Batch Num', 'Exp Config',
+            'Syst Config']
 
 #initialize a simple list to store the qspec values in incase a fit fails
 stored_qspec_list = [None] * tot_num_of_qubits
@@ -170,6 +170,10 @@ for QubitIndex in Qs_to_look_at:
             # Mask out all other resonators except this one
             experiment.readout_cfg['res_gain_ge'] = res_gain[QubitIndex]
             experiment.readout_cfg['res_length'] = res_leng_vals[QubitIndex]
+            experiment.readout_cfg['res_freq_ge'] = experiment.readout_cfg['res_freq_ge'][QubitIndex]
+
+            experiment.qubit_cfg['qubit_freq_ge'] = experiment.qubit_cfg['qubit_freq_ge'][QubitIndex]
+            experiment.qubit_cfg['qubit_gain_ge'] = experiment.qubit_cfg['qubit_gain_ge'][QubitIndex]
             ################################ Do Res spec once per qubit and store the value ####################################
             ################################################# g-e Res spec ####################################################
 
@@ -180,7 +184,7 @@ for QubitIndex in Qs_to_look_at:
             offset = freq_offsets[
                 QubitIndex]  # use optimized offset values or whats set at top of script based on pre_optimize flag
             offset_res_freqs = [r + offset for r in res_freqs]
-            experiment.readout_cfg['res_freq_ge'] = offset_res_freqs[QubitIndex]
+            experiment.readout_cfg['res_freq_ge'] = offset_res_freqs[0]
             del res_spec
 
             res_data[QubitIndex]['Dates'][0] = (
@@ -414,17 +418,17 @@ for QubitIndex in Qs_to_look_at:
                     saver_t2r = Data_H5(subStudyDataFolder, t2r_correction_1_data, batch_num, save_r)
                     saver_t2r.save_to_h5('t2_ge_correction_1')
                     del saver_t2r
-                    del t2r_data
+                    del t2r_correction_1_data
 
                     saver_t2r = Data_H5(subStudyDataFolder, t2r_correction_2_data, batch_num, save_r)
                     saver_t2r.save_to_h5('t2_ge_correction_2')
                     del saver_t2r
-                    del t2r_data
+                    del t2r_correction_2_data
 
                     saver_rabi = Data_H5(subStudyDataFolder, rabi_corrected_data, batch_num, save_r)
                     saver_rabi.save_to_h5('rabi_ge_corrected')
                     del saver_rabi
-                    del rabi_data
+                    del rabi_corrected_data
 
                     if verbose: print('corrected g-e Pi amplitude for qubit ', QubitIndex + 1, ' is: ', float(pi_amp))
                     del rabi
@@ -496,38 +500,38 @@ for QubitIndex in Qs_to_look_at:
                 exp = deepcopy(experiment) #before updating for qze
 
                 ###################################################### T1 ######################################################
-                if run_flags["t1"]:
 
-                    t1_data = create_data_dict(t1_keys, save_r, list_of_all_qubits)
-                    t1 = T1Measurement_with_Zeno(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j, signal, save_figs=False,
-                                       experiment = exp,
-                                       live_plot = live_plot, fit_data = False,
-                                       increase_qubit_reps = increase_qubit_reps,
-                                       qubit_to_increase_reps_for = qubit_to_increase_reps_for,
-                                       multiply_qubit_reps_by = multiply_qubit_reps_by,
-                                       verbose = verbose, logger = rr_logger, unmasking_resgain = unmask, zeno_pulse_gain=gain, slice=slice)
-                    t1_est, t1_err, t1_I, t1_Q, t1_delay_times, q1_fit_exponential, sys_config_t1 = t1.run(
-                        thresholding=thresholding)
 
-                    t1_data[QubitIndex]['T1'][j - batch_num * save_r - 1] = t1_est
-                    t1_data[QubitIndex]['Errors'][j - batch_num * save_r - 1] = t1_err
-                    t1_data[QubitIndex]['Dates'][j - batch_num * save_r - 1] = (
-                        time.mktime(datetime.datetime.now().timetuple()))
-                    t1_data[QubitIndex]['I'][j - batch_num * save_r - 1] = t1_I
-                    t1_data[QubitIndex]['Q'][j - batch_num * save_r - 1] = t1_Q
-                    t1_data[QubitIndex]['Delay Times'][j - batch_num * save_r - 1] = t1_delay_times
-                    t1_data[QubitIndex]['Fit'][j - batch_num * save_r - 1] = q1_fit_exponential
-                    t1_data[QubitIndex]['Round Num'][j - batch_num * save_r - 1] = j
-                    t1_data[QubitIndex]['Batch Num'][j - batch_num * save_r - 1] = batch_num
-                    t1_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = expt_cfg
-                    t1_data[QubitIndex]['Syst Config'][j - batch_num * save_r - 1] = sys_config_t1
+                t1_data = create_data_dict(t1_keys, save_r, list_of_all_qubits)
+                t1 = T1Measurement_with_Zeno(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j, signal, save_figs=False,
+                                   experiment = exp,
+                                   live_plot = live_plot, fit_data = False,
+                                   increase_qubit_reps = increase_qubit_reps,
+                                   qubit_to_increase_reps_for = qubit_to_increase_reps_for,
+                                   multiply_qubit_reps_by = multiply_qubit_reps_by,
+                                   verbose = verbose, logger = rr_logger, unmasking_resgain = unmask, zeno_pulse_gain=gain, slice=slice)
+                t1_est, t1_err, t1_I, t1_Q, t1_delay_times, q1_fit_exponential, sys_config_t1 = t1.run(
+                    thresholding=thresholding)
 
-                    saver_t1 = Data_H5(subStudyDataFolder, t1_data, batch_num, save_r)
-                    saver_t1.save_to_h5('T1_ge')
-                    del saver_t1
-                    del t1_data
-                    del t1
-                    t1_data = create_data_dict(t1_keys, save_r, list_of_all_qubits)
+                t1_data[QubitIndex]['T1'][j - batch_num * save_r - 1] = t1_est
+                t1_data[QubitIndex]['Errors'][j - batch_num * save_r - 1] = t1_err
+                t1_data[QubitIndex]['Dates'][j - batch_num * save_r - 1] = (
+                    time.mktime(datetime.datetime.now().timetuple()))
+                t1_data[QubitIndex]['I'][j - batch_num * save_r - 1] = t1_I
+                t1_data[QubitIndex]['Q'][j - batch_num * save_r - 1] = t1_Q
+                t1_data[QubitIndex]['Delay Times'][j - batch_num * save_r - 1] = t1_delay_times
+                t1_data[QubitIndex]['Fit'][j - batch_num * save_r - 1] = q1_fit_exponential
+                t1_data[QubitIndex]['Round Num'][j - batch_num * save_r - 1] = j
+                t1_data[QubitIndex]['Batch Num'][j - batch_num * save_r - 1] = batch_num
+                t1_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = expt_cfg
+                t1_data[QubitIndex]['Syst Config'][j - batch_num * save_r - 1] = sys_config_t1
+
+                saver_t1 = Data_H5(subStudyDataFolder, t1_data, batch_num, save_r)
+                saver_t1.save_to_h5('T1_ge')
+                del saver_t1
+                del t1_data
+                del t1
+                t1_data = create_data_dict(t1_keys, save_r, list_of_all_qubits)
 
                 del exp
             del experiment

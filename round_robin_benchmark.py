@@ -1343,17 +1343,17 @@ while j < n:
                 saver_t2r = Data_H5(subStudyDataFolder, t2r_correction_1_data, batch_num, save_r)
                 saver_t2r.save_to_h5('t2_ge_correction_1')
                 del saver_t2r
-                del t2r_data
+                del t2r_correction_1_data
 
                 saver_t2r = Data_H5(subStudyDataFolder, t2r_correction_2_data, batch_num, save_r)
                 saver_t2r.save_to_h5('t2_ge_correction_2')
                 del saver_t2r
-                del t2r_data
+                del t2r_correction_2_data
 
                 saver_rabi = Data_H5(subStudyDataFolder, rabi_corrected_data, batch_num, save_r)
                 saver_rabi.save_to_h5('rabi_ge_corrected')
                 del saver_rabi
-                del rabi_data
+                del rabi_corrected_data
 
             #--------------------------save g-e t2e-----------------------
             if run_flags["t2e"]:

@@ -26,8 +26,9 @@ from matplotlib.ticker import StrMethodFormatter
 
 class T1VsTime:
     def __init__(self, figure_quality, final_figure_quality, number_of_qubits, top_folder_dates, save_figs, fit_saved,
-                 signal, run_name, fridge, exp_name = 'ge'):
+                 signal, run_name, fridge, exp_name = 'ge', qubit=0):
         self.save_figs = save_figs
+        self.qubit=qubit
         self.fit_saved = fit_saved
         self.signal = signal
         self.figure_quality = figure_quality
@@ -330,9 +331,21 @@ class T1VsTime:
                 outerFolder_expt = outerFolder + f"/Data_h5/T1{exp_extension}/"
             else:
                 outerFolder_expt = outerFolder + "/Data_h5/T1_ge/"
-            round_we_are_on=outerFolder_expt.split('qubit_0round')[-1].split('/study_data')[0]
+            round_we_are_on=outerFolder_expt.split(f'qubit_{self.qubit}round')[-1].split('/')[0].split('_')[0]
             h5_files = glob.glob(os.path.join(outerFolder_expt, "*.h5"))
-            #print(outerFolder_expt)
+            TS = re.compile(
+                r'(\d{4})[-_\.]?(\d{2})[-_\.]?(\d{2})[ Tt_-]?(\d{2})[-_\.]?(\d{2})[-_\.]?(\d{2})'
+            )
+            import datetime as dt
+            def dt_from_name(path):
+                name = os.path.basename(path)
+                m = TS.search(name)
+                if not m:
+                    return dt.datetime.min  # or dt.datetime.max to push unknowns to the end
+                y, mo, d, h, mi, s = map(int, m.groups())
+                return dt.datetime(y, mo, d, h, mi, s)
+
+            h5_files = sorted(h5_files, key=dt_from_name)
             for h5_file in h5_files:
 
                 save_round = h5_file.split('Num_per_batch')[-1].split('.')[0]
@@ -361,8 +374,12 @@ class T1VsTime:
                             print(f"Skipping data for {date} (excluded date)")
                             continue
 
-                        I = self.process_h5_data(load_data[f'T1{exp_extension}'][q_key].get('I', [])[0][dataset].decode())
-                        Q = self.process_h5_data(load_data[f'T1{exp_extension}'][q_key].get('Q', [])[0][dataset].decode())
+                        try:
+                            I = self.process_h5_data(load_data[f'T1{exp_extension}'][q_key].get('I', [])[0][dataset].decode())
+                            Q = self.process_h5_data(load_data[f'T1{exp_extension}'][q_key].get('Q', [])[0][dataset].decode())
+                        except:
+                            I = load_data[f'T1{exp_extension}'][q_key].get('I', [])[0]
+                            Q = load_data[f'T1{exp_extension}'][q_key].get('Q', [])[0]
                         #delay_times = self.process_h5_data(load_data[f'T1{exp_extension}'][q_key].get('Delay Times', [])[0][dataset])
                         # fit = load_data['T1'][q_key].get('Fit', [])[0][dataset]
                         round_num = load_data[f'T1{exp_extension}'][q_key].get('Round Num', [])[0][dataset]
@@ -381,12 +398,13 @@ class T1VsTime:
                             Qs[q_key].extend(Q)
 
                             gain = round(
-                                float(syst_config.split('res_gain_qze\': [')[-1].split(']')[0].split(',')[-1].split('(')[-1].replace(')','')), 6)
+                                float(syst_config.split('res_gain_qze\': ')[-1].split(',')[0]), 6)
 
                             gains[q_key].append(gain)
                             rounds_completed[q_key].append(round_we_are_on)
                             amp=np.hypot(I, Q)
                             amps[q_key].extend(amp)
+
                             date_times[q_key].extend([date.strftime("%Y-%m-%d %H:%M:%S")])
 
 
@@ -438,8 +456,9 @@ class T1VsTime:
         print('Plot saved to: ', save_path)
     def plot_IBM_qze_compare(self,amps,gains, rounds,save_path):
 
-        q = 0
+        q = self.qubit
         gains_q = np.asarray(gains[q])
+
         amps_q = np.asarray(amps[q])
         rounds_q = np.asarray(rounds[q])
         fig, ax = plt.subplots(figsize=(6, 4))
@@ -457,7 +476,7 @@ class T1VsTime:
 
             )
 
-        ax.set_title("Qubit 0")
+        ax.set_title(f"Qubit {self.qubit}")
         ax.set_xlabel("Pulse gain (a.u.)")
         ax.set_ylabel("1 / T1 signal amplitude (a.u.)")
         ax.legend(
@@ -466,10 +485,10 @@ class T1VsTime:
             frameon=False,  # remove legend border
             fontsize="small"  # or an explicit int, e.g. 8
         )
-        fig.tight_layout(rect=[0, 0, 0.85, 1])
+        fig.tight_layout()
 
         self.create_folder_if_not_exists(save_path)
-        fig.savefig(save_path + "gamma_q0.png",
+        fig.savefig(save_path + f"gamma_q{self.qubit}.png",
                     transparent=False,
                     dpi=self.final_figure_quality)
 
@@ -477,7 +496,7 @@ class T1VsTime:
 
     def plot_IBM_qze_normal_compare(self,amps,gains,rounds, save_path):
 
-        q = 0
+        q = self.qubit
         gains_q = np.asarray(gains[q])
         amps_q = np.asarray(amps[q])
         rounds_q = np.asarray(rounds[q])
@@ -495,7 +514,7 @@ class T1VsTime:
                 linewidth=0.8,
             )
 
-        ax.set_title("Qubit 0")
+        ax.set_title(f"Qubit {self.qubit}")
         ax.set_xlabel("Pulse gain (a.u.)")
         ax.set_ylabel("T1 signal amplitude (a.u.)")
         ax.legend(
@@ -504,10 +523,10 @@ class T1VsTime:
             frameon=False,  # remove legend border
             fontsize="small"  # or an explicit int, e.g. 8
         )
-        fig.tight_layout(rect=[0, 0, 0.85, 1])
+        fig.tight_layout()
 
         self.create_folder_if_not_exists(save_path)
-        fig.savefig(save_path + "t1_q0.png",
+        fig.savefig(save_path + f"t1_q{self.qubit}.png",
                     transparent=False,
                     dpi=self.final_figure_quality)
 

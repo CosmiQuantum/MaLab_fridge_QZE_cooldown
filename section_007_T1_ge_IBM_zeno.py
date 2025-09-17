@@ -90,8 +90,8 @@ class T1Measurement_with_Zeno:
 
 
         self.experiment.readout_cfg['res_gain_qze'] = self.zeno_pulse_gain
-        self.experiment.readout_cfg['res_freq_qze'] = self.experiment.readout_cfg['res_freq_ge'][self.QubitIndex]
-        self.experiment.readout_cfg['res_phase_qze'] = self.experiment.readout_cfg['res_phase'][self.QubitIndex]
+        self.experiment.readout_cfg['res_freq_qze'] = self.experiment.readout_cfg['res_freq_ge']
+        self.experiment.readout_cfg['res_phase_qze'] = self.experiment.readout_cfg['res_phase']
 
 
 
@@ -124,9 +124,9 @@ class T1Measurement_with_Zeno:
             else:
                 iq_list = t1.acquire(self.experiment.soc, rounds=self.config['rounds'], progress=True)
 
-
-            I = iq_list[self.QubitIndex][:, 0]
-            Q = iq_list[self.QubitIndex][:, 1]
+            iq_list = iq_list[0][0].T
+            I = (iq_list[0])
+            Q = (iq_list[1])
             delay_times = self.config['wait_time']
 
 

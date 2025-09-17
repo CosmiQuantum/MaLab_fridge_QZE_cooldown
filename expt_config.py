@@ -122,7 +122,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
 
         "power_rabi_ge": {
             "reps": 20,
-            "rounds": 2,
+            "rounds": 5,
             "start": 0, # [DAC units]
             "stop": 1,  # [DAC units]
             "steps": 70,
@@ -191,7 +191,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
         "T1_ge": {
             "reps": 20, #300
-            "rounds": 2, #1
+            "rounds": 10, #1
             "start":  0,  # [us]
             "stop": 500,  # [us] ### Should be ~10x T1! Should change this per qubit.
             "steps": 80,
@@ -201,8 +201,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "T1_IBM_qze": {
-            "reps": 20,  # 300
-            "rounds": 2,  # 1
+            "reps": 50,  # 300
+            "rounds": 20,  # 1
             "start": 30,  # [us]
             "stop": 31,  # [250.0] * 6,  # [us] ### Should be ~10x T1! Should change this per qubit.
             "steps": 1,
@@ -346,10 +346,10 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
 
         "Ramsey_ge": {
             "reps": 20,
-            "rounds": 2,
+            "rounds": 5,
             "start": 0.0, # [us]
             "stop":  100, # [us]
-            "steps": 80,
+            "steps": 150,
             "ramsey_freq": 0.05,  # [MHz]
             "relax_delay": 2000, # [us] the time to wait to let the qubit to relax to gnd again after exciting it (make it way above T1)
             "wait_time": 0.0, # [us]
@@ -371,7 +371,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
 
         "SpinEcho_ge": {
             "reps": 20,
-            "rounds":2,
+            "rounds":5,
             "start": 0.0, # [us]
             "stop":  100, # [us]
             "steps": 80,
