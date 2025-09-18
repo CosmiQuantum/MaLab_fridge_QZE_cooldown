@@ -10,24 +10,42 @@ signal = 'None'
 run_number = 3 #starting from first run with qubits. Run 1 = run4a at quiet, run 2 = run5a at quiet, etc
 figure_quality = 100 #ramp this up to like 500 for presentation plots
 final_figure_quality = 200
-run_name = 'bob_run_started_Aug_23/squill/QZE_IBM/test_script_fewer_points_slice10us/'
+
 
 FRIDGE = "QUIET"
 run_notes = ('Added IR shielding, better cryo terminators, thermalizing with 0dB attenuator ') #please make it brief for the plot
-top_folder_dates = [] #,'qubit_1','qubit_2','qubit_3', 'qubit_4','qubit_5'
-# for round in range(4):
-#     top_folder_dates.append(f'qubit_0round{round}')
-top_folder_dates.append('qubit_3round0_2025-09-17_12-03-40')
-top_folder_dates.append('qubit_3round1_2025-09-17_12-18-57')
-top_folder_dates.append('qubit_3round2_2025-09-17_12-34-19')
-# ################################################ 01: Get all data ######################################################
+qubits=[1,2,4,5]
+Is = {i: [] for i in range(6)}
+Qs = {i: [] for i in range(6)}
+amps = {i: [] for i in range(6)}
+gains = {i: [] for i in range(6)}
+rounds = {i: [] for i in range(6)}
+delay_times = {i: [] for i in range(6)}
+for qubit in qubits:
+    slices = [5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100]
+    for slice in slices:
+        run_name = f'bob_run_started_Aug_23/squill/QZE_IBM/repeat_rounds_t1_slice_{slice}us/'
+        top_folder_dates = []
+        for round in range(4):
+            top_folder_dates.append(f'qubit_{qubit}round{round}')
+        t1_vs_time = T1VsTime(figure_quality, final_figure_quality, tot_num_of_qubits, top_folder_dates, save_figs, fit_saved,
+                         signal, run_name, FRIDGE,exp_name = 'ge', qubit=qubit, t1_slice=f'{slice}us')
+        # Is,Qs,amps,gains = t1_vs_time.run_IBM_qze()
+        # t1_vs_time.plot_IBM_qze(amps,gains, f'M:/_Data/20250822 - Olivia/{run_name}/analysis/')
+        # t1_vs_time.plot_IBM_qze_normal(amps,gains, f'M:/_Data/20250822 - Olivia/{run_name}/analysis/')
+        Is1,Qs1,amps1,gains1,rounds1 = t1_vs_time.run_IBM_qze_rounds(exp_extension='_ge')
+        Is[qubit].append(Is1[qubit])
+        Qs[qubit].append(Qs1[qubit])
+        amps[qubit].append(amps1[qubit])
+        gains[qubit].append(gains1[qubit])
+        rounds[qubit].append(rounds1[qubit])
+        delay_times[qubit].append(slice)
+        t1_vs_time.plot_IBM_qze_compare(amps1,gains1,rounds1, f'M:/_Data/20250822 - Olivia/{run_name}/analysis/')
+        t1_vs_time.plot_IBM_qze_normal_compare(amps1,gains1,rounds1, f'M:/_Data/20250822 - Olivia/{run_name}/analysis/')
 
-t1_vs_time = T1VsTime(figure_quality, final_figure_quality, tot_num_of_qubits, top_folder_dates, save_figs, fit_saved,
-                 signal, run_name, FRIDGE,exp_name = 'ge', qubit=3)
-# Is,Qs,amps,gains = t1_vs_time.run_IBM_qze()
-# t1_vs_time.plot_IBM_qze(amps,gains, f'M:/_Data/20250822 - Olivia/{run_name}/analysis/')
-# t1_vs_time.plot_IBM_qze_normal(amps,gains, f'M:/_Data/20250822 - Olivia/{run_name}/analysis/')
-Is,Qs,amps,gains,rounds = t1_vs_time.run_IBM_qze_rounds(exp_extension='_ge')
-t1_vs_time.plot_IBM_qze_compare(amps,gains,rounds, f'M:/_Data/20250822 - Olivia/{run_name}/analysis/')
-t1_vs_time.plot_IBM_qze_normal_compare(amps,gains,rounds, f'M:/_Data/20250822 - Olivia/{run_name}/analysis/')
-
+print(Is)
+print(Qs)
+print(amps)
+print(gains)
+print(rounds)
+print(delay_times)

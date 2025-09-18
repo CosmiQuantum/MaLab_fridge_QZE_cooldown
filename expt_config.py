@@ -358,7 +358,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
 
         "Ramsey_ge_correction": {
             "reps": 20,  # 300
-            "rounds": 2,  # 10
+            "rounds": 5,  # 10
             "start": 0.0,  # [us]
             "stop": 1,  # [us]
             "steps": 50,

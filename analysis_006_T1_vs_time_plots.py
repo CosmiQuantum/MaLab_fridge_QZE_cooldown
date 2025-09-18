@@ -26,9 +26,10 @@ from matplotlib.ticker import StrMethodFormatter
 
 class T1VsTime:
     def __init__(self, figure_quality, final_figure_quality, number_of_qubits, top_folder_dates, save_figs, fit_saved,
-                 signal, run_name, fridge, exp_name = 'ge', qubit=0):
+                 signal, run_name, fridge, exp_name = 'ge', qubit=0,t1_slice='10us'):
         self.save_figs = save_figs
         self.qubit=qubit
+        self.t1_slice=t1_slice
         self.fit_saved = fit_saved
         self.signal = signal
         self.figure_quality = figure_quality
@@ -346,6 +347,7 @@ class T1VsTime:
                 return dt.datetime(y, mo, d, h, mi, s)
 
             h5_files = sorted(h5_files, key=dt_from_name)
+
             for h5_file in h5_files:
 
                 save_round = h5_file.split('Num_per_batch')[-1].split('.')[0]
@@ -404,9 +406,7 @@ class T1VsTime:
                             rounds_completed[q_key].append(round_we_are_on)
                             amp=np.hypot(I, Q)
                             amps[q_key].extend(amp)
-
                             date_times[q_key].extend([date.strftime("%Y-%m-%d %H:%M:%S")])
-
 
                 del H5_class_instance
         return Is,Qs,amps, gains, rounds_completed
@@ -488,7 +488,7 @@ class T1VsTime:
         fig.tight_layout()
 
         self.create_folder_if_not_exists(save_path)
-        fig.savefig(save_path + f"gamma_q{self.qubit}.png",
+        fig.savefig(save_path + f"gamma_q{self.qubit}_slice{self.t1_slice}.png",
                     transparent=False,
                     dpi=self.final_figure_quality)
 
@@ -507,7 +507,7 @@ class T1VsTime:
             mask = rounds_q == r_id
             ax.plot(
                 gains_q[mask],
-                1.0 / amps_q[mask],
+                amps_q[mask],
                 linestyle="-",
                 label=f"Round {r_id}",
                 color=next(colour_cycle),
@@ -526,7 +526,7 @@ class T1VsTime:
         fig.tight_layout()
 
         self.create_folder_if_not_exists(save_path)
-        fig.savefig(save_path + f"t1_q{self.qubit}.png",
+        fig.savefig(save_path + f"t1_q{self.qubit}_slice{self.t1_slice}.png",
                     transparent=False,
                     dpi=self.final_figure_quality)
 
