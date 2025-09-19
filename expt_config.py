@@ -190,8 +190,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "relax_delay": 2000,  # [us]
         },
         "T1_ge": {
-            "reps": 20, #300
-            "rounds": 10, #1
+            "reps": 50, #300
+            "rounds": 20, #1
             "start":  0,  # [us]
             "stop": 500,  # [us] ### Should be ~10x T1! Should change this per qubit.
             "steps": 80,

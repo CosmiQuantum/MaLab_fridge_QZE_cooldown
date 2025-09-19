@@ -114,12 +114,13 @@ class T1VsTime:
             print("Error: Invalid input string format.  It should be a string representation of a list of numbers.")
             return None
 
-    def run(self, return_errs = False, exp_extension=''):
+    def run(self, return_errs = False, exp_extension='', just_data=False):
         import datetime
 
         # ----------Load/get data------------------------
         t1_vals = {i: [] for i in range(self.number_of_qubits)}
         t1_errs = {i: [] for i in range(self.number_of_qubits)}
+        scaled_amps = {i: [] for i in range(self.number_of_qubits)}
         rounds = []
         reps = []
         file_names = []
@@ -170,10 +171,26 @@ class T1VsTime:
                         if date.date() in exclude_dates:
                             print(f"Skipping data for {date} (excluded date)")
                             continue
+                        try:
+                            I = self.process_h5_data(load_data[f'T1{exp_extension}'][q_key].get('I', [])[0][dataset].decode())
+                            Q = self.process_h5_data(load_data[f'T1{exp_extension}'][q_key].get('Q', [])[0][dataset].decode())
+                            delay_times = self.process_h5_data(load_data[f'T1{exp_extension}'][q_key].get('Delay Times', [])[0][dataset].decode())
 
-                        I = self.process_h5_data(load_data[f'T1{exp_extension}'][q_key].get('I', [])[0][dataset].decode())
-                        Q = self.process_h5_data(load_data[f'T1{exp_extension}'][q_key].get('Q', [])[0][dataset].decode())
-                        delay_times = self.process_h5_data(load_data[f'T1{exp_extension}'][q_key].get('Delay Times', [])[0][dataset].decode())
+                        except:
+                            I = load_data[f'T1{exp_extension}'][q_key].get('I', [])[0]
+                            Q = load_data[f'T1{exp_extension}'][q_key].get('Q', [])[0]
+                            delay_times = load_data[f'T1{exp_extension}'][q_key].get('Delay Times', [])[0]
+
+                        if just_data:
+
+                            Ie = self.process_h5_data(
+                                load_data[f'T1{exp_extension}'][q_key].get('ss_I_e', [])[0][dataset].decode())
+                            Ig = self.process_h5_data(
+                                load_data[f'T1{exp_extension}'][q_key].get('ss_I_g', [])[0][dataset].decode())
+                            Qe = self.process_h5_data(
+                                load_data[f'T1{exp_extension}'][q_key].get('ss_Q_e', [])[0][dataset].decode())
+                            Qg = self.process_h5_data(
+                                load_data[f'T1{exp_extension}'][q_key].get('ss_Q_g', [])[0][dataset].decode())
                         # fit = load_data['T1'][q_key].get('Fit', [])[0][dataset]
                         round_num = load_data[f'T1{exp_extension}'][q_key].get('Round Num', [])[0][dataset]
                         try:
@@ -205,14 +222,24 @@ class T1VsTime:
                             t1_vals[q_key].extend([T1_est])
                             t1_errs[q_key].extend([T1_err])
                             date_times[q_key].extend([date.strftime("%Y-%m-%d %H:%M:%S")])
-
+                            if just_data:
+                                Ie = np.asarray(Ie, dtype=float)
+                                Qe = np.asarray(Qe, dtype=float)
+                                Ig = np.asarray(Ig, dtype=float)
+                                Qg = np.asarray(Qg, dtype=float)
+                                e = np.mean((Ie + 1j * Qe))
+                                g = np.mean((Ig + 1j * Qg))
+                                ### Normalization ###
+                                pop_norm = abs(((I + 1j * Q) - g) * (e - g) / abs(e - g) ** 2)
+                                scaled_amps[q_key].extend([pop_norm])
                             del T1_class_instance
-
                 del H5_class_instance
         if return_errs:
             return date_times, t1_vals, t1_errs
         else:
             return date_times, t1_vals
+        if just_data:
+            return delay_times, scaled_amps
 
     def run_IBM_qze(self, exp_extension=''):
         import datetime
@@ -303,7 +330,7 @@ class T1VsTime:
                 del H5_class_instance
         return Is,Qs,amps, gains
 
-    def run_IBM_qze_rounds(self, exp_extension=''):
+    def run_IBM_qze_rounds(self, exp_extension='', scaling=False):
         import datetime
 
         # ----------Load/get data------------------------
@@ -352,7 +379,7 @@ class T1VsTime:
 
                 save_round = h5_file.split('Num_per_batch')[-1].split('.')[0]
                 H5_class_instance = Data_H5(h5_file)
-                load_data = H5_class_instance.load_from_h5(data_type=f'T1{exp_extension}', save_r=int(save_round))
+                load_data = H5_class_instance.load_from_h5(data_type=f'T1{exp_extension}', save_r=int(save_round), scaling=scaling)
                 # if '01-27' in outerFolder_expt:
                 #     print(load_data)
                 # Define specific days to exclude
@@ -379,11 +406,26 @@ class T1VsTime:
                         try:
                             I = self.process_h5_data(load_data[f'T1{exp_extension}'][q_key].get('I', [])[0][dataset].decode())
                             Q = self.process_h5_data(load_data[f'T1{exp_extension}'][q_key].get('Q', [])[0][dataset].decode())
+                            if scaling:
+
+                                Ie = self.process_h5_data(
+                                    load_data[f'T1{exp_extension}'][q_key].get('ss_I_e', [])[0][dataset].decode())
+
+                                Ig = self.process_h5_data(
+                                    load_data[f'T1{exp_extension}'][q_key].get('ss_I_g', [])[0][dataset].decode())
+                                Qe = self.process_h5_data(
+                                    load_data[f'T1{exp_extension}'][q_key].get('ss_Q_e', [])[0][dataset].decode())
+                                Qg = self.process_h5_data(
+                                    load_data[f'T1{exp_extension}'][q_key].get('ss_Q_g', [])[0][dataset].decode())
                         except:
                             I = load_data[f'T1{exp_extension}'][q_key].get('I', [])[0]
                             Q = load_data[f'T1{exp_extension}'][q_key].get('Q', [])[0]
-                        #delay_times = self.process_h5_data(load_data[f'T1{exp_extension}'][q_key].get('Delay Times', [])[0][dataset])
-                        # fit = load_data['T1'][q_key].get('Fit', [])[0][dataset]
+
+                            if scaling:
+                                Ie = self.process_h5_data(load_data[f'T1{exp_extension}'][q_key].get('ss_I_e', [])[0][dataset].decode())
+                                Ig = self.process_h5_data(load_data[f'T1{exp_extension}'][q_key].get('ss_I_g', [])[0][dataset].decode())
+                                Qe = self.process_h5_data(load_data[f'T1{exp_extension}'][q_key].get('ss_Q_e', [])[0][dataset].decode())
+                                Qg = self.process_h5_data(load_data[f'T1{exp_extension}'][q_key].get('ss_Q_g', [])[0][dataset].decode())
                         round_num = load_data[f'T1{exp_extension}'][q_key].get('Round Num', [])[0][dataset]
                         try:
                             batch_num = load_data[f'T1{exp_extension}'][q_key].get('Batch Num', [])[0][dataset]
@@ -404,7 +446,18 @@ class T1VsTime:
 
                             gains[q_key].append(gain)
                             rounds_completed[q_key].append(round_we_are_on)
-                            amp=np.hypot(I, Q)
+                            if scaling:
+                                Ie = np.asarray(Ie, dtype=float)
+                                Qe = np.asarray(Qe, dtype=float)
+                                Ig = np.asarray(Ig, dtype=float)
+                                Qg = np.asarray(Qg, dtype=float)
+                                e = np.mean((Ie + 1j * Qe))
+                                g = np.mean((Ig + 1j * Qg))
+                                ### Normalization ###
+                                pop_norm = abs(((I + 1j * Q) - g) * (e - g) / abs(e - g) ** 2)
+                                amp = pop_norm
+                            else:
+                                amp=np.hypot(I, Q)
                             amps[q_key].extend(amp)
                             date_times[q_key].extend([date.strftime("%Y-%m-%d %H:%M:%S")])
 
@@ -531,6 +584,370 @@ class T1VsTime:
                     dpi=self.final_figure_quality)
 
         print("Plot saved to:", save_path)
+
+    def plot_all_t1_heatmaps(self, amps, gains, rounds, delay_times, save_path):
+        """
+        For each unique round id, make a heatmap where:
+          x-axis: pulse gain
+          y-axis: delay time
+          color:  signal amplitude (amps)
+        Works with ragged rows and mismatched lengths by gridding per-round data.
+        """
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from collections import defaultdict
+
+        q = self.qubit
+        gains_q = gains.get(q, [])
+        amps_q = amps.get(q, [])
+        rounds_q = rounds.get(q, [])
+        delay_q = delay_times.get(q, [])
+
+        if not delay_q or not gains_q or not amps_q or not rounds_q:
+            print(f"No data for qubit {q}. Skipping.")
+            return
+
+        # Helper: robustly fetch a round label at (i, j)
+        def get_round_label(i, j):
+            if i < len(rounds_q):
+                row = rounds_q[i]
+                if isinstance(row, (list, tuple)):
+                    if len(row) == 0:
+                        return "0"
+                    if j < len(row):
+                        return str(row[j])
+                    # if rounds row shorter than data row, repeat last label
+                    return str(row[-1])
+                # if someone supplied a scalar label per row
+                return str(row)
+            return "0"
+
+        # Flatten points: (round_id, gain, delay, amp)
+        all_points = []
+        for i in range(len(delay_q)):
+            delay_val = float(delay_q[i])
+            row_g = gains_q[i] if i < len(gains_q) else []
+            row_a = amps_q[i] if i < len(amps_q) else []
+            n = min(len(row_g), len(row_a))
+            for j in range(n):
+                try:
+                    g = float(row_g[j])
+                    a = float(row_a[j])
+                except Exception:
+                    continue
+                r_id = get_round_label(i, j)
+                all_points.append((r_id, g, delay_val, a))
+
+        if not all_points:
+            print(f"No numeric points for qubit {q}. Skipping.")
+            return
+
+        # Unique rounds present
+        unique_rounds = sorted({r for (r, _, __, ___) in all_points})
+
+        # Ensure save folder exists
+        self.create_folder_if_not_exists(save_path)
+
+        # Helper to convert centers -> bin edges for pcolormesh
+        def centers_to_edges(centers):
+            centers = np.asarray(sorted(np.unique(centers)), dtype=float)
+            if centers.size == 1:
+                # fabricate symmetric edges around the single center
+                d = 1.0
+                return np.array([centers[0] - d / 2, centers[0] + d / 2])
+            mids = (centers[:-1] + centers[1:]) / 2.0
+            first = centers[0] - (centers[1] - centers[0]) / 2.0
+            last = centers[-1] + (centers[-1] - centers[-2]) / 2.0
+            return np.concatenate([[first], mids, [last]])
+
+        for r_id in unique_rounds:
+            # Collect this round's points
+            pts = [(g, d, a) for (r, g, d, a) in all_points if r == r_id]
+            if not pts:
+                continue
+
+            gains_r = sorted({g for (g, _, _) in pts})
+            delays_r = sorted({d for (_, d, _) in pts})
+
+            # Map (delay_idx, gain_idx) -> list of amplitudes (in case of duplicates)
+            bucket = defaultdict(list)
+            gi_map = {g: i for i, g in enumerate(gains_r)}
+            di_map = {d: i for i, d in enumerate(delays_r)}
+            for g, d, a in pts:
+                bucket[(di_map[d], gi_map[g])].append(a)
+
+            # Build C grid (Ny x Nx) filled with NaN, average duplicates
+            Ny, Nx = len(delays_r), len(gains_r)
+            C = np.full((Ny, Nx), np.nan, dtype=float)
+            for (iy, ix), vals in bucket.items():
+                C[iy, ix] = float(np.nanmean(vals))
+
+            # Build bin edges (no NaNs, strictly increasing)
+            x_edges = centers_to_edges(gains_r)
+            y_edges = centers_to_edges(delays_r)
+
+            # Plot
+            fig, ax = plt.subplots(figsize=(6.5, 4.5))
+            mesh = ax.pcolormesh(x_edges, y_edges, C, shading='flat')
+            cbar = fig.colorbar(mesh, ax=ax, pad=0.02)
+            cbar.set_label("Qubit Population")
+
+            ax.set_title(f"Qubit {self.qubit+1} — Round {r_id}")
+            ax.set_xlabel("Pulse gain (a.u.)")
+            ax.set_ylabel("Delay time")
+
+            # Put nice ticks at the actual centers (optional; comment out if crowded)
+            ax.set_xticks(gains_r)
+            plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
+            ax.set_yticks(delays_r)
+
+            fig.tight_layout()
+            outfile = (save_path +
+                       f"t1_heatmap_q{self.qubit}_slice{self.t1_slice}_round{r_id}.png")
+            fig.savefig(outfile, transparent=False, dpi=self.final_figure_quality)
+            plt.close(fig)
+            print(f"Saved heatmap for round {r_id} to: {outfile}")
+
+    def plot_t1_vs_delay_per_gain(self, amps, gains, rounds, delay_times, save_path):
+        """
+        For each unique gain:
+          - x-axis: delay time
+          - y-axis: signal amplitude
+          - one line per round (legend)
+        Saves each figure to a subfolder 't1_vs_delay_by_gain' under save_path.
+        """
+        import os
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from collections import defaultdict
+
+        q = self.qubit
+        gains_q = gains.get(q, [])
+        amps_q = amps.get(q, [])
+        rounds_q = rounds.get(q, [])
+        delay_q = delay_times.get(q, [])
+
+        if not delay_q or not gains_q or not amps_q or not rounds_q:
+            print(f"No data for qubit {q}. Skipping.")
+            return
+
+        # Helper: robustly fetch a round label at (i, j)
+        def get_round_label(i, j):
+            if i < len(rounds_q):
+                row = rounds_q[i]
+                if isinstance(row, (list, tuple)):
+                    if len(row) == 0:
+                        return "0"
+                    if j < len(row):
+                        return str(row[j])
+                    return str(row[-1])
+                return str(row)
+            return "0"
+
+        # Flatten to points: (round_id, gain, delay, amp)
+        points = []
+        for i in range(len(delay_q)):
+            dval = float(delay_q[i])
+            row_g = gains_q[i] if i < len(gains_q) else []
+            row_a = amps_q[i] if i < len(amps_q) else []
+            n = min(len(row_g), len(row_a))
+            for j in range(n):
+                try:
+                    g = float(row_g[j])
+                    a = float(row_a[j])
+                except Exception:
+                    continue
+                r_id = get_round_label(i, j)
+                points.append((r_id, g, dval, a))
+
+        if not points:
+            print(f"No numeric points for qubit {q}. Skipping.")
+            return
+
+        # Unique gains and rounds present
+        unique_gains = sorted({g for (_, g, __, ___) in points})
+        unique_rounds = sorted({r for (r, _, __, ___) in points})
+
+        # Prepare subfolder
+        subfolder = os.path.join(save_path, "t1_vs_delay_by_gain")
+        self.create_folder_if_not_exists(subfolder)
+
+        # For each gain, gather data per round and plot
+        for g_sel in unique_gains:
+            # bucket[(round_id, delay)] -> list of amplitudes (average duplicates)
+            bucket = defaultdict(list)
+            for (r, g, d, a) in points:
+                if g == g_sel:  # exact match to this gain value as it appears in data
+                    bucket[(r, d)].append(a)
+
+            # If nothing matched (shouldn't happen), skip
+            if not bucket:
+                continue
+
+            fig, ax = plt.subplots(figsize=(6.5, 4.5))
+
+            # Build a line for each round
+            plotted_any = False
+            for r_id in unique_rounds:
+                # Collect (delay, mean_amp) pairs for this round
+                delays = []
+                amps_mean = []
+                for (r, d), vals in bucket.items():
+                    if r == r_id:
+                        delays.append(d)
+                        amps_mean.append(float(np.nanmean(vals)))
+                if not delays:
+                    continue
+                # Sort by delay
+                order = np.argsort(delays)
+                x = np.asarray(delays)[order]
+                y = np.asarray(amps_mean)[order]
+
+                # Some datasets may have NaNs—mask them out for plotting
+                mask = np.isfinite(x) & np.isfinite(y)
+                if np.any(mask):
+                    ax.plot(x[mask], y[mask], marker='o', linewidth=1.2, markersize=3, label=f"Round {r_id}")
+                    plotted_any = True
+
+            if not plotted_any:
+                plt.close(fig)
+                continue
+
+            ax.set_title(f"Qubit {self.qubit} — Gain {g_sel:g}")
+            ax.set_xlabel("Delay time")
+            ax.set_ylabel("Qubit Population")
+            ax.legend(
+                loc="center left",
+                bbox_to_anchor=(1.02, 0.5),
+                frameon=False,
+                fontsize="small"
+            )
+            fig.tight_layout()
+
+            outfile = os.path.join(subfolder, f"t1_line_q{self.qubit}_slice{self.t1_slice}_gain{g_sel:g}.png")
+            fig.savefig(outfile, transparent=False, dpi=self.final_figure_quality)
+            plt.close(fig)
+            print(f"Saved T1 vs delay plot for gain {g_sel:g} to: {outfile}")
+    def plot_t1_vs_delay_per_gain_vs_base_t1(self, amps, gains, rounds, delay_times,t1_delay_times,t1_amps, save_path):
+        """
+        For each unique gain:
+          - x-axis: delay time
+          - y-axis: signal amplitude
+          - one line per round (legend)
+        Saves each figure to a subfolder 't1_vs_delay_by_gain' under save_path.
+        """
+        import os
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from collections import defaultdict
+
+        q = self.qubit
+        gains_q = gains.get(q, [])
+        amps_q = amps.get(q, [])
+        rounds_q = rounds.get(q, [])
+        delay_q = delay_times.get(q, [])
+
+        if not delay_q or not gains_q or not amps_q or not rounds_q:
+            print(f"No data for qubit {q}. Skipping.")
+            return
+
+        # Helper: robustly fetch a round label at (i, j)
+        def get_round_label(i, j):
+            if i < len(rounds_q):
+                row = rounds_q[i]
+                if isinstance(row, (list, tuple)):
+                    if len(row) == 0:
+                        return "0"
+                    if j < len(row):
+                        return str(row[j])
+                    return str(row[-1])
+                return str(row)
+            return "0"
+
+        # Flatten to points: (round_id, gain, delay, amp)
+        points = []
+        for i in range(len(delay_q)):
+            dval = float(delay_q[i])
+            row_g = gains_q[i] if i < len(gains_q) else []
+            row_a = amps_q[i] if i < len(amps_q) else []
+            n = min(len(row_g), len(row_a))
+            for j in range(n):
+                try:
+                    g = float(row_g[j])
+                    a = float(row_a[j])
+                except Exception:
+                    continue
+                r_id = get_round_label(i, j)
+                points.append((r_id, g, dval, a))
+
+        if not points:
+            print(f"No numeric points for qubit {q}. Skipping.")
+            return
+
+        # Unique gains and rounds present
+        unique_gains = sorted({g for (_, g, __, ___) in points})
+        unique_rounds = sorted({r for (r, _, __, ___) in points})
+
+        # Prepare subfolder
+        subfolder = os.path.join(save_path, "t1_vs_delay_by_gain_with_base_t1")
+        self.create_folder_if_not_exists(subfolder)
+
+        # For each gain, gather data per round and plot
+        for g_sel in unique_gains:
+            # bucket[(round_id, delay)] -> list of amplitudes (average duplicates)
+            bucket = defaultdict(list)
+            for (r, g, d, a) in points:
+                if g == g_sel:  # exact match to this gain value as it appears in data
+                    bucket[(r, d)].append(a)
+
+            # If nothing matched (shouldn't happen), skip
+            if not bucket:
+                continue
+
+            fig, ax = plt.subplots(figsize=(6.5, 4.5))
+
+            # Build a line for each round
+            plotted_any = False
+            for r_id in unique_rounds:
+                # Collect (delay, mean_amp) pairs for this round
+                delays = []
+                amps_mean = []
+                for (r, d), vals in bucket.items():
+                    if r == r_id:
+                        delays.append(d)
+                        amps_mean.append(float(np.nanmean(vals)))
+                if not delays:
+                    continue
+                # Sort by delay
+                order = np.argsort(delays)
+                x = np.asarray(delays)[order]
+                y = np.asarray(amps_mean)[order]
+
+                # Some datasets may have NaNs—mask them out for plotting
+                mask = np.isfinite(x) & np.isfinite(y)
+                if np.any(mask):
+                    ax.plot(x[mask], y[mask], marker='o', linewidth=1.2, markersize=3, label=f"Round {r_id}")
+                    plotted_any = True
+
+            if not plotted_any:
+                plt.close(fig)
+                continue
+            ax.plot(t1_delay_times, t1_amps[q], marker='o', linewidth=1.2, markersize=3, label=f"Regular T1 no Zeno")
+            ax.set_title(f"Qubit {self.qubit+1} — Gain {g_sel:g}")
+            ax.set_xlabel("Delay time")
+            ax.set_ylabel("Qubit Population")
+            ax.legend(
+                loc="center left",
+                bbox_to_anchor=(1.02, 0.5),
+                frameon=False,
+                fontsize="small"
+            )
+            fig.tight_layout()
+
+            outfile = os.path.join(subfolder, f"t1_line_q{self.qubit}_slice{self.t1_slice}_gain{g_sel:g}.png")
+            fig.savefig(outfile, transparent=False, dpi=self.final_figure_quality)
+            plt.close(fig)
+            print(f"Saved T1 vs delay plot for gain {g_sel:g} to: {outfile}")
 
     def plot_without_errs(self, date_times, t1_vals, show_legends):
         #---------------------------------plot-----------------------------------------------------

@@ -167,7 +167,7 @@ class Data_H5:
         except Exception as e:
             print(f"An error occurred: {e}")
 
-    def load_from_h5(self, data_type,  save_r=1):  # Added save_r as parameter.
+    def load_from_h5(self, data_type,  save_r=1, scaling=False):  # Added save_r as parameter.
         """Loads data from an HDF5 file into specified dictionary format."""
         mode = 'r'
         if data_type == 'Qtemps': #to switch from old naming convention to new naming convention for qubit temp data
@@ -186,68 +186,146 @@ class Data_H5:
                     group.move('Qtemps', 'q_temperatures')
 
                 for dataset_name in group.keys():
-                    # Attempt to map HDF5 keys to the target dictionaries' keys.
-                    if data_type == 'Res' or data_type == 'Res_ge' or  data_type == 'Res_ef':
-                        target_keys = {'Dates': 'Dates', 'freq_pts': 'freq_pts', 'freq_center': 'freq_center',
-                                       'Amps': 'Amps', 'Found Freqs': 'Found Freqs', 'Round Num': 'Round Num',
-                                       'Batch Num': 'Batch Num', 'Exp Config': 'Exp Config',
-                                       'Syst Config': 'Syst Config'}
-                    elif data_type == 'QSpec' or data_type == 'QSpec_ge' or  data_type == 'QSpec_ef' or data_type == 'qspec_ge':
-                        target_keys = {'Dates': 'Dates', 'I': 'I', 'Q': 'Q', 'Frequencies': 'Frequencies',
-                                       'I Fit': 'I Fit', 'Q Fit': 'Q Fit', 'Round Num': 'Round Num',
-                                       'Batch Num': 'Batch Num', 'Recycled QFreq': 'Recycled QFreq',
-                                       'Exp Config': 'Exp Config', 'Syst Config': 'Syst Config'}
-                    elif data_type == 'Rabi' or data_type == 'Rabi_ge' or  data_type == 'Rabi_ef':
-                        target_keys = {'Dates': 'Dates', 'I': 'I', 'Q': 'Q', 'Gains': 'Gains', 'Fit': 'Fit',
-                                       'Round Num': 'Round Num', 'Batch Num': 'Batch Num', 'Exp Config': 'Exp Config',
-                                       'Syst Config': 'Syst Config'}
+                    if scaling:
+                        # Attempt to map HDF5 keys to the target dictionaries' keys.
+                        if data_type == 'Res' or data_type == 'Res_ge' or data_type == 'Res_ef':
+                            target_keys = {'Dates': 'Dates', 'freq_pts': 'freq_pts', 'freq_center': 'freq_center',
+                                           'Amps': 'Amps', 'Found Freqs': 'Found Freqs', 'Round Num': 'Round Num',
+                                           'Batch Num': 'Batch Num', 'Exp Config': 'Exp Config',
+                                           'Syst Config': 'Syst Config'}
+                        elif data_type == 'QSpec' or data_type == 'QSpec_ge' or data_type == 'QSpec_ef' or data_type == 'qspec_ge':
+                            target_keys = {'Dates': 'Dates', 'I': 'I', 'Q': 'Q', 'Frequencies': 'Frequencies',
+                                           'I Fit': 'I Fit', 'Q Fit': 'Q Fit', 'Round Num': 'Round Num',
+                                           'Batch Num': 'Batch Num', 'Recycled QFreq': 'Recycled QFreq',
+                                           'Exp Config': 'Exp Config', 'Syst Config': 'Syst Config'}
+                        elif data_type == 'Rabi' or data_type == 'Rabi_ge' or data_type == 'Rabi_ef':
+                            target_keys = {'Dates': 'Dates', 'I': 'I', 'Q': 'Q', 'Gains': 'Gains', 'Fit': 'Fit',
+                                           'Round Num': 'Round Num', 'Batch Num': 'Batch Num',
+                                           'Exp Config': 'Exp Config',
+                                           'Syst Config': 'Syst Config', 'ss_Q_e': 'ss_Q_e', 'ss_Q_g': 'ss_Q_g',
+                                           'ss_I_e': 'ss_I_e', 'ss_I_g': 'ss_I_g'}
 
-                    elif data_type == 'q_temperatures':
-                        target_keys = {'Dates': 'Dates', 'Qfreq_ge': 'Qfreq_ge',
-                                       'I1': 'I1', 'Q1': 'Q1', 'Gains1': 'Gains1', 'Fit1': 'Fit1',
-                                       'I2': 'I2', 'Q2': 'Q2', 'Gains2': 'Gains2', 'Fit2': 'Fit2',
-                                       'Round Num': 'Round Num', 'Batch Num': 'Batch Num', 'Exp Config': 'Exp Config',
-                                       'Syst Config': 'Syst Config'}
+                        elif data_type == 'q_temperatures':
+                            target_keys = {'Dates': 'Dates', 'Qfreq_ge': 'Qfreq_ge',
+                                           'I1': 'I1', 'Q1': 'Q1', 'Gains1': 'Gains1', 'Fit1': 'Fit1',
+                                           'I2': 'I2', 'Q2': 'Q2', 'Gains2': 'Gains2', 'Fit2': 'Fit2',
+                                           'Round Num': 'Round Num', 'Batch Num': 'Batch Num',
+                                           'Exp Config': 'Exp Config',
+                                           'Syst Config': 'Syst Config'}
 
-                    elif data_type == 'Rabi_QZE':
-                        target_keys = {'Dates': 'Dates', 'I': 'I', 'Q': 'Q', 'Mag': 'Mag', 'Gains': 'Gains', 'Fit': 'Fit',
-                                       'Round Num': 'Round Num', 'Batch Num': 'Batch Num', 'Exp Config': 'Exp Config',
-                                       'Syst Config': 'Syst Config'}
-                    elif data_type == 'SS':
-                        target_keys = {'Fidelity': 'Fidelity', 'Angle': 'Angle', 'Dates': 'Dates', 'I_g': 'I_g',
-                                       'Q_g': 'Q_g', 'I_e': 'I_e', 'Q_e': 'Q_e',
-                                       'Round Num': 'Round Num', 'Batch Num': 'Batch Num', 'Exp Config': 'Exp Config',
-                                       'Syst Config': 'Syst Config'}
+                        elif data_type == 'Rabi_QZE':
+                            target_keys = {'Dates': 'Dates', 'I': 'I', 'Q': 'Q', 'Mag': 'Mag', 'Gains': 'Gains',
+                                           'Fit': 'Fit',
+                                           'Round Num': 'Round Num', 'Batch Num': 'Batch Num',
+                                           'Exp Config': 'Exp Config',
+                                           'Syst Config': 'Syst Config'}
+                        elif data_type == 'SS':
+                            target_keys = {'Fidelity': 'Fidelity', 'Angle': 'Angle', 'Dates': 'Dates', 'I_g': 'I_g',
+                                           'Q_g': 'Q_g', 'I_e': 'I_e', 'Q_e': 'Q_e',
+                                           'Round Num': 'Round Num', 'Batch Num': 'Batch Num',
+                                           'Exp Config': 'Exp Config',
+                                           'Syst Config': 'Syst Config'}
 
-                    elif data_type == 'SS_gef':
-                        target_keys = {'Fidelity': 'Fidelity', 'Angle_ge': 'Angle_ge', 'Dates': 'Dates', 'I_g': 'I_g', 'Q_g': 'Q_g', 'I_e': 'I_e', 'Q_e': 'Q_e', 'I_f': 'I_f', 'Q_f': 'Q_f', 'Round Num': 'Round Num', 'Batch Num': 'Batch Num', 'Exp Config': 'Exp Config',
-                                        'Syst Config': 'Syst Config'}
-                    elif data_type == 'T1' or data_type == 'T1_ge' or data_type == 't1_ge' or  data_type == 'T1_fe' or  data_type == 'T1_fg':
-                        target_keys = {'T1': 'T1', 'Errors': 'Errors', 'Dates': 'Dates', 'I': 'I', 'Q': 'Q',
-                                       'Delay Times': 'Delay Times', 'Fit': 'Fit', 'Round Num': 'Round Num',
-                                       'Batch Num': 'Batch Num', 'Exp Config': 'Exp Config',
-                                       'Syst Config': 'Syst Config'}
-                    elif data_type == 'T2':
-                        target_keys = {'T2': 'T2', 'Errors': 'Errors', 'Dates': 'Dates', 'I': 'I', 'Q': 'Q',
-                                       'Delay Times': 'Delay Times', 'Fit': 'Fit', 'Round Num': 'Round Num',
-                                       'Batch Num': 'Batch Num', 'Exp Config': 'Exp Config',
-                                       'Syst Config': 'Syst Config'}
-                    elif data_type == 'T2E':
-                        target_keys = {'T2E': 'T2E', 'Errors': 'Errors', 'Dates': 'Dates', 'I': 'I', 'Q': 'Q',
-                                       'Delay Times': 'Delay Times', 'Fit': 'Fit', 'Round Num': 'Round Num',
-                                       'Batch Num': 'Batch Num', 'Exp Config': 'Exp Config',
-                                       'Syst Config': 'Syst Config'}
+                        elif data_type == 'SS_gef':
+                            target_keys = {'Fidelity': 'Fidelity', 'Angle_ge': 'Angle_ge', 'Dates': 'Dates',
+                                           'I_g': 'I_g', 'Q_g': 'Q_g', 'I_e': 'I_e', 'Q_e': 'Q_e', 'I_f': 'I_f',
+                                           'Q_f': 'Q_f', 'Round Num': 'Round Num', 'Batch Num': 'Batch Num',
+                                           'Exp Config': 'Exp Config',
+                                           'Syst Config': 'Syst Config'}
+                        elif data_type == 'T1' or data_type == 'T1_ge' or data_type == 't1_ge' or data_type == 'T1_fe' or data_type == 'T1_fg':
+                            target_keys = {'T1': 'T1', 'Errors': 'Errors', 'Dates': 'Dates', 'I': 'I', 'Q': 'Q',
+                                           'Delay Times': 'Delay Times', 'Fit': 'Fit', 'Round Num': 'Round Num',
+                                           'Batch Num': 'Batch Num', 'Exp Config': 'Exp Config',
+                                           'Syst Config': 'Syst Config','ss_Q_e': 'ss_Q_e', 'ss_Q_g': 'ss_Q_g',
+                                           'ss_I_e': 'ss_I_e', 'ss_I_g': 'ss_I_g'}
+                        elif data_type == 'T2':
+                            target_keys = {'T2': 'T2', 'Errors': 'Errors', 'Dates': 'Dates', 'I': 'I', 'Q': 'Q',
+                                           'Delay Times': 'Delay Times', 'Fit': 'Fit', 'Round Num': 'Round Num',
+                                           'Batch Num': 'Batch Num', 'Exp Config': 'Exp Config',
+                                           'Syst Config': 'Syst Config','ss_Q_e': 'ss_Q_e', 'ss_Q_g': 'ss_Q_g',
+                                           'ss_I_e': 'ss_I_e', 'ss_I_g': 'ss_I_g'}
+                        elif data_type == 'T2E':
+                            target_keys = {'T2E': 'T2E', 'Errors': 'Errors', 'Dates': 'Dates', 'I': 'I', 'Q': 'Q',
+                                           'Delay Times': 'Delay Times', 'Fit': 'Fit', 'Round Num': 'Round Num',
+                                           'Batch Num': 'Batch Num', 'Exp Config': 'Exp Config',
+                                           'Syst Config': 'Syst Config','ss_Q_e':'ss_Q_e', 'ss_Q_g': 'ss_Q_g',
+                                           'ss_I_e': 'ss_I_e', 'ss_I_g': 'ss_I_g'}
+                        else:
+                            raise ValueError(f"Unsupported data_type: {data_type}")
+
+                        try:
+                            mapped_key = target_keys[dataset_name]  # Map HDF5 key to target key.
+                            qubit_data[mapped_key] = [group[dataset_name][
+                                                          ()]] * save_r  # Expand to match the desired length.
+
+                        except KeyError:
+                            print(
+                                f"Warning: Key '{dataset_name}' not found in target dictionary for data_type '{data_type}'. Skipping.")
+                            pass
+
                     else:
-                        raise ValueError(f"Unsupported data_type: {data_type}")
+                        # Attempt to map HDF5 keys to the target dictionaries' keys.
+                        if data_type == 'Res' or data_type == 'Res_ge' or  data_type == 'Res_ef':
+                            target_keys = {'Dates': 'Dates', 'freq_pts': 'freq_pts', 'freq_center': 'freq_center',
+                                           'Amps': 'Amps', 'Found Freqs': 'Found Freqs', 'Round Num': 'Round Num',
+                                           'Batch Num': 'Batch Num', 'Exp Config': 'Exp Config',
+                                           'Syst Config': 'Syst Config'}
+                        elif data_type == 'QSpec' or data_type == 'QSpec_ge' or  data_type == 'QSpec_ef' or data_type == 'qspec_ge':
+                            target_keys = {'Dates': 'Dates', 'I': 'I', 'Q': 'Q', 'Frequencies': 'Frequencies',
+                                           'I Fit': 'I Fit', 'Q Fit': 'Q Fit', 'Round Num': 'Round Num',
+                                           'Batch Num': 'Batch Num', 'Recycled QFreq': 'Recycled QFreq',
+                                           'Exp Config': 'Exp Config', 'Syst Config': 'Syst Config'}
+                        elif data_type == 'Rabi' or data_type == 'Rabi_ge' or  data_type == 'Rabi_ef':
+                            target_keys = {'Dates': 'Dates', 'I': 'I', 'Q': 'Q', 'Gains': 'Gains', 'Fit': 'Fit',
+                                           'Round Num': 'Round Num', 'Batch Num': 'Batch Num', 'Exp Config': 'Exp Config',
+                                           'Syst Config': 'Syst Config'}
 
-                    try:
-                        mapped_key = target_keys[dataset_name]  # Map HDF5 key to target key.
-                        qubit_data[mapped_key] = [group[dataset_name][()]] * save_r  # Expand to match the desired length.
+                        elif data_type == 'q_temperatures':
+                            target_keys = {'Dates': 'Dates', 'Qfreq_ge': 'Qfreq_ge',
+                                           'I1': 'I1', 'Q1': 'Q1', 'Gains1': 'Gains1', 'Fit1': 'Fit1',
+                                           'I2': 'I2', 'Q2': 'Q2', 'Gains2': 'Gains2', 'Fit2': 'Fit2',
+                                           'Round Num': 'Round Num', 'Batch Num': 'Batch Num', 'Exp Config': 'Exp Config',
+                                           'Syst Config': 'Syst Config'}
 
-                    except KeyError:
-                        print(
-                            f"Warning: Key '{dataset_name}' not found in target dictionary for data_type '{data_type}'. Skipping.")
-                        pass
+                        elif data_type == 'Rabi_QZE':
+                            target_keys = {'Dates': 'Dates', 'I': 'I', 'Q': 'Q', 'Mag': 'Mag', 'Gains': 'Gains', 'Fit': 'Fit',
+                                           'Round Num': 'Round Num', 'Batch Num': 'Batch Num', 'Exp Config': 'Exp Config',
+                                           'Syst Config': 'Syst Config'}
+                        elif data_type == 'SS':
+                            target_keys = {'Fidelity': 'Fidelity', 'Angle': 'Angle', 'Dates': 'Dates', 'I_g': 'I_g',
+                                           'Q_g': 'Q_g', 'I_e': 'I_e', 'Q_e': 'Q_e',
+                                           'Round Num': 'Round Num', 'Batch Num': 'Batch Num', 'Exp Config': 'Exp Config',
+                                           'Syst Config': 'Syst Config'}
+
+                        elif data_type == 'SS_gef':
+                            target_keys = {'Fidelity': 'Fidelity', 'Angle_ge': 'Angle_ge', 'Dates': 'Dates', 'I_g': 'I_g', 'Q_g': 'Q_g', 'I_e': 'I_e', 'Q_e': 'Q_e', 'I_f': 'I_f', 'Q_f': 'Q_f', 'Round Num': 'Round Num', 'Batch Num': 'Batch Num', 'Exp Config': 'Exp Config',
+                                            'Syst Config': 'Syst Config'}
+                        elif data_type == 'T1' or data_type == 'T1_ge' or data_type == 'T1_ge_base' or data_type == 't1_ge' or  data_type == 'T1_fe' or  data_type == 'T1_fg':
+                            target_keys = {'T1': 'T1', 'Errors': 'Errors', 'Dates': 'Dates', 'I': 'I', 'Q': 'Q',
+                                           'Delay Times': 'Delay Times', 'Fit': 'Fit', 'Round Num': 'Round Num',
+                                           'Batch Num': 'Batch Num', 'Exp Config': 'Exp Config',
+                                           'Syst Config': 'Syst Config'}
+                        elif data_type == 'T2':
+                            target_keys = {'T2': 'T2', 'Errors': 'Errors', 'Dates': 'Dates', 'I': 'I', 'Q': 'Q',
+                                           'Delay Times': 'Delay Times', 'Fit': 'Fit', 'Round Num': 'Round Num',
+                                           'Batch Num': 'Batch Num', 'Exp Config': 'Exp Config',
+                                           'Syst Config': 'Syst Config'}
+                        elif data_type == 'T2E':
+                            target_keys = {'T2E': 'T2E', 'Errors': 'Errors', 'Dates': 'Dates', 'I': 'I', 'Q': 'Q',
+                                           'Delay Times': 'Delay Times', 'Fit': 'Fit', 'Round Num': 'Round Num',
+                                           'Batch Num': 'Batch Num', 'Exp Config': 'Exp Config',
+                                           'Syst Config': 'Syst Config'}
+                        else:
+                            raise ValueError(f"Unsupported data_type: {data_type}")
+
+                        try:
+                            mapped_key = target_keys[dataset_name]  # Map HDF5 key to target key.
+                            qubit_data[mapped_key] = [group[dataset_name][()]] * save_r  # Expand to match the desired length.
+
+                        except KeyError:
+                            print(
+                                f"Warning: Key '{dataset_name}' not found in target dictionary for data_type '{data_type}'. Skipping.")
+                            pass
 
                 data[data_type][qubit_index] = qubit_data
 

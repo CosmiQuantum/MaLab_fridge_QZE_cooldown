@@ -397,7 +397,7 @@ class T2RMeasurement:
         else:
             return fit_type(x, popt) * y_normal, t2r_est, t2r_err, plot_sig
 
-    def run(self, thresholding=False,correction=False):
+    def run(self, thresholding=False,correction=False, scaling=False):
         now = datetime.datetime.now()
         ramsey = T2RProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay=self.config['relax_delay'],
                          cfg=self.config)
@@ -416,16 +416,37 @@ class T2RMeasurement:
             I = (iq_list[0])
             Q = (iq_list[1])
             delay_times = ramsey.get_time_param('wait', "t", as_array=True)
+        if scaling:
+            from section_005_single_shot_ge import SingleShotProgram_g, SingleShotProgram_e
+            q_config = all_qubit_state(self.experiment, self.number_of_qubits)
+            ss_exp_cfg = add_qubit_experiment(expt_cfg, 'Readout_Optimization', self.QubitIndex)
+            ss_config = {**q_config[self.Qubit], **ss_exp_cfg}
+            print('performing single shot for g-e calibration')
 
-        if self.fit_data:
-            fit, t2r_est, t2r_err, plot_sig = self.t2_fit(delay_times, I, Q)
-        else:
+            ssp_g = SingleShotProgram_g(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'], cfg=ss_config)
+            iq_list_g = ssp_g.acquire(self.experiment.soc, rounds=1, progress=True)
+
+            ssp_e = SingleShotProgram_e(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'], cfg=ss_config)
+            iq_list_e = ssp_e.acquire(self.experiment.soc, rounds=1, progress=True)
+
+            ss_I_g = iq_list_g[0][0].T[0]
+            ss_Q_g = iq_list_g[0][0].T[1]
+            ss_I_e = iq_list_e[0][0].T[0]
+            ss_Q_e = iq_list_e[0][0].T[1]
+
             fit, t2r_est, t2r_err, plot_sig = None, None, None, None
-
-        if self.save_figs:
             self.plot_results(I, Q, delay_times, now, fit, t2r_est, t2r_err, plot_sig)
+            return  t2r_est, t2r_err, I, Q, delay_times, fit, self.config, ss_Q_e, ss_Q_g, ss_I_e, ss_I_g
+        else:
+            if self.fit_data:
+                fit, t2r_est, t2r_err, plot_sig = self.t2_fit(delay_times, I, Q)
+            else:
+                fit, t2r_est, t2r_err, plot_sig = None, None, None, None
 
-        return  t2r_est, t2r_err, I, Q, delay_times, fit, self.config
+            if self.save_figs:
+                self.plot_results(I, Q, delay_times, now, fit, t2r_est, t2r_err, plot_sig)
+
+            return  t2r_est, t2r_err, I, Q, delay_times, fit, self.config
 
     def adjust_qspec(self, thresholding=False,correction=False):
         now = datetime.datetime.now()

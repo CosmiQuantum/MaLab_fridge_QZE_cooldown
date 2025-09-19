@@ -110,7 +110,7 @@ class T1Measurement_with_Zeno:
                 self.config['relax_delay'] = relax_delay
                 print(f'set t1 relax delay to {relax_delay} us')
 
-    def run(self, thresholding=False):
+    def run(self, thresholding=False, scaling=False):
         now = datetime.datetime.now()
         t1 = T1ProgramIBMZeno(self.experiment.soccfg, reps=self.config['reps'], final_delay=self.config['relax_delay'], cfg=self.config)
 
@@ -129,23 +129,45 @@ class T1Measurement_with_Zeno:
             Q = (iq_list[1])
             delay_times = self.config['wait_time']
 
+        if scaling:
+            from section_005_single_shot_ge import SingleShotProgram_g, SingleShotProgram_e
+            q_config = all_qubit_state(self.experiment, self.number_of_qubits)
+            ss_exp_cfg = add_qubit_experiment(expt_cfg, 'Readout_Optimization', self.QubitIndex)
+            ss_config = {**q_config[self.Qubit], **ss_exp_cfg}
+            print('performing single shot for g-e calibration')
 
-        if self.fit_data:
-            q1_fit_exponential, T1_err, T1_est, plot_sig = self.t1_fit(I, Q, delay_times)
-        else:
+            ssp_g = SingleShotProgram_g(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'], cfg=ss_config)
+            iq_list_g = ssp_g.acquire(self.experiment.soc, rounds=1, progress=True)
+
+            ssp_e = SingleShotProgram_e(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'], cfg=ss_config)
+            iq_list_e = ssp_e.acquire(self.experiment.soc, rounds=1, progress=True)
+
+            ss_I_g = iq_list_g[0][0].T[0]
+            ss_Q_g = iq_list_g[0][0].T[1]
+            ss_I_e = iq_list_e[0][0].T[0]
+            ss_Q_e = iq_list_e[0][0].T[1]
+            if self.plot_results:
+                self.plot_results(I, Q, delay_times, now, scaling=scaling, Ie = ss_I_e, Ig = ss_I_g, Qe = ss_Q_e, Qg = ss_Q_g)
             q1_fit_exponential, T1_est, T1_err = None, None, None
-
-        if self.plot_results:
-            self.plot_results( I, Q, delay_times, now)
-
-        if self.save_shots:
-            raw_0 = t1.get_raw()  # I,Q data without normalizing to readout window, subtracting readout offset, or rotation/thresholding
-            Ishots = raw_0[self.QubitIndex][:, :, 0, 0]
-            Qshots = raw_0[self.QubitIndex][:, :, 0, 1]
-            return T1_est, T1_err, Ishots, Qshots, delay_times, q1_fit_exponential, self.config
+            return T1_est, T1_err, I, Q, delay_times, q1_fit_exponential, self.config, ss_Q_e, ss_Q_g,ss_I_e, ss_I_g
 
         else:
-            return  T1_est, T1_err, I, Q, delay_times, q1_fit_exponential, self.config
+            if self.fit_data:
+                q1_fit_exponential, T1_err, T1_est, plot_sig = self.t1_fit(I, Q, delay_times)
+            else:
+                q1_fit_exponential, T1_est, T1_err = None, None, None
+
+            if self.plot_results:
+                self.plot_results( I, Q, delay_times, now)
+
+            if self.save_shots:
+                raw_0 = t1.get_raw()  # I,Q data without normalizing to readout window, subtracting readout offset, or rotation/thresholding
+                Ishots = raw_0[self.QubitIndex][:, :, 0, 0]
+                Qshots = raw_0[self.QubitIndex][:, :, 0, 1]
+                return T1_est, T1_err, Ishots, Qshots, delay_times, q1_fit_exponential, self.config
+
+            else:
+                return  T1_est, T1_err, I, Q, delay_times, q1_fit_exponential, self.config
 
     def live_plotting(self, t1, thresholding):
         I = Q = expt_mags = expt_phases = expt_pop = None
@@ -186,7 +208,7 @@ class T1Measurement_with_Zeno:
     def exponential(self, x, a, b, c, d):
         return a * np.exp(- (x - b) / c) + d
 
-    def t1_fit(self, I, Q, delay_times):
+    def t1_fit(self, I, Q, delay_times, mag=None):
         if 'I' in self.signal:
             signal = I
             plot_sig = 'I'
@@ -194,7 +216,10 @@ class T1Measurement_with_Zeno:
             signal = Q
             plot_sig = 'Q'
         elif 'Mag' in self.signal:
-            signal = np.hypot(I, Q)
+            if mag is not None:
+                signal=mag
+            else:
+                signal = np.hypot(I, Q)
             plot_sig = 'Q'
         else:
             if abs(I[-1] - I[0]) > abs(Q[-1] - Q[0]):
@@ -231,72 +256,139 @@ class T1Measurement_with_Zeno:
 
         return q1_fit_exponential, T1_err, T1_est, plot_sig
 
-    def plot_results(self, I, Q, delay_times, now, config = None, fig_quality =100):
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
-        plt.rcParams.update({'font.size': 18})
+    def plot_results(self, I, Q, delay_times, now, config = None, fig_quality =100,scaling=False, Ie=None, Ig=None, Qe=None, Qg=None):
 
-        # Calculate the middle of the plot area
-        plot_middle = (ax1.get_position().x0 + ax1.get_position().x1) / 2
+        if scaling:
+            e = np.mean((Ie + 1j * Qe))
+            g = np.mean((Ig + 1j * Qg))
+            ### Normalization ###
+            pop_norm = abs(((I + 1j * Q) - g) * (e - g) / abs(e - g) ** 2)
+            ydata = pop_norm
+            fig, (ax1) = plt.subplots(1, 1)
 
+            plt.rcParams.update({'font.size': 18})
 
-        if self.fit_data:
-            q1_fit_exponential, T1_err, T1_est, plot_sig = self.t1_fit(I, Q, delay_times)
+            # Calculate the middle of the plot area
+            plot_middle = (ax1.get_position().x0 + ax1.get_position().x1) / 2
 
-            if 'I' in plot_sig:
+            if self.fit_data:
+                self.signal = 'Mag'
+                q1_fit_exponential, T1_err, T1_est, plot_sig = self.t1_fit(I, Q, delay_times, mag=ydata)
+
                 ax1.plot(delay_times, q1_fit_exponential, '-', color='red', linewidth=3, label="Fit")
-            else:
-                ax2.plot(delay_times, q1_fit_exponential, '-', color='red', linewidth=3, label="Fit")
 
-            # Add title, centered on the plot area
-            if config is not None:
-                fig.text(plot_middle, 0.98,
-                         f"Q{self.QubitIndex + 1} " + f"T1={T1_est:.2f} us" + f", {float(config['reps'])}*{float(config['rounds'])} avgs,",
-                         fontsize=24, ha='center',
-                         va='top')  # , pi gain %.2f" % float(config['pi_amp']) + f", {float(config['sigma']) * 1000} ns sigma
-            else:
-                fig.text(plot_middle, 0.98,
-                         f"T1 Q{self.QubitIndex + 1}, T1 %.2f us" % T1_est + f", {self.config['reps']}*{self.config['rounds']} avgs,",
-                         fontsize=24, ha='center', va='top')
+                # Add title, centered on the plot area
+                if config is not None:
+                    fig.text(plot_middle, 0.98,
+                             f"Q{self.QubitIndex + 1} " + f"T1={T1_est:.2f} us" + f", {float(config['reps'])}*{float(config['rounds'])} avgs,",
+                             fontsize=24, ha='center',
+                             va='top')  # , pi gain %.2f" % float(config['pi_amp']) + f", {float(config['sigma']) * 1000} ns sigma
+                else:
+                    fig.text(plot_middle, 0.98,
+                             f"T1 Q{self.QubitIndex + 1}, T1 %.2f us" % T1_est + f", {self.config['reps']}*{self.config['rounds']} avgs,",
+                             fontsize=24, ha='center', va='top')
 
+            else:
+                if config is not None:
+                    fig.text(plot_middle, 0.98,
+                             f"T1 Q{self.QubitIndex + 1}" + f", {float(config['reps'])}*{float(config['rounds'])} avgs,",
+                             fontsize=24, ha='center',
+                             va='top')  # , pi gain %.2f" % float(config['pi_amp']) + f", {float(config['sigma']) * 1000} ns sigma"   you can put this back once you save configs properly for when replotting
+                else:
+                    fig.text(plot_middle, 0.98,
+                             f"T1 Q{self.QubitIndex + 1}",
+                             fontsize=24, ha='center', va='top')
+                q1_fit_exponential = None
+                T1_est = None
+                T1_err = None
+
+            # I subplot
+            ax1.plot(delay_times, ydata, label="Gain (a.u.)", linewidth=2)
+            ax1.set_ylabel("Qubit Population", fontsize=20)
+            ax1.tick_params(axis='both', which='major', labelsize=16)
+            # ax1.axvline(freq_q, color='orange', linestyle='--', linewidth=2)
+
+
+            # Adjust spacing
+            plt.tight_layout()
+
+            # Adjust the top margin to make room for the title
+            plt.subplots_adjust(top=0.93)
+            if self.save_figs:
+                outerFolder_expt = os.path.join(self.outerFolder, self.expt_name)
+                self.create_folder_if_not_exists(outerFolder_expt)
+                now = datetime.datetime.now()
+                formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
+                file_name = os.path.join(outerFolder_expt,
+                                         f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" + f"{formatted_datetime}_" + self.expt_name + f"_q{self.QubitIndex + 1}.png")
+                fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')  # , facecolor='white'
+            plt.close(fig)
         else:
-            if config is not None:
-                fig.text(plot_middle, 0.98,
-                         f"T1 Q{self.QubitIndex + 1}" + f", {float(config['reps'])}*{float(config['rounds'])} avgs,",
-                         fontsize=24, ha='center',
-                         va='top')  # , pi gain %.2f" % float(config['pi_amp']) + f", {float(config['sigma']) * 1000} ns sigma"   you can put this back once you save configs properly for when replotting
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+            plt.rcParams.update({'font.size': 18})
+
+            # Calculate the middle of the plot area
+            plot_middle = (ax1.get_position().x0 + ax1.get_position().x1) / 2
+
+
+            if self.fit_data:
+                q1_fit_exponential, T1_err, T1_est, plot_sig = self.t1_fit(I, Q, delay_times)
+
+                if 'I' in plot_sig:
+                    ax1.plot(delay_times, q1_fit_exponential, '-', color='red', linewidth=3, label="Fit")
+                else:
+                    ax2.plot(delay_times, q1_fit_exponential, '-', color='red', linewidth=3, label="Fit")
+
+                # Add title, centered on the plot area
+                if config is not None:
+                    fig.text(plot_middle, 0.98,
+                             f"Q{self.QubitIndex + 1} " + f"T1={T1_est:.2f} us" + f", {float(config['reps'])}*{float(config['rounds'])} avgs,",
+                             fontsize=24, ha='center',
+                             va='top')  # , pi gain %.2f" % float(config['pi_amp']) + f", {float(config['sigma']) * 1000} ns sigma
+                else:
+                    fig.text(plot_middle, 0.98,
+                             f"T1 Q{self.QubitIndex + 1}, T1 %.2f us" % T1_est + f", {self.config['reps']}*{self.config['rounds']} avgs,",
+                             fontsize=24, ha='center', va='top')
+
             else:
-                fig.text(plot_middle, 0.98,
-                         f"T1 Q{self.QubitIndex + 1}",
-                         fontsize=24, ha='center', va='top')
-            q1_fit_exponential = None
-            T1_est = None
-            T1_err = None
+                if config is not None:
+                    fig.text(plot_middle, 0.98,
+                             f"T1 Q{self.QubitIndex + 1}" + f", {float(config['reps'])}*{float(config['rounds'])} avgs,",
+                             fontsize=24, ha='center',
+                             va='top')  # , pi gain %.2f" % float(config['pi_amp']) + f", {float(config['sigma']) * 1000} ns sigma"   you can put this back once you save configs properly for when replotting
+                else:
+                    fig.text(plot_middle, 0.98,
+                             f"T1 Q{self.QubitIndex + 1}",
+                             fontsize=24, ha='center', va='top')
+                q1_fit_exponential = None
+                T1_est = None
+                T1_err = None
 
-        # I subplot
-        ax1.plot(delay_times, I, label="Gain (a.u.)", linewidth=2)
-        ax1.set_ylabel("I Amplitude (a.u.)", fontsize=20)
-        ax1.tick_params(axis='both', which='major', labelsize=16)
-        # ax1.axvline(freq_q, color='orange', linestyle='--', linewidth=2)
+            # I subplot
+            ax1.plot(delay_times, I, label="Gain (a.u.)", linewidth=2)
+            ax1.set_ylabel("I Amplitude (a.u.)", fontsize=20)
+            ax1.tick_params(axis='both', which='major', labelsize=16)
+            # ax1.axvline(freq_q, color='orange', linestyle='--', linewidth=2)
 
-        # Q subplot
-        ax2.plot(delay_times, Q, label="Q", linewidth=2)
-        ax2.set_xlabel("Delay time (us)", fontsize=20)
-        ax2.set_ylabel("Q Amplitude (a.u.)", fontsize=20)
-        ax2.tick_params(axis='both', which='major', labelsize=16)
-        # ax2.axvline(freq_q, color='orange', linestyle='--', linewidth=2)
+            # Q subplot
+            ax2.plot(delay_times, Q, label="Q", linewidth=2)
+            ax2.set_xlabel("Delay time (us)", fontsize=20)
+            ax2.set_ylabel("Q Amplitude (a.u.)", fontsize=20)
+            ax2.tick_params(axis='both', which='major', labelsize=16)
+            # ax2.axvline(freq_q, color='orange', linestyle='--', linewidth=2)
 
-        # Adjust spacing
-        plt.tight_layout()
+            # Adjust spacing
+            plt.tight_layout()
 
-        # Adjust the top margin to make room for the title
-        plt.subplots_adjust(top=0.93)
-        if self.save_figs:
-            outerFolder_expt = os.path.join(self.outerFolder, self.expt_name)
-            self.create_folder_if_not_exists(outerFolder_expt)
-            now = datetime.datetime.now()
-            formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
-            file_name = os.path.join(outerFolder_expt, f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" + f"{formatted_datetime}_" + self.expt_name + f"_q{self.QubitIndex + 1}.png")
-            fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')  # , facecolor='white'
-        plt.close(fig)
+            # Adjust the top margin to make room for the title
+            plt.subplots_adjust(top=0.93)
+            if self.save_figs:
+                outerFolder_expt = os.path.join(self.outerFolder, self.expt_name)
+                self.create_folder_if_not_exists(outerFolder_expt)
+                now = datetime.datetime.now()
+                formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
+                file_name = os.path.join(outerFolder_expt, f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" + f"{formatted_datetime}_" + self.expt_name + f"_q{self.QubitIndex + 1}.png")
+                fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')  # , facecolor='white'
+            plt.close(fig)
 
 
