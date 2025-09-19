@@ -143,12 +143,15 @@ class T1VsTime:
             else:
                 outerFolder_expt = outerFolder + "/Data_h5/T1_ge/"
             h5_files = glob.glob(os.path.join(outerFolder_expt, "*.h5"))
-            #print(outerFolder_expt)
+
             for h5_file in h5_files:
 
                 save_round = h5_file.split('Num_per_batch')[-1].split('.')[0]
                 H5_class_instance = Data_H5(h5_file)
-                load_data = H5_class_instance.load_from_h5(data_type=f'T1{exp_extension}', save_r=int(save_round))
+                load_data = H5_class_instance.load_from_h5(data_type=f'T1{exp_extension}', save_r=int(save_round),
+                                                           scaling=just_data)
+
+                #H5_class_instance.print_h5_contents(h5_file)
                 # if '01-27' in outerFolder_expt:
                 #     print(load_data)
                 # Define specific days to exclude
@@ -163,6 +166,7 @@ class T1VsTime:
                     for dataset in range(len(load_data[f'T1{exp_extension}'][q_key].get('Dates', [])[0])):
                         if 'nan' in str(load_data[f'T1{exp_extension}'][q_key].get('Dates', [])[0][dataset]):
                             continue
+                        print(load_data[f'T1{exp_extension}'][q_key])
                         # T1 = load_data['T1'][q_key].get('T1', [])[0][dataset]
                         # errors = load_data['T1'][q_key].get('Errors', [])[0][dataset]
                         date = datetime.datetime.fromtimestamp(load_data[f'T1{exp_extension}'][q_key].get('Dates', [])[0][dataset])
@@ -223,6 +227,9 @@ class T1VsTime:
                             t1_errs[q_key].extend([T1_err])
                             date_times[q_key].extend([date.strftime("%Y-%m-%d %H:%M:%S")])
                             if just_data:
+
+                                I_arr = np.asarray(I, dtype=float)
+                                Q_arr = np.asarray(Q, dtype=float)
                                 Ie = np.asarray(Ie, dtype=float)
                                 Qe = np.asarray(Qe, dtype=float)
                                 Ig = np.asarray(Ig, dtype=float)
@@ -230,16 +237,17 @@ class T1VsTime:
                                 e = np.mean((Ie + 1j * Qe))
                                 g = np.mean((Ig + 1j * Qg))
                                 ### Normalization ###
-                                pop_norm = abs(((I + 1j * Q) - g) * (e - g) / abs(e - g) ** 2)
+                                pop_norm = abs(((I_arr + 1j * Q_arr) - g) * (e - g) / abs(e - g) ** 2)
                                 scaled_amps[q_key].extend([pop_norm])
                             del T1_class_instance
                 del H5_class_instance
-        if return_errs:
+        if just_data:
+            return delay_times, scaled_amps
+        elif return_errs:
             return date_times, t1_vals, t1_errs
         else:
             return date_times, t1_vals
-        if just_data:
-            return delay_times, scaled_amps
+
 
     def run_IBM_qze(self, exp_extension=''):
         import datetime
@@ -926,13 +934,13 @@ class T1VsTime:
                 # Some datasets may have NaNs—mask them out for plotting
                 mask = np.isfinite(x) & np.isfinite(y)
                 if np.any(mask):
-                    ax.plot(x[mask], y[mask], marker='o', linewidth=1.2, markersize=3, label=f"Round {r_id}")
+                    ax.scatter(x[mask], y[mask],  label=f"Round {r_id}")
                     plotted_any = True
 
             if not plotted_any:
                 plt.close(fig)
                 continue
-            ax.plot(t1_delay_times, t1_amps[q], marker='o', linewidth=1.2, markersize=3, label=f"Regular T1 no Zeno")
+            ax.scatter(t1_delay_times, t1_amps[q][0], label=f"Regular T1 no Zeno")
             ax.set_title(f"Qubit {self.qubit+1} — Gain {g_sel:g}")
             ax.set_xlabel("Delay time")
             ax.set_ylabel("Qubit Population")

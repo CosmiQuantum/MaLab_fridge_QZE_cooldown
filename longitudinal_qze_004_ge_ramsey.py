@@ -47,7 +47,7 @@ run_name = 'bob_run_started_Aug_23'
 device_name = 'squill'
 substudy_txt_notes = ('fixed the t1 code so now the pulse length for zeno isnt 0')
 
-study = 'QZE_IBM_with_scaling_and_base_t1'
+study = 'QZE_IBM_with_scaling_and_base_t1_start_lowgain'
 
 
 

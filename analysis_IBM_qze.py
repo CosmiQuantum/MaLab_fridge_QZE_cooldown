@@ -44,7 +44,7 @@ for qubit in qubits:
         # t1_vs_time.plot_IBM_qze_normal_compare(amps1,gains1,rounds1, f'M:/_Data/20250822 - Olivia/{run_name}/analysis/')
 # t1_vs_time.plot_all_t1_heatmaps(amps,gains,rounds,delay_times, f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/QZE_IBM_with_scaling/analysis/')
 # t1_vs_time.plot_t1_vs_delay_per_gain(amps,gains,rounds,delay_times, f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/QZE_IBM_with_scaling/analysis/')
-run_name = f'bob_run_started_Aug_23/squill/QZE_IBM_with_scaling_and_base_t1/repeat_rounds_t1_slice_5us/'
+run_name = f'bob_run_started_Aug_23/squill/QZE_IBM_with_scaling_and_base_t1_start_lowgain/repeat_rounds_t1_slice_5us/'
 top_folder_dates = [f'qubit_{qubit}round0']
 t1 = T1VsTime(figure_quality, final_figure_quality, tot_num_of_qubits, top_folder_dates, save_figs, fit_saved,
                  signal, run_name, FRIDGE)
