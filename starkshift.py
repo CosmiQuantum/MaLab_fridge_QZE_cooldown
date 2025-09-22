@@ -180,7 +180,7 @@ class ResStarkShift2D:
         I = []
         Q = []
         res_gain_ge = copy.deepcopy(self.config['res_gain_ge'])
-        gain_sweep = np.linspace(self.config['start_gain'], self.config['end_gain'], self.config['gain_steps'])
+        gain_sweep = np.linspace(self.config['start_gain'], self.config['res_gain_ge'], self.config['gain_steps'])
         for g in gain_sweep:
             gain = round(g, 3)
             self.config['stark_gain'] = gain  #readout pulse gain, stark tone gain

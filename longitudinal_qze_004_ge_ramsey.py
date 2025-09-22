@@ -40,14 +40,14 @@ thresholding = False                 # use internal QICK threshold for ratio of 
 increase_qubit_reps = False          # if you want to increase the reps for a qubit, set to True
 qubit_to_increase_reps_for = 0       # only has impact if previous line is True
 multiply_qubit_reps_by = 2           # only has impact if the line two above is True
-Qs_to_look_at = [3,4,5,0,1,2]        # only list the qubits you want to do the RR for
+Qs_to_look_at = [2,3,5,0]        # only list the qubits you want to do the RR for
 
 #Data saving info
 run_name = 'bob_run_started_Aug_23'
 device_name = 'squill'
 substudy_txt_notes = ('fixed the t1 code so now the pulse length for zeno isnt 0')
 
-study = 'QZE_IBM_with_scaling_and_base_t1_shifted_ordering'
+study = 'QZE_IBM_with_scaling_and_base_t1_shifted_ordering_redo_some_qubits'
 
 ################################################ optimization outputs ##################################################
 # Optimization parameters for resonator spectroscopy
@@ -373,7 +373,7 @@ for QubitIndex in Qs_to_look_at:
             if verbose: print('g-e Rabi fit didnt work, skipping the rest of this qubit')
             continue  # skip the rest of this qubit
 
-        experiment.qubit_cfg['pi_amp'] = float(pi_amp)
+        experiment.qubit_cfg['pi_amp'] = float(pi_amp_corrected)
         rr_logger.info(f'corrected g-e Pi amplitude for qubit {QubitIndex + 1} is: {float(pi_amp)}')
 
         t2r_correction_1_data[QubitIndex]['T2'][j - batch_num * save_r - 1] = t2r_est_1
@@ -538,7 +538,7 @@ for QubitIndex in Qs_to_look_at:
     # t1_data = create_data_dict(t1_keys, save_r, list_of_all_qubits)
     # t2r_data = create_data_dict(t2r_keys, save_r, list_of_all_qubits)
     ########################################### go through each gain ######################################
-    pulse_gains = np.linspace(0.0001, res_gain[QubitIndex], 20)
+    pulse_gains = np.linspace(0.0001, res_gain[QubitIndex], 30)
 
     for gain in pulse_gains:
         for repeat_round in range(3):

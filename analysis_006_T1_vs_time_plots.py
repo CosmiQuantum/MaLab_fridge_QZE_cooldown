@@ -234,6 +234,7 @@ class T1VsTime:
                                 Qe = np.asarray(Qe, dtype=float)
                                 Ig = np.asarray(Ig, dtype=float)
                                 Qg = np.asarray(Qg, dtype=float)
+                                print(len(Qe))
                                 e = np.mean((Ie + 1j * Qe))
                                 g = np.mean((Ig + 1j * Qg))
                                 ### Normalization ###
@@ -592,6 +593,165 @@ class T1VsTime:
                     dpi=self.final_figure_quality)
 
         print("Plot saved to:", save_path)
+    def exponential(self, x, a, b, c, d):
+        return a * np.exp(- (x - b) / c) + d
+
+    def t1_fit(self, signal, delay_times):
+
+        # Initial guess for parameters
+        q1_a_guess = np.max(signal) - np.min(signal)  # Initial guess for amplitude (a)
+        q1_b_guess = 0  # Initial guess for time shift (b)
+        q1_c_guess = (delay_times[-1] - delay_times[0]) / 5  # Initial guess for decay constant (T1)
+        q1_d_guess = np.min(signal)  # Initial guess for baseline (d)
+
+        # Form the guess array
+        q1_guess = [q1_a_guess, q1_b_guess, q1_c_guess, q1_d_guess]
+
+        # Define bounds to constrain T1 (c) to be positive, but allow amplitude (a) to be negative
+        lower_bounds = [-np.inf, -np.inf, 0, -np.inf]  # Amplitude (a) can be negative/positive, but T1 (c) > 0
+        upper_bounds = [np.inf, np.inf, np.inf, np.inf]  # No upper bound on parameters
+
+        # Perform the fit using the 'trf' method with bounds
+        q1_popt, q1_pcov = curve_fit(self.exponential, delay_times, signal,
+                                     p0=q1_guess, bounds=(lower_bounds, upper_bounds),
+                                     method='trf', maxfev=10000)
+
+        # Generate the fitted exponential curve
+        q1_fit_exponential = self.exponential(delay_times, *q1_popt)
+
+        # Extract T1 and its error
+        T1_est = q1_popt[2]  # Decay constant T1
+        T1_err = np.sqrt(q1_pcov[2][2]) if q1_pcov[2][2] >= 0 else float('inf')  # Ensure error is valid
+
+        return q1_fit_exponential, T1_err, T1_est, signal
+
+    def plot_t1_fit_vs_gain(self, amps, gains, rounds, delay_times, save_path):
+        """
+        For each round:
+          - Fit T1 vs delay for each gain slice (x=gain in the old plot).
+          - Save a simple plot of data + fit: x=delay_times, y=qubit population.
+          - Plot T1 vs gain (2D line plot) and save.
+        """
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from collections import defaultdict
+
+        q = self.qubit
+        gains_q = gains.get(q, [])
+        amps_q = amps.get(q, [])
+        rounds_q = rounds.get(q, [])
+        delay_q = delay_times.get(q, [])
+
+        if not delay_q or not gains_q or not amps_q or not rounds_q:
+            print(f"No data for qubit {q}. Skipping.")
+            return
+
+        # Helper: robustly fetch a round label at (i, j)
+        def get_round_label(i, j):
+            if i < len(rounds_q):
+                row = rounds_q[i]
+                if isinstance(row, (list, tuple)):
+                    if len(row) == 0:
+                        return "0"
+                    if j < len(row):
+                        return str(row[j])
+                    return str(row[-1])
+                return str(row)
+            return "0"
+
+        # Flatten: (round_id, gain, delay, amp)
+        all_points = []
+        for i in range(len(delay_q)):
+            try:
+                delay_val = float(delay_q[i])
+            except Exception:
+                continue
+            row_g = gains_q[i] if i < len(gains_q) else []
+            row_a = amps_q[i] if i < len(amps_q) else []
+            n = min(len(row_g), len(row_a))
+            for j in range(n):
+                try:
+                    g = float(row_g[j])
+                    a = float(row_a[j])
+                except Exception:
+                    continue
+                r_id = get_round_label(i, j)
+                all_points.append((r_id, g, delay_val, a))
+
+        if not all_points:
+            print(f"No numeric points for qubit {q}. Skipping.")
+            return
+
+        unique_rounds = sorted({r for (r, _, __, ___) in all_points})
+
+        # Ensure save folder exists
+        self.create_folder_if_not_exists(save_path)
+
+        for r_id in unique_rounds:
+            # Group by gain for this round
+            by_gain = defaultdict(list)  # gain -> list of (delay, amp)
+            for (r, g, d, a) in all_points:
+                if r == r_id:
+                    by_gain[g].append((d, a))
+
+            # For each gain, fit T1 vs delay
+            gains_sorted = sorted(by_gain.keys())
+            t1_values = []
+            t1_gains = []
+
+            for g in gains_sorted:
+                pairs = by_gain[g]
+                if len(pairs) < 3:
+                    continue  # keep it simple: need a few points to fit
+                # Sort by delay
+                pairs.sort(key=lambda x: x[0])
+                dlys = np.array([p[0] for p in pairs], dtype=float)
+                sigs = np.array([p[1] for p in pairs], dtype=float)
+
+                try:
+                    fit_curve, t1_err, t1_est, _ = self.t1_fit(sigs, dlys)  # uses your existing defs
+                except Exception:
+                    continue
+
+                # Save data + fit plot (delay on x, population on y)
+                fig, ax = plt.subplots(figsize=(5.0, 3.6))
+                ax.plot(dlys, sigs, 'o', label='data', ms=3)
+                ax.plot(dlys, fit_curve, '-', label='fit')
+                ax.set_xlabel("Delay time")
+                ax.set_ylabel("Qubit population")
+                ax.set_title(f"Qubit {self.qubit + 1} - Round {r_id} - Gain {g} - t1 {t1_est}")
+                ax.legend(frameon=False)
+                fig.tight_layout()
+                os.makedirs(save_path + f't1_fits_q{self.qubit+1}', exist_ok=True)
+                outfile_fit = (save_path + f't1_fits_q{self.qubit+1}/'
+                               f"t1_fit_q{self.qubit}_slice{self.t1_slice}_round{r_id}_gain{g}.png")
+                fig.savefig(outfile_fit, dpi=self.final_figure_quality)
+                plt.close(fig)
+
+                if t1_est > 200:
+                    continue
+                else:
+                    t1_gains.append(g)
+                    t1_values.append(t1_est)
+
+            # Plot T1 vs gain (simple 2D line plot)
+            if t1_gains:
+                # sort by gain for a clean line
+                order = np.argsort(np.array(t1_gains, dtype=float))
+                g_plot = np.array(t1_gains, dtype=float)[order]
+                t1_plot = np.array(t1_values, dtype=float)[order]
+
+                fig, ax = plt.subplots(figsize=(5.0, 3.6))
+                ax.plot(g_plot, t1_plot, '-o', ms=4)
+                ax.set_xlabel("Gain")
+                ax.set_ylabel("T1 time")
+                ax.set_title(f"Qubit {self.qubit + 1} — Round {r_id}: T1 vs Gain")
+                fig.tight_layout()
+                os.makedirs(save_path + 't1_vs_gain', exist_ok=True)
+                outfile_summary = (save_path + 't1_vs_gain/'
+                                   f"t1_vs_gain_q{self.qubit}_slice{self.t1_slice}_round{r_id}.png")
+                fig.savefig(outfile_summary, dpi=self.final_figure_quality)
+                plt.close(fig)
 
     def plot_all_t1_heatmaps(self, amps, gains, rounds, delay_times, save_path):
         """

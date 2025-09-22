@@ -273,8 +273,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "stark_shift_2D": {
-            "reps": 20,
-            "rounds": 300,
+            "reps": 10,
+            "rounds": 500,
             "list_of_all_qubits": list_of_all_qubits,
             "qubit_pulse_delay": 0.5,  # [us] time to wait for qubit pulse after stark tone is sent
             "stark_length": 16,  # [us] stark tone length for 2D scan, overlaps qubit pulse

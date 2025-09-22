@@ -49,12 +49,9 @@ substudy_txt_notes = ('testing')
 study = 'n_bar_calibration_starked'
 
 ################################################ optimization outputs ##################################################
-# Optimization parameters for resonator spectroscopy
-res_leng_vals = [5.0,5.5,5.5,6.0,6.0,6.0]#[7.0, 5.1, 5.1, 5.6, 5.6, 5.6] # all updated on 7/29/2025
-res_gain = [0.95,0.9,0.95,0.55,0.55,0.95]#[0.8, 0.9, 0.95, 0.51, 0.61, 0.95] # all updated on
-# 7/29/2025 except R5, we need to debug res spec for that resonator
-freq_offsets = [-0.2143, 0, -0.16, -0.16, -0.16, -0.16,]#[0.1190, 0.0238, -0.1190, 0.2143, -0.0714, 0.0238] # # all updated on 7/29/2025 except R5, we need to debug res spec for that resonator
-
+res_leng_vals = [19]*6#[5,4.2,8.3,7.9,7.5,15]
+res_gain = [0.15,0.2, 0.2, 0.2, 0.15, 0.15]
+freq_offsets = [0, -0.15, -0.15,-0.15, -0.15, -0.15]
 ####################################################### RR #############################################################
 
 def create_data_dict(keys, save_r, qs):
@@ -101,7 +98,7 @@ res_data = create_data_dict(res_keys, save_r, list_of_all_qubits)
 qspec_data = create_data_dict(qspec_keys, save_r, list_of_all_qubits)
 rabi_data = create_data_dict(rabi_keys, save_r, list_of_all_qubits)
 
-sub_study = f'testn_bar_calibration'
+sub_study = f'testn_bar_calibration_starked_qspec'
 data_set = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 # set which of the following you'd like to run to 'True'
@@ -167,6 +164,10 @@ for QubitIndex in Qs_to_look_at:
         # Mask out all other resonators except this one
         experiment.readout_cfg['res_gain_ge'] = res_gain[QubitIndex]
         experiment.readout_cfg['res_length'] = res_leng_vals[QubitIndex]
+        experiment.readout_cfg['res_freq_ge'] = experiment.readout_cfg['res_freq_ge'][QubitIndex]
+
+        experiment.qubit_cfg['qubit_freq_ge'] = experiment.qubit_cfg['qubit_freq_ge'][QubitIndex]
+        experiment.qubit_cfg['qubit_gain_ge'] = experiment.qubit_cfg['qubit_gain_ge'][QubitIndex]
         ################################ Do Res spec once per qubit and store the value ####################################
         if run_flags["res_spec"]:
             try:
@@ -282,8 +283,8 @@ for QubitIndex in Qs_to_look_at:
 
         res_freq_stark = copy.deepcopy(experiment.readout_cfg['res_freq_ge'])
         res_phase_stark = copy.deepcopy(experiment.readout_cfg['res_phase'])
-        res_phase_stark.append(res_phase_stark[QubitIndex])
-        res_freq_stark.append(res_freq_stark[QubitIndex])
+        # res_phase_stark.append(res_phase_stark[QubitIndex])
+        # res_freq_stark.append(res_freq_stark[QubitIndex])
 
         calibrate = ResStarkShift2D(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, res_freq_stark, res_phase_stark, save_figs, experiment=experiment, signal=signal,unmasking_resgain=True)
         stark_res_I, stark_res_Q, stark_res_qu_freq_sweep, stark_res_gain_sweep, calibrate_config = calibrate.run()
