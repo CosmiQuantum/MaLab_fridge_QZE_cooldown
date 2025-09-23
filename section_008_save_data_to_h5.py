@@ -238,7 +238,7 @@ class Data_H5:
                                            'Batch Num': 'Batch Num', 'Exp Config': 'Exp Config',
                                            'Syst Config': 'Syst Config','ss_Q_e': 'ss_Q_e', 'ss_Q_g': 'ss_Q_g',
                                            'ss_I_e': 'ss_I_e', 'ss_I_g': 'ss_I_g'}
-                        elif data_type == 'T2':
+                        elif data_type == 'T2' or data_type=='T2Zeno':
                             target_keys = {'T2': 'T2', 'Errors': 'Errors', 'Dates': 'Dates', 'I': 'I', 'Q': 'Q',
                                            'Delay Times': 'Delay Times', 'Fit': 'Fit', 'Round Num': 'Round Num',
                                            'Batch Num': 'Batch Num', 'Exp Config': 'Exp Config',

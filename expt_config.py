@@ -48,6 +48,15 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "relax_delay": 2000, # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
+        "qubit_spec_ge_zeno": {
+            "reps": 10,
+            "rounds": 500,  # 500,
+            "start": list(VNA_qubit - 30),  # [MHz] -40
+            "stop": list(VNA_qubit + 15),  # [MHz] +40
+            "steps": 500,  # 200,
+            "relax_delay": 2000,  # [us]
+            "list_of_all_qubits": list_of_all_qubits,
+        },
 
         "qubit_spec_ge_extended": {
             "reps": 500,  # 300
@@ -211,6 +220,17 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "list_of_all_qubits": list_of_all_qubits,
         },
 
+        "T1_IBM_qze_loop": {
+            "reps": 50,  # 300
+            "rounds": 20,  # 1
+            "start": 0.01,  # [us]
+            "stop": 100,  # [250.0] * 6,  # [us] ### Should be ~10x T1! Should change this per qubit.
+            "steps": 100,
+            "relax_delay": 2000,  # [us] ### Should be >10x T1!
+            "wait_time": 30,  # [us]
+            "list_of_all_qubits": list_of_all_qubits,
+        },
+
         "T1_fe": {
             "reps": 20,  # 300
             "rounds": 300,  # 1
@@ -353,6 +373,19 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "ramsey_freq": 0.05,  # [MHz]
             "relax_delay": 2000, # [us] the time to wait to let the qubit to relax to gnd again after exciting it (make it way above T1)
             "wait_time": 0.0, # [us]
+            "list_of_all_qubits": list_of_all_qubits,
+        },
+
+        "Ramsey_ge_zeno": {
+            "reps": 20,
+            "rounds": 5,
+            "start": 0.01,  # [us]
+            "stop": 100,  # [us]
+            "steps": 150,
+            "ramsey_freq": 0.05,  # [MHz]
+            "relax_delay": 2000,
+            # [us] the time to wait to let the qubit to relax to gnd again after exciting it (make it way above T1)
+            "wait_time": 0.0,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
 
