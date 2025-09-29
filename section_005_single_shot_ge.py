@@ -138,11 +138,14 @@ class SingleShotProgram_e(AveragerProgramV2):
 
 class SingleShot:
     def __init__(self, QubitIndex, number_of_qubits,  outerFolder, round_num, save_figs=False, experiment = None,
-                 verbose = False, logger = None, qick_verbose=True, unmasking_resgain = False):
+                 verbose = False, logger = None, qick_verbose=True, unmasking_resgain = False, long_readout=False):
         self.qick_verbose = qick_verbose
         self.QubitIndex = QubitIndex
         self.outerFolder = outerFolder
-        self.expt_name = "Readout_Optimization"
+        if long_readout:
+            self.expt_name = "Readout_Optimization_300k"
+        else:
+            self.expt_name = "Readout_Optimization"
         self.Qubit = 'Q' + str(self.QubitIndex)
         self.round_num = round_num
         self.save_figs = save_figs

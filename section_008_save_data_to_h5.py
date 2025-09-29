@@ -193,11 +193,12 @@ class Data_H5:
                                            'Amps': 'Amps', 'Found Freqs': 'Found Freqs', 'Round Num': 'Round Num',
                                            'Batch Num': 'Batch Num', 'Exp Config': 'Exp Config',
                                            'Syst Config': 'Syst Config'}
-                        elif data_type == 'QSpec' or data_type == 'QSpec_ge' or data_type == 'QSpec_ef' or data_type == 'qspec_ge':
+                        elif data_type == 'QSpec' or data_type == 'QSpec_ge' or data_type == 'QSpec_zeno' or data_type == 'QSpec_ef' or data_type == 'qspec_ge':
                             target_keys = {'Dates': 'Dates', 'I': 'I', 'Q': 'Q', 'Frequencies': 'Frequencies',
                                            'I Fit': 'I Fit', 'Q Fit': 'Q Fit', 'Round Num': 'Round Num',
                                            'Batch Num': 'Batch Num', 'Recycled QFreq': 'Recycled QFreq',
-                                           'Exp Config': 'Exp Config', 'Syst Config': 'Syst Config'}
+                                           'Exp Config': 'Exp Config', 'Syst Config': 'Syst Config','ss_Q_e': 'ss_Q_e', 'ss_Q_g': 'ss_Q_g',
+                                           'ss_I_e': 'ss_I_e', 'ss_I_g': 'ss_I_g'}
                         elif data_type == 'Rabi' or data_type == 'Rabi_ge' or data_type == 'Rabi_ef':
                             target_keys = {'Dates': 'Dates', 'I': 'I', 'Q': 'Q', 'Gains': 'Gains', 'Fit': 'Fit',
                                            'Round Num': 'Round Num', 'Batch Num': 'Batch Num',
@@ -232,13 +233,13 @@ class Data_H5:
                                            'Q_f': 'Q_f', 'Round Num': 'Round Num', 'Batch Num': 'Batch Num',
                                            'Exp Config': 'Exp Config',
                                            'Syst Config': 'Syst Config'}
-                        elif data_type == 'T1' or data_type == 'T1_ge' or data_type == 'T1_ge_base' or data_type == 't1_ge' or data_type == 'T1_fe' or data_type == 'T1_fg':
+                        elif data_type == 'T1' or data_type == 'T1_ge' or data_type == 'T1_ge_zeno' or data_type == 'T1_ge_base' or data_type == 't1_ge' or data_type == 'T1_fe' or data_type == 'T1_fg':
                             target_keys = {'T1': 'T1', 'Errors': 'Errors', 'Dates': 'Dates', 'I': 'I', 'Q': 'Q',
                                            'Delay Times': 'Delay Times', 'Fit': 'Fit', 'Round Num': 'Round Num',
                                            'Batch Num': 'Batch Num', 'Exp Config': 'Exp Config',
                                            'Syst Config': 'Syst Config','ss_Q_e': 'ss_Q_e', 'ss_Q_g': 'ss_Q_g',
                                            'ss_I_e': 'ss_I_e', 'ss_I_g': 'ss_I_g'}
-                        elif data_type == 'T2' or data_type=='T2Zeno':
+                        elif data_type == 'T2' or data_type=='T2Zeno' or data_type=='T2_ge_zeno':
                             target_keys = {'T2': 'T2', 'Errors': 'Errors', 'Dates': 'Dates', 'I': 'I', 'Q': 'Q',
                                            'Delay Times': 'Delay Times', 'Fit': 'Fit', 'Round Num': 'Round Num',
                                            'Batch Num': 'Batch Num', 'Exp Config': 'Exp Config',
@@ -257,6 +258,7 @@ class Data_H5:
                             mapped_key = target_keys[dataset_name]  # Map HDF5 key to target key.
                             qubit_data[mapped_key] = [group[dataset_name][
                                                           ()]] * save_r  # Expand to match the desired length.
+
 
                         except KeyError:
                             print(

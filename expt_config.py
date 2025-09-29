@@ -380,8 +380,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "reps": 20,
             "rounds": 5,
             "start": 0.01,  # [us]
-            "stop": 100,  # [us]
-            "steps": 150,
+            "stop": 60,  # [us]
+            "steps": 300,
             "ramsey_freq": 0.05,  # [MHz]
             "relax_delay": 2000,
             # [us] the time to wait to let the qubit to relax to gnd again after exciting it (make it way above T1)
@@ -490,6 +490,19 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "freq_stop" : [6178.0, 0, 0, 0],
             "freq_step" : 0.1,
             "relax_delay": 2000,#600, # [us]
+            "list_of_all_qubits": list_of_all_qubits,
+        },
+
+        "Readout_Optimization_300k": {
+            "steps": 300000,  # shots
+            "py_avg": 1,
+            "gain_start": [0, 0, 0, 0],
+            "gain_stop": [1, 0, 0, 0],
+            "gain_step": 0.1,
+            "freq_start": [6176.0, 0, 0, 0],
+            "freq_stop": [6178.0, 0, 0, 0],
+            "freq_step": 0.1,
+            "relax_delay": 2000,  # 600, # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
 

@@ -472,6 +472,143 @@ class T1VsTime:
 
                 del H5_class_instance
         return Is,Qs,amps, gains, rounds_completed
+    def run_t1_sweep(self, exp_extension='', scaling=False):
+        import datetime
+
+        # ----------Load/get data------------------------
+        Is = {i: [] for i in range(self.number_of_qubits)}
+        Qs = {i: [] for i in range(self.number_of_qubits)}
+        amps = {i: [] for i in range(self.number_of_qubits)}
+        gains = {i: [] for i in range(self.number_of_qubits)}
+        rounds_completed = {i: [] for i in range(self.number_of_qubits)}
+        reps = []
+        file_names = []
+        date_times = {i: [] for i in range(self.number_of_qubits)}
+        delay_times = {i: [] for i in range(self.number_of_qubits)}
+        mean_values = {}
+        #print(self.top_folder_dates)
+        for folder_date in self.top_folder_dates:
+            if self.fridge.upper() == 'QUIET':
+                outerFolder = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "/study_data"
+                outerFolder_save_plots = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "_plots/"
+            elif self.fridge.upper() == 'NEXUS':
+                outerFolder = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/" + folder_date + "/"
+                outerFolder_save_plots = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/" + folder_date + "_plots/"
+            else:
+                raise ValueError("fridge must be either 'QUIET' or 'NEXUS'")
+
+            # ------------------------------------------------Load/Plot/Save T1----------------------------------------------
+            if '_' in exp_extension:
+                outerFolder_expt = outerFolder + f"/Data_h5/T1{exp_extension}_zeno/"
+            else:
+                outerFolder_expt = outerFolder + "/Data_h5/T1_ge_zeno/"
+            round_we_are_on=outerFolder_expt.split(f'qubit_{self.qubit}round')[-1].split('/')[0].split('_')[0]
+            h5_files = glob.glob(os.path.join(outerFolder_expt, "*.h5"))
+            TS = re.compile(
+                r'(\d{4})[-_\.]?(\d{2})[-_\.]?(\d{2})[ Tt_-]?(\d{2})[-_\.]?(\d{2})[-_\.]?(\d{2})'
+            )
+            import datetime as dt
+            def dt_from_name(path):
+                name = os.path.basename(path)
+                m = TS.search(name)
+                if not m:
+                    return dt.datetime.min  # or dt.datetime.max to push unknowns to the end
+                y, mo, d, h, mi, s = map(int, m.groups())
+                return dt.datetime(y, mo, d, h, mi, s)
+
+            h5_files = sorted(h5_files, key=dt_from_name)
+
+            for h5_file in h5_files:
+
+                save_round = h5_file.split('Num_per_batch')[-1].split('.')[0]
+                H5_class_instance = Data_H5(h5_file)
+                load_data = H5_class_instance.load_from_h5(data_type=f'T1{exp_extension}_zeno', save_r=int(save_round), scaling=scaling)
+                # H5_class_instance.print_h5_contents(h5_file)
+                exclude_dates = {
+                    datetime.date(2025, 1, 26),  # power outage
+                    datetime.date(2025, 1, 29),  # HEMT Issues
+                    datetime.date(2025, 1, 30),  # HEMT Issues
+                    datetime.date(2025, 1, 31)  # Optimization Issues and non RR work in progress
+                }
+
+                for q_key in load_data[f'T1{exp_extension}_zeno']:
+                    for dataset in range(len(load_data[f'T1{exp_extension}_zeno'][q_key].get('Dates', [])[0])):
+                        if 'nan' in str(load_data[f'T1{exp_extension}_zeno'][q_key].get('Dates', [])[0][dataset]):
+                            continue
+                        # T1 = load_data['T1'][q_key].get('T1', [])[0][dataset]
+                        # errors = load_data['T1'][q_key].get('Errors', [])[0][dataset]
+                        date = datetime.datetime.fromtimestamp(load_data[f'T1{exp_extension}_zeno'][q_key].get('Dates', [])[0][dataset])
+
+                        # Skip processing if the date (as a date object) is in the excluded set
+                        if date.date() in exclude_dates:
+                            print(f"Skipping data for {date} (excluded date)")
+                            continue
+                        delays = self.process_h5_data(
+                            load_data[f'T1{exp_extension}_zeno'][q_key].get('Delay Times', [])[0][dataset].decode())
+                        # try:
+                        #     I = self.process_h5_data(load_data[f'T1{exp_extension}'][q_key].get('I', [])[0][dataset].decode())
+                        #     Q = self.process_h5_data(load_data[f'T1{exp_extension}'][q_key].get('Q', [])[0][dataset].decode())
+                        #     if scaling:
+                        #
+                        #         Ie = self.process_h5_data(
+                        #             load_data[f'T1{exp_extension}'][q_key].get('ss_I_e', [])[0][dataset].decode())
+                        #
+                        #         Ig = self.process_h5_data(
+                        #             load_data[f'T1{exp_extension}'][q_key].get('ss_I_g', [])[0][dataset].decode())
+                        #         Qe = self.process_h5_data(
+                        #             load_data[f'T1{exp_extension}_zeno'][q_key].get('ss_Q_e', [])[0][dataset].decode())
+                        #         Qg = self.process_h5_data(
+                        #             load_data[f'T1{exp_extension}_zeno'][q_key].get('ss_Q_g', [])[0][dataset].decode())
+                        # except:
+                        I = self.process_h5_data(load_data[f'T1{exp_extension}_zeno'][q_key].get('I', [])[0][dataset].decode())
+                        Q = self.process_h5_data(load_data[f'T1{exp_extension}_zeno'][q_key].get('Q', [])[0][dataset].decode())
+
+                        if scaling:
+                            Ie = self.process_h5_data(load_data[f'T1{exp_extension}_zeno'][q_key].get('ss_I_e', [])[0][dataset].decode())
+                            Ig = self.process_h5_data(load_data[f'T1{exp_extension}_zeno'][q_key].get('ss_I_g', [])[0][dataset].decode())
+                            Qe = self.process_h5_data(load_data[f'T1{exp_extension}_zeno'][q_key].get('ss_Q_e', [])[0][dataset].decode())
+                            Qg = self.process_h5_data(load_data[f'T1{exp_extension}_zeno'][q_key].get('ss_Q_g', [])[0][dataset].decode())
+                        round_num = load_data[f'T1{exp_extension}_zeno'][q_key].get('Round Num', [])[0][dataset]
+                        try:
+                            batch_num = load_data[f'T1{exp_extension}_zeno'][q_key].get('Batch Num', [])[0][dataset]
+                            syst_config = load_data[f'T1{exp_extension}_zeno'][q_key].get('Syst Config', [])[0][dataset].decode()
+                            exp_config = load_data[f'T1{exp_extension}_zeno'][q_key].get('Exp Config', [])[0][dataset].decode()
+                            #print(exp_config)
+                            safe_globals = {"np": np, "array": np.array, "__builtins__": {}}
+                            exp_config = eval(exp_config, safe_globals)
+                        except:
+                            exp_config =None
+
+                        if len(I) > 0:
+                            Is[q_key].append(I)
+                            Qs[q_key].append(Q)
+
+                            gain = round(
+                                float(syst_config.split('res_gain_qze\': ')[-1].split(',')[0]), 6)
+
+                            gains[q_key].append(gain)
+                            rounds_completed[q_key].append(round_we_are_on)
+                            if scaling:
+                                I = np.asarray(I, dtype=float)
+                                Q = np.asarray(Q, dtype=float)
+                                Ie = np.asarray(Ie, dtype=float)
+                                Qe = np.asarray(Qe, dtype=float)
+                                Ig = np.asarray(Ig, dtype=float)
+                                Qg = np.asarray(Qg, dtype=float)
+                                e = np.mean((Ie + 1j * Qe))
+                                g = np.mean((Ig + 1j * Qg))
+                                ### Normalization ###
+                                pop_norm = abs(((I + 1j * Q) - g) * (e - g) / abs(e - g) ** 2)
+                                amp = pop_norm
+                            else:
+                                amp=np.hypot(I, Q)
+                            amps[q_key].append(amp.tolist())
+                            delay_times[q_key].append(delays)
+                            date_times[q_key].extend([date.strftime("%Y-%m-%d %H:%M:%S")])
+
+                del H5_class_instance
+        return Is,Qs,amps, gains, rounds_completed, delay_times
+
     def plot_IBM_qze(self,amps,gains, save_path):
 
         qubit_ids = sorted(amps.keys())  # → [0, 1, 2, 3, 4, 5]
@@ -872,6 +1009,171 @@ class T1VsTime:
             fig.tight_layout()
             outfile = (save_path +
                        f"t1_heatmap_q{self.qubit}_slice{self.t1_slice}_round{r_id}.png")
+            fig.savefig(outfile, transparent=False, dpi=self.final_figure_quality)
+            plt.close(fig)
+            print(f"Saved heatmap for round {r_id} to: {outfile}")
+
+    def plot_all_t1_heatmaps_new_format(self, amps, gains, rounds, delay_times, save_path, max_ylabels=6):
+        """
+        NEW FORMAT ONLY
+
+        Changes vs your original:
+          - Y-axis now shows at most `max_ylabels` delay_time tick labels (evenly spaced).
+          - Color scale (z) is fixed across rounds using the global min/max amplitude.
+
+        Data model (per qubit q):
+          - amps[q]         : list of lists; amps[q][i] is a list of amplitude samples for dataset i
+          - gains[q]        : list; gains[q][i] is the gain for dataset i
+          - rounds[q]       : list; rounds[q][i] is the round label for dataset i
+          - delay_times[q]  : list; delay_times[q][i] is the delay (scalar) for dataset i
+        """
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from collections import defaultdict
+
+        q = self.qubit
+        gains_q = gains.get(q, [])
+        amps_q = amps.get(q, [])
+        rounds_q = rounds.get(q, [])
+        delay_q = delay_times.get(q, [])
+
+        # Basic presence & length checks
+        n = min(len(amps_q), len(gains_q), len(rounds_q), len(delay_q))
+        if n == 0 or not (len(amps_q) == len(gains_q) == len(rounds_q) == len(delay_q)):
+            print(f"No usable data for qubit {q} (missing lists or length mismatch). Skipping.")
+            return
+
+        # Flatten to points: (round_id, gain, delay, amp)
+        all_points = []
+        for i in range(n):
+            r_id = str(rounds_q[i])
+
+            # amplitudes (required)
+            a_samples = np.asarray(amps_q[i], dtype=float).ravel()
+            if a_samples.size == 0:
+                continue
+
+            # gain can be scalar or per-sample
+            g_i = gains_q[i]
+            g_arr = np.asarray(g_i, dtype=float).ravel() if isinstance(g_i, (list, tuple, np.ndarray)) else None
+            if g_arr is None or g_arr.size == 1:
+                try:
+                    g_scalar = float(g_i)
+                except Exception:
+                    continue
+                g_arr = np.full(a_samples.shape, g_scalar, dtype=float)
+            elif g_arr.size != a_samples.size:
+                continue
+
+            # delay can be scalar or per-sample
+            d_i = delay_q[i]
+            d_arr = np.asarray(d_i, dtype=float).ravel() if isinstance(d_i, (list, tuple, np.ndarray)) else None
+            if d_arr is None or d_arr.size == 1:
+                try:
+                    d_scalar = float(d_i)
+                except Exception:
+                    continue
+                d_arr = np.full(a_samples.shape, d_scalar, dtype=float)
+            elif d_arr.size != a_samples.size:
+                continue
+
+            # keep only finite triples
+            mask = np.isfinite(a_samples) & np.isfinite(g_arr) & np.isfinite(d_arr)
+            if not np.any(mask):
+                continue
+
+            for g, d, a in zip(g_arr[mask], d_arr[mask], a_samples[mask]):
+                all_points.append((r_id, float(g), float(d), float(a)))
+
+        if not all_points:
+            print(f"No numeric points for qubit {q}. Skipping.")
+            return
+
+        # Unique rounds present
+        unique_rounds = sorted({r for (r, _, __, ___) in all_points})
+
+        # Ensure save folder exists
+        self.create_folder_if_not_exists(save_path)
+
+        # Helper to convert centers -> bin edges for pcolormesh
+        def centers_to_edges(centers):
+            centers = np.asarray(sorted(np.unique(centers)), dtype=float)
+            if centers.size == 1:
+                d = 1.0
+                return np.array([centers[0] - d / 2, centers[0] + d / 2])
+            mids = (centers[:-1] + centers[1:]) / 2.0
+            first = centers[0] - (centers[1] - centers[0]) / 2.0
+            last = centers[-1] + (centers[-1] - centers[-2]) / 2.0
+            return np.concatenate([[first], mids, [last]])
+
+        # ---------- NEW: compute global color scale limits (z) ----------
+        all_amps = np.array([a for (_, _, _, a) in all_points], dtype=float)
+        global_vmin = float(np.nanmin(all_amps))
+        global_vmax = float(np.nanmax(all_amps))
+        # ----------------------------------------------------------------
+
+        for r_id in unique_rounds:
+            # Collect this round's points
+            pts = [(g, d, a) for (r, g, d, a) in all_points if r == r_id]
+            if not pts:
+                continue
+
+            gains_r = sorted({g for (g, _, _) in pts})
+            delays_r = sorted({d for (_, d, _) in pts})
+
+            # Map (delay_idx, gain_idx) -> list of amplitudes
+            from collections import defaultdict
+            bucket = defaultdict(list)
+            gi_map = {g: i for i, g in enumerate(gains_r)}
+            di_map = {d: i for i, d in enumerate(delays_r)}
+            for g, d, a in pts:
+                bucket[(di_map[d], gi_map[g])].append(a)
+
+            # Grid of average amplitudes
+            Ny, Nx = len(delays_r), len(gains_r)
+            C = np.full((Ny, Nx), np.nan, dtype=float)
+            for (iy, ix), vals in bucket.items():
+                C[iy, ix] = float(np.nanmean(vals))
+
+            # Bin edges for pcolormesh
+            x_edges = centers_to_edges(gains_r)
+            y_edges = centers_to_edges(delays_r)
+
+            # Plot
+            fig, ax = plt.subplots(figsize=(6.5, 4.5))
+            mesh = ax.pcolormesh(
+                x_edges, y_edges, C, shading='flat',
+                vmin=global_vmin, vmax=global_vmax  # <-- fixed z scale
+            )
+            cbar = fig.colorbar(mesh, ax=ax, pad=0.02)
+            cbar.set_label("Qubit Population")
+
+            ax.set_title(f"Qubit {self.qubit + 1} — Round {r_id}")
+            ax.set_xlabel("Pulse gain (a.u.)")
+            ax.set_ylabel("Delay time")
+
+            # X ticks at actual centers
+            ax.set_xticks(gains_r)
+            plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
+
+            # ---------- NEW: only label a subset of delay times on Y ----------
+            if Ny > 0:
+                if Ny <= max_ylabels:
+                    # small: show all
+                    yticks_idx = list(range(Ny))
+                else:
+                    # large: pick evenly spaced indices
+                    yticks_idx = np.linspace(0, Ny - 1, num=max_ylabels, dtype=int).tolist()
+                    # ensure uniqueness/monotonic
+                    yticks_idx = sorted(set(yticks_idx))
+
+                yticks_vals = [delays_r[i] for i in yticks_idx]
+                ax.set_yticks(yticks_vals)
+                ax.set_yticklabels([f"{v:.0f}" for v in yticks_vals])
+            # -------------------------------------------------------------------
+
+            fig.tight_layout()
+            outfile = (save_path + f"t1_heatmap_q{self.qubit}_round{r_id}.png")
             fig.savefig(outfile, transparent=False, dpi=self.final_figure_quality)
             plt.close(fig)
             print(f"Saved heatmap for round {r_id} to: {outfile}")
