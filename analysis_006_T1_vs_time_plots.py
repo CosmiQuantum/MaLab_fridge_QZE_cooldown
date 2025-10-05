@@ -1002,7 +1002,9 @@ class T1VsTime:
             ax.set_ylabel("Delay time")
 
             # Put nice ticks at the actual centers (optional; comment out if crowded)
-            ax.set_xticks(gains_r)
+            import matplotlib.ticker as mticker
+            ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=7, prune=None))
+
             plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
             ax.set_yticks(delays_r)
 
@@ -1153,7 +1155,10 @@ class T1VsTime:
             ax.set_ylabel("Delay time")
 
             # X ticks at actual centers
-            ax.set_xticks(gains_r)
+
+            import matplotlib.ticker as mticker
+            ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=7, prune=None))
+
             plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
 
             # ---------- NEW: only label a subset of delay times on Y ----------

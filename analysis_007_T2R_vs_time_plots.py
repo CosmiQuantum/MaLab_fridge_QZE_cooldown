@@ -219,7 +219,7 @@ class T2rVsTime:
                             Qs[q_key].append(Q)
 
                             gain = round(
-                                float(syst_config.split('res_gain_qze\': ')[-1].split(',')[0]), 6)
+                               float(syst_config.split('res_gain_qze\': ')[-1].split(',')[0]), 6)
 
                             gains[q_key].append(gain)
                             rounds_completed[q_key].append(round_we_are_on)
@@ -459,7 +459,9 @@ class T2rVsTime:
             ax.set_ylabel("Delay time")
 
             # X ticks at actual centers
-            ax.set_xticks(gains_r)
+            import matplotlib.ticker as mticker
+            ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=7, prune=None))
+
             plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
 
             # ---------- NEW: only label a subset of delay times on Y ----------
@@ -483,6 +485,362 @@ class T2rVsTime:
             fig.savefig(outfile, transparent=False, dpi=self.final_figure_quality)
             plt.close(fig)
             print(f"Saved heatmap for round {r_id} to: {outfile}")
+
+    def plot_all_t2_rounds_IQ(
+            self,
+            I_data,
+            Q_data,
+            gains,
+            rounds,
+            delay_times,
+            save_path,
+            max_ylabels=6,
+            use_abs=False,  # False -> raw values (requested). True -> magnitude.
+            center_zero=False  # True -> vmin/vmax symmetric around 0 per panel.
+    ):
+        """
+        Two stacked heatmaps: top=I, bottom=Q.
+        Plots raw I and Q by default (no abs). Each panel uses its own color scale.
+        """
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from collections import defaultdict
+
+        q = self.qubit
+        gains_q = gains.get(q, [])
+        rounds_q = rounds.get(q, [])
+        delay_q = delay_times.get(q, [])
+        I_q = I_data.get(q, [])
+        Q_q = Q_data.get(q, [])
+
+        # Ensure all lists align
+        n = min(len(I_q), len(Q_q), len(gains_q), len(rounds_q), len(delay_q))
+        if n == 0 or not (len(I_q) == len(Q_q) == len(gains_q) == len(rounds_q) == len(delay_q)):
+            print(f"No usable data for qubit {q} (missing lists or length mismatch). Skipping.")
+            return
+
+        def collect_points(signal_list):
+            """Return: points=[(round_id, delay, value)], gains_seen, unique_rounds, unique_delays"""
+            points = []
+            gains_seen_local = []
+
+            for i in range(n):
+                r_id = str(rounds_q[i])
+
+                s_samples = np.asarray(signal_list[i], dtype=float).ravel()
+                if s_samples.size == 0:
+                    continue
+                s_vals = np.abs(s_samples) if use_abs else s_samples
+
+                # gain (collect for info only)
+                g_i = gains_q[i]
+                if isinstance(g_i, (list, tuple, np.ndarray)):
+                    g_arr = np.asarray(g_i, dtype=float).ravel()
+                    g_scalar = float(np.nanmean(g_arr)) if g_arr.size > 0 else np.nan
+                else:
+                    try:
+                        g_scalar = float(g_i)
+                    except Exception:
+                        g_scalar = np.nan
+                if np.isfinite(g_scalar):
+                    gains_seen_local.append(g_scalar)
+
+                # delay alignment
+                d_i = delay_q[i]
+                if isinstance(d_i, (list, tuple, np.ndarray)):
+                    d_arr = np.asarray(d_i, dtype=float).ravel()
+                    if d_arr.size not in (1, s_samples.size):
+                        if d_arr.size == 1:
+                            d_arr = np.full_like(s_samples, float(d_arr[0]))
+                        else:
+                            continue
+                    if d_arr.size == 1:
+                        d_arr = np.full_like(s_samples, float(d_arr[0]))
+                else:
+                    try:
+                        d_scalar = float(d_i)
+                    except Exception:
+                        continue
+                    d_arr = np.full_like(s_samples, d_scalar)
+
+                mask = np.isfinite(s_vals) & np.isfinite(d_arr)
+                if not np.any(mask):
+                    continue
+
+                for d, s in zip(d_arr[mask], s_vals[mask]):
+                    points.append((r_id, float(d), float(s)))
+
+            if not points:
+                return [], [], [], []
+
+            # Order rounds in first-seen order, delays ascending
+            seen_rounds = {}
+            for (r, _, __) in points:
+                if r not in seen_rounds:
+                    seen_rounds[r] = None
+            unique_rounds = list(seen_rounds.keys())
+            unique_delays = sorted({d for (_, d, __) in points})
+            return points, gains_seen_local, unique_rounds, unique_delays
+
+        # Collect I and Q separately
+        I_points, I_gains, I_rounds, I_delays = collect_points(I_q)
+        Q_points, Q_gains, Q_rounds, Q_delays = collect_points(Q_q)
+
+        if not I_points and not Q_points:
+            print(f"No numeric I or Q points for qubit {q}. Skipping.")
+            return
+
+        # Union axes so both panels share ticks
+        unique_rounds = list(dict.fromkeys((I_rounds or []) + (Q_rounds or [])))  # preserve order
+        unique_delays = sorted(set((I_delays or []) + (Q_delays or [])))
+        if not unique_rounds or not unique_delays:
+            print(f"Insufficient axis values for qubit {q}. Skipping.")
+            return
+
+        def build_matrix(points, unique_rounds, unique_delays):
+            ri_map = {r: i for i, r in enumerate(unique_rounds)}
+            di_map = {d: i for i, d in enumerate(unique_delays)}
+            bucket = defaultdict(list)
+            for (r, d, val) in points:
+                if r in ri_map and d in di_map:
+                    bucket[(di_map[d], ri_map[r])].append(val)
+
+            Ny, Nx = len(unique_delays), len(unique_rounds)
+            C = np.full((Ny, Nx), np.nan, dtype=float)
+            for (iy, ix), vals in bucket.items():
+                C[iy, ix] = float(np.nanmean(vals))
+            return C
+
+        C_I = build_matrix(I_points, unique_rounds, unique_delays) if I_points else None
+        C_Q = build_matrix(Q_points, unique_rounds, unique_delays) if Q_points else None
+
+        def centers_to_edges(centers):
+            centers = np.asarray(sorted(np.unique(centers)), dtype=float)
+            if centers.size == 1:
+                d = 1.0
+                return np.array([centers[0] - d / 2, centers[0] + d / 2])
+            mids = (centers[:-1] + centers[1:]) / 2.0
+            first = centers[0] - (centers[1] - centers[0]) / 2.0
+            last = centers[-1] + (centers[-1] - centers[-2]) / 2.0
+            return np.concatenate([[first], mids, [last]])
+
+        Nx = len(unique_rounds)
+        Ny = len(unique_delays)
+        x_edges = np.arange(-0.5, Nx + 0.5, 1.0)
+        y_edges = centers_to_edges(unique_delays)
+
+        # Per-panel color limits
+        def panel_limits(C):
+            if C is None or not np.isfinite(C).any():
+                return 0.0, 1.0
+            vmin = float(np.nanmin(C))
+            vmax = float(np.nanmax(C))
+            if center_zero:
+                m = max(abs(vmin), abs(vmax))
+                return -m, m
+            return vmin, vmax
+
+        vmin_I, vmax_I = panel_limits(C_I)
+        vmin_Q, vmax_Q = panel_limits(C_Q)
+
+        self.create_folder_if_not_exists(save_path)
+
+        # --- Figure with two stacked panels ---
+        fig, axes = plt.subplots(nrows=2, ncols=1, figsize=(6.5, 8.0), sharex=True)
+
+        for ax, C, label, vmin, vmax in [
+            (axes[0], C_I, "I ", vmin_I, vmax_I),
+            (axes[1], C_Q, "Q ", vmin_Q, vmax_Q),
+        ]:
+            ax.set_aspect('auto')
+            if C is None:
+                ax.text(0.5, 0.5, f"No {label.split()[0]} data", ha='center', va='center')
+                continue
+            mesh = ax.pcolormesh(x_edges, y_edges, C, shading='flat', vmin=vmin, vmax=vmax)
+            cbar = fig.colorbar(mesh, ax=ax, pad=0.02)
+            cbar.set_label("Signal value")
+            ax.set_ylabel("Delay time")
+            ax.set_title(f"Qubit {self.qubit + 1} — {label}")
+
+            # Limit number of y tick labels
+            if Ny > 0:
+                if Ny <= max_ylabels:
+                    yticks_idx = list(range(Ny))
+                else:
+                    yticks_idx = np.linspace(0, Ny - 1, num=max_ylabels, dtype=int).tolist()
+                    yticks_idx = sorted(set(yticks_idx))
+                yticks_vals = [unique_delays[i] for i in yticks_idx]
+                ax.set_yticks(yticks_vals)
+                ax.set_yticklabels([f"{v:.0f}" for v in yticks_vals])
+
+        # x ticks on the bottom only
+        axes[-1].set_xlabel("Round")
+        max_xtick_labels = 10
+        step = max(1, int(np.ceil(Nx / max_xtick_labels)))
+        xticks = np.arange(0, Nx, step)
+        axes[-1].set_xticks(xticks)
+        axes[-1].set_xticklabels([unique_rounds[i] for i in xticks], rotation=45, ha='right')
+
+        # FYI if multiple gains were used
+        gains_unique = sorted({round(g, 12) for g in (I_gains + Q_gains) if np.isfinite(g)})
+        if len(gains_unique) > 1:
+            print(f"Note: found multiple gains {gains_unique}, but plotting collapsed over gain (x = rounds).")
+
+        fig.tight_layout()
+        outfile = (save_path + f"t2_heatmap_IQ_raw_q{self.qubit}_by_round.png")
+        fig.savefig(outfile, transparent=False, dpi=self.final_figure_quality)
+        plt.close(fig)
+        print(f"Saved I/Q heatmaps to: {outfile}")
+
+    def plot_all_t2_rounds(self, amps, gains, rounds, delay_times, save_path, max_ylabels=6):
+        import numpy as np
+        import matplotlib.pyplot as plt
+        import matplotlib.ticker as mticker
+        from collections import defaultdict
+
+        q = self.qubit
+        gains_q = gains.get(q, [])
+        amps_q = amps.get(q, [])
+        rounds_q = rounds.get(q, [])
+        delay_q = delay_times.get(q, [])
+
+        n = min(len(amps_q), len(gains_q), len(rounds_q), len(delay_q))
+        if n == 0 or not (len(amps_q) == len(gains_q) == len(rounds_q) == len(delay_q)):
+            print(f"No usable data for qubit {q} (missing lists or length mismatch). Skipping.")
+            return
+
+        all_points = []
+        gains_seen = []
+        for i in range(n):
+            r_id = str(rounds_q[i])
+            a_samples = np.asarray(amps_q[i], dtype=float).ravel()
+            if a_samples.size == 0:
+                continue
+
+            g_i = gains_q[i]
+            if isinstance(g_i, (list, tuple, np.ndarray)):
+                g_arr = np.asarray(g_i, dtype=float).ravel()
+                g_scalar = float(np.nanmean(g_arr)) if g_arr.size > 0 else np.nan
+            else:
+                try:
+                    g_scalar = float(g_i)
+                except Exception:
+                    g_scalar = np.nan
+            if np.isfinite(g_scalar):
+                gains_seen.append(g_scalar)
+
+            d_i = delay_q[i]
+            if isinstance(d_i, (list, tuple, np.ndarray)):
+                d_arr = np.asarray(d_i, dtype=float).ravel()
+                if d_arr.size not in (1, a_samples.size):
+                    if d_arr.size == 1:
+                        d_arr = np.full_like(a_samples, float(d_arr[0]))
+                    else:
+                        continue
+                if d_arr.size == 1:
+                    d_arr = np.full_like(a_samples, float(d_arr[0]))
+            else:
+                try:
+                    d_scalar = float(d_i)
+                except Exception:
+                    continue
+                d_arr = np.full_like(a_samples, d_scalar)
+
+            mask = np.isfinite(a_samples) & np.isfinite(d_arr)
+            if not np.any(mask):
+                continue
+
+            for d, a in zip(d_arr[mask], a_samples[mask]):
+                all_points.append((r_id, float(d), float(a)))
+
+        if not all_points:
+            print(f"No numeric points for qubit {q}. Skipping.")
+            return
+
+        gains_unique = sorted({round(g, 12) for g in gains_seen if np.isfinite(g)})
+        if len(gains_unique) > 1:
+            print(f"Note: found multiple gains {gains_unique}, but plotting collapsed over gain (x = rounds).")
+
+        seen = {}
+        for (r, _, __) in all_points:
+            if r not in seen:
+                seen[r] = None
+        unique_rounds = list(seen.keys())
+        unique_delays = sorted({d for (_, d, __) in all_points})
+
+        di_map = {d: i for i, d in enumerate(unique_delays)}
+        ri_map = {r: i for i, r in enumerate(unique_rounds)}
+        bucket = defaultdict(list)
+        for (r, d, a) in all_points:
+            bucket[(di_map[d], ri_map[r])].append(a)
+
+        Ny, Nx = len(unique_delays), len(unique_rounds)
+        C = np.full((Ny, Nx), np.nan, dtype=float)
+        for (iy, ix), vals in bucket.items():
+            C[iy, ix] = float(np.nanmean(vals))
+
+        all_amps = np.array([a for (_, _, a) in all_points], dtype=float)
+        global_vmin = float(np.nanmin(all_amps))
+        global_vmax = float(np.nanmax(all_amps))
+
+        def centers_to_edges(centers):
+            centers = np.asarray(sorted(np.unique(centers)), dtype=float)
+            if centers.size == 1:
+                d = 1.0
+                return np.array([centers[0] - d / 2, centers[0] + d / 2])
+            mids = (centers[:-1] + centers[1:]) / 2.0
+            first = centers[0] - (centers[1] - centers[0]) / 2.0
+            last = centers[-1] + (centers[-1] - centers[-2]) / 2.0
+            return np.concatenate([[first], mids, [last]])
+
+        x_edges = np.arange(-0.5, Nx + 0.5, 1.0)
+        y_edges = centers_to_edges(unique_delays)
+
+        self.create_folder_if_not_exists(save_path)
+
+        # --- Fixed size like before ---
+        fig, ax = plt.subplots(figsize=(6.5, 4.5))
+        # Keep automatic aspect so it doesn't stretch with many rounds
+        ax.set_aspect('auto')
+
+        mesh = ax.pcolormesh(x_edges, y_edges, C, shading='flat', vmin=global_vmin, vmax=global_vmax)
+        cbar = fig.colorbar(mesh, ax=ax, pad=0.02)
+        cbar.set_label("Qubit Population")
+
+        ax.set_title(f"Qubit {self.qubit + 1} — T2 Ramsey heatmap taken repeatedly for zeno gain 0.0001")
+        ax.set_xlabel("Round")
+        ax.set_ylabel("Delay time")
+
+        max_xtick_labels = 10  # change if you want more/less
+        step = max(1, int(np.ceil(Nx / max_xtick_labels)))
+        xticks = np.arange(0, Nx, step)
+
+        ax.set_xticks(xticks)
+        ax.set_xticklabels([unique_rounds[i] for i in xticks], rotation=45, ha='right')
+        # Fewer x-axis tick labels (match labels to ticks)
+        max_xtick_labels = 10  # tune if needed
+        Nx = len(unique_rounds)
+        step = max(1, int(np.ceil(Nx / max_xtick_labels)))
+        xticks = np.arange(0, Nx, step)
+
+        ax.set_xticks(xticks)
+        ax.set_xticklabels([unique_rounds[i] for i in xticks], rotation=45, ha='right')
+
+        if Ny > 0:
+            if Ny <= max_ylabels:
+                yticks_idx = list(range(Ny))
+            else:
+                yticks_idx = np.linspace(0, Ny - 1, num=max_ylabels, dtype=int).tolist()
+                yticks_idx = sorted(set(yticks_idx))
+            yticks_vals = [unique_delays[i] for i in yticks_idx]
+            ax.set_yticks(yticks_vals)
+            ax.set_yticklabels([f"{v:.0f}" for v in yticks_vals])
+
+        fig.tight_layout()
+        outfile = (save_path + f"t2_heatmap_q{self.qubit}_by_round.png")
+        fig.savefig(outfile, transparent=False, dpi=self.final_figure_quality)
+        plt.close(fig)
+        print(f"Saved heatmap to: {outfile}")
 
     def plot_without_errs(self, date_times, t2_vals, show_legends):
         # ---------------------------------plot-----------------------------------------------------

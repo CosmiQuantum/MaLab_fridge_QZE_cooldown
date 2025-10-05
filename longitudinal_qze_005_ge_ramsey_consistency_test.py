@@ -50,7 +50,7 @@ run_name = 'bob_run_started_Aug_23'
 device_name = 'squill'
 substudy_txt_notes = ('fixed the t1 code so now the pulse length for zeno isnt 0')
 
-study = 'QZE_IBM_zoomed_in_less'
+study = 'QZE_IBM_checking_ramsey_consistency_gain0p0002'
 
 ################################################ optimization outputs ##################################################
 # Optimization parameters for resonator spectroscopy
@@ -575,10 +575,10 @@ for QubitIndex in Qs_to_look_at:
     t2r_data = create_data_dict(t2r_keys, save_r, list_of_all_qubits)
     ########################################### go through each gain ######################################
     # pulse_gains = np.linspace(0.0001, res_gain[QubitIndex], 30)
-    pulse_gains = np.linspace(0.0001, 0.004, 100)
+    pulse_gains = [0.0002]#np.linspace(0.0001, 0.01, 50)
     try:
         for gain in pulse_gains:
-            for repeat_round in range(3):
+            for repeat_round in range(50):
                 # for slice in slices:
                 #sub_study = f'repeat_rounds_3'
                 data_set = f'qubit_' + str(
@@ -618,114 +618,7 @@ for QubitIndex in Qs_to_look_at:
                 exp.readout_cfg['res_gain_qze'] = gain
                 exp.readout_cfg['res_freq_qze'] = exp.readout_cfg['res_freq_ge']
                 exp.readout_cfg['res_phase_qze'] = exp.readout_cfg['res_phase']
-                ############################################### Qubit Spec ########################################################
-                qspec_data = create_data_dict(qspec_keys, save_r, list_of_all_qubits)
 
-                try:
-                    q_spec = QubitSpectroscopyZeno(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j,
-                                               signal, save_figs, plot_fit=True, experiment=exp,
-                                               live_plot=live_plot, verbose=verbose, logger=rr_logger,
-                                               unmasking_resgain=unmask)
-                    (qspec_I, qspec_Q, qspec_freqs, qspec_fit, qubit_freq, sys_config_qspec, ss_Q_e_qspec, ss_Q_g_qspec,
-                     ss_I_e_qspec, ss_I_g_qspec) = q_spec.run(scaling=True)
-
-                    if qubit_freq is None:
-                        if stored_qspec_list[QubitIndex] is not None:
-                            #exp.qubit_cfg['qubit_freq_ge'] = stored_qspec_list[QubitIndex]
-                            rr_logger.warning(f"Using previous stored value: {stored_qspec_list[QubitIndex]}")
-                            recycled_qfreq = True
-                            qubit_freq = stored_qspec_list[QubitIndex]
-                            #exp.qubit_cfg['qubit_freq_ge'] = float(qubit_freq)
-                            stored_qspec_list[QubitIndex] = float(qubit_freq)
-                            if verbose:
-                                print(f"Using previous stored value: {qubit_freq}")
-                        else:
-                            rr_logger.warning(f"No stored g-e qubit spec value for qubit {QubitIndex}; skipping iteration.")
-                            if verbose:
-                                print('No stored g-e qubit spec value for qubit {QubitIndex}; skipping iteration.')
-                            del q_spec
-
-                            continue
-
-                    else:
-                        #exp.qubit_cfg['qubit_freq_ge'] = float(qubit_freq)
-                        stored_qspec_list[QubitIndex] = float(qubit_freq)
-
-                    qspec_data[QubitIndex]['Dates'][0] = (
-                        time.mktime(datetime.datetime.now().timetuple()))
-                    qspec_data[QubitIndex]['I'][0] = qspec_I
-                    qspec_data[QubitIndex]['Q'][0] = qspec_Q
-                    qspec_data[QubitIndex]['Frequencies'][0] = qspec_freqs
-                    qspec_data[QubitIndex]['I Fit'][0] = qspec_fit
-                    qspec_data[QubitIndex]['Round Num'][0] = 0
-                    qspec_data[QubitIndex]['Batch Num'][0] = 0
-                    qspec_data[QubitIndex]['Recycled QFreq'][0] = False  # no rr so no recycling here
-                    qspec_data[QubitIndex]['Exp Config'][0] = expt_cfg
-                    qspec_data[QubitIndex]['Syst Config'][0] = sys_config_qspec
-                    qspec_data[QubitIndex]['ss_Q_e'][0] = ss_Q_e_qspec
-                    qspec_data[QubitIndex]['ss_Q_g'][0] = ss_Q_g_qspec
-                    qspec_data[QubitIndex]['ss_I_e'][0] = ss_I_e_qspec
-                    qspec_data[QubitIndex]['ss_I_g'][0] = ss_I_g_qspec
-
-                    saver_qspec = Data_H5(subStudyDataFolder, qspec_data, 0, save_r)
-                    saver_qspec.save_to_h5('QSpec_zeno')
-                    del saver_qspec
-                    del qspec_data
-
-                    rr_logger.info(f"g-e Qubit {QubitIndex + 1} frequency: {float(qubit_freq)}")
-                    if verbose:
-                        print(f"g-e Qubit {QubitIndex + 1} frequency: {float(qubit_freq)}")
-                    del q_spec
-
-                except Exception as e:
-                    if debug_mode:
-                        raise e
-                    rr_logger.exception(f"RR g-e QSpec error on qubit {QubitIndex}: {e}")
-                    if verbose:
-                        print(f"RR g-e QSpec error on qubit {QubitIndex}: {e}")
-                    continue
-
-                # reinitialize
-                qspec_data = create_data_dict(qspec_keys, save_r, list_of_all_qubits)
-
-                ###################################################### T1 ######################################################
-
-
-                t1_data = create_data_dict(t1_keys, save_r, list_of_all_qubits)
-                t1 = T1Measurement_with_Zeno_loop(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j, signal, save_figs=True,
-                                   experiment = exp,
-                                   live_plot = live_plot, fit_data = True,
-                                   increase_qubit_reps = increase_qubit_reps,
-                                   qubit_to_increase_reps_for = qubit_to_increase_reps_for,
-                                   multiply_qubit_reps_by = multiply_qubit_reps_by,
-                                   verbose = verbose, logger = rr_logger, unmasking_resgain = unmask, zeno_pulse_gain=gain, slice=slice)
-                t1_est, t1_err, t1_I, t1_Q, t1_delay_times, q1_fit_exponential, sys_config_t1, \
-                    ss_Q_e_t1, ss_Q_g_t1, ss_I_e_t1, ss_I_g_t1 = t1.run(
-                    thresholding=thresholding, scaling=True)
-
-                t1_data[QubitIndex]['T1'][j - batch_num * save_r - 1] = t1_est
-                t1_data[QubitIndex]['Errors'][j - batch_num * save_r - 1] = t1_err
-                t1_data[QubitIndex]['Dates'][j - batch_num * save_r - 1] = (
-                    time.mktime(datetime.datetime.now().timetuple()))
-                t1_data[QubitIndex]['I'][j - batch_num * save_r - 1] = t1_I
-                t1_data[QubitIndex]['Q'][j - batch_num * save_r - 1] = t1_Q
-                t1_data[QubitIndex]['Delay Times'][j - batch_num * save_r - 1] = t1_delay_times
-                t1_data[QubitIndex]['Fit'][j - batch_num * save_r - 1] = q1_fit_exponential
-                t1_data[QubitIndex]['Round Num'][j - batch_num * save_r - 1] = j
-                t1_data[QubitIndex]['Batch Num'][j - batch_num * save_r - 1] = batch_num
-                t1_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = expt_cfg
-                t1_data[QubitIndex]['Syst Config'][j - batch_num * save_r - 1] = sys_config_t1
-                t1_data[QubitIndex]['ss_Q_e'][0] = ss_Q_e_t1
-                t1_data[QubitIndex]['ss_Q_g'][0] = ss_Q_g_t1
-                t1_data[QubitIndex]['ss_I_e'][0] = ss_I_e_t1
-                t1_data[QubitIndex]['ss_I_g'][0] = ss_I_g_t1
-
-                saver_t1 = Data_H5(subStudyDataFolder, t1_data, batch_num, save_r)
-                saver_t1.save_to_h5('T1_ge_zeno')
-                del saver_t1
-                del t1_data
-                del t1
-                t1_data = create_data_dict(t1_keys, save_r, list_of_all_qubits)
 
                 ###################################################### T2R ######################################################
                 t2r_data = create_data_dict(t2r_keys, save_r, list_of_all_qubits)
