@@ -793,17 +793,16 @@ class LengthRabiProgram(AveragerProgramV2):
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-        # Define a generator for the readout pulses with the lens, phases, and mixer/mux frequencies
+        # Define a generator for the readout pulses with the gains, phases, and mixer/mux frequencies
         # Configure the hardware to set this sort of pulse that we can trigger later
         # This has a rectangle pulse becuase style="const"
-        self.add_pulse(ch=res_ch, name="res_pulse",ro_ch=ro_ch,
+        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
                        style="const",
                        length=cfg["res_length"],
                        freq=cfg['res_freq_ge'],
                        phase=cfg['ro_phase'],
                        gain=cfg['res_gain_ge']
                        )
-        # Tell the system via another generator how to set up the qubit drive pulse
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
         self.add_pulse(ch=qubit_ch, name="qubit_pulse",
                        style="const",

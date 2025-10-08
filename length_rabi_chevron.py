@@ -49,7 +49,7 @@ multiply_qubit_reps_by = 2  # only has impact if the line two above is True
 # ----For Rabi Chevron---
 sigma_multiplier = 5
 multiply_sigmas = True
-save_shots_chev = True
+save_shots_chev = False
 # ----------------------
 
 # Folders
@@ -189,10 +189,10 @@ res_freq_ge = np.zeros(6)
 for QubitIndex in Qs_to_look_at:
     run_name = 'bob_run_started_Aug_23'
     device_name = 'squill'
-    study = 'gain_rabi_ge_qfreq_study'
+    study = 'leng_rabi_ge_qfreq_study'
     sub_study = 'rabi_Qfreq_2Dsweeps_wshots_quintupled_sigmas'
     data_set = f'qubit_' + str(
-        QubitIndex) + f'round0'  # + '_' +datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        QubitIndex)   # + '_' +datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
     if not os.path.exists(f"M:/_Data/20250822 - Olivia/{run_name}/"):
         os.makedirs(f"M:/_Data/20250822 - Olivia/{run_name}/")
@@ -244,7 +244,7 @@ for QubitIndex in Qs_to_look_at:
             QubitIndex]  # use optimized offset values or whats set at top of script based on pre_optimize flag
         offset_res_freqs = [r + offset for r in res_freqs]
         experiment.readout_cfg['res_freq_ge'] = offset_res_freqs[0]
-
+        this_res_freq =offset_res_freqs[0]
 
         del res_spec
 
@@ -316,6 +316,17 @@ for QubitIndex in Qs_to_look_at:
                                        verbose=verbose, logger=rr_logger,
                                        qick_verbose=qick_verbose)
         (rabi_I, rabi_Q, rabi_gains, rabi_fit, stored_pi_amp, sys_config_rabi) = rabi.run()
+        # from section_006p5_length_rabi_ge import LengthRabiExperiment
+        # len_rabi = LengthRabiExperiment(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, 0,
+        #                                signal, save_figs=True, experiment=experiment,
+        #                                live_plot=live_plot,
+        #                                increase_qubit_reps=increase_qubit_reps,
+        #                                qubit_to_increase_reps_for=qubit_to_increase_reps_for,
+        #                                multiply_qubit_reps_by=multiply_qubit_reps_by,
+        #                                verbose=verbose, logger=rr_logger,
+        #                                qick_verbose=True)
+        # (rabi_I, rabi_Q, rabi_gains, rabi_fit, stored_pi_amp, sys_config_rabi) = len_rabi.run()
+
         experiment.qubit_cfg['pi_amp'] = float(stored_pi_amp)
         print(f"Pi amplitude for qubit {QubitIndex + 1}: {float(stored_pi_amp)}")
 
@@ -349,9 +360,10 @@ for QubitIndex in Qs_to_look_at:
                                                           outerFolder=optimizationFolder,
                                                           studyDocumentationFolder=studyDocumentationFolder, j=0)
 
-        offset_res_freqs = [r + optimal_offset for r in res_freq_ge]
-        experiment.readout_cfg['res_freq_ge'][QubitIndex] = offset_res_freqs[QubitIndex]  # update with offset added
-        print(experiment.readout_cfg)
+        offset = freq_offsets[
+            QubitIndex]  # use optimized offset values or whats set at top of script based on pre_optimize flag
+        offset_res_freqs = [r + offset for r in res_freqs]
+        experiment.readout_cfg['res_freq_ge'] = offset_res_freqs[0]
 
     ################################################ repeated ss ################################################
     if run_flags["repeated_ssf"]:
@@ -441,22 +453,35 @@ for QubitIndex in Qs_to_look_at:
             experiment = copy.deepcopy(chevron_template)
 
             # change the qubit drive freq
-            experiment.qubit_cfg['qubit_freq_ge']= float(f)
+            experiment.qubit_cfg['qubit_freq_ge']= qubit_freq#float(f)
 
             # run the gain‐sweep Rabi
-            rabi = AmplitudeRabiExperiment(QubitIndex, number_of_qubits, studyDocumentationFolder, 0, signal,
-                                           save_shots=save_shots_chev,
-                                           save_figs=False, experiment=experiment, live_plot=live_plot,
-                                           increase_qubit_reps=increase_qubit_reps,
-                                           qubit_to_increase_reps_for=qubit_to_increase_reps_for,
-                                           multiply_qubit_reps_by=multiply_qubit_reps_by, verbose=verbose,
-                                           logger=rr_logger, qick_verbose=qick_verbose)
+            # rabi = AmplitudeRabiExperiment(QubitIndex, number_of_qubits, studyDocumentationFolder, 0, signal,
+            #                                save_shots=save_shots_chev,
+            #                                save_figs=False, experiment=experiment, live_plot=live_plot,
+            #                                increase_qubit_reps=increase_qubit_reps,
+            #                                qubit_to_increase_reps_for=qubit_to_increase_reps_for,
+            #                                multiply_qubit_reps_by=multiply_qubit_reps_by, verbose=verbose,
+            #                                logger=rr_logger, qick_verbose=qick_verbose)
+
+            from section_006p5_length_rabi_ge import LengthRabiExperiment
+
+            len_rabi = LengthRabiExperiment(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, 0,
+                                            signal, save_figs=True, experiment=experiment,
+                                            live_plot=live_plot,
+                                            increase_qubit_reps=increase_qubit_reps,
+                                            qubit_to_increase_reps_for=qubit_to_increase_reps_for,
+                                            multiply_qubit_reps_by=multiply_qubit_reps_by,
+                                            verbose=verbose, logger=rr_logger,
+                                            qick_verbose=True)
+            (rabi_I, rabi_Q, rabi_gains, rabi_fit, stored_pi_amp, sys_config_rabi) = len_rabi.run()
+
             if save_shots_chev:
-                rabi_I, rabi_Q, rabi_Ishots, rabi_Qshots, rabi_gains, *_ = rabi.run()
+                rabi_I, rabi_Q, rabi_Ishots, rabi_Qshots, rabi_gains, *_ = len_rabi.run()
                 all_rabi_Ishots.append(rabi_Ishots)
                 all_rabi_Qshots.append(rabi_Qshots)
             else:
-                rabi_I, rabi_Q, rabi_gains, *_ = rabi.run()
+                rabi_I, rabi_Q, rabi_gains, *_ = len_rabi.run()
 
             all_rabi_I.append(rabi_I)  # all_rabi_I is a 2-D numpy array of shape ( # freq steps, # gain points )
             all_rabi_Q.append(rabi_Q)  # all_rabi_Q is a 2-D numpy array of shape ( # freq steps, # gain points )
@@ -465,7 +490,7 @@ for QubitIndex in Qs_to_look_at:
             mag = np.sqrt(np.array(rabi_I) ** 2 + np.array(rabi_Q) ** 2)
             signal_map.append(mag)
 
-            del rabi
+            del len_rabi
             del experiment
 
         signal_map = np.vstack(signal_map)  # shape (freq_steps, len(rabi_gains))
@@ -517,7 +542,7 @@ for QubitIndex in Qs_to_look_at:
                                freqs_mhz[0],  # freq min (MHz)
                                freqs_mhz[-1]  # freq max (MHz)
                                ])
-        ax.set_xlabel('Gain (amplitude)')
+        ax.set_xlabel('Length (us)')
         ax.set_ylabel('Qubit Drive frequency (MHz)')
         ax.set_title(f'Rabi Chevron: Qubit {QubitIndex + 1}; g-e Qfreq = {qubit_freq:.4f}')
         plt.colorbar(im, ax=ax, label='IQ Signal Mag (a. u.)')

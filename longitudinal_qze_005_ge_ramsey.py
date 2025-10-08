@@ -50,7 +50,7 @@ run_name = 'bob_run_started_Aug_23'
 device_name = 'squill'
 substudy_txt_notes = ('fixed the t1 code so now the pulse length for zeno isnt 0')
 
-study = 'QZE_IBM_zoomed_in_less'
+study = 'QZE_IBM_more_ssf_avgs_and_exp_avgs'
 
 ################################################ optimization outputs ##################################################
 # Optimization parameters for resonator spectroscopy
