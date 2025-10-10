@@ -58,3 +58,6 @@ for qubit in qubits:
                                                f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/QZE_IBM_checking_ramsey_consistency_gain0p0002/all_qubits/analysis/')
     t2_vs_time.plot_all_t2_rounds_IQ(Is_t2, Qs_t2, gains_t2, rounds_t2, delay_times_t2,
                                                f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/QZE_IBM_checking_ramsey_consistency_gain0p0002/all_qubits/analysis/')
+
+    t2_vs_time.plot_all_t2_rounds_IQAmp(Is_t2, Qs_t2, gains_t2, rounds_t2, delay_times_t2,
+                                                   f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/QZE_IBM_checking_ramsey_consistency_gain0p0002/all_qubits/analysis/')

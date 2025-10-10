@@ -48,9 +48,9 @@ Qs_to_look_at = [1]        # only list the qubits you want to do the RR for
 #Data saving info
 run_name = 'bob_run_started_Aug_23'
 device_name = 'squill'
-substudy_txt_notes = ('fixed the t1 code so now the pulse length for zeno isnt 0')
+substudy_txt_notes = ('')
 
-study = 'QZE_IBM_more_ssf_avgs_and_exp_avgs'
+study = 'QZE_IBM_more_ssf_avgs_and_exp_avgs_fine_grained'
 
 ################################################ optimization outputs ##################################################
 # Optimization parameters for resonator spectroscopy
@@ -575,7 +575,7 @@ for QubitIndex in Qs_to_look_at:
     t2r_data = create_data_dict(t2r_keys, save_r, list_of_all_qubits)
     ########################################### go through each gain ######################################
     # pulse_gains = np.linspace(0.0001, res_gain[QubitIndex], 30)
-    pulse_gains = np.linspace(0.0001, 0.004, 100)
+    pulse_gains = np.linspace(0.0001, 0.01, 50)
     try:
         for gain in pulse_gains:
             for repeat_round in range(3):

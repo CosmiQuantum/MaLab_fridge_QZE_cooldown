@@ -40,7 +40,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "qubit_spec_ge": {
-            "reps": 10,
+            "reps": 100,#10,
             "rounds": 500,#500,
             "start": list(VNA_qubit-30), # [MHz] -40
             "stop": list(VNA_qubit+15), # [MHz] +40
@@ -49,7 +49,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "list_of_all_qubits": list_of_all_qubits,
         },
         "qubit_spec_ge_zeno": {
-            "reps": 10,
+            "reps": 100,#10,
             "rounds": 500,  # 500,
             "start": list(VNA_qubit - 30),  # [MHz] -40
             "stop": list(VNA_qubit + 15),  # [MHz] +40
@@ -199,7 +199,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "relax_delay": 2000,  # [us]
         },
         "T1_ge": {
-            "reps": 50, #300
+            "reps": 300,#,50, #300
             "rounds": 20, #1
             "start":  0,  # [us]
             "stop": 500,  # [us] ### Should be ~10x T1! Should change this per qubit.
@@ -210,7 +210,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "T1_IBM_qze": {
-            "reps": 50,  # 300
+            "reps": 300,#50,  # 300
             "rounds": 20,  # 1
             "start": 30,  # [us]
             "stop": 31,  # [250.0] * 6,  # [us] ### Should be ~10x T1! Should change this per qubit.
@@ -221,7 +221,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "T1_IBM_qze_loop": {
-            "reps": 50,  # 300
+            "reps": 300,#50,  # 300
             "rounds": 20,  # 1
             "start": 0.01,  # [us]
             "stop": 100,  # [250.0] * 6,  # [us] ### Should be ~10x T1! Should change this per qubit.
@@ -365,7 +365,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "Ramsey_ge": {
-            "reps": 20,
+            "reps": 300,#20,
             "rounds": 5,
             "start": 0.0, # [us]
             "stop":  100, # [us]
@@ -377,7 +377,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "Ramsey_ge_zeno": {
-            "reps": 20,
+            "reps": 300,#20,
             "rounds": 5,
             "start": 0.01,  # [us]
             "stop": 60,  # [us]
@@ -390,7 +390,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "Ramsey_ge_correction": {
-            "reps": 20,  # 300
+            "reps": 300,#20,  # 300
             "rounds": 5,  # 10
             "start": 0.0,  # [us]
             "stop": 1,  # [us]
@@ -403,7 +403,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "SpinEcho_ge": {
-            "reps": 20,
+            "reps": 300,#20,
             "rounds":5,
             "start": 0.0, # [us]
             "stop":  100, # [us]

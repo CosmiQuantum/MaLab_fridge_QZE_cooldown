@@ -79,10 +79,10 @@ date_times_t2e, t2e_vals, t2e_fit_err = t2e_vs_time.run(return_errs=True)
 #date = '2025-04-02'  #only plot all of the data for one date at a time because there is a lot
 #outerFolder = f"M:/_Data/20250822 - Olivia/{run_name}/" + date + "/"
 # outerFolder_save_plots = f"M:/_Data/20250822 - Olivia/{run_name}/" + date + "_plots/"
-# plotter = PlotAllRR(date, figure_quality, save_figs, fit_saved, signal, run_name, tot_num_of_qubits, outerFolder,
-#                   outerFolder_save_plots)
-# plotter.run(plot_res_spec = False, plot_q_spec = False, plot_rabi = False, plot_ss = True, plot_t1 = False,
-#             plot_t2r = True, plot_t2e = True)
+plotter = PlotAllRR(date, figure_quality, save_figs, fit_saved, signal, run_name, tot_num_of_qubits, outerFolder,
+                  outerFolder_save_plots)
+plotter.run(plot_res_spec = False, plot_q_spec = False, plot_rabi = False, plot_ss = True, plot_t1 = False,
+            plot_t2r = True, plot_t2e = True)
 
 ########################################## 03: Resonator Freqs vs Time Plots ###########################################
 res_spec_vs_time_ge.plot(date_times_res_spec_ge, res_freqs_ge, show_legends, exp_extension = '_ge')

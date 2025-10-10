@@ -109,16 +109,21 @@ class QubitFreqsVsTime:
         except (ValueError, SyntaxError, TypeError):
             print("Error: Invalid input string format.  It should be a string representation of a list of numbers.")
             return None
-    def run_q_sweep(self, exp_extension='', scaling=False):
+    def run_q_sweep(self, exp_extension='', scaling=False, return_calibration_data=False):
         import datetime
 
         # ----------Load/get data------------------------
         Is = {i: [] for i in range(self.number_of_qubits)}
         Qs = {i: [] for i in range(self.number_of_qubits)}
+        Ig_calibration = {i: [] for i in range(self.number_of_qubits)}
+        Ie_calibration = {i: [] for i in range(self.number_of_qubits)}
+        Qg_calibration = {i: [] for i in range(self.number_of_qubits)}
+        Qe_calibration = {i: [] for i in range(self.number_of_qubits)}
         amps = {i: [] for i in range(self.number_of_qubits)}
         gains = {i: [] for i in range(self.number_of_qubits)}
         rounds_completed = {i: [] for i in range(self.number_of_qubits)}
         reps = []
+        steps=0
         file_names = []
         date_times = {i: [] for i in range(self.number_of_qubits)}
         delay_times = {i: [] for i in range(self.number_of_qubits)}
@@ -213,12 +218,17 @@ class QubitFreqsVsTime:
                             syst_config = load_data[f'QSpec_zeno'][q_key].get('Syst Config', [])[0][dataset].decode()
                             exp_config = load_data[f'QSpec_zeno'][q_key].get('Exp Config', [])[0][dataset].decode()
                             #print(exp_config)
-                            safe_globals = {"np": np, "array": np.array, "__builtins__": {}}
-                            exp_config = eval(exp_config, safe_globals)
+                            #safe_globals = {"np": np, "array": np.array, "__builtins__": {}}
+                            #exp_config = eval(exp_config, safe_globals)
                         except:
                             exp_config =None
 
                         if len(I) > 0:
+                            steps = round(
+                                float(
+                                    exp_config.split('Readout_Optimization\': ')[-1].split('steps\': ')[-1].split(',')[
+                                        0]), 6)
+
                             Is[q_key].append(I)
                             Qs[q_key].append(Q)
 
@@ -239,6 +249,11 @@ class QubitFreqsVsTime:
                                 ### Normalization ###
                                 pop_norm = abs(((I + 1j * Q) - g) * (e - g) / abs(e - g) ** 2)
                                 amp = pop_norm
+
+                                Ig_calibration[q_key].append(Ig)
+                                Ie_calibration[q_key].append(Ie)
+                                Qg_calibration[q_key].append(Qg)
+                                Qe_calibration[q_key].append(Qe)
                             else:
                                 amp=np.hypot(I, Q)
                             amps[q_key].append(amp.tolist())
@@ -246,7 +261,10 @@ class QubitFreqsVsTime:
                             date_times[q_key].extend([date.strftime("%Y-%m-%d %H:%M:%S")])
 
                 del H5_class_instance
-        return Is,Qs,amps, gains, rounds_completed, delay_times
+        if return_calibration_data:
+            return Is, Qs, amps, gains, rounds_completed, delay_times, Ig_calibration, Ie_calibration, Qe_calibration, Qg_calibration, steps
+        else:
+            return Is,Qs,amps, gains, rounds_completed, delay_times
     def run(self,exp_extension=''):
         import datetime
 
