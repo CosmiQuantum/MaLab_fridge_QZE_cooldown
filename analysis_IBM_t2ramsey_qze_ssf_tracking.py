@@ -50,7 +50,7 @@ amps_qspec = {i: [] for i in range(6)}
 gains_qspec = {i: [] for i in range(6)}
 rounds_qspec = {i: [] for i in range(6)}
 freqs_qspec = {i: [] for i in range(6)}
-path= 'QZE_IBM_more_ssf_avgs_and_exp_avgs'#'QZE_IBM_zoomed_in_less_more_ssf_avgs'#'QZE_IBM_zoomed_in_less'
+path= 'QZE_IBM_more_ssf_avgs_and_exp_avgs_fine_grained'
 for qubit in qubits:
     run_name = f'bob_run_started_Aug_23/squill/{path}/all_qubits/'
     top_folder_dates = []

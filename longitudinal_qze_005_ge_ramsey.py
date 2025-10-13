@@ -50,7 +50,7 @@ run_name = 'bob_run_started_Aug_23'
 device_name = 'squill'
 substudy_txt_notes = ('')
 
-study = 'QZE_IBM_more_ssf_avgs_and_exp_avgs_fine_grained'
+study = 'QZE_IBM_less_ssf_avgs_and_exp_avgs'
 
 ################################################ optimization outputs ##################################################
 # Optimization parameters for resonator spectroscopy

@@ -55,7 +55,7 @@ unmask = True                        # Do you want to use the unmasking feature 
 qubit_to_increase_reps_for = 0       # only has impact if previous line is True
 multiply_qubit_reps_by = 2           # only has impact if the line two above is True
 
-Qs_to_look_at = [4,5,0,1,2,3]     # only list the qubits you want to do the RR for
+Qs_to_look_at = [1]     # only list the qubits you want to do the RR for
 
 #Data saving info
 run_name = 'bob_run_started_Aug_23'

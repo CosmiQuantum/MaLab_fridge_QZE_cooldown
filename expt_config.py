@@ -40,8 +40,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "qubit_spec_ge": {
-            "reps": 100,#10,
-            "rounds": 500,#500,
+            "reps": 10,#10,
+            "rounds": 100,#500,
             "start": list(VNA_qubit-30), # [MHz] -40
             "stop": list(VNA_qubit+15), # [MHz] +40
             "steps": 500,#200,
@@ -210,8 +210,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "T1_IBM_qze": {
-            "reps": 300,#50,  # 300
-            "rounds": 20,  # 1
+            "reps": 100,#50,  # 300
+            "rounds": 10,  # 1
             "start": 30,  # [us]
             "stop": 31,  # [250.0] * 6,  # [us] ### Should be ~10x T1! Should change this per qubit.
             "steps": 1,
@@ -221,8 +221,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "T1_IBM_qze_loop": {
-            "reps": 300,#50,  # 300
-            "rounds": 20,  # 1
+            "reps": 100,#50,  # 300
+            "rounds": 10,  # 1
             "start": 0.01,  # [us]
             "stop": 100,  # [250.0] * 6,  # [us] ### Should be ~10x T1! Should change this per qubit.
             "steps": 100,
@@ -377,8 +377,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "Ramsey_ge_zeno": {
-            "reps": 300,#20,
-            "rounds": 5,
+            "reps": 20,#20,
+            "rounds": 3,
             "start": 0.01,  # [us]
             "stop": 60,  # [us]
             "steps": 300,
@@ -481,7 +481,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
     # #
 
         "Readout_Optimization":{
-            "steps": 30000, #20000 shots
+            "steps": 3000, # shots
             "py_avg": 1,
             "gain_start" : [0, 0, 0, 0],
             "gain_stop" : [1, 0, 0, 0],
