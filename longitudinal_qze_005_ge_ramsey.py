@@ -342,21 +342,21 @@ for QubitIndex in Qs_to_look_at:
                                                 expt_cfg['Ramsey_ge_correction']['ramsey_freq']
         del t2r
 
-        # # correct again
-        # t2r = T2RMeasurement(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j, signal, save_figs,
-        #                      experiment=experiment, live_plot=live_plot, fit_data=True,
-        #                      increase_qubit_reps=increase_qubit_reps,
-        #                      qubit_to_increase_reps_for=qubit_to_increase_reps_for,
-        #                      multiply_qubit_reps_by=multiply_qubit_reps_by,
-        #                      verbose=verbose, logger=rr_logger, unmasking_resgain=unmask, correction=True,
-        #                      correction_round=2)
-        # t2r_est_2, t2r_err_2, t2r_I_2, t2r_Q_2, t2r_delay_times_2, fit_ramsey_2, sys_config_t2r_2, ramsey_found_q_freq = t2r.adjust_qspec(
-        #     thresholding=thresholding, correction=True)
-        # print(ramsey_found_q_freq)
-        # experiment.qubit_cfg['qubit_freq_ge'] = experiment.qubit_cfg[
-        #                                             'qubit_freq_ge'] - ramsey_found_q_freq + \
-        #                                         expt_cfg['Ramsey_ge_correction']['ramsey_freq']
-        # del t2r
+        # correct again
+        t2r = T2RMeasurement(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j, signal, save_figs,
+                             experiment=experiment, live_plot=live_plot, fit_data=True,
+                             increase_qubit_reps=increase_qubit_reps,
+                             qubit_to_increase_reps_for=qubit_to_increase_reps_for,
+                             multiply_qubit_reps_by=multiply_qubit_reps_by,
+                             verbose=verbose, logger=rr_logger, unmasking_resgain=unmask, correction=True,
+                             correction_round=2)
+        t2r_est_2, t2r_err_2, t2r_I_2, t2r_Q_2, t2r_delay_times_2, fit_ramsey_2, sys_config_t2r_2, ramsey_found_q_freq = t2r.adjust_qspec(
+            thresholding=thresholding, correction=True)
+        print(ramsey_found_q_freq)
+        experiment.qubit_cfg['qubit_freq_ge'] = experiment.qubit_cfg[
+                                                    'qubit_freq_ge'] - ramsey_found_q_freq + \
+                                                expt_cfg['Ramsey_ge_correction']['ramsey_freq']
+        del t2r
 
         # correct rabi
         rabi = AmplitudeRabiExperiment(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j, signal,
@@ -393,19 +393,19 @@ for QubitIndex in Qs_to_look_at:
         t2r_correction_1_data[QubitIndex]['Syst Config'][j - batch_num * save_r - 1] = sys_config_t2r_1
         t2r_correction_1_data[QubitIndex]['Correction Freq'][j - batch_num * save_r - 1] = ramsey_found_q_freq
 
-        # t2r_correction_2_data[QubitIndex]['T2'][j - batch_num * save_r - 1] = t2r_est_2
-        # t2r_correction_2_data[QubitIndex]['Errors'][j - batch_num * save_r - 1] = t2r_err_2
-        # t2r_correction_2_data[QubitIndex]['Dates'][j - batch_num * save_r - 1] = (
-        #     time.mktime(datetime.datetime.now().timetuple()))
-        # t2r_correction_2_data[QubitIndex]['I'][j - batch_num * save_r - 1] = t2r_I_2
-        # t2r_correction_2_data[QubitIndex]['Q'][j - batch_num * save_r - 1] = t2r_Q_2
-        # t2r_correction_2_data[QubitIndex]['Delay Times'][j - batch_num * save_r - 1] = t2r_delay_times_2
-        # t2r_correction_2_data[QubitIndex]['Fit'][j - batch_num * save_r - 1] = fit_ramsey_2
-        # t2r_correction_2_data[QubitIndex]['Round Num'][j - batch_num * save_r - 1] = j
-        # t2r_correction_2_data[QubitIndex]['Batch Num'][j - batch_num * save_r - 1] = batch_num
-        # t2r_correction_2_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = expt_cfg
-        # t2r_correction_2_data[QubitIndex]['Syst Config'][j - batch_num * save_r - 1] = sys_config_t2r_2
-        # t2r_correction_2_data[QubitIndex]['Correction Freq'][j - batch_num * save_r - 1] = ramsey_found_q_freq
+        t2r_correction_2_data[QubitIndex]['T2'][j - batch_num * save_r - 1] = t2r_est_2
+        t2r_correction_2_data[QubitIndex]['Errors'][j - batch_num * save_r - 1] = t2r_err_2
+        t2r_correction_2_data[QubitIndex]['Dates'][j - batch_num * save_r - 1] = (
+            time.mktime(datetime.datetime.now().timetuple()))
+        t2r_correction_2_data[QubitIndex]['I'][j - batch_num * save_r - 1] = t2r_I_2
+        t2r_correction_2_data[QubitIndex]['Q'][j - batch_num * save_r - 1] = t2r_Q_2
+        t2r_correction_2_data[QubitIndex]['Delay Times'][j - batch_num * save_r - 1] = t2r_delay_times_2
+        t2r_correction_2_data[QubitIndex]['Fit'][j - batch_num * save_r - 1] = fit_ramsey_2
+        t2r_correction_2_data[QubitIndex]['Round Num'][j - batch_num * save_r - 1] = j
+        t2r_correction_2_data[QubitIndex]['Batch Num'][j - batch_num * save_r - 1] = batch_num
+        t2r_correction_2_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = expt_cfg
+        t2r_correction_2_data[QubitIndex]['Syst Config'][j - batch_num * save_r - 1] = sys_config_t2r_2
+        t2r_correction_2_data[QubitIndex]['Correction Freq'][j - batch_num * save_r - 1] = ramsey_found_q_freq
 
         rabi_corrected_data[QubitIndex]['Dates'][j - batch_num * save_r - 1] = (
             time.mktime(datetime.datetime.now().timetuple()))

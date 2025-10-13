@@ -61,7 +61,7 @@ Qs_to_look_at = [1]     # only list the qubits you want to do the RR for
 run_name = 'bob_run_started_Aug_23'
 device_name = 'squill'
 substudy_txt_notes = ('getting coherence  working')
-study ='benchmark_with_double_freq_correction'
+study ='increase_sigma_q2'
 sub_study = 'rr'
 
 # set which of the following you'd like to run to 'True'
