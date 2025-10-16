@@ -200,7 +200,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
         "T1_ge": {
             "reps": 20,#,50, #300
-            "rounds": 2, #1
+            "rounds": 5, #1
             "start":  0,  # [us]
             "stop": 500,  # [us] ### Should be ~10x T1! Should change this per qubit.
             "steps": 80,
@@ -365,8 +365,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "Ramsey_ge": {
-            "reps": 20,#20,
-            "rounds": 2,
+            "reps": 50,#20,
+            "rounds": 5,
             "start": 0.0, # [us]
             "stop":  100, # [us]
             "steps": 150,
@@ -377,8 +377,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "Ramsey_ge_zeno": {
-            "reps": 20,#20,
-            "rounds": 3,
+            "reps": 50,#20,
+            "rounds": 5,
             "start": 0.01,  # [us]
             "stop": 60,  # [us]
             "steps": 300,

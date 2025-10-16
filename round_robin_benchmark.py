@@ -61,7 +61,7 @@ Qs_to_look_at = [1]     # only list the qubits you want to do the RR for
 run_name = 'bob_run_started_Aug_23'
 device_name = 'squill'
 substudy_txt_notes = ('getting coherence  working')
-study ='increase_sigma_q2'
+study ='increase_sigma_q2_optimizatioin'
 sub_study = 'rr'
 
 # set which of the following you'd like to run to 'True'
@@ -70,8 +70,8 @@ run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss":  True, "rabi"
 
 
 # optimization outputs from qick board, unmasking set to true
-res_leng_vals = [19]*6#[5,4.2,8.3,7.9,7.5,15]
-res_gain = [0.15,0.2, 0.2, 0.2, 0.15, 0.15]
+res_leng_vals = [10]*6#[5,4.2,8.3,7.9,7.5,15]
+res_gain = [0.15,0.15, 0.2, 0.2, 0.15, 0.15]
 freq_offsets = [0, -0.15, -0.15,-0.15, -0.15, -0.15]
 
 qubit_freqs_ef = [None]*6
