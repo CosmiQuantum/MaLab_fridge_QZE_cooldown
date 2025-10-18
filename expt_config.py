@@ -41,7 +41,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
 
         "qubit_spec_ge": {
             "reps": 10,#10,
-            "rounds": 200,#500,
+            "rounds": 300,#500,
             "start": list(VNA_qubit-30), # [MHz] -40
             "stop": list(VNA_qubit+15), # [MHz] +40
             "steps": 500,#200,
@@ -49,8 +49,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "list_of_all_qubits": list_of_all_qubits,
         },
         "qubit_spec_ge_zeno": {
-            "reps": 100,#10,
-            "rounds": 500,  # 500,
+            "reps": 10,#10,
+            "rounds": 300,  # 500,
             "start": list(VNA_qubit - 30),  # [MHz] -40
             "stop": list(VNA_qubit + 15),  # [MHz] +40
             "steps": 500,  # 200,
@@ -210,8 +210,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "T1_IBM_qze": {
-            "reps": 100,#50,  # 300
-            "rounds": 10,  # 1
+            "reps": 20,#50,  # 300
+            "rounds": 5,  # 1
             "start": 30,  # [us]
             "stop": 31,  # [250.0] * 6,  # [us] ### Should be ~10x T1! Should change this per qubit.
             "steps": 1,
@@ -221,8 +221,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "T1_IBM_qze_loop": {
-            "reps": 100,#50,  # 300
-            "rounds": 10,  # 1
+            "reps": 20,#50,  # 300
+            "rounds": 5,  # 1
             "start": 0.01,  # [us]
             "stop": 100,  # [250.0] * 6,  # [us] ### Should be ~10x T1! Should change this per qubit.
             "steps": 100,
@@ -481,7 +481,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
     # #
 
         "Readout_Optimization":{
-            "steps": 3000, # shots
+            "steps": 10000, # shots
             "py_avg": 1,
             "gain_start" : [0, 0, 0, 0],
             "gain_stop" : [1, 0, 0, 0],
@@ -489,7 +489,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "freq_start" : [6176.0, 0, 0, 0],
             "freq_stop" : [6178.0, 0, 0, 0],
             "freq_step" : 0.1,
-            "relax_delay": 2000,#600, # [us]
+            "relax_delay": 3000,#600, # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
 
@@ -502,7 +502,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "freq_start": [6176.0, 0, 0, 0],
             "freq_stop": [6178.0, 0, 0, 0],
             "freq_step": 0.1,
-            "relax_delay": 2000,  # 600, # [us]
+            "relax_delay": 3000,  # 600, # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
 

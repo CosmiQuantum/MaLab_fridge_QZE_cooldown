@@ -16,7 +16,7 @@ final_figure_quality = 200
 
 FRIDGE = "QUIET"
 run_notes = ('Added IR shielding, better cryo terminators, thermalizing with 0dB attenuator ') #please make it brief for the plot
-qubits=[0,1,2,3,4,5]
+qubits=[4]
 
 Qs = {i: [] for i in range(6)}
 Is = {i: [] for i in range(6)}
@@ -50,7 +50,7 @@ amps_qspec = {i: [] for i in range(6)}
 gains_qspec = {i: [] for i in range(6)}
 rounds_qspec = {i: [] for i in range(6)}
 freqs_qspec = {i: [] for i in range(6)}
-path= 'QZE_IBM_reoptimized'
+path= 'QZE_IBM_q5'
 for qubit in qubits:
     run_name = f'bob_run_started_Aug_23/squill/{path}/all_qubits/'
     top_folder_dates = []
