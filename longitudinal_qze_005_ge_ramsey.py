@@ -577,8 +577,8 @@ for QubitIndex in Qs_to_look_at:
     # pulse_gains = np.linspace(0.0001, res_gain[QubitIndex], 30)
     pulse_gains = np.linspace(0.0001, 0.02, 100)
     #try:
-    for gain in pulse_gains:
-        for repeat_round in range(3):
+    for repeat_round in range(3):
+        for gain in pulse_gains:
             # for slice in slices:
             #sub_study = f'repeat_rounds_3'
             data_set = f'qubit_' + str(
