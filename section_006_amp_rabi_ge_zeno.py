@@ -21,11 +21,11 @@ from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Normalize
 
 
-class AmplitudeRabiExperiment:
+class AmplitudeRabiExperimentZeno:
     def __init__(self, QubitIndex, number_of_qubits, outerFolder, round_num, signal, save_shots=False, save_figs = True, experiment = None,
                  live_plot = None, increase_qubit_reps = False, qubit_to_increase_reps_for = None,
                  multiply_qubit_reps_by = 0, verbose = False, logger = None, qick_verbose=True, QZE=False,
-                 projective_readout_pulse_len_us=9,  time_between_projective_readout_pulses=None, expt_name = "power_rabi_ge",
+                 projective_readout_pulse_len_us=9,  time_between_projective_readout_pulses=None, expt_name = "power_rabi_ge_zeno",
                  unmasking_resgain = False, correction=False):
         self.qick_verbose = qick_verbose
         self.correction=correction
@@ -1611,15 +1611,23 @@ class AmplitudeRabiProgram(AveragerProgramV2):
                        phase=cfg['qubit_phase'],
                        gain=cfg['pi_amp'],
                        )
+        self.add_pulse(ch=res_ch, name="qze_pulse",
+                       style="const",
+                       length=cfg['sigma'] * 4,
+                       freq=cfg['res_freq_qze'],
+                       phase=cfg['res_phase_qze'],
+                       gain=cfg['res_gain_qze']
+                       )
         # Make a loop that interates over different pulse amplitudes/gains, this wil be used for the qubit pump, and rabi later
         self.add_loop("gainloop", cfg["steps"])
 
     def _body(self, cfg):
         # Here we define a sequence of operations that we will use for each iteration of the loop
         # Drive the qubit:
+        self.pulse(ch=cfg['res_ch'], name="qze_pulse", t=0)
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)
         # Delay
-        self.delay_auto(t=0.0, tag='waiting')
+        self.delay_auto(t=5, tag='waiting') # wait for ring down
         # Readout pulse to look at qubit state
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
         # Trigger the readout channels to start collecting the data

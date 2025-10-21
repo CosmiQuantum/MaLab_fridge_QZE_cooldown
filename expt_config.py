@@ -41,7 +41,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
 
         "qubit_spec_ge": {
             "reps": 10,#10,
-            "rounds": 300,#500,
+            "rounds": 500,#500,
             "start": list(VNA_qubit-30), # [MHz] -40
             "stop": list(VNA_qubit+15), # [MHz] +40
             "steps": 500,#200,
@@ -50,7 +50,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
         "qubit_spec_ge_zeno": {
             "reps": 10,#10,
-            "rounds": 300,  # 500,
+            "rounds": 1000,  # 500,
             "start": list(VNA_qubit - 30),  # [MHz] -40
             "stop": list(VNA_qubit + 15),  # [MHz] +40
             "steps": 500,  # 200,
@@ -136,6 +136,16 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "stop": 0.085,  # [DAC units]
             "steps": 70,
             "relax_delay": 2000,# [us]
+            "list_of_all_qubits": list_of_all_qubits,
+        },
+
+        "power_rabi_ge_zeno": {
+            "reps": 20,
+            "rounds": 5,
+            "start": 0,  # [DAC units]
+            "stop": 0.085,  # [DAC units]
+            "steps": 70,
+            "relax_delay": 2000,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
 

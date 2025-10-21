@@ -297,7 +297,7 @@ class SingleShot:
             now = datetime.datetime.now()
             formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
             file_name = os.path.join(outerFolder_expt,
-                                     f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" + f"{formatted_datetime}_" + self.expt_name + f"_q{self.QubitIndex + 1}.png")
+                                     f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" + self.expt_name+ f"{formatted_datetime}_"  + f"_q{self.QubitIndex + 1}.png")
 
             axs[2].set_title(f"Fidelity = {fid * 100:.2f}%")
             fig.savefig(file_name,  dpi=fig_quality, bbox_inches='tight')

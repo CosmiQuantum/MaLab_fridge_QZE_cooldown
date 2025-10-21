@@ -177,6 +177,100 @@ class PiAmpsVsTime:
         else:
             return date_times, pi_amps
 
+    def run_rabi_w_calibration(self, plot_depths = False, rolling_avg = False, exp_extension='',return_data=False):
+
+        import datetime
+        # ----------Load/get data------------------------
+        pi_amps = {i: [] for i in range(self.number_of_qubits)}
+        depths = {i: [] for i in range(self.number_of_qubits)}
+        rounds = []
+        reps = []
+        file_names = []
+        Ig_calibration = {i: [] for i in range(self.number_of_qubits)}
+        Ie_calibration = {i: [] for i in range(self.number_of_qubits)}
+        Qg_calibration = {i: [] for i in range(self.number_of_qubits)}
+        Qe_calibration = {i: [] for i in range(self.number_of_qubits)}
+        date_times = {i: [] for i in range(self.number_of_qubits)}
+        mean_values = {}
+        for folder_date in self.top_folder_dates:
+            outerFolder = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "/study_data"+ "/"
+            outerFolder_save_plots = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "_plots/"
+
+            # ------------------------------------------------Load/Plot/Save Rabi---------------------------------------
+            if '_' in exp_extension:
+                outerFolder_expt = outerFolder + f"/Data_h5/rabi_ge_corrected/"
+            else:
+                outerFolder_expt = outerFolder + "/Data_h5/rabi_ge_corrected/"
+            h5_files = glob.glob(os.path.join(outerFolder_expt, "*.h5"))
+            for h5_file in h5_files:
+                save_round = h5_file.split('Num_per_batch')[-1].split('.')[0]
+                H5_class_instance = Data_H5(h5_file)
+                load_data = H5_class_instance.load_from_h5(data_type=f'rabi_ge_corrected', save_r=int(save_round),scaling=True)
+
+                for q_key in load_data[f'rabi_ge_corrected']:
+                    for dataset in range(len(load_data[f'rabi_ge_corrected'][q_key].get('Dates', [])[0])):
+                        if 'nan' in str(load_data[f'rabi_ge_corrected'][q_key].get('Dates', [])[0][dataset]):
+                            continue
+                        date = datetime.datetime.fromtimestamp(load_data[f'rabi_ge_corrected'][q_key].get('Dates', [])[0][dataset])
+                        I = self.process_h5_data(load_data[f'rabi_ge_corrected'][q_key].get('I', [])[0][dataset].decode())
+                        Q = self.process_h5_data(load_data[f'rabi_ge_corrected'][q_key].get('Q', [])[0][dataset].decode())
+                        gains = self.process_h5_data(load_data[f'rabi_ge_corrected'][q_key].get('Gains', [])[0][dataset].decode())
+                        # fit = load_data['Rabi'][q_key].get('Fit', [])[0][dataset]
+                        round_num = load_data[f'rabi_ge_corrected'][q_key].get('Round Num', [])[0][dataset]
+                        batch_num = load_data[f'rabi_ge_corrected'][q_key].get('Batch Num', [])[0][dataset]
+                        Ie = self.process_h5_data(
+                            load_data[f'rabi_ge_corrected'][q_key].get('ss_I_e', [])[0][dataset].decode())
+                        Ig = self.process_h5_data(
+                            load_data[f'rabi_ge_corrected'][q_key].get('ss_I_g', [])[0][dataset].decode())
+                        Qe = self.process_h5_data(
+                            load_data[f'rabi_ge_corrected'][q_key].get('ss_Q_e', [])[0][dataset].decode())
+                        Qg = self.process_h5_data(
+                            load_data[f'rabi_ge_corrected'][q_key].get('ss_Q_g', [])[0][dataset].decode())
+
+                        try:
+                            syst_config = load_data[f'rabi_ge_corrected'][q_key].get('Syst Config', [])[0][dataset].decode()
+                            exp_config = load_data[f'rabi_ge_corrected'][q_key].get('Exp Config', [])[0][dataset].decode()
+                            safe_globals = {"np": np, "array": np.array, "__builtins__": {}}
+                            exp_config = eval(exp_config, safe_globals)
+                        except:
+                            exp_config =None
+
+                        if len(I) > 0:
+                            rabi_class_instance = AmplitudeRabiExperiment(q_key, self.number_of_qubits, outerFolder_save_plots, round_num,
+                                                                          self.signal, self.save_figs)
+                            #rabi_cfg = exp_config['power_rabi_ge']
+                            I = np.asarray(I)
+                            Q = np.asarray(Q)
+                            gains = np.asarray(gains)
+                            if plot_depths:
+                                best_signal_fit, pi_amp, depth = rabi_class_instance.get_results(I, Q, gains,
+                                                                                                 grab_depths=True)
+                                depths[q_key].extend([depth])
+                            elif rolling_avg:
+                                best_signal_fit, pi_amp = rabi_class_instance.get_results(I, Q, gains, rolling_avg=True)
+                            else:
+                                best_signal_fit, pi_amp = rabi_class_instance.get_results(I, Q, gains)
+
+                            pi_amps[q_key].extend([pi_amp])
+                            Ie = np.asarray(Ie, dtype=float)
+                            Qe = np.asarray(Qe, dtype=float)
+                            Ig = np.asarray(Ig, dtype=float)
+                            Qg = np.asarray(Qg, dtype=float)
+                            Ig_calibration[q_key].append(Ig)
+                            Ie_calibration[q_key].append(Ie)
+                            Qg_calibration[q_key].append(Qg)
+                            Qe_calibration[q_key].append(Qe)
+                            date_times[q_key].extend([date.strftime("%Y-%m-%d %H:%M:%S")])
+
+                            del rabi_class_instance
+                del H5_class_instance
+        if plot_depths:
+            return date_times, pi_amps, depths
+        elif return_data:
+            return date_times, pi_amps,I,Q,gains,  Ie_calibration, Ig_calibration,Qe_calibration,Qg_calibration
+        else:
+            return date_times, pi_amps,Ie_calibration, Ig_calibration, Qe_calibration, Qg_calibration
+
     def runQZE(self, outerFolder, outerFolder_save_plots, fit=False, expt_name = "len_rabi_ge",
                old_format=False, filter_amp_above=None,mark_w01s=False, plot_detuned_amps=False,plot_detuning=False,
                pi_line_label_left=None,pi_line_label_right=None):

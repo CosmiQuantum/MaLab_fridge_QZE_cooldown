@@ -518,6 +518,419 @@ class QubitFreqsVsTime:
             fig.savefig(outfile, transparent=False, dpi=self.final_figure_quality)
             plt.close(fig)
             print(f"Saved heatmap for round {r_id} to: {outfile}")
+    def plot_all_q_heatmaps_single_calibration(self,Is, Qs, Ig_calibration1, \
+        Ie_calibration1, Qe_calibration1, Qg_calibration1, gains, rounds, delay_times, save_path, max_ylabels=6):
+        """
+        NEW FORMAT ONLY
+
+        Changes vs your original:
+          - Y-axis now shows at most `max_ylabels` delay_time tick labels (evenly spaced).
+          - Color scale (z) is fixed across rounds using the global min/max amplitude.
+
+        Data model (per qubit q):
+          - amps[q]         : list of lists; amps[q][i] is a list of amplitude samples for dataset i
+          - gains[q]        : list; gains[q][i] is the gain for dataset i
+          - rounds[q]       : list; rounds[q][i] is the round label for dataset i
+          - delay_times[q]  : list; delay_times[q][i] is the delay (scalar) for dataset i
+        """
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from collections import defaultdict
+
+        q = self.qubit
+        gains_q = gains.get(q, [])
+        I_q = Is.get(q, [])
+        Q_q = Qs.get(q, [])
+
+        g = np.mean(Ig_calibration1 + 1j * Qg_calibration1)
+        e = np.mean(Ie_calibration1 + 1j * Qe_calibration1)
+        denom = np.abs(e - g) ** 2
+        if denom <= 0 or not np.isfinite(denom):
+            raise ValueError("Best calibration is degenerate (e ≈ g); cannot normalize.")
+
+        # Build amps_q for ALL datasets, using the SAME e/g
+        amps_q = []
+        rounds_q = rounds.get(q, [])
+        delay_q = delay_times.get(q, [])
+        n_data = min(len(I_q), len(Q_q), len(gains_q), len(rounds_q), len(delay_q))
+        for i in range(n_data):
+            I = np.asarray(I_q[i], dtype=float)
+            Q = np.asarray(Q_q[i], dtype=float)
+            z = I + 1j * Q
+            amp_i = np.abs((z - g) * (e - g) / denom)  # == pop_norm
+            amps_q.append(np.asarray(amp_i, dtype=float))
+
+
+        # Basic presence & length checks
+        n = min(len(amps_q), len(gains_q), len(rounds_q), len(delay_q))
+        if n == 0 or not (len(amps_q) == len(gains_q) == len(rounds_q) == len(delay_q)):
+            print(f"No usable data for qubit {q} (missing lists or length mismatch). Skipping.")
+            return
+
+        # Flatten to points: (round_id, gain, delay, amp)
+        all_points = []
+        for i in range(n):
+            r_id = str(rounds_q[i])
+
+            # amplitudes (required)
+            a_samples = np.asarray(amps_q[i], dtype=float).ravel()
+            if a_samples.size == 0:
+                continue
+
+            # gain can be scalar or per-sample
+            g_i = gains_q[i]
+            g_arr = np.asarray(g_i, dtype=float).ravel() if isinstance(g_i, (list, tuple, np.ndarray)) else None
+            if g_arr is None or g_arr.size == 1:
+                try:
+                    g_scalar = float(g_i)
+                except Exception:
+                    continue
+                g_arr = np.full(a_samples.shape, g_scalar, dtype=float)
+            elif g_arr.size != a_samples.size:
+                continue
+
+            # delay can be scalar or per-sample
+            d_i = delay_q[i]
+            d_arr = np.asarray(d_i, dtype=float).ravel() if isinstance(d_i, (list, tuple, np.ndarray)) else None
+            if d_arr is None or d_arr.size == 1:
+                try:
+                    d_scalar = float(d_i)
+                except Exception:
+                    continue
+                d_arr = np.full(a_samples.shape, d_scalar, dtype=float)
+            elif d_arr.size != a_samples.size:
+                continue
+
+            # keep only finite triples
+            mask = np.isfinite(a_samples) & np.isfinite(g_arr) & np.isfinite(d_arr)
+            if not np.any(mask):
+                continue
+
+            for g, d, a in zip(g_arr[mask], d_arr[mask], a_samples[mask]):
+                all_points.append((r_id, float(g), float(d), float(a)))
+
+        if not all_points:
+            print(f"No numeric points for qubit {q}. Skipping.")
+            return
+
+        # Unique rounds present
+        unique_rounds = sorted({r for (r, _, __, ___) in all_points})
+
+        # Ensure save folder exists
+        self.create_folder_if_not_exists(save_path)
+
+        # Helper to convert centers -> bin edges for pcolormesh
+        def centers_to_edges(centers):
+            centers = np.asarray(sorted(np.unique(centers)), dtype=float)
+            if centers.size == 1:
+                d = 1.0
+                return np.array([centers[0] - d / 2, centers[0] + d / 2])
+            mids = (centers[:-1] + centers[1:]) / 2.0
+            first = centers[0] - (centers[1] - centers[0]) / 2.0
+            last = centers[-1] + (centers[-1] - centers[-2]) / 2.0
+            return np.concatenate([[first], mids, [last]])
+
+        # ---------- NEW: compute global color scale limits (z) ----------
+        all_amps = np.array([a for (_, _, _, a) in all_points], dtype=float)
+        global_vmin = float(np.nanmin(all_amps))
+        global_vmax = float(np.nanmax(all_amps))
+        # ----------------------------------------------------------------
+
+        for r_id in unique_rounds:
+            # Collect this round's points
+            pts = [(g, d, a) for (r, g, d, a) in all_points if r == r_id]
+            if not pts:
+                continue
+
+            gains_r = sorted({g for (g, _, _) in pts})
+            delays_r = sorted({d for (_, d, _) in pts})
+
+            # Map (delay_idx, gain_idx) -> list of amplitudes
+            from collections import defaultdict
+            bucket = defaultdict(list)
+            gi_map = {g: i for i, g in enumerate(gains_r)}
+            di_map = {d: i for i, d in enumerate(delays_r)}
+            for g, d, a in pts:
+                bucket[(di_map[d], gi_map[g])].append(a)
+
+            # Grid of average amplitudes
+            Ny, Nx = len(delays_r), len(gains_r)
+            C = np.full((Ny, Nx), np.nan, dtype=float)
+            for (iy, ix), vals in bucket.items():
+                C[iy, ix] = float(np.nanmean(vals))
+
+            # Bin edges for pcolormesh
+            x_edges = centers_to_edges(gains_r)
+            y_edges = centers_to_edges(delays_r)
+
+            # Plot
+            fig, ax = plt.subplots(figsize=(6.5, 4.5))
+            mesh = ax.pcolormesh(
+                x_edges, y_edges, C, shading='flat',
+                vmin=global_vmin, vmax=global_vmax  # <-- fixed z scale
+            )
+            cbar = fig.colorbar(mesh, ax=ax, pad=0.02)
+            cbar.set_label("Qubit Population")
+
+            ax.set_title(f"Qubit {self.qubit + 1} — Round {r_id}")
+            ax.set_xlabel("Pulse gain (a.u.)")
+            ax.set_ylabel("Frequency (MHz)")
+
+            # X ticks at actual centers
+            import matplotlib.ticker as mticker
+            ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=7, prune=None))
+
+            plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
+
+            # ---------- NEW: only label a subset of delay times on Y ----------
+            if Ny > 0:
+                if Ny <= max_ylabels:
+                    # small: show all
+                    yticks_idx = list(range(Ny))
+                else:
+                    # large: pick evenly spaced indices
+                    yticks_idx = np.linspace(0, Ny - 1, num=max_ylabels, dtype=int).tolist()
+                    # ensure uniqueness/monotonic
+                    yticks_idx = sorted(set(yticks_idx))
+
+                yticks_vals = [delays_r[i] for i in yticks_idx]
+                ax.set_yticks(yticks_vals)
+                ax.set_yticklabels([f"{v:.2f}" for v in yticks_vals])
+            # -------------------------------------------------------------------
+
+            fig.tight_layout()
+            outfile = (save_path + f"qspec_heatmap_q{self.qubit}_round{r_id}.png")
+            fig.savefig(outfile, transparent=False, dpi=self.final_figure_quality)
+            plt.close(fig)
+            print(f"Saved heatmap for round {r_id} to: {outfile}")
+
+    def plot_all_q_heatmaps_single_calibration_IQ(self, Is, Qs, Ig_calibration1,
+                                               Ie_calibration1, Qe_calibration1, Qg_calibration1, gains, rounds,
+                                               delay_times, save_path, max_ylabels=6):
+        """
+        NEW FORMAT ONLY — now plots 4 heatmaps per round (I, Q, |IQ|, Calibrated)
+
+        Changes vs previous:
+          - Adds subplots for I, Q, and raw amplitude sqrt(I^2 + Q^2) alongside calibrated amplitude.
+          - Keeps fixed color scales (per-metric) across rounds.
+          - Y-axis shows at most `max_ylabels` frequency tick labels (evenly spaced).
+
+        Data model (per qubit q):
+          - Is[q][i], Qs[q][i] : 1D arrays of samples for dataset i
+          - gains[q][i]        : scalar or per-sample array
+          - rounds[q][i]       : round label for dataset i (str/int)
+          - delay_times[q][i]  : scalar or per-sample array (here: frequency in MHz)
+        """
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from collections import defaultdict
+        import matplotlib.ticker as mticker
+
+        q = self.qubit
+        gains_q = gains.get(q, [])
+        rounds_q = rounds.get(q, [])
+        freq_q = delay_times.get(q, [])  # frequency (MHz)
+        I_q = Is.get(q, [])
+        Q_q = Qs.get(q, [])
+
+        # --- Calibration (shared for all datasets) ---
+        g = np.mean(Ig_calibration1 + 1j * Qg_calibration1)
+        e = np.mean(Ie_calibration1 + 1j * Qe_calibration1)
+        denom = np.abs(e - g) ** 2
+        if denom <= 0 or not np.isfinite(denom):
+            raise ValueError("Best calibration is degenerate (e ≈ g); cannot normalize.")
+
+        # Ensure save folder exists
+        self.create_folder_if_not_exists(save_path)
+
+        def centers_to_edges(centers):
+            centers = np.asarray(sorted(np.unique(centers)), dtype=float)
+            if centers.size == 1:
+                d = 1.0
+                return np.array([centers[0] - d / 2, centers[0] + d / 2])
+            mids = (centers[:-1] + centers[1:]) / 2.0
+            first = centers[0] - (centers[1] - centers[0]) / 2.0
+            last = centers[-1] + (centers[-1] - centers[-2]) / 2.0
+            return np.concatenate([[first], mids, [last]])
+
+        # Build per-sample points for each metric
+        n_data = min(len(I_q), len(Q_q), len(gains_q), len(rounds_q), len(freq_q))
+        if n_data == 0:
+            print(f"No usable data for qubit {q} (missing lists). Skipping.")
+            return
+
+        # all_points_<metric>: list of tuples (round_id, gain, freq, value)
+        all_points_I = []
+        all_points_Q = []
+        all_points_abs = []
+        all_points_cal = []
+
+        for i in range(n_data):
+            I = np.asarray(I_q[i], dtype=float).ravel()
+            Q = np.asarray(Q_q[i], dtype=float).ravel()
+            if I.size == 0 or Q.size == 0 or I.size != Q.size:
+                continue
+
+            z = I + 1j * Q
+            amp_cal = np.abs((z - g) * (e - g) / denom)  # calibrated (population-like)
+            amp_raw = np.sqrt(I ** 2 + Q ** 2)  # raw amplitude
+
+            # gain can be scalar or per-sample
+            g_i = gains_q[i]
+            if isinstance(g_i, (list, tuple, np.ndarray)):
+                g_arr = np.asarray(g_i, dtype=float).ravel()
+                if g_arr.size not in (1, I.size):
+                    continue
+                if g_arr.size == 1:
+                    g_arr = np.full(I.shape, float(g_arr[0]), dtype=float)
+            else:
+                try:
+                    g_arr = np.full(I.shape, float(g_i), dtype=float)
+                except Exception:
+                    continue
+
+            # frequency can be scalar or per-sample
+            f_i = freq_q[i]
+            if isinstance(f_i, (list, tuple, np.ndarray)):
+                f_arr = np.asarray(f_i, dtype=float).ravel()
+                if f_arr.size not in (1, I.size):
+                    continue
+                if f_arr.size == 1:
+                    f_arr = np.full(I.shape, float(f_arr[0]), dtype=float)
+            else:
+                try:
+                    f_arr = np.full(I.shape, float(f_i), dtype=float)
+                except Exception:
+                    continue
+
+            r_id = str(rounds_q[i])
+
+            # keep only finite entries
+            mask = (np.isfinite(I) & np.isfinite(Q) &
+                    np.isfinite(amp_raw) & np.isfinite(amp_cal) &
+                    np.isfinite(g_arr) & np.isfinite(f_arr))
+            if not np.any(mask):
+                continue
+
+            for g_val, f_val, iv, qv, av, cv in zip(g_arr[mask], f_arr[mask], I[mask], Q[mask], amp_raw[mask],
+                                                    amp_cal[mask]):
+                g_val = float(g_val);
+                f_val = float(f_val)
+                all_points_I.append((r_id, g_val, f_val, float(iv)))
+                all_points_Q.append((r_id, g_val, f_val, float(qv)))
+                all_points_abs.append((r_id, g_val, f_val, float(av)))
+                all_points_cal.append((r_id, g_val, f_val, float(cv)))
+
+        # If nothing collected, bail
+        if not (all_points_I and all_points_Q and all_points_abs and all_points_cal):
+            print(f"No numeric points for qubit {q}. Skipping.")
+            return
+
+        unique_rounds = sorted({r for (r, _, __, ___) in all_points_cal})
+
+        # Compute per-metric global color scales (fixed across rounds)
+        def global_minmax(points):
+            vals = np.array([v for (_, _, __, v) in points], dtype=float)
+            return float(np.nanmin(vals)), float(np.nanmax(vals))
+
+        vmin_I, vmax_I = global_minmax(all_points_I)
+        vmin_Q, vmax_Q = global_minmax(all_points_Q)
+        vmin_abs, vmax_abs = global_minmax(all_points_abs)
+        vmin_cal, vmax_cal = global_minmax(all_points_cal)
+
+        # Helper: grid and heatmap data for a given round and point-list
+        def grid_for_round(r_id, points):
+            pts = [(g, f, a) for (r, g, f, a) in points if r == r_id]
+            if not pts:
+                return None
+            gains_r = sorted({g for (g, _, _) in pts})
+            freqs_r = sorted({f for (_, f, _) in pts})
+            gi_map = {g: i for i, g in enumerate(gains_r)}
+            fi_map = {f: i for i, f in enumerate(freqs_r)}
+            bucket = defaultdict(list)
+            for g, f, a in pts:
+                bucket[(fi_map[f], gi_map[g])].append(a)
+            Ny, Nx = len(freqs_r), len(gains_r)
+            C = np.full((Ny, Nx), np.nan, dtype=float)
+            for (iy, ix), vals in bucket.items():
+                C[iy, ix] = float(np.nanmean(vals))
+            x_edges = centers_to_edges(gains_r)
+            y_edges = centers_to_edges(freqs_r)
+            return (x_edges, y_edges, C, gains_r, freqs_r)
+
+        for r_id in unique_rounds:
+            gi = grid_for_round(r_id, all_points_I)
+            gq = grid_for_round(r_id, all_points_Q)
+            ga = grid_for_round(r_id, all_points_abs)
+            gc = grid_for_round(r_id, all_points_cal)
+            if not all([gi, gq, ga, gc]):
+                print(f"Round {r_id}: incomplete metric grids; skipping.")
+                continue
+
+            (xI, yI, CI, gains_Ir, freqs_Ir) = gi
+            (xQ, yQ, CQ, gains_Qr, freqs_Qr) = gq
+            (xA, yA, CA, gains_Ar, freqs_Ar) = ga
+            (xC, yC, CC, gains_Cr, freqs_Cr) = gc
+
+            # Plot 2x2 subplots
+            fig, axes = plt.subplots(2, 2, figsize=(11, 8))
+            axI, axQ = axes[0]
+            axA, axC = axes[1]
+
+            meshI = axI.pcolormesh(xI, yI, CI, shading='flat', vmin=vmin_I, vmax=vmax_I)
+            meshQ = axQ.pcolormesh(xQ, yQ, CQ, shading='flat', vmin=vmin_Q, vmax=vmax_Q)
+            meshA = axA.pcolormesh(xA, yA, CA, shading='flat', vmin=vmin_abs, vmax=vmax_abs)
+            meshC = axC.pcolormesh(xC, yC, CC, shading='flat', vmin=vmin_cal, vmax=vmax_cal)
+
+            # Titles
+            axI.set_title("I")
+            axQ.set_title("Q")
+            axA.set_title("|IQ| = sqrt(I^2 + Q^2)")
+            axC.set_title("Calibrated amplitude")
+
+            # Axis labels & ticks
+            for ax in (axI, axQ, axA, axC):
+                ax.set_xlabel("Pulse gain (a.u.)")
+                ax.set_ylabel("Frequency (MHz)")
+                ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=7))
+                plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
+
+            # Limit number of Y tick labels (per axis, MHz formatting)
+            def set_y_ticks(ax, freq_centers):
+                Ny = len(freq_centers)
+                if Ny == 0:
+                    return
+                if Ny <= max_ylabels:
+                    idx = list(range(Ny))
+                else:
+                    idx = sorted(set(np.linspace(0, Ny - 1, num=max_ylabels, dtype=int).tolist()))
+                vals = [freq_centers[i] for i in idx]
+                ax.set_yticks(vals)
+                ax.set_yticklabels([f"{v:.2f}" for v in vals])
+
+            set_y_ticks(axI, freqs_Ir)
+            set_y_ticks(axQ, freqs_Qr)
+            set_y_ticks(axA, freqs_Ar)
+            set_y_ticks(axC, freqs_Cr)
+
+            # Colorbars (independent per panel)
+            cI = fig.colorbar(meshI, ax=axI, pad=0.02);
+            cI.set_label("I (a.u.)")
+            cQ = fig.colorbar(meshQ, ax=axQ, pad=0.02);
+            cQ.set_label("Q (a.u.)")
+            cA = fig.colorbar(meshA, ax=axA, pad=0.02);
+            cA.set_label("|IQ| (a.u.)")
+            cCal = fig.colorbar(meshC, ax=axC, pad=0.02);
+            cCal.set_label("Qubit Population")
+
+            fig.suptitle(f"Qubit {self.qubit + 1} — Round {r_id}", y=0.98)
+            fig.tight_layout(rect=[0, 0, 1, 0.96])
+
+            outfile = (save_path + f"qspec_heatmap_quad_q{self.qubit}_round{r_id}.png")
+            fig.savefig(outfile, transparent=False, dpi=self.final_figure_quality)
+            plt.close(fig)
+            print(f"Saved 4-panel heatmaps for round {r_id} to: {outfile}")
+
     def plot_without_errs(self, date_times, qubit_frequencies, show_legends):
         # ---------------------------------plot-----------------------------------------------------
         if self.fridge.upper() == 'QUIET':

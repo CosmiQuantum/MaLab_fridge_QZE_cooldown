@@ -43,14 +43,14 @@ thresholding = False                 # use internal QICK threshold for ratio of 
 increase_qubit_reps = False          # if you want to increase the reps for a qubit, set to True
 qubit_to_increase_reps_for = 0       # only has impact if previous line is True
 multiply_qubit_reps_by = 2           # only has impact if the line two above is True
-Qs_to_look_at = [1]        # only list the qubits you want to do the RR for
+Qs_to_look_at = [4]        # only list the qubits you want to do the RR for
 
 #Data saving info
 run_name = 'bob_run_started_Aug_23'
 device_name = 'squill'
 substudy_txt_notes = ('fixed the t1 code so now the pulse length for zeno isnt 0')
 
-study = 'QZE_IBM_checking_ramsey_consistency_gain0p0002'
+study = 'QZE_IBM_checking_ramsey_consistency_gain0p000001_q5_longer'
 
 ################################################ optimization outputs ##################################################
 # Optimization parameters for resonator spectroscopy
@@ -575,10 +575,10 @@ for QubitIndex in Qs_to_look_at:
     t2r_data = create_data_dict(t2r_keys, save_r, list_of_all_qubits)
     ########################################### go through each gain ######################################
     # pulse_gains = np.linspace(0.0001, res_gain[QubitIndex], 30)
-    pulse_gains = [0.0002]#np.linspace(0.0001, 0.01, 50)
+    pulse_gains = [0.000001]#np.linspace(0.0001, 0.01, 50)
     try:
         for gain in pulse_gains:
-            for repeat_round in range(50):
+            for repeat_round in range(500):
                 # for slice in slices:
                 #sub_study = f'repeat_rounds_3'
                 data_set = f'qubit_' + str(

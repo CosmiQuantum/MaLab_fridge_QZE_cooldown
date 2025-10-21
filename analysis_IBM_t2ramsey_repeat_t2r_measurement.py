@@ -13,10 +13,16 @@ run_number = 3 #starting from first run with qubits. Run 1 = run4a at quiet, run
 figure_quality = 100 #ramp this up to like 500 for presentation plots
 final_figure_quality = 200
 
-
+path = 'QZE_IBM_checking_ramsey_consistency_gain0p000001_q5'
 FRIDGE = "QUIET"
 run_notes = ('Added IR shielding, better cryo terminators, thermalizing with 0dB attenuator ') #please make it brief for the plot
-qubits=[0,1,2,3,4,5]
+qubits=[4]
+
+Ie_calibration = {i: [] for i in range(6)}
+Ig_calibration = {i: [] for i in range(6)}
+Qe_calibration = {i: [] for i in range(6)}
+Qg_calibration = {i: [] for i in range(6)}
+
 Is = {i: [] for i in range(6)}
 Qs = {i: [] for i in range(6)}
 amps = {i: [] for i in range(6)}
@@ -38,7 +44,7 @@ gains_qspec = {i: [] for i in range(6)}
 rounds_qspec = {i: [] for i in range(6)}
 freqs_qspec = {i: [] for i in range(6)}
 for qubit in qubits:
-    run_name = f'bob_run_started_Aug_23/squill/QZE_IBM_checking_ramsey_consistency_gain0p0002/all_qubits/'
+    run_name = f'bob_run_started_Aug_23/squill/QZE_IBM_checking_ramsey_consistency_gain0p000001_q5/all_qubits/'
     top_folder_dates = []
     for round in range(50):
         top_folder_dates.append(f'qubit_{qubit}round{round}')
@@ -46,18 +52,43 @@ for qubit in qubits:
     t2_vs_time = T2rVsTime(figure_quality, final_figure_quality, tot_num_of_qubits, top_folder_dates, save_figs,
                           fit_saved,
                           signal, run_name,fridge=FRIDGE,  exp_name='ge', qubit=qubit)
-    Is1, Qs1, amps1, gains1, rounds1, delay_times1 = t2_vs_time.run_t2_sweep(exp_extension='_ge', scaling=True)
+    Is1, Qs1, amps1, gains1, rounds1, delay_times1, Ig_calibration1, Ie_calibration1, Qe_calibration1, Qg_calibration1,steps = t2_vs_time.run_t2_sweep(exp_extension='_ge', scaling=True, return_calibration_data=True)
     Is_t2[qubit] = Is1[qubit]
     Qs_t2[qubit] = Qs1[qubit]
     amps_t2[qubit] = amps1[qubit]
     gains_t2[qubit] = gains1[qubit]
     rounds_t2[qubit] = rounds1[qubit]
     delay_times_t2[qubit] = delay_times1[qubit]
+    Ie_calibration[qubit] = Ie_calibration1[qubit][0]
+    Ig_calibration[qubit] = Ig_calibration1[qubit][0]
+    Qe_calibration[qubit] = Qe_calibration1[qubit][0]
+    Qg_calibration[qubit] = Qg_calibration1[qubit][0]
+    from section_005_single_shot_ge import SingleShot
 
+    ss = SingleShot(qubit, 6, f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/',
+                    0, True)
+
+    best_calibration_dict = t2_vs_time.plot_best_ssf_only(amps, gains, rounds, delay_times,
+                                                          f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/single_calibration/',
+                                                          ss_class_instance=ss,  # your object that has hist_ssf(...)
+                                                          ss_cfg={"steps": steps},
+                                                          Ig_calibration=Ig_calibration,
+                                                          Ie_calibration=Ie_calibration,
+                                                          Qg_calibration=Qg_calibration,
+                                                          Qe_calibration=Qe_calibration)
+    import numpy as np
+
+    Ig_calibration1 = np.asarray(best_calibration_dict['Ig'], dtype=float).ravel()
+    Ie_calibration1 = np.asarray(best_calibration_dict['Ie'], dtype=float).ravel()
+    Qe_calibration1 = np.asarray(best_calibration_dict['Qe'], dtype=float).ravel()
+    Qg_calibration1 = np.asarray(best_calibration_dict['Qg'], dtype=float).ravel()
+
+    t2_vs_time.plot_all_t2_rounds_IQ_single_calibration(Is_t2, Qs_t2, Ig_calibration1, Qg_calibration1, Ie_calibration1, Qe_calibration1, gains_t2, rounds_t2, delay_times_t2,
+                                               f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/')
     t2_vs_time.plot_all_t2_rounds(amps_t2, gains_t2, rounds_t2, delay_times_t2,
-                                               f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/QZE_IBM_checking_ramsey_consistency_gain0p0002/all_qubits/analysis/')
+                                               f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/')
     t2_vs_time.plot_all_t2_rounds_IQ(Is_t2, Qs_t2, gains_t2, rounds_t2, delay_times_t2,
-                                               f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/QZE_IBM_checking_ramsey_consistency_gain0p0002/all_qubits/analysis/')
+                                               f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/')
 
     t2_vs_time.plot_all_t2_rounds_IQAmp(Is_t2, Qs_t2, gains_t2, rounds_t2, delay_times_t2,
-                                                   f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/QZE_IBM_checking_ramsey_consistency_gain0p0002/all_qubits/analysis/')
+                                                   f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/')

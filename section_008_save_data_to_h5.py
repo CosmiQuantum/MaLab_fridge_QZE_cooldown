@@ -199,11 +199,12 @@ class Data_H5:
                                            'Batch Num': 'Batch Num', 'Recycled QFreq': 'Recycled QFreq',
                                            'Exp Config': 'Exp Config', 'Syst Config': 'Syst Config','ss_Q_e': 'ss_Q_e', 'ss_Q_g': 'ss_Q_g',
                                            'ss_I_e': 'ss_I_e', 'ss_I_g': 'ss_I_g'}
-                        elif data_type == 'Rabi' or data_type == 'Rabi_ge' or data_type == 'Rabi_ef':
+                        elif data_type == 'Rabi' or data_type == 'Rabi_ge' or data_type == 'Rabi_ef' or data_type == 'rabi_ge_corrected':
                             target_keys = {'Dates': 'Dates', 'I': 'I', 'Q': 'Q', 'Gains': 'Gains', 'Fit': 'Fit',
                                            'Round Num': 'Round Num', 'Batch Num': 'Batch Num',
                                            'Exp Config': 'Exp Config',
                                            'Syst Config': 'Syst Config', 'ss_Q_e': 'ss_Q_e', 'ss_Q_g': 'ss_Q_g',
+                                           'ss_I_e': 'ss_I_e', 'ss_I_g': 'ss_I_g','ss_Q_e': 'ss_Q_e', 'ss_Q_g': 'ss_Q_g',
                                            'ss_I_e': 'ss_I_e', 'ss_I_g': 'ss_I_g'}
 
                         elif data_type == 'q_temperatures':

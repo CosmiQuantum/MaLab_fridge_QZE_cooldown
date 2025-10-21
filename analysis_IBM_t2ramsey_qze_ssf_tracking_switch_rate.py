@@ -50,7 +50,7 @@ amps_qspec = {i: [] for i in range(6)}
 gains_qspec = {i: [] for i in range(6)}
 rounds_qspec = {i: [] for i in range(6)}
 freqs_qspec = {i: [] for i in range(6)}
-path= 'QZE_IBM_checking_ramsey_consistency_gain0p000001_q5'
+path= 'QZE_IBM_q5_rotated_phase'
 for qubit in qubits:
     run_name = f'bob_run_started_Aug_23/squill/{path}/all_qubits/'
     top_folder_dates = []
@@ -77,54 +77,13 @@ for qubit in qubits:
     from section_005_single_shot_ge import SingleShot
     ss = SingleShot(qubit, 6, f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/', 0, True)
 
-    t1_vs_time.plot_all_t1_heatmaps_with_singular_ssf_plotting(amps, gains, rounds, delay_times,
+    t1_vs_time.plot_all_t1_heatmaps_with_singular_ssf_vs_time_plotting(amps, gains, rounds, delay_times,
                                     f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/',ss_class_instance=ss,            # your object that has hist_ssf(...)
                                     ss_cfg={"steps": steps}, max_ylabels=6,
                                     Ig_calibration=Ig_calibration,
                                     Ie_calibration=Ie_calibration,
                                     Qg_calibration=Qg_calibration,
-                                    Qe_calibration=Qe_calibration)
+                                    Qe_calibration=Qe_calibration, q_threshold=0)
 
 
-    t2_vs_time = T2rVsTime(figure_quality, final_figure_quality, tot_num_of_qubits, top_folder_dates, save_figs,
-                          fit_saved,
-                          signal, run_name,fridge=FRIDGE,  exp_name='ge', qubit=qubit)
-    Is1_t2, Qs1_t2, amps1_t2, gains1_t2, rounds1_t2, delay_times1_t2,Ig_calibration1_t2, \
-        Ie_calibration1_t2, Qe_calibration1_t2, Qg_calibration1_t2,steps = t2_vs_time.run_t2_sweep(exp_extension='_ge',
-                                                                                             scaling=True,
-                                                                                             return_calibration_data=True)
-    Is_t2[qubit] = Is1_t2[qubit]
-    Qs_t2[qubit] = Qs1_t2[qubit]
-    Ie_calibration_t2[qubit] = Ie_calibration1_t2[qubit]
-    Ig_calibration_t2[qubit] = Ig_calibration1_t2[qubit]
-    Qe_calibration_t2[qubit] = Qe_calibration1_t2[qubit]
-    Qg_calibration_t2[qubit] = Qg_calibration1_t2[qubit]
-    amps_t2[qubit] = amps1_t2[qubit]
-    gains_t2[qubit] = gains1_t2[qubit]
-    rounds_t2[qubit] = rounds1_t2[qubit]
-    delay_times_t2[qubit] = delay_times1_t2[qubit]
 
-    t2_vs_time.plot_all_t2_heatmaps_new_format(amps_t2, gains_t2, rounds_t2, delay_times_t2,
-                                               f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/')
-
-    q_vs_time = QubitFreqsVsTime(figure_quality, final_figure_quality, tot_num_of_qubits, top_folder_dates, save_figs,
-                           fit_saved,
-                           signal, run_name, fridge=FRIDGE, exp_name='ge', qubit=qubit)
-    Is1_qspec, Qs1_qspec, amps1_qspec, gains1_qspec, rounds1_qspec, delay_times1_qspec,Ig_calibration1_qspec, \
-        Ie_calibration1_qspec, Qe_calibration1_qspec, Qg_calibration1_qspec, steps = q_vs_time.run_q_sweep(exp_extension='_ge',
-                                                                                                    scaling=True,
-                                                                                                    return_calibration_data=True)
-    Is_qspec[qubit] = Is1_qspec[qubit]
-    Qs_qspec[qubit] = Qs1_qspec[qubit]
-    Ie_calibration_qspec[qubit] = Ie_calibration1_qspec[qubit]
-    Ig_calibration_qspec[qubit] = Ig_calibration1_qspec[qubit]
-    Qe_calibration_qspec[qubit] = Qe_calibration1_qspec[qubit]
-    Qg_calibration_qspec[qubit] = Qg_calibration1_qspec[qubit]
-
-    amps_qspec[qubit] = amps1_qspec[qubit]
-    gains_qspec[qubit] = gains1_qspec[qubit]
-    rounds_qspec[qubit] = rounds1_qspec[qubit]
-    freqs_qspec[qubit] = delay_times1_qspec[qubit]
-
-    q_vs_time.plot_all_q_heatmaps_new_format(amps_qspec, gains_qspec, rounds_qspec, freqs_qspec,
-                                               f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/')
