@@ -435,7 +435,7 @@ class T2RMeasurement:
             ss_Q_e = iq_list_e[0][0].T[1]
 
             fit, t2r_est, t2r_err, plot_sig = None, None, None, None
-            self.plot_results(I, Q, delay_times, now, fit, t2r_est, t2r_err, plot_sig)
+            self.plot_results(I, Q, delay_times, now, fit, t2r_est, t2r_err, plot_sig,scaling=scaling, Ie = ss_I_e, Ig = ss_I_g, Qe = ss_Q_e, Qg = ss_Q_g)
             return  t2r_est, t2r_err, I, Q, delay_times, fit, self.config, ss_Q_e, ss_Q_g, ss_I_e, ss_I_g
         else:
             if self.fit_data:
@@ -523,66 +523,130 @@ class T2RMeasurement:
         if not os.path.exists(folder):
             os.makedirs(folder)
 
-    def plot_results(self, I, Q, delay_times, now, fit, t2r_est, t2r_err, plot_sig, config = None, fig_quality = 100):
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
-        plt.rcParams.update({'font.size': 18})
+    def plot_results(self, I, Q, delay_times, now, fit, t2r_est, t2r_err, plot_sig, config = None, fig_quality = 100,
+                     scaling=False, Ie=None, Ig=None,
+                     Qe=None, Qg=None):
+        if scaling:
+            e = np.mean((Ie + 1j * Qe))
+            g = np.mean((Ig + 1j * Qg))
+            ### Normalization ###
+            pop_norm = abs(((I + 1j * Q) - g) * (e - g) / abs(e - g) ** 2)
+            ydata = pop_norm
+            fig, (ax1) = plt.subplots(1, 1)
 
-        # Calculate the middle of the plot area
-        plot_middle = (ax1.get_position().x0 + ax1.get_position().x1) / 2
-        if self.fit_data:
-            if 'I' in plot_sig:
+            plt.rcParams.update({'font.size': 18})
+
+            # Calculate the middle of the plot area
+            plot_middle = (ax1.get_position().x0 + ax1.get_position().x1) / 2
+            if self.fit_data:
                 ax1.plot(delay_times, fit, '-', color='red', linewidth=3, label="Fit")
-            if 'Q' in plot_sig:
-                ax2.plot(delay_times, fit, '-', color='red', linewidth=3, label="Fit")
 
-            # Add title, centered on the plot area
-            if config is not None:
-                fig.text(plot_middle, 0.98,
-                         f"T2 Q{self.QubitIndex + 1}" + f", {float(config['reps'])}*{float(config['rounds'])} avgs,",
-                         fontsize=24, ha='center', va='top') #, pi gain %.2f" % float(config['pi_amp']) + f", {float(config['sigma']) * 1000} ns sigma
+                # Add title, centered on the plot area
+                if config is not None:
+                    fig.text(plot_middle, 0.98,
+                             f"T2 Q{self.QubitIndex + 1}" + f", {float(config['reps'])}*{float(config['rounds'])} avgs,",
+                             fontsize=24, ha='center',
+                             va='top')  # , pi gain %.2f" % float(config['pi_amp']) + f", {float(config['sigma']) * 1000} ns sigma
+                else:
+                    fig.text(plot_middle, 0.98,
+                             f"T2 Q{self.QubitIndex + 1}, T2R %.2f us" % float(
+                                 t2r_est) + f", {float(self.config['reps'])}*{float(self.config['rounds'])} avgs,",
+                             fontsize=24, ha='center', va='top')
+
             else:
-                fig.text(plot_middle, 0.98,
-                         f"T2 Q{self.QubitIndex + 1}, T2R %.2f us" % float(
-                             t2r_est) + f", {float(self.config['reps'])}*{float(self.config['rounds'])} avgs,",
-                         fontsize=24, ha='center', va='top')
+                # Add title, centered on the plot area
+                if config is not None:
+                    fig.text(plot_middle, 0.98,
+                             f"T2 Q{self.QubitIndex + 1}" + f", {float(config['reps'])}*{float(config['rounds'])} avgs,",
+                             fontsize=24, ha='center',
+                             va='top')  # , pi gain %.2f" % float(config['pi_amp']) + f", {float(config['sigma']) * 1000} ns sigma
+                else:
+                    fig.text(plot_middle, 0.98,
+                             f"T2 Q{self.QubitIndex + 1}, pi gain %.2f" % float(self.config[
+                                                                                    'pi_amp']) + f", {float(self.config['sigma']) * 1000} ns sigma" + f", {float(self.config['reps'])}*{float(self.config['rounds'])} avgs,",
+                             fontsize=24, ha='center', va='top')
 
+            # I subplot
+            ax1.plot(delay_times, ydata, label="Gain (a.u.)", linewidth=2)
+            ax1.set_ylabel("Qubit Population", fontsize=20)
+            ax1.tick_params(axis='both', which='major', labelsize=16)
+            # ax1.axvline(freq_q, color='orange', linestyle='--', linewidth=2)
+
+            # Adjust spacing
+            plt.tight_layout()
+
+            # Adjust the top margin to make room for the title
+            plt.subplots_adjust(top=0.93)
+            if self.save_figs:
+                outerFolder_expt = os.path.join(self.outerFolder, self.expt_name + '_' + str(self.correction_round))
+
+                self.create_folder_if_not_exists(outerFolder_expt)
+                now = datetime.datetime.now()
+                formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
+                file_name = os.path.join(outerFolder_expt,
+                                         f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" + f"{formatted_datetime}_" + self.expt_name + f"_q{self.QubitIndex + 1}.png")
+                fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')  # , facecolor='white'
+            plt.close(fig)
         else:
-            # Add title, centered on the plot area
-            if config is not None:
-                fig.text(plot_middle, 0.98,
-                         f"T2 Q{self.QubitIndex + 1}" + f", {float(config['reps'])}*{float(config['rounds'])} avgs," ,
-                         fontsize=24, ha='center', va='top') #, pi gain %.2f" % float(config['pi_amp']) + f", {float(config['sigma']) * 1000} ns sigma
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+            plt.rcParams.update({'font.size': 18})
+
+            # Calculate the middle of the plot area
+            plot_middle = (ax1.get_position().x0 + ax1.get_position().x1) / 2
+            if self.fit_data:
+                if 'I' in plot_sig:
+                    ax1.plot(delay_times, fit, '-', color='red', linewidth=3, label="Fit")
+                if 'Q' in plot_sig:
+                    ax2.plot(delay_times, fit, '-', color='red', linewidth=3, label="Fit")
+
+                # Add title, centered on the plot area
+                if config is not None:
+                    fig.text(plot_middle, 0.98,
+                             f"T2 Q{self.QubitIndex + 1}" + f", {float(config['reps'])}*{float(config['rounds'])} avgs,",
+                             fontsize=24, ha='center', va='top') #, pi gain %.2f" % float(config['pi_amp']) + f", {float(config['sigma']) * 1000} ns sigma
+                else:
+                    fig.text(plot_middle, 0.98,
+                             f"T2 Q{self.QubitIndex + 1}, T2R %.2f us" % float(
+                                 t2r_est) + f", {float(self.config['reps'])}*{float(self.config['rounds'])} avgs,",
+                             fontsize=24, ha='center', va='top')
+
             else:
-                fig.text(plot_middle, 0.98,
-                         f"T2 Q{self.QubitIndex + 1}, pi gain %.2f" % float(self.config[
-                                                                                'pi_amp']) + f", {float(self.config['sigma']) * 1000} ns sigma" + f", {float(self.config['reps'])}*{float(self.config['rounds'])} avgs,",
-                         fontsize=24, ha='center', va='top')
+                # Add title, centered on the plot area
+                if config is not None:
+                    fig.text(plot_middle, 0.98,
+                             f"T2 Q{self.QubitIndex + 1}" + f", {float(config['reps'])}*{float(config['rounds'])} avgs," ,
+                             fontsize=24, ha='center', va='top') #, pi gain %.2f" % float(config['pi_amp']) + f", {float(config['sigma']) * 1000} ns sigma
+                else:
+                    fig.text(plot_middle, 0.98,
+                             f"T2 Q{self.QubitIndex + 1}, pi gain %.2f" % float(self.config[
+                                                                                    'pi_amp']) + f", {float(self.config['sigma']) * 1000} ns sigma" + f", {float(self.config['reps'])}*{float(self.config['rounds'])} avgs,",
+                             fontsize=24, ha='center', va='top')
 
-        # I subplot
-        ax1.plot(delay_times, I, label="Gain (a.u.)", linewidth=2)
-        ax1.set_ylabel("I Amplitude (a.u.)", fontsize=20)
-        ax1.tick_params(axis='both', which='major', labelsize=16)
-        # ax1.axvline(freq_q, color='orange', linestyle='--', linewidth=2)
+            # I subplot
+            ax1.plot(delay_times, I, label="Gain (a.u.)", linewidth=2)
+            ax1.set_ylabel("I Amplitude (a.u.)", fontsize=20)
+            ax1.tick_params(axis='both', which='major', labelsize=16)
+            # ax1.axvline(freq_q, color='orange', linestyle='--', linewidth=2)
 
-        # Q subplot
-        ax2.plot(delay_times, Q, label="Q", linewidth=2)
-        ax2.set_xlabel("Delay time (us)", fontsize=20)
-        ax2.set_ylabel("Q Amplitude (a.u.)", fontsize=20)
-        ax2.tick_params(axis='both', which='major', labelsize=16)
-        # ax2.axvline(freq_q, color='orange', linestyle='--', linewidth=2)
+            # Q subplot
+            ax2.plot(delay_times, Q, label="Q", linewidth=2)
+            ax2.set_xlabel("Delay time (us)", fontsize=20)
+            ax2.set_ylabel("Q Amplitude (a.u.)", fontsize=20)
+            ax2.tick_params(axis='both', which='major', labelsize=16)
+            # ax2.axvline(freq_q, color='orange', linestyle='--', linewidth=2)
 
-        # Adjust spacing
-        plt.tight_layout()
+            # Adjust spacing
+            plt.tight_layout()
 
-        # Adjust the top margin to make room for the title
-        plt.subplots_adjust(top=0.93)
-        if self.save_figs:
-            outerFolder_expt = os.path.join(self.outerFolder, self.expt_name + '_'+str(self.correction_round))
+            # Adjust the top margin to make room for the title
+            plt.subplots_adjust(top=0.93)
+            if self.save_figs:
+                outerFolder_expt = os.path.join(self.outerFolder, self.expt_name + '_'+str(self.correction_round))
 
-            self.create_folder_if_not_exists(outerFolder_expt)
-            now = datetime.datetime.now()
-            formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
-            file_name = os.path.join(outerFolder_expt, f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" + f"{formatted_datetime}_" + self.expt_name + f"_q{self.QubitIndex + 1}.png")
-            fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')  # , facecolor='white'
-        plt.close(fig)
+                self.create_folder_if_not_exists(outerFolder_expt)
+                now = datetime.datetime.now()
+                formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
+                file_name = os.path.join(outerFolder_expt, f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" + f"{formatted_datetime}_" + self.expt_name + f"_q{self.QubitIndex + 1}.png")
+                fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')  # , facecolor='white'
+            plt.close(fig)
 

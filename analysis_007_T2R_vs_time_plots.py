@@ -262,6 +262,160 @@ class T2rVsTime:
             return Is,Qs,amps, gains, rounds_completed, delay_times, Ig_calibration, Ie_calibration, Qe_calibration, Qg_calibration,steps
         else:
             return Is, Qs, amps, gains, rounds_completed, delay_times
+    def run_t2_sweep_no_zeno(self, exp_extension='', scaling=False,return_calibration_data=False):
+        import datetime
+
+        # ----------Load/get data------------------------
+        Is = {i: [] for i in range(self.number_of_qubits)}
+        Qs = {i: [] for i in range(self.number_of_qubits)}
+        Ig_calibration = {i: [] for i in range(self.number_of_qubits)}
+        Ie_calibration = {i: [] for i in range(self.number_of_qubits)}
+        Qg_calibration = {i: [] for i in range(self.number_of_qubits)}
+        Qe_calibration = {i: [] for i in range(self.number_of_qubits)}
+        amps = {i: [] for i in range(self.number_of_qubits)}
+        gains = {i: [] for i in range(self.number_of_qubits)}
+        rounds_completed = {i: [] for i in range(self.number_of_qubits)}
+        reps = []
+        steps=0
+        file_names = []
+        date_times = {i: [] for i in range(self.number_of_qubits)}
+        delay_times = {i: [] for i in range(self.number_of_qubits)}
+        mean_values = {}
+        #print(self.top_folder_dates)
+        for folder_date in self.top_folder_dates:
+            if self.fridge.upper() == 'QUIET':
+                outerFolder = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "/study_data"
+                outerFolder_save_plots = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "_plots/"
+            elif self.fridge.upper() == 'NEXUS':
+                outerFolder = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/" + folder_date + "/"
+                outerFolder_save_plots = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/" + folder_date + "_plots/"
+            else:
+                raise ValueError("fridge must be either 'QUIET' or 'NEXUS'")
+
+            # ------------------------------------------------Load/Plot/Save T1----------------------------------------------
+            if '_' in exp_extension:
+                outerFolder_expt = outerFolder + f"/Data_h5/T2/"
+            else:
+                outerFolder_expt = outerFolder + "/Data_h5/T2/"
+            round_we_are_on=outerFolder_expt.split(f'qubit_{self.qubit}round')[-1].split('/')[0].split('_')[0]
+            h5_files = glob.glob(os.path.join(outerFolder_expt, "*.h5"))
+            TS = re.compile(
+                r'(\d{4})[-_\.]?(\d{2})[-_\.]?(\d{2})[ Tt_-]?(\d{2})[-_\.]?(\d{2})[-_\.]?(\d{2})'
+            )
+            import datetime as dt
+            def dt_from_name(path):
+                name = os.path.basename(path)
+                m = TS.search(name)
+                if not m:
+                    return dt.datetime.min  # or dt.datetime.max to push unknowns to the end
+                y, mo, d, h, mi, s = map(int, m.groups())
+                return dt.datetime(y, mo, d, h, mi, s)
+
+            h5_files = sorted(h5_files, key=dt_from_name)
+
+            for h5_file in h5_files:
+
+                save_round = h5_file.split('Num_per_batch')[-1].split('.')[0]
+                H5_class_instance = Data_H5(h5_file)
+                load_data = H5_class_instance.load_from_h5(data_type=f'T2', save_r=int(save_round), scaling=scaling)
+                # H5_class_instance.print_h5_contents(h5_file)
+                exclude_dates = {
+                    datetime.date(2025, 1, 26),  # power outage
+                    datetime.date(2025, 1, 29),  # HEMT Issues
+                    datetime.date(2025, 1, 30),  # HEMT Issues
+                    datetime.date(2025, 1, 31)  # Optimization Issues and non RR work in progress
+                }
+
+                for q_key in load_data[f'T2']:
+                    for dataset in range(len(load_data[f'T2'][q_key].get('Dates', [])[0])):
+                        if 'nan' in str(load_data[f'T2'][q_key].get('Dates', [])[0][dataset]):
+                            continue
+                        # T1 = load_data['T1'][q_key].get('T1', [])[0][dataset]
+                        # errors = load_data['T1'][q_key].get('Errors', [])[0][dataset]
+                        date = datetime.datetime.fromtimestamp(load_data[f'T2'][q_key].get('Dates', [])[0][dataset])
+
+                        # Skip processing if the date (as a date object) is in the excluded set
+                        if date.date() in exclude_dates:
+                            print(f"Skipping data for {date} (excluded date)")
+                            continue
+                        delays = self.process_h5_data(
+                            load_data[f'T2'][q_key].get('Delay Times', [])[0][dataset].decode())
+                        # try:
+                        #     I = self.process_h5_data(load_data[f'T1{exp_extension}'][q_key].get('I', [])[0][dataset].decode())
+                        #     Q = self.process_h5_data(load_data[f'T1{exp_extension}'][q_key].get('Q', [])[0][dataset].decode())
+                        #     if scaling:
+                        #
+                        #         Ie = self.process_h5_data(
+                        #             load_data[f'T1{exp_extension}'][q_key].get('ss_I_e', [])[0][dataset].decode())
+                        #
+                        #         Ig = self.process_h5_data(
+                        #             load_data[f'T1{exp_extension}'][q_key].get('ss_I_g', [])[0][dataset].decode())
+                        #         Qe = self.process_h5_data(
+                        #             load_data[f'T1{exp_extension}_zeno'][q_key].get('ss_Q_e', [])[0][dataset].decode())
+                        #         Qg = self.process_h5_data(
+                        #             load_data[f'T1{exp_extension}_zeno'][q_key].get('ss_Q_g', [])[0][dataset].decode())
+                        # except:
+                        I = self.process_h5_data(load_data[f'T2'][q_key].get('I', [])[0][dataset].decode())
+                        Q = self.process_h5_data(load_data[f'T2'][q_key].get('Q', [])[0][dataset].decode())
+
+                        if scaling:
+                            Ie = self.process_h5_data(load_data[f'T2'][q_key].get('ss_I_e', [])[0][dataset].decode())
+                            Ig = self.process_h5_data(load_data[f'T2'][q_key].get('ss_I_g', [])[0][dataset].decode())
+                            Qe = self.process_h5_data(load_data[f'T2'][q_key].get('ss_Q_e', [])[0][dataset].decode())
+                            Qg = self.process_h5_data(load_data[f'T2'][q_key].get('ss_Q_g', [])[0][dataset].decode())
+                        round_num = load_data[f'T2'][q_key].get('Round Num', [])[0][dataset]
+                        try:
+                            batch_num = load_data[f'T2'][q_key].get('Batch Num', [])[0][dataset]
+                            syst_config = load_data[f'T2'][q_key].get('Syst Config', [])[0][dataset].decode()
+                            exp_config = load_data[f'T2'][q_key].get('Exp Config', [])[0][dataset].decode()
+                            #print(exp_config)
+                            #safe_globals = {"np": np, "array": np.array, "__builtins__": {}}
+                            #exp_config = eval(exp_config, safe_globals)
+                        except:
+                            exp_config =None
+
+                        if len(I) > 0:
+                            steps = round(
+                                float(
+                                    exp_config.split('Readout_Optimization\': ')[-1].split('steps\': ')[-1].split(',')[
+                                        0]), 6)
+
+                            Is[q_key].append(I)
+                            Qs[q_key].append(Q)
+
+                            gain = 0
+
+                            gains[q_key].append(gain)
+                            rounds_completed[q_key].append(round_we_are_on)
+                            if scaling:
+                                I = np.asarray(I, dtype=float)
+                                Q = np.asarray(Q, dtype=float)
+                                Ie = np.asarray(Ie, dtype=float)
+                                Qe = np.asarray(Qe, dtype=float)
+                                Ig = np.asarray(Ig, dtype=float)
+                                Qg = np.asarray(Qg, dtype=float)
+                                e = np.mean((Ie + 1j * Qe))
+                                g = np.mean((Ig + 1j * Qg))
+                                ### Normalization ###
+                                pop_norm = abs(((I + 1j * Q) - g) * (e - g) / abs(e - g) ** 2)
+                                amp = pop_norm
+
+                                Ig_calibration[q_key].append(Ig)
+                                Ie_calibration[q_key].append(Ie)
+                                Qg_calibration[q_key].append(Qg)
+                                Qe_calibration[q_key].append(Qe)
+                            else:
+                                amp=np.hypot(I, Q)
+                            amps[q_key].append(amp.tolist())
+                            delay_times[q_key].append(delays)
+                            date_times[q_key].extend([date.strftime("%Y-%m-%d %H:%M:%S")])
+
+                del H5_class_instance
+
+        if return_calibration_data:
+            return Is,Qs,amps, gains, rounds_completed, delay_times, Ig_calibration, Ie_calibration, Qe_calibration, Qg_calibration,steps
+        else:
+            return Is, Qs, amps, gains, rounds_completed, delay_times
     def run(self,return_errs=False):
         import datetime
         # ----------Load/get data------------------------
@@ -1323,6 +1477,7 @@ class T2rVsTime:
                 Qe_i = np.asarray(Qe_q[i]).ravel()
                 if min(Ig_i.size, Qg_i.size, Ie_i.size, Qe_i.size) == 0:
                     continue
+                #print(Ig_i)
                 ssf[i] = estimate_ssf(Ig_i, Qg_i, Ie_i, Qe_i)
             except Exception:
                 continue
