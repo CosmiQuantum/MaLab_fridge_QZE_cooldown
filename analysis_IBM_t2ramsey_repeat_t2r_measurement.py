@@ -13,7 +13,7 @@ run_number = 3 #starting from first run with qubits. Run 1 = run4a at quiet, run
 figure_quality = 100 #ramp this up to like 500 for presentation plots
 final_figure_quality = 200
 
-path = 'QZE_IBM_checking_ramsey_consistency_gain0p000001_q5'
+path = 'QZE_IBM_checking_ramsey_consistency_gain0p0001_q5'
 FRIDGE = "QUIET"
 run_notes = ('Added IR shielding, better cryo terminators, thermalizing with 0dB attenuator ') #please make it brief for the plot
 qubits=[4]
@@ -44,7 +44,7 @@ gains_qspec = {i: [] for i in range(6)}
 rounds_qspec = {i: [] for i in range(6)}
 freqs_qspec = {i: [] for i in range(6)}
 for qubit in qubits:
-    run_name = f'bob_run_started_Aug_23/squill/QZE_IBM_checking_ramsey_consistency_gain0p000001_q5/all_qubits/'
+    run_name = f'bob_run_started_Aug_23/squill/{path}/all_qubits/'
     top_folder_dates = []
     for round in range(50):
         top_folder_dates.append(f'qubit_{qubit}round{round}')
@@ -59,16 +59,16 @@ for qubit in qubits:
     gains_t2[qubit] = gains1[qubit]
     rounds_t2[qubit] = rounds1[qubit]
     delay_times_t2[qubit] = delay_times1[qubit]
-    Ie_calibration[qubit] = Ie_calibration1[qubit][0]
-    Ig_calibration[qubit] = Ig_calibration1[qubit][0]
-    Qe_calibration[qubit] = Qe_calibration1[qubit][0]
-    Qg_calibration[qubit] = Qg_calibration1[qubit][0]
+    Ie_calibration[qubit] = Ie_calibration1[qubit]
+    Ig_calibration[qubit] = Ig_calibration1[qubit]
+    Qe_calibration[qubit] = Qe_calibration1[qubit]
+    Qg_calibration[qubit] = Qg_calibration1[qubit]
     from section_005_single_shot_ge import SingleShot
 
     ss = SingleShot(qubit, 6, f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/',
                     0, True)
 
-    best_calibration_dict = t2_vs_time.plot_best_ssf_only(amps, gains, rounds, delay_times,
+    best_calibration_dict = t2_vs_time.plot_best_ssf_only(amps_t2, gains_t2, rounds_t2, delay_times_t2,
                                                           f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/single_calibration/',
                                                           ss_class_instance=ss,  # your object that has hist_ssf(...)
                                                           ss_cfg={"steps": steps},
