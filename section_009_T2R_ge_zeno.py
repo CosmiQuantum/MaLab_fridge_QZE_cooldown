@@ -204,6 +204,66 @@ class T2RProgram(AveragerProgramV2):
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=5) #play res pulse 5 us after everything
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
+class T2RProgramGausQZE(AveragerProgramV2):
+    def _initialize(self, cfg):
+        ro_ch = cfg['ro_ch']
+        res_ch = cfg['res_ch']
+        qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
+        self.add_readoutconfig(ch=ro_ch, name="myro",
+                               freq=cfg['res_freq_ge'],
+                               gen_ch=res_ch,
+                               outsel='product')
+        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
+        self.add_pulse(ch=res_ch, name="res_pulse",ro_ch=ro_ch,
+                       style="const",
+                       length=cfg["res_length"],
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
+                       )
+
+        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
+        self.add_gauss(ch=qubit_ch, name="ramp", sigma=cfg['sigma'], length=cfg['sigma'] * 4, even_length=False)
+        self.add_pulse(ch=qubit_ch, name="qubit_pulse1",
+                       style="arb",
+                       envelope="ramp",
+                       freq=cfg['qubit_freq_ge'] ,
+                       phase=cfg['qubit_phase'],
+                       gain=cfg['pi_amp'] / 2,
+                       )
+        #self.add_gauss(ch=qubit_ch, name="qze_gaus", sigma=cfg['sigma'], length=QickSweep1D("waitloop", cfg['start'], cfg['stop']), even_length=False)
+        self.add_pulse(ch=res_ch, name="qze_pulse",
+                       # style="arb",
+                       # envelope="qze_gaus",
+                       style="flat_top",
+                       length=QickSweep1D("waitloop", cfg['start'], cfg['stop']),
+                       freq=cfg['res_freq_qze'],
+                       phase=cfg['res_phase_qze'],
+                       gain=cfg['res_gain_qze']
+                       )
+
+        self.add_pulse(ch=qubit_ch, name="qubit_pulse2",
+                       style="arb",
+                       envelope="ramp",
+                       freq=cfg['qubit_freq_ge'],
+                       phase=cfg['qubit_phase'] + cfg['wait_time']*360*cfg['ramsey_freq'], # current phase + time * 2pi * ramsey freq
+                       gain=cfg['pi_amp'] / 2,
+                      )
+
+        self.add_loop("waitloop", cfg["steps"])
+
+    def _body(self, cfg):
+        self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse1", t=0)  # put on equator
+        self.pulse(ch=cfg['res_ch'], name="qze_pulse", t=0.01)  # play res pulse that has same length as wait_time and let evolve for wait time
+        self.delay_auto(0.01, tag='wait')  # wait_time after last pulse
+        self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse2", t=0)  # put on z axis
+        self.delay_auto(0.01)  # wait_time after last pulse
+        self.pulse(ch=cfg['res_ch'], name="res_pulse", t=5) #play res pulse 5 us after everything
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 class T2RMeasurementZeno:
     def __init__(self, QubitIndex, number_of_qubits, outerFolder, round_num, signal, save_figs, experiment = None,
@@ -408,10 +468,16 @@ class T2RMeasurementZeno:
         else:
             return fit_type(x, popt) * y_normal, t2r_est, t2r_err, plot_sig
 
-    def run(self, thresholding=False,correction=False, scaling=False):
+    def run(self, thresholding=False,correction=False, scaling=False, gaus_qze_pulse=False):
         now = datetime.datetime.now()
-        ramsey = T2RProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay=self.config['relax_delay'],
-                         cfg=self.config)
+        if gaus_qze_pulse:
+            ramsey = T2RProgramGausQZE(self.experiment.soccfg, reps=self.config['reps'],
+                                final_delay=self.config['relax_delay'],
+                                cfg=self.config)
+
+        else:
+            ramsey = T2RProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay=self.config['relax_delay'],
+                             cfg=self.config)
 
         # for live plotting open http://localhost:8097/ on firefox
         if self.live_plot:

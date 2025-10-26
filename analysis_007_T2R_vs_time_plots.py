@@ -2052,7 +2052,7 @@ class T2rVsTime:
         cbar = fig.colorbar(mesh, ax=ax, pad=0.02)
         cbar.set_label("Qubit Population")
 
-        ax.set_title(f"Qubit {self.qubit + 1} — T2 Ramsey heatmap taken repeatedly for zeno gain 0.0001")
+        ax.set_title(f"Qubit {self.qubit + 1} — T2 Ramsey heatmap taken repeatedly for zeno gain 0.1")
         ax.set_xlabel("Round")
         ax.set_ylabel("Delay time")
 
