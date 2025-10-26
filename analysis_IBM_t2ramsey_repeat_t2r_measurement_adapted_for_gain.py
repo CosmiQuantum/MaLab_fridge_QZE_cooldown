@@ -87,6 +87,10 @@ for qubit in qubits:
     #                                            f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/')
     t2_vs_time.plot_all_t2_rounds_adapted_for_gain(amps_t2, gains_t2, rounds_t2, delay_times_t2,
                                                f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/')
+
+    # t2_vs_time.plot_all_t2_heatmaps_new_format(amps_t2, gains_t2, rounds_t2, delay_times_t2,
+    #                                            f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/')
+
     # t2_vs_time.plot_all_t2_rounds_IQ(Is_t2, Qs_t2, gains_t2, rounds_t2, delay_times_t2,
     #                                            f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/')
     #
