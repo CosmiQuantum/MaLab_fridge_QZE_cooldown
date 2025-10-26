@@ -67,28 +67,28 @@ for qubit in qubits:
 
     ss = SingleShot(qubit, 6, f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/',
                     0, True)
-
-    best_calibration_dict = t2_vs_time.plot_best_ssf_only(amps_t2, gains_t2, rounds_t2, delay_times_t2,
-                                                          f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/single_calibration/',
-                                                          ss_class_instance=ss,  # your object that has hist_ssf(...)
-                                                          ss_cfg={"steps": steps},
-                                                          Ig_calibration=Ig_calibration,
-                                                          Ie_calibration=Ie_calibration,
-                                                          Qg_calibration=Qg_calibration,
-                                                          Qe_calibration=Qe_calibration)
-    import numpy as np
-
-    Ig_calibration1 = np.asarray(best_calibration_dict['Ig'], dtype=float).ravel()
-    Ie_calibration1 = np.asarray(best_calibration_dict['Ie'], dtype=float).ravel()
-    Qe_calibration1 = np.asarray(best_calibration_dict['Qe'], dtype=float).ravel()
-    Qg_calibration1 = np.asarray(best_calibration_dict['Qg'], dtype=float).ravel()
-
-    t2_vs_time.plot_all_t2_rounds_IQ_single_calibration(Is_t2, Qs_t2, Ig_calibration1, Qg_calibration1, Ie_calibration1, Qe_calibration1, gains_t2, rounds_t2, delay_times_t2,
+    #
+    # best_calibration_dict = t2_vs_time.plot_best_ssf_only(amps_t2, gains_t2, rounds_t2, delay_times_t2,
+    #                                                       f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/single_calibration/',
+    #                                                       ss_class_instance=ss,  # your object that has hist_ssf(...)
+    #                                                       ss_cfg={"steps": steps},
+    #                                                       Ig_calibration=Ig_calibration,
+    #                                                       Ie_calibration=Ie_calibration,
+    #                                                       Qg_calibration=Qg_calibration,
+    #                                                       Qe_calibration=Qe_calibration)
+    # import numpy as np
+    #
+    # Ig_calibration1 = np.asarray(best_calibration_dict['Ig'], dtype=float).ravel()
+    # Ie_calibration1 = np.asarray(best_calibration_dict['Ie'], dtype=float).ravel()
+    # Qe_calibration1 = np.asarray(best_calibration_dict['Qe'], dtype=float).ravel()
+    # Qg_calibration1 = np.asarray(best_calibration_dict['Qg'], dtype=float).ravel()
+    #
+    # t2_vs_time.plot_all_t2_rounds_IQ_single_calibration(Is_t2, Qs_t2, Ig_calibration1, Qg_calibration1, Ie_calibration1, Qe_calibration1, gains_t2, rounds_t2, delay_times_t2,
+    #                                            f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/')
+    t2_vs_time.plot_all_t2_rounds_adapted_for_gain(amps_t2, gains_t2, rounds_t2, delay_times_t2,
                                                f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/')
-    t2_vs_time.plot_all_t2_rounds(amps_t2, gains_t2, rounds_t2, delay_times_t2,
-                                               f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/')
-    t2_vs_time.plot_all_t2_rounds_IQ(Is_t2, Qs_t2, gains_t2, rounds_t2, delay_times_t2,
-                                               f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/')
-
-    t2_vs_time.plot_all_t2_rounds_IQAmp(Is_t2, Qs_t2, gains_t2, rounds_t2, delay_times_t2,
-                                                   f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/')
+    # t2_vs_time.plot_all_t2_rounds_IQ(Is_t2, Qs_t2, gains_t2, rounds_t2, delay_times_t2,
+    #                                            f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/')
+    #
+    # t2_vs_time.plot_all_t2_rounds_IQAmp(Is_t2, Qs_t2, gains_t2, rounds_t2, delay_times_t2,
+    #                                                f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/')

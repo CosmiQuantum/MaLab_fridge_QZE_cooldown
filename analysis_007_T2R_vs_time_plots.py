@@ -2087,6 +2087,151 @@ class T2rVsTime:
         plt.close(fig)
         print(f"Saved heatmap to: {outfile}")
 
+    def plot_all_t2_rounds_adapted_for_gain(self, amps, gains, rounds, delay_times, save_path, max_ylabels=6):
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from collections import defaultdict
+
+        q = self.qubit
+        gains_q = gains.get(q, [])
+        amps_q = amps.get(q, [])
+        rounds_q = rounds.get(q, [])  # not used for axes, but kept for parity/checks
+        delay_q = delay_times.get(q, [])
+
+        n = min(len(amps_q), len(gains_q), len(rounds_q), len(delay_q))
+        if n == 0 or not (len(amps_q) == len(gains_q) == len(rounds_q) == len(delay_q)):
+            print(f"No usable data for qubit {q} (missing lists or length mismatch). Skipping.")
+            return
+
+        all_points = []  # (gain, delay, amp)
+
+        for i in range(n):
+            # amps for this "round"
+            a_samples = np.asarray(amps_q[i], dtype=float).ravel()
+            if a_samples.size == 0:
+                continue
+
+            # align gains element-wise with amps (broadcast if scalar/size==1)
+            g_i = gains_q[i]
+            if isinstance(g_i, (list, tuple, np.ndarray)):
+                g_arr = np.asarray(g_i, dtype=float).ravel()
+                if g_arr.size == 1:
+                    g_arr = np.full_like(a_samples, float(g_arr[0]))
+                elif g_arr.size != a_samples.size:
+                    # cannot align gains to amps for this segment; skip it
+                    continue
+            else:
+                try:
+                    g_scalar = float(g_i)
+                except Exception:
+                    continue
+                g_arr = np.full_like(a_samples, g_scalar)
+
+            # align delays element-wise with amps (broadcast if scalar/size==1)
+            d_i = delay_q[i]
+            if isinstance(d_i, (list, tuple, np.ndarray)):
+                d_arr = np.asarray(d_i, dtype=float).ravel()
+                if d_arr.size == 1:
+                    d_arr = np.full_like(a_samples, float(d_arr[0]))
+                elif d_arr.size != a_samples.size:
+                    continue
+            else:
+                try:
+                    d_scalar = float(d_i)
+                except Exception:
+                    continue
+                d_arr = np.full_like(a_samples, d_scalar)
+
+            # keep only finite triplets
+            mask = np.isfinite(a_samples) & np.isfinite(d_arr) & np.isfinite(g_arr)
+            if not np.any(mask):
+                continue
+
+            # collect (gain, delay, amp)
+            for g, d, a in zip(g_arr[mask], d_arr[mask], a_samples[mask]):
+                all_points.append((float(g), float(d), float(a)))
+
+        if not all_points:
+            print(f"No numeric points for qubit {q}. Skipping.")
+            return
+
+        # unique axes values
+        unique_gains = sorted({g for (g, _, __) in all_points})
+        unique_delays = sorted({d for (_, d, __) in all_points})
+
+        gi_map = {g: i for i, g in enumerate(unique_gains)}
+        di_map = {d: i for i, d in enumerate(unique_delays)}
+
+        # bin amplitudes by (delay_idx, gain_idx)
+        bucket = defaultdict(list)
+        for (g, d, a) in all_points:
+            bucket[(di_map[d], gi_map[g])].append(a)
+
+        Ny, Nx = len(unique_delays), len(unique_gains)
+        C = np.full((Ny, Nx), np.nan, dtype=float)
+        for (iy, ix), vals in bucket.items():
+            C[iy, ix] = float(np.nanmean(vals))
+
+        # color scale from all amplitudes
+        all_amps = np.array([a for (_, _, a) in all_points], dtype=float)
+        global_vmin = float(np.nanmin(all_amps))
+        global_vmax = float(np.nanmax(all_amps))
+
+        # helper: centers -> bin edges
+        def centers_to_edges(centers):
+            centers = np.asarray(sorted(np.unique(centers)), dtype=float)
+            if centers.size == 1:
+                d = 1.0
+                return np.array([centers[0] - d / 2, centers[0] + d / 2])
+            mids = (centers[:-1] + centers[1:]) / 2.0
+            first = centers[0] - (centers[1] - centers[0]) / 2.0
+            last = centers[-1] + (centers[-1] - centers[-2]) / 2.0
+            return np.concatenate([[first], mids, [last]])
+
+        # edges for pcolormesh
+        x_edges = centers_to_edges(unique_gains)  # gains on x
+        y_edges = centers_to_edges(unique_delays)  # delays on y
+
+        # ensure output folder exists
+        self.create_folder_if_not_exists(save_path)
+
+        # plot
+        fig, ax = plt.subplots(figsize=(6.5, 4.5))
+        ax.set_aspect('auto')
+
+        mesh = ax.pcolormesh(x_edges, y_edges, C, shading='flat', vmin=global_vmin, vmax=global_vmax)
+        cbar = fig.colorbar(mesh, ax=ax, pad=0.02)
+        cbar.set_label("Qubit Population")
+
+        ax.set_title(f"Qubit {self.qubit + 1} — T2 Ramsey heatmap by gain")
+        ax.set_xlabel("Gain")
+        ax.set_ylabel("Delay time")
+
+        # thin x tick labels to ~10
+        max_xtick_labels = 10
+        if Nx > 0:
+            step = max(1, int(np.ceil(Nx / max_xtick_labels)))
+            xt_idx = np.arange(0, Nx, step)
+            ax.set_xticks([unique_gains[i] for i in xt_idx])
+            ax.set_xticklabels([f"{unique_gains[i]:g}" for i in xt_idx], rotation=45, ha='right')
+
+        # y ticks (same thinning logic)
+        if Ny > 0:
+            if Ny <= max_ylabels:
+                yticks_idx = list(range(Ny))
+            else:
+                yticks_idx = np.linspace(0, Ny - 1, num=max_ylabels, dtype=int).tolist()
+                yticks_idx = sorted(set(yticks_idx))
+            yticks_vals = [unique_delays[i] for i in yticks_idx]
+            ax.set_yticks(yticks_vals)
+            ax.set_yticklabels([f"{v:.0f}" for v in yticks_vals])
+
+        fig.tight_layout()
+        outfile = (save_path + f"t2_heatmap_q{self.qubit}_by_gain.png")
+        fig.savefig(outfile, transparent=False, dpi=self.final_figure_quality)
+        plt.close(fig)
+        print(f"Saved heatmap to: {outfile}")
+
     def plot_without_errs(self, date_times, t2_vals, show_legends):
         # ---------------------------------plot-----------------------------------------------------
         analysis_folder = f"M:/_Data/20250822 - Olivia/{self.run_name}/benchmark_analysis_plots/"
