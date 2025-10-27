@@ -71,11 +71,16 @@ class QubitSpectroscopyZeno:
             if self.verbose: print(f'Q {self.QubitIndex + 1} Round {self.round_num} Qubit Spec configuration: ', self.config)
             self.logger.info(f'Q {self.QubitIndex + 1} Round {self.round_num} Qubit Spec configuration: {self.config}')
 
-    def run(self,return_fwhm=False, scaling=False):
+    def run(self,return_fwhm=False, scaling=False,qze_pulse='const'):
 
         if self.increase_reps:
             self.config['reps'] = self.increase_reps_to
-        qspec = PulseProbeSpectroscopyProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay=0.5, cfg=self.config)
+        if qze_pulse == 'flat_top':
+            qspec = PulseProbeSpectroscopyProgramFlatTop(self.experiment.soccfg, reps=self.config['reps'], final_delay=0.5,
+                                                  cfg=self.config)
+
+        else:
+            qspec = PulseProbeSpectroscopyProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay=0.5, cfg=self.config)
 
         # iq_lists= []
         if self.live_plot:
@@ -653,6 +658,56 @@ class PulseProbeSpectroscopyProgram(AveragerProgramV2):
 
         self.add_pulse(ch=res_ch, name="qze_pulse",
                        style="const",
+                       length=cfg['qubit_length_ge'],
+                       freq=cfg['res_freq_qze'],
+                       phase=cfg['res_phase_qze'],
+                       gain=cfg['res_gain_qze']
+                       )
+
+
+    def _body(self, cfg):
+        self.pulse(ch=cfg['res_ch'], name="qze_pulse", t=0)
+        self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)  # play probe pulse
+        self.delay_auto(t=5, tag='waiting')  # Wait til qubit pulse is done and resonator rings down before proceeding
+        self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+class PulseProbeSpectroscopyProgramFlatTop(AveragerProgramV2):
+    def _initialize(self, cfg):
+        ro_ch = cfg['ro_ch']
+        res_ch = cfg['res_ch']
+        qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
+        self.add_readoutconfig(ch=ro_ch, name="myro",
+                               freq=cfg['res_freq_ge'],
+                               gen_ch=res_ch,
+                               outsel='product')
+        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
+        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
+                       style="const",
+                       length=cfg["res_length"],
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
+                       )
+
+        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
+        self.add_loop("freqloop", cfg["steps"])
+        self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch,
+                       style="const",
+                       length=cfg['qubit_length_ge'],
+                       freq=cfg['qubit_freq_ge'],
+                       phase=0,
+                       gain=cfg['qubit_gain_ge'],
+                       )
+
+        self.add_gauss(ch=res_ch, name="qze_flat_top", sigma=0.01,
+                       length=0.04, even_length=False)
+        self.add_pulse(ch=res_ch, name="qze_pulse",
+                       style="flat_top",
+                       envelope="qze_flat_top",
                        length=cfg['qubit_length_ge'],
                        freq=cfg['res_freq_qze'],
                        phase=cfg['res_phase_qze'],

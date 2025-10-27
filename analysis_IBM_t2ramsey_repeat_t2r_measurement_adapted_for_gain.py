@@ -13,7 +13,7 @@ run_number = 3 #starting from first run with qubits. Run 1 = run4a at quiet, run
 figure_quality = 100 #ramp this up to like 500 for presentation plots
 final_figure_quality = 200
 
-path = 'QZE_IBM_checking_ramsey_consistency_gainsweep'
+path = 'QZE_IBM_checking_ramsey_consistency_gainsweep_with_t1_qspec'
 FRIDGE = "QUIET"
 run_notes = ('Added IR shielding, better cryo terminators, thermalizing with 0dB attenuator ') #please make it brief for the plot
 qubits=[4]
@@ -88,8 +88,8 @@ for qubit in qubits:
     t2_vs_time.plot_all_t2_rounds_adapted_for_gain(amps_t2, gains_t2, rounds_t2, delay_times_t2,
                                                f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/')
 
-    # t2_vs_time.plot_all_t2_heatmaps_new_format(amps_t2, gains_t2, rounds_t2, delay_times_t2,
-    #                                            f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/')
+    t2_vs_time.plot_all_t2_heatmaps_new_format(amps_t2, gains_t2, rounds_t2, delay_times_t2,
+                                               f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/')
 
     # t2_vs_time.plot_all_t2_rounds_IQ(Is_t2, Qs_t2, gains_t2, rounds_t2, delay_times_t2,
     #                                            f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/')

@@ -58,6 +58,58 @@ class T1ProgramIBMZeno(AveragerProgramV2):
         self.delay_auto(tag='wait_qze_pulse')                         # wait for that pulse to finish
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=5)           # play readout pulse after 5 us for ring down
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+class T1ProgramIBMZenoFlatTop(AveragerProgramV2):
+    def _initialize(self, cfg):
+
+        ro_ch = cfg['ro_ch']
+        res_ch = cfg['res_ch']
+        qubit_ch = cfg['qubit_ch']
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
+        self.add_readoutconfig(ch=ro_ch, name="myro",
+                               freq=cfg['res_freq_ge'],
+                               gen_ch=res_ch,
+                               outsel='product')
+        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
+        self.add_pulse(ch=res_ch, name="res_pulse",ro_ch=ro_ch,
+                       style="const",
+                       length=cfg["res_length"],
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
+                       )
+
+        self.add_gauss(ch=res_ch, name="qze_flat_top", sigma=0.01,
+                       length=0.04, even_length=False)
+        self.add_pulse(ch=res_ch, name="qze_pulse",
+                       style="flat_top",
+                       envelope="qze_flat_top",
+                       length=QickSweep1D("waitloop", cfg['start'], cfg['stop']),
+                       freq=cfg['res_freq_qze'],
+                       phase=cfg['res_phase_qze'],
+                       gain=cfg['res_gain_qze']
+                       )
+
+        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
+        self.add_gauss(ch=qubit_ch, name="ramp", sigma=cfg['sigma'], length=cfg['sigma'] * 4, even_length=False)
+        self.add_pulse(ch=qubit_ch, name="qubit_pulse",
+                       style="arb",
+                       envelope="ramp",
+                       freq=cfg['qubit_freq_ge'],
+                       phase=cfg['qubit_phase'],
+                       gain=cfg['pi_amp'],
+                       )
+
+        self.add_loop("waitloop", cfg["steps"])
+
+    def _body(self, cfg):
+        self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)  # play probe pulse
+        self.delay_auto(tag='wait_pi_pulse')                          # wait for it to be done, now qubit is in e
+        self.pulse(ch=cfg['res_ch'], name="qze_pulse", t=0.01)           # play res pulse that has same length as wait_time
+        self.delay_auto(tag='wait_qze_pulse')                         # wait for that pulse to finish
+        self.pulse(ch=cfg['res_ch'], name="res_pulse", t=5)           # play readout pulse after 5 us for ring down
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 
 class T1Measurement_with_Zeno_loop:
@@ -110,9 +162,14 @@ class T1Measurement_with_Zeno_loop:
                 self.config['relax_delay'] = relax_delay
                 print(f'set t1 relax delay to {relax_delay} us')
 
-    def run(self, thresholding=False, scaling=False):
+    def run(self, thresholding=False, scaling=False,qze_pulse='const'):
         now = datetime.datetime.now()
-        t1 = T1ProgramIBMZeno(self.experiment.soccfg, reps=self.config['reps'], final_delay=self.config['relax_delay'], cfg=self.config)
+        if qze_pulse=='flat_top':
+            t1 = T1ProgramIBMZenoFlatTop(self.experiment.soccfg, reps=self.config['reps'],
+                                  final_delay=self.config['relax_delay'], cfg=self.config)
+
+        else:
+            t1 = T1ProgramIBMZeno(self.experiment.soccfg, reps=self.config['reps'], final_delay=self.config['relax_delay'], cfg=self.config)
 
         if self.live_plot:
             I, Q, delay_times = self.live_plotting(t1, thresholding)

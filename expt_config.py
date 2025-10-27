@@ -233,7 +233,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         "T1_IBM_qze_loop": {
             "reps": 20,#50,  # 300
             "rounds": 5,  # 1
-            "start": 0,  # [us]
+            "start": 0.1,  # [us]
             "stop": 100,  # [250.0] * 6,  # [us] ### Should be ~10x T1! Should change this per qubit.
             "steps": 100,
             "relax_delay": 2000,  # [us] ### Should be >10x T1!
@@ -389,7 +389,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         "Ramsey_ge_zeno": {
             "reps": 50,#20,
             "rounds": 5,
-            "start": 0.01,  # [us]
+            "start": 0.1,  # [us]
             "stop": 60,  # [us]
             "steps": 300,
             "ramsey_freq": 0.05,  # [MHz]
