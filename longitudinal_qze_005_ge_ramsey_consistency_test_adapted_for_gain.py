@@ -50,7 +50,7 @@ run_name = 'bob_run_started_Aug_23'
 device_name = 'squill'
 substudy_txt_notes = ('script longitudinal_qze_005_ge_ramsey_consistency_test_adapted_for_gain.py')
 
-study = 'QZE_IBM_gaus_test_full'#_gaus'
+study = 'QZE_IBM_time_phase_bug_fixed'#_gaus'
 
 ################################################ optimization outputs ##################################################
 # Optimization parameters for resonator spectroscopy
@@ -574,7 +574,7 @@ for QubitIndex in Qs_to_look_at:
     t1_data = create_data_dict(t1_keys, save_r, list_of_all_qubits)
     t2r_data = create_data_dict(t2r_keys, save_r, list_of_all_qubits)
     ########################################### go through each gain ######################################
-    pulse_gains = np.linspace(0.0001, 0.01, 50)
+    pulse_gains = np.linspace(0.0001, 0.2, 50)
     #pulse_gains = [0.01]#
     #try:
     for repeat_round in range(0,3):
@@ -624,7 +624,7 @@ for QubitIndex in Qs_to_look_at:
                                                live_plot=live_plot, verbose=verbose, logger=rr_logger,
                                                unmasking_resgain=unmask)
                 (qspec_I, qspec_Q, qspec_freqs, qspec_fit, qubit_freq, sys_config_qspec, ss_Q_e_qspec, ss_Q_g_qspec,
-                 ss_I_e_qspec, ss_I_g_qspec) = q_spec.run(scaling=True,qze_pulse='flat_top')
+                 ss_I_e_qspec, ss_I_g_qspec) = q_spec.run(scaling=True,qze_pulse='const')
 
                 if qubit_freq is None:
                     if stored_qspec_list[QubitIndex] is not None:
@@ -699,7 +699,7 @@ for QubitIndex in Qs_to_look_at:
                                               zeno_pulse_gain=gain)
             t1_est, t1_err, t1_I, t1_Q, t1_delay_times, q1_fit_exponential, sys_config_t1, \
                 ss_Q_e_t1, ss_Q_g_t1, ss_I_e_t1, ss_I_g_t1 = t1.run(
-                thresholding=thresholding, scaling=True, qze_pulse='flat_top')
+                thresholding=thresholding, scaling=True, qze_pulse='const')
 
             t1_data[QubitIndex]['T1'][j - batch_num * save_r - 1] = t1_est
             t1_data[QubitIndex]['Errors'][j - batch_num * save_r - 1] = t1_err
@@ -735,7 +735,7 @@ for QubitIndex in Qs_to_look_at:
                                  verbose=verbose, logger=rr_logger, unmasking_resgain=unmask)
             t2r_est, t2r_err, t2r_I, t2r_Q, t2r_delay_times, fit_ramsey, sys_config_t2r, ss_Q_e_t2r, ss_Q_g_t2r, \
                 ss_I_e_t2r, ss_I_g_t2r = t2r.run(
-                thresholding=thresholding, scaling=True, qze_pulse='flat_top')
+                thresholding=thresholding, scaling=True, qze_pulse='const')
             t2r_data[QubitIndex]['T2'][j - batch_num * save_r - 1] = t2r_est
             t2r_data[QubitIndex]['Errors'][j - batch_num * save_r - 1] = t2r_err
             t2r_data[QubitIndex]['Dates'][j - batch_num * save_r - 1] = (

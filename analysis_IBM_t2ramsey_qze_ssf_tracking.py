@@ -50,7 +50,7 @@ amps_qspec = {i: [] for i in range(6)}
 gains_qspec = {i: [] for i in range(6)}
 rounds_qspec = {i: [] for i in range(6)}
 freqs_qspec = {i: [] for i in range(6)}
-path= 'QZE_IBM_q5_rotated_phase_tuned_rabi_debug'
+path= 'QZE_IBM_gaus_test_with_different_wait_time_implementation_2'
 for qubit in qubits:
     run_name = f'bob_run_started_Aug_23/squill/{path}/all_qubits/'
     top_folder_dates = []
@@ -83,7 +83,7 @@ for qubit in qubits:
                                     Ig_calibration=Ig_calibration,
                                     Ie_calibration=Ie_calibration,
                                     Qg_calibration=Qg_calibration,
-                                    Qe_calibration=Qe_calibration)
+                                    Qe_calibration=Qe_calibration,I_experiment=Is,  Q_experiment=Qs)
 
 
     t2_vs_time = T2rVsTime(figure_quality, final_figure_quality, tot_num_of_qubits, top_folder_dates, save_figs,

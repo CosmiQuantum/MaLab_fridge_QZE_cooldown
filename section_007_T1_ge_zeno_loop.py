@@ -56,7 +56,8 @@ class T1ProgramIBMZeno(AveragerProgramV2):
         self.delay_auto(tag='wait_pi_pulse')                          # wait for it to be done, now qubit is in e
         self.pulse(ch=cfg['res_ch'], name="qze_pulse", t=0.01)           # play res pulse that has same length as wait_time
         self.delay_auto(tag='wait_qze_pulse')                         # wait for that pulse to finish
-        self.pulse(ch=cfg['res_ch'], name="res_pulse", t=5)           # play readout pulse after 5 us for ring down
+        self.delay_auto(t=5, tag='wait_for_ring_down')
+        self.pulse(ch=cfg['res_ch'], name="res_pulse")           # play readout pulse after 5 us for ring down
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 class T1ProgramIBMZenoFlatTop(AveragerProgramV2):
     def _initialize(self, cfg):
@@ -80,8 +81,8 @@ class T1ProgramIBMZenoFlatTop(AveragerProgramV2):
                        gain=cfg['res_gain_ge']
                        )
 
-        self.add_gauss(ch=res_ch, name="qze_flat_top", sigma=0.01,
-                       length=0.04, even_length=False)
+        self.add_gauss(ch=res_ch, name="qze_flat_top", sigma=0.05,
+                       length=0.2, even_length=True)
         self.add_pulse(ch=res_ch, name="qze_pulse",
                        style="flat_top",
                        envelope="qze_flat_top",
@@ -108,7 +109,8 @@ class T1ProgramIBMZenoFlatTop(AveragerProgramV2):
         self.delay_auto(tag='wait_pi_pulse')                          # wait for it to be done, now qubit is in e
         self.pulse(ch=cfg['res_ch'], name="qze_pulse", t=0.01)           # play res pulse that has same length as wait_time
         self.delay_auto(tag='wait_qze_pulse')                         # wait for that pulse to finish
-        self.pulse(ch=cfg['res_ch'], name="res_pulse", t=5)           # play readout pulse after 5 us for ring down
+        self.delay_auto(t=5, tag='wait_for_ring_down')
+        self.pulse(ch=cfg['res_ch'], name="res_pulse")           # play readout pulse after 5 us for ring down
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 

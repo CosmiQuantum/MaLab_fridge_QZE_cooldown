@@ -603,12 +603,13 @@ class T1VsTime:
                                 Qe = np.asarray(Qe, dtype=float)
                                 Ig = np.asarray(Ig, dtype=float)
                                 Qg = np.asarray(Qg, dtype=float)
+                                z = I + 1j * Q
                                 e = np.mean((Ie + 1j * Qe))
                                 g = np.mean((Ig + 1j * Qg))
-                                ### Normalization ###
-                                pop_norm = abs(((I + 1j * Q) - g) * (e - g) / abs(e - g) ** 2)
-                                amp = pop_norm
 
+                                eg = e - g
+                                amp = np.real((z - g) * np.conj(eg)) / (np.abs(eg) ** 2)  # projection in [~0,~1]
+                                #amp = np.clip(amp, 0.0, 1.0)
                                 Ig_calibration[q_key].append(Ig)
                                 Ie_calibration[q_key].append(Ie)
                                 Qg_calibration[q_key].append(Qg)
@@ -1434,28 +1435,34 @@ class T1VsTime:
             Ie_calibration=None,
             Qg_calibration=None,
             Qe_calibration=None,
+            # --- NEW: experiment single-shot sources (same format as amps) ---
+            I_experiment=None,
+            Q_experiment=None,
     ):
         """
-        NEW FORMAT ONLY (augmented to also emit SSD plots per T1 curve)
+        NEW FORMAT ONLY (augmented to also emit SSD plots per T1 curve, now with
+        a single experiment point (I,Q) per dataset).
 
         Data model (per qubit q):
-          - amps[q]         : list of lists; amps[q][i] is a list/array of amplitude samples for dataset i
-          - gains[q]        : list; gains[q][i] is a scalar or list/array aligned with amps[q][i]
+          - amps[q]         : list of lists/arrays; amps[q][i] are amplitude samples for dataset i
+          - gains[q]        : list; gains[q][i] is scalar or array aligned with amps[q][i]
           - rounds[q]       : list; rounds[q][i] is the round label for dataset i
-          - delay_times[q]  : list; delay_times[q][i] is a scalar or list/array aligned with amps[q][i]
+          - delay_times[q]  : list; delay_times[q][i] scalar or array aligned with amps[q][i]
 
-        If SSD is enabled (provide ss_class_instance, ss_cfg and all four *calibration dicts*),
+        NEW:
+          - I_experiment[q] : list; I_experiment[q][i] is scalar or array of I-shots for dataset i
+          - Q_experiment[q] : list; Q_experiment[q][i] is scalar or array of Q-shots for dataset i
+
+        If SSD is enabled (provide ss_class_instance, ss_cfg and all four calibration dicts),
         then for EACH dataset i we will call:
-            ss_class_instance.hist_ssf(
+            ss_class_instance.hist_ssf_with_annotations(
                 data=[I_g, Q_g, I_e, Q_e],
                 cfg=ss_cfg,
-                plot=True
+                plot=True,
+                I_meas=I_single,   # <- pulled from I_experiment[q][i]
+                Q_meas=Q_single    # <- pulled from Q_experiment[q][i]
             )
         and direct its output folder to: <save_path>/analysis/ss_plots/Q<qubit+1>/Round_<round_id>/
-
-        Notes:
-          - We only *temporarily* re-point `ss_class_instance.outerFolder` for this call, and restore it after.
-          - We best-effort set: ss_class_instance.round_num, QubitIndex, expt_name for more informative filenames.
         """
         import os
         import numpy as np
@@ -1464,14 +1471,13 @@ class T1VsTime:
 
         # --- helpers ---
         def fmt_p(x, sig=4):
-            """Format number with '.' replaced by 'p' (e.g., 0.3 -> '0p3')."""
             try:
                 s = f"{float(x):.{sig}g}"
             except Exception:
                 return "nan"
             return s.replace(".", "p")
+
         def as_1d_array(x):
-            """Return x as a 1D numpy array (len>=1) if possible; else None."""
             if isinstance(x, (list, tuple, np.ndarray)):
                 arr = np.asarray(x).ravel()
                 return arr if arr.size > 0 else None
@@ -1481,7 +1487,6 @@ class T1VsTime:
                 return None
 
         def first_scalar_or_nan(x):
-            """Pick a representative scalar from x for labeling; if array, take median."""
             a = as_1d_array(x)
             if a is None or not np.all(np.isfinite(a)):
                 return np.nan
@@ -1497,12 +1502,32 @@ class T1VsTime:
             last = centers[-1] + (centers[-1] - centers[-2]) / 2.0
             return np.concatenate([[first], mids, [last]])
 
+        def pick_single_shot(x, k=0):
+            """
+            Return ONE scalar from x.
+            - Picks the k-th finite element (default: first, k=0).
+            - If scalar, returns it.
+            - If empty/all-NaN or k out of range, returns np.nan.
+            """
+            a = as_1d_array(x)
+            if a is None:
+                return np.nan
+            finite_idx = np.flatnonzero(np.isfinite(a))
+            if finite_idx.size == 0:
+                return np.nan
+            #k = max(0, min(k, finite_idx.size - 1))  # clamp
+            return float(a[finite_idx[-1]])
+
         # --- extract this qubit's lists ---
         q = self.qubit
         gains_q = gains.get(q, [])
         amps_q = amps.get(q, [])
         rounds_q = rounds.get(q, [])
         delay_q = delay_times.get(q, [])
+
+        # NEW: experiment I/Q per dataset (optional)
+        Iexp_q = (I_experiment or {}).get(q, [])
+        Qexp_q = (Q_experiment or {}).get(q, [])
 
         n = min(len(amps_q), len(gains_q), len(rounds_q), len(delay_q))
         if n == 0 or not (len(amps_q) == len(gains_q) == len(rounds_q) == len(delay_q)):
@@ -1583,11 +1608,10 @@ class T1VsTime:
 
         # ---------- NEW: emit SSD plots per dataset (once per T1 curve) ----------
         if do_ssd:
-            # Prepare an "analysis" folder (requested)
             analysis_root = os.path.join(save_path, "analysis")
             self.create_folder_if_not_exists(analysis_root)
 
-            # Temporarily adjust ss_class_instance context so its own saver drops files here
+            # Temporarily adjust ss context so its own saver drops files here
             _old_outer = getattr(ss_class_instance, "outerFolder", None)
             _old_qidx = getattr(ss_class_instance, "QubitIndex", None)
             _old_rnum = getattr(ss_class_instance, "round_num", None)
@@ -1602,43 +1626,51 @@ class T1VsTime:
                     g_lbl = first_scalar_or_nan(gains_q[i])
                     d_lbl = first_scalar_or_nan(delay_q[i])
 
-                    # pick/format names that will land in hist_ssf's own filename
                     ss_class_instance.round_num = r_id
-                    # pick/format names that will land in hist_ssf's own filename
-                    ss_class_instance.round_num = r_id
-                    gain_tag = f"gain_{fmt_p(g_lbl)}_"  # <-- starts with gain_0p3_ ...
+                    gain_tag = f"gain_{fmt_p(g_lbl)}_"
                     delay_tag = f"delay_{fmt_p(d_lbl)}"
                     ss_class_instance.expt_name = f"{gain_tag}{delay_tag}_t1_ssd"
 
-                    # Make round-specific subfolder to keep things tidy
-                    round_folder = os.path.join(
-                        analysis_root, "ss_plots",
-                        f"Q{ss_class_instance.QubitIndex + 1}",
-                        f"Round_{r_id}"
-                    )
-                    self.create_folder_if_not_exists(round_folder)
-                    # hist_ssf itself creates deeper folders; the outerFolder set above is enough.
-
+                    # Pull calibration vectors
                     try:
                         I_g = np.asarray(Ig_q[i]).ravel()
                         Q_g = np.asarray(Qg_q[i]).ravel()
                         I_e = np.asarray(Ie_q[i]).ravel()
                         Q_e = np.asarray(Qe_q[i]).ravel()
-
-                        # basic sanity
                         if min(I_g.size, Q_g.size, I_e.size, Q_e.size) == 0:
                             print(f"[SSD] Skipping dataset {i}: empty calibration vectors.")
                             continue
+                    except Exception as e:
+                        print(f"[SSD] Failed to read calibration for dataset {i}: {e}")
+                        continue
 
-                        # Call user-provided SSD routine (it handles plotting/saving)
-                        ss_class_instance.hist_ssf(
+                    # --- NEW: pick ONE single-shot (I,Q) for this dataset from experiment dicts ---
+                    I_single = np.nan
+                    Q_single = np.nan
+                    if i < len(Iexp_q):
+                        I_single = pick_single_shot(Iexp_q[i])
+                    if i < len(Qexp_q):
+                        Q_single = pick_single_shot(Qexp_q[i])
+
+                    # If either is nan, just omit (hist_ssf will still plot g/e and save)
+                    kwargs_meas = {}
+                    if np.isfinite(I_single) and np.isfinite(Q_single):
+                        kwargs_meas = {"I_meas": I_single, "Q_meas": Q_single}
+
+                    # Call your SSD routine (handles plotting/saving internally)
+                    try:
+                        ss_class_instance.hist_ssf_with_annotations(
                             data=[I_g, Q_g, I_e, Q_e],
                             cfg=ss_cfg,
-                            plot=True
+                            plot=True,
+                            **kwargs_meas
                         )
-                        # print(
-                        #     f"[SSD] Saved SSD plot for dataset {i} (round {r_id}, gain~{g_lbl:.4g}, delay~{d_lbl:.4g})")
-
+                        ss_class_instance.hist_ssf_with_annotations_new_method(
+                            data=[I_g, Q_g, I_e, Q_e],
+                            cfg=ss_cfg,
+                            plot=True,
+                            **kwargs_meas
+                        )
                     except Exception as e:
                         print(f"[SSD] Failed on dataset {i} (round {r_id}): {e}")
 
@@ -1652,9 +1684,13 @@ class T1VsTime:
                     ss_class_instance.round_num = _old_rnum
                 if _old_name is not None:
                     ss_class_instance.expt_name = _old_name
+
         # -------------------------------------------------------------------------
 
         # ---------- per-round heatmaps (unchanged logic; fixed z across rounds) ----------
+        def centers_to_edges_local(centers):
+            return centers_to_edges(centers)
+
         for r_id in unique_rounds:
             pts = [(g, d, a) for (r, g, d, a) in all_points if r == r_id]
             if not pts:
@@ -1674,8 +1710,8 @@ class T1VsTime:
             for (iy, ix), vals in bucket.items():
                 C[iy, ix] = float(np.nanmean(vals))
 
-            x_edges = centers_to_edges(gains_r)
-            y_edges = centers_to_edges(delays_r)
+            x_edges = centers_to_edges_local(gains_r)
+            y_edges = centers_to_edges_local(delays_r)
 
             fig, ax = plt.subplots(figsize=(6.5, 4.5))
             mesh = ax.pcolormesh(
@@ -2532,6 +2568,26 @@ class T1VsTime:
         all_points_Q = []
         all_points_abs = []
         all_points_cal = []
+        # Calibration fit on projected coordinate x
+        z_cal_g = Ig_calibration1 + 1j * Qg_calibration1
+        z_cal_e = Ie_calibration1 + 1j * Qe_calibration1
+        g = z_cal_g.mean();
+        e = z_cal_e.mean()
+        u = (e - g) / np.abs(e - g)
+
+        xg = np.real((z_cal_g - g) * np.conj(u))
+        xe = np.real((z_cal_e - g) * np.conj(u))
+
+        mu_g, sig_g = np.mean(xg), np.std(xg, ddof=1)
+        mu_e, sig_e = np.mean(xe), np.std(xe, ddof=1)
+        pi_e = 0.5  # or use relative counts
+
+        def p_e_from_x(x):
+            # Gaussian LLR -> P(e|x)
+            from numpy import exp
+            Ng = exp(-0.5 * ((x - mu_g) / sig_g) ** 2) / (sig_g + 1e-12)
+            Ne = exp(-0.5 * ((x - mu_e) / sig_e) ** 2) / (sig_e + 1e-12)
+            return (pi_e * Ne) / (pi_e * Ne + (1 - pi_e) * Ng + 1e-300)
 
         for i in range(n_data):
             I = np.asarray(I_q[i], dtype=float).ravel()
@@ -2540,7 +2596,9 @@ class T1VsTime:
                 continue
 
             z = I + 1j * Q
-            amp_cal = np.abs((z - g) * (e - g) / denom)  # calibrated (population-like)
+            x = np.real((z - g) * np.conj(u))
+            amp_cal = p_e_from_x(x)
+            #amp_cal = np.real(((z - g) * np.conj(e - g)) / np.abs(e - g)**2)#np.abs((z - g) * (e - g) / denom)  # calibrated (population-like)
             amp_raw = np.sqrt(I ** 2 + Q ** 2)  # raw amplitude
 
             # gain can be scalar or per-sample

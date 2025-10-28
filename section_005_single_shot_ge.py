@@ -305,6 +305,347 @@ class SingleShot:
 
         return fid, threshold, theta, ig_new, ie_new
 
+    def hist_ssf_with_annotations_new_method(self, data=None, cfg=None, plot=True, fig_quality=100, I_meas=None, Q_meas=None):
+        """
+        Visualizes the calibration:
+            z = I + 1j*Q
+            e = mean(Ie + 1j*Qe)
+            g = mean(Ig + 1j*Qg)
+            pop_lin = Re(((z - g) * conj(e - g)) / |e - g|^2)
+            amp = pop_lin (usually clipped to [0,1] for display)
+
+        Plots g/e clouds, centroids (means), g->e axis, g->z vector,
+        the projection point z_proj on the g->e line, and the perpendicular
+        from z to z_proj.
+        """
+        import os, math, datetime
+        import numpy as np
+        import matplotlib.pyplot as plt
+
+        ig = np.asarray(data[0])
+        qg = np.asarray(data[1])
+        ie = np.asarray(data[2])
+        qe = np.asarray(data[3])
+
+        numbins = round(math.sqrt(float(cfg["steps"])))
+
+        # --- Centroids (MEANS, as in your formula) ---
+        g_c = np.mean(ig + 1j * qg)
+        e_c = np.mean(ie + 1j * qe)
+
+        # If no measurement provided, pick a sample from e cloud
+        if (I_meas is None) or (Q_meas is None):
+            z_ix = len(ie) // 2
+            I_meas = float(ie[z_ix])
+            Q_meas = float(qe[z_ix])
+
+        # --- Complex forms ---
+        z_c = complex(I_meas, Q_meas)
+        eg = e_c - g_c
+        zg = z_c - g_c
+
+        # --- Your calibration mapping (linear projection along g->e) ---
+        pop_lin = float(np.real(zg * np.conj(eg)) / (np.abs(eg) ** 2 + 1e-12))
+        amp = float(np.clip(pop_lin, 0.0, 1.0))  # clip for display
+
+        # --- Projection point on the line g->e ---
+        z_proj = g_c + pop_lin * eg
+        perp_vec = z_c - z_proj  # purely perpendicular component to the g->e axis
+
+        if plot:
+            fig, axs = plt.subplots(nrows=1, ncols=3, figsize=(17, 5))
+            fig.tight_layout()
+
+            # -------- Panel 0: Unrotated with full geometry --------
+            axs[0].scatter(ig, qg, label='g shots', color='b', marker='*', alpha=0.2)
+            axs[0].scatter(ie, qe, label='e shots', color='r', marker='*', alpha=0.2)
+
+            axs[0].scatter([g_c.real], [g_c.imag], color='k', marker='X', s=100, label='g mean')
+            axs[0].scatter([e_c.real], [e_c.imag], color='k', marker='X', s=100, label='e mean')
+
+            # g->e axis (dashed)
+            axs[0].plot([g_c.real, e_c.real], [g_c.imag, e_c.imag], linestyle='--', linewidth=2, label='g → e')
+
+            # g->z arrow
+            axs[0].arrow(g_c.real, g_c.imag, (z_c - g_c).real, (z_c - g_c).imag,
+                         length_includes_head=True, head_width=0.04, alpha=0.9)
+            axs[0].scatter([z_c.real], [z_c.imag], s=80, label='measured z')
+            axs[0].annotate("z", xy=(z_c.real, z_c.imag), xytext=(z_c.real + 0.05, z_c.imag + 0.05))
+
+            # projection point and perpendicular
+            axs[0].scatter([z_proj.real], [z_proj.imag], s=70, marker='D', label='z_proj (projection)')
+            axs[0].plot([z_c.real, z_proj.real], [z_c.imag, z_proj.imag], linestyle=':', linewidth=2,
+                        label='⊥ from z to axis')
+
+            # Info box
+            axs[0].text(0.02, 0.02,
+                        "Calibration:\n"
+                        "pop_lin = Re(((z−g)·conj(e−g)) / |e−g|²)\n"
+                        f"pop_lin = {pop_lin:.3f}\n"
+                        f"amp (clipped) = {amp:.3f}",
+                        transform=axs[0].transAxes)
+            axs[0].set_xlabel('I (a.u.)')
+            axs[0].set_ylabel('Q (a.u.)')
+            axs[0].set_title('Unrotated (projection geometry)')
+            axs[0].legend(loc='upper right')
+            axs[0].axis('equal')
+
+            # -------- Rotation so g->e is horizontal (for intuition) --------
+            theta = -np.angle(eg)  # same as -arctan2(Im(eg), Re(eg))
+            rot = np.exp(1j * theta)
+
+            ig_r = (ig + 1j * qg) * rot
+            ie_r = (ie + 1j * qe) * rot
+            g_r = g_c * rot
+            e_r = e_c * rot
+            z_r = z_c * rot
+            zproj_r = z_proj * rot
+
+            # Panel 1: Rotated with same geometry
+            axs[1].scatter(ig_r.real, ig_r.imag, label='g shots', color='b', marker='*', alpha=0.2)
+            axs[1].scatter(ie_r.real, ie_r.imag, label='e shots', color='r', marker='*', alpha=0.2)
+            axs[1].scatter([g_r.real], [g_r.imag], color='k', marker='X', s=100, label='g mean (rot)')
+            axs[1].scatter([e_r.real], [e_r.imag], color='k', marker='X', s=100, label='e mean (rot)')
+
+            # g->e axis ~ horizontal
+            axs[1].plot([g_r.real, e_r.real], [g_r.imag, e_r.imag], linestyle='--', linewidth=2, label='g → e')
+
+            # g->z vector, z point
+            axs[1].arrow(g_r.real, g_r.imag, (z_r - g_r).real, (z_r - g_r).imag,
+                         length_includes_head=True, head_width=0.04, alpha=0.9)
+            axs[1].scatter([z_r.real], [z_r.imag], s=80, label='z (rot)')
+            axs[1].annotate("z", xy=(z_r.real, z_r.imag), xytext=(z_r.real + 0.05, z_r.imag + 0.05))
+
+            # projection point and perpendicular
+            axs[1].scatter([zproj_r.real], [zproj_r.imag], s=70, marker='D', label='z_proj (rot)')
+            axs[1].plot([z_r.real, zproj_r.real], [z_r.imag, zproj_r.imag], linestyle=':', linewidth=2,
+                        label='⊥ to axis')
+
+            # In the rotated frame, pop_lin equals the fraction along x between g and e.
+            # Show this explicitly:
+            eg_len = np.abs(e_r - g_r)
+            x_frac = float((zproj_r.real - g_r.real) / (eg_len + 1e-12))
+            axs[1].text(0.02, 0.02,
+                        f"Rotated view:\n"
+                        f"(z_proj.x − g.x) / |e−g| = {x_frac:.3f}\n"
+                        f"pop_lin = {pop_lin:.3f}",
+                        transform=axs[1].transAxes)
+
+            axs[1].set_xlabel('I (rot)')
+            axs[1].set_title(f'Rotated (θ = {np.degrees(theta):.2f}°)')
+            axs[1].legend(loc='lower right')
+            axs[1].axis('equal')
+
+            # -------- Panel 2: Histogram of rotated I (as before) --------
+            # Use real parts of rotated clouds for 1D discrimination view
+            ig_new = ig_r.real
+            ie_new = ie_r.real
+            xlims = [min(np.min(ig_new), np.min(ie_new)), max(np.max(ig_new), np.max(ie_new))]
+
+            ng, binsg, _ = axs[2].hist(ig_new, bins=numbins, range=xlims, color='b', label='g', alpha=0.2)
+            ne, binse, _ = axs[2].hist(ie_new, bins=numbins, range=xlims, color='r', label='e', alpha=0.2)
+
+            # Fidelity via histogram overlap (unchanged)
+            contrast = np.abs(((np.cumsum(ng) - np.cumsum(ne)) / (0.5 * ng.sum() + 0.5 * ne.sum())))
+            tind = contrast.argmax()
+            threshold = binsg[tind]
+            fid = contrast[tind]
+
+            #axs[2].axvline(threshold, linestyle='--', linewidth=1.5)
+            axs[2].set_title(f"Fidelity = {fid * 100:.2f}%")
+            axs[2].set_xlabel('I (rot, a.u.)')
+            axs[2].legend(loc='upper right')
+
+            # ---- Save like before ----
+            self.create_folder_if_not_exists(self.outerFolder)
+            out_dir = os.path.join(self.outerFolder, "ss_repeat_meas_ge")
+            self.create_folder_if_not_exists(out_dir)
+            out_dir = os.path.join(out_dir, "Q" + str(self.QubitIndex + 1))
+            self.create_folder_if_not_exists(out_dir)
+            out_dir = os.path.join(out_dir, "new_method_samples_at_end")
+            self.create_folder_if_not_exists(out_dir)
+            now = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            file_name = os.path.join(
+                out_dir,
+                f"R_{self.round_num}_Q_{self.QubitIndex + 1}_{self.expt_name}{now}_q{self.QubitIndex + 1}.png"
+            )
+            plt.tight_layout()
+            fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')
+            plt.close(fig)
+
+            return fid, threshold, float(theta), ig_new, ie_new
+        else:
+            # non-plot path still computes fid/threshold on rotated-I
+            theta = -np.angle(eg)
+            rot = np.exp(1j * theta)
+            ig_r = (ig + 1j * qg) * rot
+            ie_r = (ie + 1j * qe) * rot
+            ig_new = ig_r.real
+            ie_new = ie_r.real
+            xlims = [min(np.min(ig_new), np.min(ie_new)), max(np.max(ig_new), np.max(ie_new))]
+            ng, binsg = np.histogram(ig_new, bins=numbins, range=xlims)
+            ne, binse = np.histogram(ie_new, bins=numbins, range=xlims)
+            contrast = np.abs(((np.cumsum(ng) - np.cumsum(ne)) / (0.5 * ng.sum() + 0.5 * ne.sum())))
+            tind = contrast.argmax()
+            threshold = binsg[tind]
+            fid = contrast[tind]
+            return fid, threshold, float(theta), ig_new, ie_new
+
+    def hist_ssf_with_annotations(self, data=None, cfg=None, plot=True, fig_quality=100, I_meas=None, Q_meas=None):
+        """
+        Plots g/e calibration clouds, shows their *means*, rotates the IQ plane,
+        and overlays vectors g->e and g->z for a single experiment point (I_meas, Q_meas).
+
+        Args:
+            data: [ig, qg, ie, qe] arrays
+            cfg: dict with key "steps" (for histogram bins)
+            plot: whether to plot/save figures
+            fig_quality: dpi for saved figure
+            I_meas, Q_meas: floats for the *single* measured experiment point.
+                            If None, will use one sample from the e cloud as a stand-in.
+
+        Returns:
+            fid, threshold, theta, ig_new, ie_new
+        """
+        import os, math, datetime
+        import numpy as np
+        import matplotlib.pyplot as plt
+
+        ig = data[0]
+        qg = data[1]
+        ie = data[2]
+        qe = data[3]
+
+        numbins = round(math.sqrt(float(cfg["steps"])))
+
+        # Use means for the centroids (requested)
+        gx_mean, gy_mean = float(np.mean(ig)), float(np.mean(qg))
+        ex_mean, ey_mean = float(np.mean(ie)), float(np.mean(qe))
+
+        # (Optional) medians if you still want to compare visually
+        gx_med, gy_med = float(np.median(ig)), float(np.median(qg))
+        ex_med, ey_med = float(np.median(ie)), float(np.median(qe))
+
+        if plot:
+            fig, axs = plt.subplots(nrows=1, ncols=3, figsize=(16, 4))
+            fig.tight_layout()
+
+            # ------- Unrotated -------
+            axs[0].scatter(ig, qg, label='g shots', color='b', marker='*', alpha=0.2)
+            axs[0].scatter(ie, qe, label='e shots', color='r', marker='*', alpha=0.2)
+
+            axs[0].scatter([gx_mean], [gy_mean], color='k', marker='X', s=80, label='g mean')
+            axs[0].scatter([ex_mean], [ey_mean], color='k', marker='X', s=80, label='e mean')
+
+            # tiny dots for medians (optional)
+            axs[0].scatter([gx_med], [gy_med], color='k', marker='o', s=20, alpha=0.6, label='g median')
+            axs[0].scatter([ex_med], [ey_med], color='k', marker='o', s=20, alpha=0.6, label='e median')
+
+            axs[0].plot([gx_mean, ex_mean], [gy_mean, ey_mean], linestyle='--', linewidth=2, label='g → e')
+
+            # If user supplied a measurement, plot it (unrotated)
+            if (I_meas is not None) and (Q_meas is not None):
+                axs[0].scatter([I_meas], [Q_meas], s=80, label='meas z (raw)')
+                axs[0].annotate("z", xy=(I_meas, Q_meas), xytext=(I_meas + 0.05, Q_meas + 0.05))
+
+            axs[0].set_xlabel('I (a.u.)')
+            axs[0].set_ylabel('Q (a.u.)')
+            axs[0].legend(loc='upper right')
+            axs[0].set_title('Unrotated')
+            axs[0].axis('equal')
+
+        # ------- Rotation so g->e is horizontal (use means) -------
+        theta = -np.arctan2((ey_mean - gy_mean), (ex_mean - gx_mean))
+        cos_t, sin_t = np.cos(theta), np.sin(theta)
+
+        # Rotate calibration clouds
+        ig_new = ig * cos_t - qg * sin_t
+        qg_new = ig * sin_t + qg * cos_t
+        ie_new = ie * cos_t - qe * sin_t
+        qe_new = ie * sin_t + qe * cos_t
+
+        # Rotate centroids
+        gx_mean_r = gx_mean * cos_t - gy_mean * sin_t
+        gy_mean_r = gx_mean * sin_t + gy_mean * cos_t
+        ex_mean_r = ex_mean * cos_t - ey_mean * sin_t
+        ey_mean_r = ex_mean * sin_t + ey_mean * cos_t
+
+        # ----- Rotate the single experiment point if provided -----
+        if (I_meas is not None) and (Q_meas is not None):
+            zI_r = I_meas * cos_t - Q_meas * sin_t
+            zQ_r = I_meas * sin_t + Q_meas * cos_t
+        else:
+            # fallback: pick a sample from e cloud (rotated)
+            z_ix = len(ie_new) // 2
+            zI_r, zQ_r = float(ie_new[z_ix]), float(qe_new[z_ix])
+
+        # X range for hist
+        xlims = [min(np.min(ig_new), np.min(ie_new)), max(np.max(ig_new), np.max(ie_new))]
+
+        if plot:
+            # ------- Rotated scatter & vectors -------
+            axs[1].scatter(ig_new, qg_new, label='g shots', color='b', marker='*', alpha=0.2)
+            axs[1].scatter(ie_new, qe_new, label='e shots', color='r', marker='*', alpha=0.2)
+            axs[1].scatter([gx_mean_r], [gy_mean_r], color='k', marker='X', s=80, label='g mean (rot)')
+            axs[1].scatter([ex_mean_r], [ey_mean_r], color='k', marker='X', s=80, label='e mean (rot)')
+
+            # g->e vector
+            axs[1].plot([gx_mean_r, ex_mean_r], [gy_mean_r, ey_mean_r], linestyle='--', linewidth=2, label='g → e')
+
+            # g->z vector and z point
+            axs[1].arrow(gx_mean_r, gy_mean_r, (zI_r - gx_mean_r), (zQ_r - gy_mean_r),
+                         length_includes_head=True, head_width=0.04, alpha=0.9)
+            axs[1].scatter([zI_r], [zQ_r], s=80, label='meas z (rot)')
+            axs[1].annotate("z", xy=(zI_r, zQ_r), xytext=(zI_r + 0.05, zQ_r + 0.05))
+
+            # Numbers: |z-g|, |e-g|, normalized radial (your code), and projection (recommended)
+            zg = complex(zI_r - gx_mean_r, zQ_r - gy_mean_r)
+            eg = complex(ex_mean_r - gx_mean_r, ey_mean_r - gy_mean_r)
+            pop_norm = np.abs(zg) / (np.abs(eg) + 1e-12)
+            pop_proj = (((zI_r - gx_mean_r) * (ex_mean_r - gx_mean_r) + (zQ_r - gy_mean_r) * (ey_mean_r - gy_mean_r))
+                        / ((ex_mean_r - gx_mean_r) ** 2 + (ey_mean_r - gy_mean_r) ** 2 + 1e-12))
+            axs[1].text(0.02, 0.02,
+                        f"|z−g| = {np.abs(zg):.3f}\n|e−g| = {np.abs(eg):.3f}\n"
+                        f"|z−g|/|e−g| = {pop_norm:.3f}\nproj = {np.clip(pop_proj, 0, 1):.3f}",
+                        transform=axs[1].transAxes)
+
+            axs[1].set_xlabel('I (a.u.)')
+            axs[1].legend(loc='lower right')
+            axs[1].set_title(f'Rotated  (θ = {round(theta, 5)})')
+            axs[1].axis('equal')
+
+            # ------- Histograms in rotated I -------
+            ng, binsg, _ = axs[2].hist(ig_new, bins=numbins, range=xlims, color='b', label='g', alpha=0.2)
+            ne, binse, _ = axs[2].hist(ie_new, bins=numbins, range=xlims, color='r', label='e', alpha=0.2)
+            axs[2].set_xlabel('I (a.u.)')
+        else:
+            ng, binsg = np.histogram(ig_new, bins=numbins, range=xlims)
+            ne, binse = np.histogram(ie_new, bins=numbins, range=xlims)
+
+        # ------- Fidelity via histogram overlap (unchanged) -------
+        contrast = np.abs(((np.cumsum(ng) - np.cumsum(ne)) / (0.5 * ng.sum() + 0.5 * ne.sum())))
+        tind = contrast.argmax()
+        threshold = binsg[tind]
+        fid = contrast[tind]
+
+        if plot:
+            self.create_folder_if_not_exists(self.outerFolder)
+            out_dir = os.path.join(self.outerFolder, "ss_repeat_meas_ge")
+            self.create_folder_if_not_exists(out_dir)
+            out_dir = os.path.join(out_dir, "Q" + str(self.QubitIndex + 1))
+            self.create_folder_if_not_exists(out_dir)
+            now = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            file_name = os.path.join(
+                out_dir,
+                f"R_{self.round_num}_Q_{self.QubitIndex + 1}_{self.expt_name}{now}_q{self.QubitIndex + 1}.png"
+            )
+            axs[2].set_title(f"Fidelity = {fid * 100:.2f}%")
+            plt.tight_layout()
+            fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')
+            plt.close(fig)
+
+        return fid, threshold, theta, ig_new, ie_new
+
     def only_hist_ssf(self, data=None, cfg=None, plot=True, fig_quality=100, plot_title="Run 3"):
         import math
         import numpy as np

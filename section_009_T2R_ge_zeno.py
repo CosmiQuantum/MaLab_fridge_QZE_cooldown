@@ -201,7 +201,8 @@ class T2RProgram(AveragerProgramV2):
         self.delay_auto(0.01, tag='wait')  # wait_time after last pulse
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse2", t=0)  # put on z axis
         self.delay_auto(0.01)  # wait_time after last pulse
-        self.pulse(ch=cfg['res_ch'], name="res_pulse", t=5) #play res pulse 5 us after everything
+        self.delay_auto(t=5, tag='wait_for_ring_down')
+        self.pulse(ch=cfg['res_ch'], name="res_pulse") #play res pulse 5 us after everything
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 class T2RProgramFlatTopQZE(AveragerProgramV2):
@@ -235,8 +236,8 @@ class T2RProgramFlatTopQZE(AveragerProgramV2):
                        phase=cfg['qubit_phase'],
                        gain=cfg['pi_amp'] / 2,
                        )
-        self.add_gauss(ch=res_ch, name="qze_flat_top", sigma=0.01,
-                       length=0.04, even_length=False)
+        self.add_gauss(ch=res_ch, name="qze_flat_top", sigma=0.05,
+                       length=0.2, even_length=True)
         self.add_pulse(ch=res_ch, name="qze_pulse",
                        style="flat_top",
                        envelope="qze_flat_top",
@@ -262,7 +263,8 @@ class T2RProgramFlatTopQZE(AveragerProgramV2):
         self.delay_auto(0.01, tag='wait')  # wait_time after last pulse
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse2", t=0)  # put on z axis
         self.delay_auto(0.01)  # wait_time after last pulse
-        self.pulse(ch=cfg['res_ch'], name="res_pulse", t=5) #play res pulse 5 us after everything
+        self.delay_auto(t=5, tag='wait_for_ring_down')
+        self.pulse(ch=cfg['res_ch'], name="res_pulse") #play res pulse 5 us after everything
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 class T2RMeasurementZeno:
@@ -468,7 +470,7 @@ class T2RMeasurementZeno:
         else:
             return fit_type(x, popt) * y_normal, t2r_est, t2r_err, plot_sig
 
-    def run(self, thresholding=False,correction=False, scaling=False, qze_pulse='const'):
+    def run(self, thresholding=False, correction=False, scaling=False, qze_pulse='const'):
         now = datetime.datetime.now()
         if qze_pulse == 'flat_top':
             ramsey = T2RProgramFlatTopQZE(self.experiment.soccfg, reps=self.config['reps'],

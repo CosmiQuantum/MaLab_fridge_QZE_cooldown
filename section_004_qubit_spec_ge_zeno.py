@@ -669,7 +669,7 @@ class PulseProbeSpectroscopyProgram(AveragerProgramV2):
         self.pulse(ch=cfg['res_ch'], name="qze_pulse", t=0)
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)  # play probe pulse
         self.delay_auto(t=5, tag='waiting')  # Wait til qubit pulse is done and resonator rings down before proceeding
-        self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+        self.pulse(ch=cfg['res_ch'], name="res_pulse")
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 class PulseProbeSpectroscopyProgramFlatTop(AveragerProgramV2):
     def _initialize(self, cfg):
@@ -703,8 +703,8 @@ class PulseProbeSpectroscopyProgramFlatTop(AveragerProgramV2):
                        gain=cfg['qubit_gain_ge'],
                        )
 
-        self.add_gauss(ch=res_ch, name="qze_flat_top", sigma=0.01,
-                       length=0.04, even_length=False)
+        self.add_gauss(ch=res_ch, name="qze_flat_top", sigma=0.05,
+                       length=0.2, even_length=True)
         self.add_pulse(ch=res_ch, name="qze_pulse",
                        style="flat_top",
                        envelope="qze_flat_top",

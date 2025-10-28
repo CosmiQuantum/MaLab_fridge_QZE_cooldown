@@ -240,11 +240,13 @@ class T2rVsTime:
                                 Qe = np.asarray(Qe, dtype=float)
                                 Ig = np.asarray(Ig, dtype=float)
                                 Qg = np.asarray(Qg, dtype=float)
-                                e = np.mean((Ie + 1j * Qe))
-                                g = np.mean((Ig + 1j * Qg))
-                                ### Normalization ###
-                                pop_norm = abs(((I + 1j * Q) - g) * (e - g) / abs(e - g) ** 2)
-                                amp = pop_norm
+                                z = I + 1j * Q
+                                e = np.mean(Ie + 1j * Qe)
+                                g = np.mean(Ig + 1j * Qg)
+
+                                # 1D coordinate along g→e, normalized so g≈0 and e≈1
+                                pop_lin = np.real(((z - g) * np.conj(e - g)) / (np.abs(e - g) ** 2))
+                                amp = pop_lin
 
                                 Ig_calibration[q_key].append(Ig)
                                 Ie_calibration[q_key].append(Ie)
@@ -2086,6 +2088,7 @@ class T2rVsTime:
         fig.savefig(outfile, transparent=False, dpi=self.final_figure_quality)
         plt.close(fig)
         print(f"Saved heatmap to: {outfile}")
+
 
     def plot_all_t2_rounds_adapted_for_gain(self, amps, gains, rounds, delay_times, save_path, max_ylabels=6):
         import numpy as np
