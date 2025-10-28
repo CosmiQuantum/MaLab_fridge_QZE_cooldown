@@ -50,7 +50,7 @@ run_name = 'bob_run_started_Aug_23'
 device_name = 'squill'
 substudy_txt_notes = ('fixed the t1 code so now the pulse length for zeno isnt 0')
 for experiment_round in range(0,10):
-    study = f'QZE_IBM_checking_ramsey_consistency_gain0p1_q5_round{experiment_round}'
+    study = f'QZE_IBM_checking_ramsey_consistency_gain0p01_q5_round{experiment_round}'
 
     ################################################ optimization outputs ##################################################
     # Optimization parameters for resonator spectroscopy
@@ -575,7 +575,7 @@ for experiment_round in range(0,10):
         t2r_data = create_data_dict(t2r_keys, save_r, list_of_all_qubits)
         ########################################### go through each gain ######################################
         # pulse_gains = np.linspace(0.0001, res_gain[QubitIndex], 30)
-        pulse_gains = [0.1]#
+        pulse_gains = [0.01]#
         try:
             for gain in pulse_gains:
                 for repeat_round in range(50):
