@@ -603,13 +603,11 @@ class T1VsTime:
                                 Qe = np.asarray(Qe, dtype=float)
                                 Ig = np.asarray(Ig, dtype=float)
                                 Qg = np.asarray(Qg, dtype=float)
-                                z = I + 1j * Q
                                 e = np.mean((Ie + 1j * Qe))
                                 g = np.mean((Ig + 1j * Qg))
-
-                                eg = e - g
-                                amp = np.real((z - g) * np.conj(eg)) / (np.abs(eg) ** 2)  # projection in [~0,~1]
-                                #amp = np.clip(amp, 0.0, 1.0)
+                                ### Normalization ###
+                                pop_norm = abs(((I + 1j * Q) - g) * (e - g) / abs(e - g) ** 2)
+                                amp = pop_norm
                                 Ig_calibration[q_key].append(Ig)
                                 Ie_calibration[q_key].append(Ie)
                                 Qg_calibration[q_key].append(Qg)
@@ -1516,7 +1514,7 @@ class T1VsTime:
             if finite_idx.size == 0:
                 return np.nan
             #k = max(0, min(k, finite_idx.size - 1))  # clamp
-            return float(a[finite_idx[-1]])
+            return float(a[finite_idx[0]])
 
         # --- extract this qubit's lists ---
         q = self.qubit
@@ -1662,13 +1660,7 @@ class T1VsTime:
                         ss_class_instance.hist_ssf_with_annotations(
                             data=[I_g, Q_g, I_e, Q_e],
                             cfg=ss_cfg,
-                            plot=True,
-                            **kwargs_meas
-                        )
-                        ss_class_instance.hist_ssf_with_annotations_new_method(
-                            data=[I_g, Q_g, I_e, Q_e],
-                            cfg=ss_cfg,
-                            plot=True,
+                            plot=True, path_ext='_t1',
                             **kwargs_meas
                         )
                     except Exception as e:
@@ -1946,7 +1938,7 @@ class T1VsTime:
                         ss_class_instance.hist_ssf(
                             data=[I_g, Q_g, I_e, Q_e],
                             cfg=ss_cfg,
-                            plot=True
+                            plot=True,
                         )
 
                         # --- align, build timebase (unchanged) ---

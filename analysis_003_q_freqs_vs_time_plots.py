@@ -244,14 +244,11 @@ class QubitFreqsVsTime:
                                 Qe = np.asarray(Qe, dtype=float)
                                 Ig = np.asarray(Ig, dtype=float)
                                 Qg = np.asarray(Qg, dtype=float)
-                                z = I + 1j * Q
-                                e = np.mean(Ie + 1j * Qe)
-                                g = np.mean(Ig + 1j * Qg)
-
-                                # 1D coordinate along g→e, normalized so g≈0 and e≈1
-                                pop_lin = np.real(((z - g) * np.conj(e - g)) / (np.abs(e - g) ** 2))
-                                amp = pop_lin
-
+                                e = np.mean((Ie + 1j * Qe))
+                                g = np.mean((Ig + 1j * Qg))
+                                ### Normalization ###
+                                pop_norm = abs(((I + 1j * Q) - g) * (e - g) / abs(e - g) ** 2)
+                                amp = pop_norm
                                 Ig_calibration[q_key].append(Ig)
                                 Ie_calibration[q_key].append(Ie)
                                 Qg_calibration[q_key].append(Qg)
@@ -520,6 +517,304 @@ class QubitFreqsVsTime:
             fig.savefig(outfile, transparent=False, dpi=self.final_figure_quality)
             plt.close(fig)
             print(f"Saved heatmap for round {r_id} to: {outfile}")
+
+    def plot_all_q_heatmaps_with_singular_ssf_plotting(
+            self,
+            amps,
+            gains,
+            rounds,
+            delay_times,
+            save_path,
+            max_ylabels=6,
+            # --- optional SSD inputs (same contract as the T1/T2 versions) ---
+            ss_class_instance=None,
+            ss_cfg=None,
+            Ig_calibration=None,
+            Ie_calibration=None,
+            Qg_calibration=None,
+            Qe_calibration=None,
+            # --- experiment single-shot sources (same format as amps) ---
+            I_experiment=None,
+            Q_experiment=None,
+    ):
+        """
+        NEW FORMAT ONLY
+
+        Q-spectrum heatmaps with:
+          - fixed global color scale across rounds (global min/max amplitude)
+          - Y-axis shows at most `max_ylabels` frequency tick labels (evenly spaced)
+          - OPTIONAL: per-dataset SSF plot using provided calibrations, with a single
+            (I,Q) experiment point overlaid if available.
+
+        Data model (per qubit q):
+          - amps[q]         : list of lists/arrays; amps[q][i] are amplitude samples for dataset i
+          - gains[q]        : list; gains[q][i] is scalar or array aligned with amps[q][i]
+          - rounds[q]       : list; rounds[q][i] is the round label for dataset i
+          - delay_times[q]  : list; delay_times[q][i] scalar or array aligned with amps[q][i]
+                              (here they represent frequency points in MHz for the y-axis)
+          - I_experiment[q] : list; I_experiment[q][i] is scalar or array of I-shots for dataset i
+          - Q_experiment[q] : list; Q_experiment[q][i] is scalar or array of Q-shots for dataset i
+        """
+        import os
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from collections import defaultdict
+        import matplotlib.ticker as mticker
+
+        # --- helpers (mirrors your T1/T2 versions) ---
+        def fmt_p(x, sig=4):
+            try:
+                s = f"{float(x):.{sig}g}"
+            except Exception:
+                return "nan"
+            return s.replace(".", "p")
+
+        def as_1d_array(x):
+            if isinstance(x, (list, tuple, np.ndarray)):
+                arr = np.asarray(x).ravel()
+                return arr if arr.size > 0 else None
+            try:
+                return np.asarray([float(x)], dtype=float)
+            except Exception:
+                return None
+
+        def first_scalar_or_nan(x):
+            a = as_1d_array(x)
+            if a is None or not np.all(np.isfinite(a)):
+                return np.nan
+            return float(np.median(a))
+
+        def centers_to_edges(centers):
+            centers = np.asarray(sorted(np.unique(centers)), dtype=float)
+            if centers.size == 1:
+                d = 1.0
+                return np.array([centers[0] - d / 2, centers[0] + d / 2])
+            mids = (centers[:-1] + centers[1:]) / 2.0
+            first = centers[0] - (centers[1] - centers[0]) / 2.0
+            last = centers[-1] + (centers[-1] - centers[-2]) / 2.0
+            return np.concatenate([[first], mids, [last]])
+
+        def pick_single_shot(x, k=0):
+            a = as_1d_array(x)
+            if a is None:
+                return np.nan
+            finite_idx = np.flatnonzero(np.isfinite(a))
+            if finite_idx.size == 0:
+                return np.nan
+            return float(a[finite_idx[0]])
+
+        # --- extract per-qubit lists ---
+        q = self.qubit
+        gains_q = gains.get(q, [])
+        amps_q = amps.get(q, [])
+        rounds_q = rounds.get(q, [])
+        delay_q = delay_times.get(q, [])  # treated as frequency (MHz) here
+
+        # optional experiment I/Q
+        Iexp_q = (I_experiment or {}).get(q, [])
+        Qexp_q = (Q_experiment or {}).get(q, [])
+
+        # presence & length checks
+        n = min(len(amps_q), len(gains_q), len(rounds_q), len(delay_q))
+        if n == 0 or not (len(amps_q) == len(gains_q) == len(rounds_q) == len(delay_q)):
+            print(f"No usable data for qubit {q} (missing lists or length mismatch). Skipping.")
+            return
+
+        # --- OPTIONAL: SSD enablement ---
+        do_ssd = (
+                ss_class_instance is not None and
+                ss_cfg is not None and
+                Ig_calibration is not None and
+                Ie_calibration is not None and
+                Qg_calibration is not None and
+                Qe_calibration is not None
+        )
+        if do_ssd:
+            Ig_q = Ig_calibration.get(q, [])
+            Ie_q = Ie_calibration.get(q, [])
+            Qg_q = Qg_calibration.get(q, [])
+            Qe_q = Qe_calibration.get(q, [])
+            n_ss = min(len(Ig_q), len(Ie_q), len(Qg_q), len(Qe_q), n)
+            if n_ss == 0:
+                print("SSD requested but no calibration arrays found; skipping SSD.")
+                do_ssd = False
+
+        # --- collect points for heatmaps: (round_id, gain, freq, amp) ---
+        all_points = []
+        for i in range(n):
+            r_id = str(rounds_q[i])
+
+            a_samples = np.asarray(amps_q[i], dtype=float).ravel()
+            if a_samples.size == 0:
+                continue
+
+            g_i = gains_q[i]
+            g_arr = np.asarray(g_i, dtype=float).ravel() if isinstance(g_i, (list, tuple, np.ndarray)) else None
+            if g_arr is None or g_arr.size == 1:
+                try:
+                    g_scalar = float(g_i)
+                except Exception:
+                    continue
+                g_arr = np.full(a_samples.shape, g_scalar, dtype=float)
+            elif g_arr.size != a_samples.size:
+                continue
+
+            f_i = delay_q[i]  # "delay" list is frequency here
+            f_arr = np.asarray(f_i, dtype=float).ravel() if isinstance(f_i, (list, tuple, np.ndarray)) else None
+            if f_arr is None or f_arr.size == 1:
+                try:
+                    f_scalar = float(f_i)
+                except Exception:
+                    continue
+                f_arr = np.full(a_samples.shape, f_scalar, dtype=float)
+            elif f_arr.size != a_samples.size:
+                continue
+
+            mask = np.isfinite(a_samples) & np.isfinite(g_arr) & np.isfinite(f_arr)
+            if not np.any(mask):
+                continue
+
+            for g, f, a in zip(g_arr[mask], f_arr[mask], a_samples[mask]):
+                all_points.append((r_id, float(g), float(f), float(a)))
+
+        if not all_points:
+            print(f"No numeric points for qubit {q}. Skipping.")
+            return
+
+        unique_rounds = sorted({r for (r, _, __, ___) in all_points})
+
+        # ensure save root exists
+        self.create_folder_if_not_exists(save_path)
+
+        # --- global z scale ---
+        all_amps = np.array([a for (_, _, _, a) in all_points], dtype=float)
+        global_vmin = float(np.nanmin(all_amps))
+        global_vmax = float(np.nanmax(all_amps))
+
+        # --- per-dataset SSF emission (once per Q-spec curve) ---
+        if do_ssd:
+            analysis_root = os.path.join(save_path, "analysis")
+            self.create_folder_if_not_exists(analysis_root)
+
+            _old_outer = getattr(ss_class_instance, "outerFolder", None)
+            _old_qidx = getattr(ss_class_instance, "QubitIndex", None)
+            _old_rnum = getattr(ss_class_instance, "round_num", None)
+            _old_name = getattr(ss_class_instance, "expt_name", None)
+
+            try:
+                ss_class_instance.outerFolder = analysis_root
+                ss_class_instance.QubitIndex = getattr(self, "qubit", 0)
+
+                for i in range(n_ss):
+                    r_id = str(rounds_q[i])
+                    g_lbl = first_scalar_or_nan(gains_q[i])
+                    f_lbl = first_scalar_or_nan(delay_q[i])
+
+                    ss_class_instance.round_num = r_id
+                    gain_tag = f"gain_{fmt_p(g_lbl)}_"
+                    freq_tag = f"freqMHz_{fmt_p(f_lbl)}"
+                    ss_class_instance.expt_name = f"{gain_tag}{freq_tag}_qspec_ssd"
+
+                    # pull calibration vectors
+                    try:
+                        I_g = np.asarray(Ig_q[i]).ravel()
+                        Q_g = np.asarray(Qg_q[i]).ravel()
+                        I_e = np.asarray(Ie_q[i]).ravel()
+                        Q_e = np.asarray(Qe_q[i]).ravel()
+                        if min(I_g.size, Q_g.size, I_e.size, Q_e.size) == 0:
+                            print(f"[SSD] Skipping dataset {i}: empty calibration vectors.")
+                            continue
+                    except Exception as e:
+                        print(f"[SSD] Failed to read calibration for dataset {i}: {e}")
+                        continue
+
+                    # pick ONE (I,Q) from experiment dicts
+                    I_single = np.nan
+                    Q_single = np.nan
+                    if i < len(Iexp_q):
+                        I_single = pick_single_shot(Iexp_q[i])
+                    if i < len(Qexp_q):
+                        Q_single = pick_single_shot(Qexp_q[i])
+
+                    kwargs_meas = {}
+                    if np.isfinite(I_single) and np.isfinite(Q_single):
+                        kwargs_meas = {"I_meas": I_single, "Q_meas": Q_single}
+
+                    try:
+                        ss_class_instance.hist_ssf_with_annotations(
+                            data=[I_g, Q_g, I_e, Q_e],
+                            cfg=ss_cfg,
+                            plot=True, path_ext='_qspec',
+                            **kwargs_meas
+                        )
+
+                    except Exception as e:
+                        print(f"[SSD] Failed on dataset {i} (round {r_id}): {e}")
+
+            finally:
+                if _old_outer is not None:
+                    ss_class_instance.outerFolder = _old_outer
+                if _old_qidx is not None:
+                    ss_class_instance.QubitIndex = _old_qidx
+                if _old_rnum is not None:
+                    ss_class_instance.round_num = _old_rnum
+                if _old_name is not None:
+                    ss_class_instance.expt_name = _old_name
+
+        # --- per-round heatmaps (fixed z across rounds) ---
+        for r_id in unique_rounds:
+            pts = [(g, f, a) for (r, g, f, a) in all_points if r == r_id]
+            if not pts:
+                continue
+
+            gains_r = sorted({g for (g, _, _) in pts})
+            freqs_r = sorted({f for (_, f, _) in pts})
+
+            bucket = defaultdict(list)
+            gi_map = {g: i for i, g in enumerate(gains_r)}
+            fi_map = {f: i for i, f in enumerate(freqs_r)}
+            for g, f, a in pts:
+                bucket[(fi_map[f], gi_map[g])].append(a)
+
+            Ny, Nx = len(freqs_r), len(gains_r)
+            C = np.full((Ny, Nx), np.nan, dtype=float)
+            for (iy, ix), vals in bucket.items():
+                C[iy, ix] = float(np.nanmean(vals))
+
+            x_edges = centers_to_edges(gains_r)
+            y_edges = centers_to_edges(freqs_r)
+
+            fig, ax = plt.subplots(figsize=(6.5, 4.5))
+            mesh = ax.pcolormesh(
+                x_edges, y_edges, C, shading='flat',
+                vmin=global_vmin, vmax=global_vmax
+            )
+            cbar = fig.colorbar(mesh, ax=ax, pad=0.02)
+            cbar.set_label("Qubit Population")
+
+            ax.set_title(f"Qubit {self.qubit + 1} — Round {r_id}")
+            ax.set_xlabel("Pulse gain (a.u.)")
+            ax.set_ylabel("Frequency (MHz)")
+
+            ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=7, prune=None))
+            plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
+
+            if Ny > 0:
+                if Ny <= max_ylabels:
+                    yticks_idx = list(range(Ny))
+                else:
+                    yticks_idx = np.linspace(0, Ny - 1, num=max_ylabels, dtype=int).tolist()
+                    yticks_idx = sorted(set(yticks_idx))
+                yticks_vals = [freqs_r[i] for i in yticks_idx]
+                ax.set_yticks(yticks_vals)
+                ax.set_yticklabels([f"{v:.2f}" for v in yticks_vals])
+
+            fig.tight_layout()
+            outfile = (save_path + f"qspec_heatmap_q{self.qubit}_round{r_id}.png")
+            fig.savefig(outfile, transparent=False, dpi=self.final_figure_quality)
+            plt.close(fig)
+            print(f"Saved heatmap for round {r_id} to: {outfile}")
+
     def plot_all_q_heatmaps_single_calibration(self,Is, Qs, Ig_calibration1, \
         Ie_calibration1, Qe_calibration1, Qg_calibration1, gains, rounds, delay_times, save_path, max_ylabels=6):
         """

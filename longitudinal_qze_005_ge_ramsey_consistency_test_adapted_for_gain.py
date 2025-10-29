@@ -50,7 +50,7 @@ run_name = 'bob_run_started_Aug_23'
 device_name = 'squill'
 substudy_txt_notes = ('script longitudinal_qze_005_ge_ramsey_consistency_test_adapted_for_gain.py')
 
-study = 'QZE_IBM_time_phase_bug_fixed'#_gaus'
+study = 'QZE_IBM_time_phase_bug_fixed_overnight_test'#_gaus'
 
 ################################################ optimization outputs ##################################################
 # Optimization parameters for resonator spectroscopy

@@ -491,18 +491,13 @@ class SingleShot:
             fid = contrast[tind]
             return fid, threshold, float(theta), ig_new, ie_new
 
-    def hist_ssf_with_annotations(self, data=None, cfg=None, plot=True, fig_quality=100, I_meas=None, Q_meas=None):
+    def hist_ssf_with_annotations(self, data=None, cfg=None, plot=True, fig_quality=100, I_meas=None, Q_meas=None,
+                                  path_ext='', ):
         """
         Plots g/e calibration clouds, shows their *means*, rotates the IQ plane,
         and overlays vectors g->e and g->z for a single experiment point (I_meas, Q_meas).
 
-        Args:
-            data: [ig, qg, ie, qe] arrays
-            cfg: dict with key "steps" (for histogram bins)
-            plot: whether to plot/save figures
-            fig_quality: dpi for saved figure
-            I_meas, Q_meas: floats for the *single* measured experiment point.
-                            If None, will use one sample from the e cloud as a stand-in.
+        Adds: dashed vertical lines on the rotated-I histogram at the g/e mean I-locations.
 
         Returns:
             fid, threshold, theta, ig_new, ie_new
@@ -598,7 +593,7 @@ class SingleShot:
             axs[1].scatter([zI_r], [zQ_r], s=80, label='meas z (rot)')
             axs[1].annotate("z", xy=(zI_r, zQ_r), xytext=(zI_r + 0.05, zQ_r + 0.05))
 
-            # Numbers: |z-g|, |e-g|, normalized radial (your code), and projection (recommended)
+            # Numbers block
             zg = complex(zI_r - gx_mean_r, zQ_r - gy_mean_r)
             eg = complex(ex_mean_r - gx_mean_r, ey_mean_r - gy_mean_r)
             pop_norm = np.abs(zg) / (np.abs(eg) + 1e-12)
@@ -617,6 +612,16 @@ class SingleShot:
             # ------- Histograms in rotated I -------
             ng, binsg, _ = axs[2].hist(ig_new, bins=numbins, range=xlims, color='b', label='g', alpha=0.2)
             ne, binse, _ = axs[2].hist(ie_new, bins=numbins, range=xlims, color='r', label='e', alpha=0.2)
+
+            # NEW: dashed vertical lines at the mean I-positions for g and e (in the rotated frame)
+            axs[2].axvline(gx_mean_r, linestyle='--', linewidth=2, color='b', label='g mean (I)')
+            axs[2].axvline(ex_mean_r, linestyle='--', linewidth=2, color='r', label='e mean (I)')
+            # Optional: annotate the values
+            axs[2].annotate(f"g μI={gx_mean_r:.3f}", xy=(gx_mean_r, 0), xytext=(5, 10),
+                            textcoords='offset points', rotation=90, va='bottom', ha='left')
+            axs[2].annotate(f"e μI={ex_mean_r:.3f}", xy=(ex_mean_r, 0), xytext=(5, 10),
+                            textcoords='offset points', rotation=90, va='bottom', ha='left')
+
             axs[2].set_xlabel('I (a.u.)')
         else:
             ng, binsg = np.histogram(ig_new, bins=numbins, range=xlims)
@@ -630,7 +635,7 @@ class SingleShot:
 
         if plot:
             self.create_folder_if_not_exists(self.outerFolder)
-            out_dir = os.path.join(self.outerFolder, "ss_repeat_meas_ge")
+            out_dir = os.path.join(self.outerFolder, f"ss_repeat_meas_ge{path_ext}")
             self.create_folder_if_not_exists(out_dir)
             out_dir = os.path.join(out_dir, "Q" + str(self.QubitIndex + 1))
             self.create_folder_if_not_exists(out_dir)

@@ -50,14 +50,14 @@ amps_qspec = {i: [] for i in range(6)}
 gains_qspec = {i: [] for i in range(6)}
 rounds_qspec = {i: [] for i in range(6)}
 freqs_qspec = {i: [] for i in range(6)}
-path= 'QZE_IBM_time_phase_bug_fixed'
+path= 'QZE_IBM_time_phase_bug_fixed_overnight_test'
 for qubit in qubits:
     run_name = f'bob_run_started_Aug_23/squill/{path}/all_qubits/'
     top_folder_dates = []
     for round in range(4):
         top_folder_dates.append(f'qubit_{qubit}round{round}')
 
-
+    ######################################################## T1 ########################################################
     t1_vs_time = T1VsTime(figure_quality, final_figure_quality, tot_num_of_qubits, top_folder_dates, save_figs, fit_saved,
                      signal, run_name, FRIDGE,exp_name = 'ge', qubit=qubit, t1_slice=f'{slice}us')
     Is1,Qs1,amps1,gains1,rounds1,delay_times1,Ig_calibration1, \
@@ -85,7 +85,7 @@ for qubit in qubits:
                                     Qg_calibration=Qg_calibration,
                                     Qe_calibration=Qe_calibration,I_experiment=Is,  Q_experiment=Qs)
 
-
+    ####################################################### T2R ########################################################
     t2_vs_time = T2rVsTime(figure_quality, final_figure_quality, tot_num_of_qubits, top_folder_dates, save_figs,
                           fit_saved,
                           signal, run_name,fridge=FRIDGE,  exp_name='ge', qubit=qubit)
@@ -104,9 +104,17 @@ for qubit in qubits:
     rounds_t2[qubit] = rounds1_t2[qubit]
     delay_times_t2[qubit] = delay_times1_t2[qubit]
 
-    t2_vs_time.plot_all_t2_heatmaps_new_format(amps_t2, gains_t2, rounds_t2, delay_times_t2,
-                                               f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/')
+    t2_vs_time.plot_all_t2_heatmaps_with_singular_ssf_plotting(amps_t2, gains_t2, rounds_t2, delay_times_t2,
+                                               f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/',
+                                                               ss_class_instance = ss,  # your object that has hist_ssf(...)
+                                                               ss_cfg = {"steps": steps}, max_ylabels = 6,
+                                                               Ig_calibration = Ig_calibration_t2,
+                                                               Ie_calibration = Ie_calibration_t2,
+                                                               Qg_calibration = Qg_calibration_t2,
+                                                               Qe_calibration = Qe_calibration_t2, I_experiment = Is_t2, Q_experiment = Qs_t2)
 
+
+    ##################################################### Qspec ########################################################
     q_vs_time = QubitFreqsVsTime(figure_quality, final_figure_quality, tot_num_of_qubits, top_folder_dates, save_figs,
                            fit_saved,
                            signal, run_name, fridge=FRIDGE, exp_name='ge', qubit=qubit)
@@ -126,5 +134,11 @@ for qubit in qubits:
     rounds_qspec[qubit] = rounds1_qspec[qubit]
     freqs_qspec[qubit] = delay_times1_qspec[qubit]
 
-    q_vs_time.plot_all_q_heatmaps_new_format(amps_qspec, gains_qspec, rounds_qspec, freqs_qspec,
-                                               f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/')
+    q_vs_time.plot_all_q_heatmaps_with_singular_ssf_plotting(amps_qspec, gains_qspec, rounds_qspec, freqs_qspec,
+                                               f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/',
+                                                ss_class_instance = ss,  # your object that has hist_ssf(...)
+                                                ss_cfg = {"steps": steps}, max_ylabels = 6,
+                                                Ig_calibration = Ig_calibration_qspec,
+                                                Ie_calibration = Ie_calibration_qspec,
+                                                Qg_calibration = Qg_calibration_qspec,
+                                                Qe_calibration = Qe_calibration_qspec, I_experiment = Is_qspec, Q_experiment = Qs_qspec)
