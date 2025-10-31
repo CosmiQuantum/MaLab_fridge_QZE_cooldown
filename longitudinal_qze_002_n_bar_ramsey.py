@@ -168,7 +168,6 @@ for QubitIndex in Qs_to_look_at:
 
         # Mask out all other resonators except this one
         experiment.readout_cfg['res_gain_ge'] = res_gain[QubitIndex]
-        experiment.readout_cfg['res_gain_ef'] = res_gains
         experiment.readout_cfg['res_length'] = res_leng_vals[QubitIndex]
         ################################ Do Res spec once per qubit and store the value ####################################
         if run_flags["res_spec"]:

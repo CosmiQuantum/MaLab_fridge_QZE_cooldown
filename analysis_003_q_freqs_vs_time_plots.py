@@ -351,23 +351,36 @@ class QubitFreqsVsTime:
 
                 del H5_class_instance
         return date_times, qubit_frequencies, qspec_fit_errs
-    def plot_all_q_heatmaps_new_format(self, amps, gains, rounds, delay_times, save_path, max_ylabels=6):
+    def plot_all_q_heatmaps_new_format(
+        self,
+        amps,
+        gains,
+        rounds,
+        delay_times,
+        save_path,
+        max_ylabels=6,
+        individual_subfolder="individual_specs"
+    ):
         """
-        NEW FORMAT ONLY
+        NEW FORMAT ONLY + per-gain individual spec plots
 
-        Changes vs your original:
-          - Y-axis now shows at most `max_ylabels` delay_time tick labels (evenly spaced).
-          - Color scale (z) is fixed across rounds using the global min/max amplitude.
+        - Keeps your heatmaps exactly as before (fixed global z-scale).
+        - ALSO saves, for each round & gain, a 1D "calibrated spec" plot:
+            x = delay (MHz), y = averaged amplitude at that delay for this gain.
+          Files go to: {save_path}/{individual_subfolder}/
+          Filenames include the gain value.
 
         Data model (per qubit q):
           - amps[q]         : list of lists; amps[q][i] is a list of amplitude samples for dataset i
-          - gains[q]        : list; gains[q][i] is the gain for dataset i
+          - gains[q]        : list; gains[q][i] is the gain for dataset i (scalar or per-sample)
           - rounds[q]       : list; rounds[q][i] is the round label for dataset i
-          - delay_times[q]  : list; delay_times[q][i] is the delay (scalar) for dataset i
+          - delay_times[q]  : list; delay_times[q][i] is the delay (scalar or per-sample)
         """
+        import os
         import numpy as np
         import matplotlib.pyplot as plt
         from collections import defaultdict
+        import matplotlib.ticker as mticker
 
         q = self.qubit
         gains_q = gains.get(q, [])
@@ -381,12 +394,11 @@ class QubitFreqsVsTime:
             print(f"No usable data for qubit {q} (missing lists or length mismatch). Skipping.")
             return
 
-        # Flatten to points: (round_id, gain, delay, amp)
+        # ---------- Flatten to points: (round_id, gain, delay, amp) ----------
         all_points = []
         for i in range(n):
             r_id = str(rounds_q[i])
 
-            # amplitudes (required)
             a_samples = np.asarray(amps_q[i], dtype=float).ravel()
             if a_samples.size == 0:
                 continue
@@ -430,10 +442,12 @@ class QubitFreqsVsTime:
         # Unique rounds present
         unique_rounds = sorted({r for (r, _, __, ___) in all_points})
 
-        # Ensure save folder exists
+        # Ensure save folder(s) exist
         self.create_folder_if_not_exists(save_path)
+        indiv_root = os.path.join(save_path, individual_subfolder)
+        self.create_folder_if_not_exists(indiv_root)
 
-        # Helper to convert centers -> bin edges for pcolormesh
+        # Helper: centers -> bin edges for pcolormesh
         def centers_to_edges(centers):
             centers = np.asarray(sorted(np.unique(centers)), dtype=float)
             if centers.size == 1:
@@ -444,11 +458,11 @@ class QubitFreqsVsTime:
             last = centers[-1] + (centers[-1] - centers[-2]) / 2.0
             return np.concatenate([[first], mids, [last]])
 
-        # ---------- NEW: compute global color scale limits (z) ----------
+        # ---------- Global color scale limits (z) ----------
         all_amps = np.array([a for (_, _, _, a) in all_points], dtype=float)
         global_vmin = float(np.nanmin(all_amps))
         global_vmax = float(np.nanmax(all_amps))
-        # ----------------------------------------------------------------
+        # ---------------------------------------------------
 
         for r_id in unique_rounds:
             # Collect this round's points
@@ -460,14 +474,13 @@ class QubitFreqsVsTime:
             delays_r = sorted({d for (_, d, _) in pts})
 
             # Map (delay_idx, gain_idx) -> list of amplitudes
-            from collections import defaultdict
             bucket = defaultdict(list)
             gi_map = {g: i for i, g in enumerate(gains_r)}
             di_map = {d: i for i, d in enumerate(delays_r)}
             for g, d, a in pts:
                 bucket[(di_map[d], gi_map[g])].append(a)
 
-            # Grid of average amplitudes
+            # Grid of average amplitudes for the heatmap
             Ny, Nx = len(delays_r), len(gains_r)
             C = np.full((Ny, Nx), np.nan, dtype=float)
             for (iy, ix), vals in bucket.items():
@@ -477,11 +490,11 @@ class QubitFreqsVsTime:
             x_edges = centers_to_edges(gains_r)
             y_edges = centers_to_edges(delays_r)
 
-            # Plot
+            # ---------- Heatmap ----------
             fig, ax = plt.subplots(figsize=(6.5, 4.5))
             mesh = ax.pcolormesh(
                 x_edges, y_edges, C, shading='flat',
-                vmin=global_vmin, vmax=global_vmax  # <-- fixed z scale
+                vmin=global_vmin, vmax=global_vmax
             )
             cbar = fig.colorbar(mesh, ax=ax, pad=0.02)
             cbar.set_label("Qubit Population")
@@ -490,33 +503,63 @@ class QubitFreqsVsTime:
             ax.set_xlabel("Pulse gain (a.u.)")
             ax.set_ylabel("Frequency (MHz)")
 
-            # X ticks at actual centers
-            import matplotlib.ticker as mticker
             ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=7, prune=None))
-
             plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
 
-            # ---------- NEW: only label a subset of delay times on Y ----------
+            # Label a subset of delay times on Y
             if Ny > 0:
                 if Ny <= max_ylabels:
-                    # small: show all
                     yticks_idx = list(range(Ny))
                 else:
-                    # large: pick evenly spaced indices
                     yticks_idx = np.linspace(0, Ny - 1, num=max_ylabels, dtype=int).tolist()
-                    # ensure uniqueness/monotonic
                     yticks_idx = sorted(set(yticks_idx))
-
                 yticks_vals = [delays_r[i] for i in yticks_idx]
                 ax.set_yticks(yticks_vals)
                 ax.set_yticklabels([f"{v:.2f}" for v in yticks_vals])
-            # -------------------------------------------------------------------
 
             fig.tight_layout()
-            outfile = (save_path + f"qspec_heatmap_q{self.qubit}_round{r_id}.png")
+            outfile = os.path.join(save_path, f"qspec_heatmap_q{self.qubit}_round{r_id}.png")
             fig.savefig(outfile, transparent=False, dpi=self.final_figure_quality)
             plt.close(fig)
             print(f"Saved heatmap for round {r_id} to: {outfile}")
+
+            # ---------- NEW: per-gain individual calibrated spec plots ----------
+            # For each gain, compute mean amplitude vs delay and plot as 1D
+            round_folder = os.path.join(indiv_root, f"round_{r_id}")
+            self.create_folder_if_not_exists(round_folder)
+
+            for g in gains_r:
+                # Collect amplitudes grouped by delay for this gain
+                d_to_vals = defaultdict(list)
+                for (gg, dd, aa) in pts:
+                    if gg == g and np.isfinite(dd) and np.isfinite(aa):
+                        d_to_vals[dd].append(aa)
+
+                if not d_to_vals:
+                    continue
+
+                # Sort by delay and average amplitudes per delay
+                delays_sorted = np.array(sorted(d_to_vals.keys()), dtype=float)
+                amps_avg = np.array([float(np.nanmean(d_to_vals[d])) for d in delays_sorted], dtype=float)
+
+                fig2, ax2 = plt.subplots(figsize=(6.5, 4.0))
+                ax2.plot(delays_sorted, amps_avg, marker='o', linewidth=1.5)
+                ax2.set_title(f"Qubit {self.qubit + 1} — Round {r_id} — Gain {g:g}")
+                ax2.set_xlabel("Frequency (MHz)")
+                ax2.set_ylabel("Qubit Population")
+                ax2.grid(True, alpha=0.3)
+                fig2.tight_layout()
+
+                # sanitize gain for filename
+                gain_str = f"{g:.6g}".replace("/", "_")
+                out_indiv = os.path.join(
+                    round_folder,
+                    f"qspec_q{self.qubit}_round{r_id}_gain{gain_str}.png"
+                )
+                fig2.savefig(out_indiv, transparent=False, dpi=self.final_figure_quality)
+                plt.close(fig2)
+                print(f"Saved individual spec for round {r_id}, gain {g:g} to: {out_indiv}")
+
 
     def plot_all_q_heatmaps_with_singular_ssf_plotting(
             self,

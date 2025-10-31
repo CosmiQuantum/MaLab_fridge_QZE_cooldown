@@ -50,7 +50,7 @@ run_name = 'bob_run_started_Aug_23'
 device_name = 'squill'
 substudy_txt_notes = ('fixed the t1 code so now the pulse length for zeno isnt 0')
 for experiment_round in range(0,10):
-    study = f'QZE_IBM_checking_t1_consistency_short_gain0p01_q5_round{experiment_round}_wholelottareps'
+    study = f'QZE_IBM_t1_consistency_gain0p01_q5_round{experiment_round}_morelottareps'
 
     ################################################ optimization outputs ##################################################
     # Optimization parameters for resonator spectroscopy

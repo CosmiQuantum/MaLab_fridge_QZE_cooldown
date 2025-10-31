@@ -50,7 +50,7 @@ run_name = 'bob_run_started_Aug_23'
 device_name = 'squill'
 substudy_txt_notes = ('script longitudinal_qze_005_ge_ramsey_consistency_test_adapted_for_gain.py')
 
-study = 'QZE_IBM_time_phase_bug_fixed_overnight_test'#_gaus'
+study = 'QZE_IBM_time_phase_bug_fixed_overnight_test2'#_gaus'
 
 ################################################ optimization outputs ##################################################
 # Optimization parameters for resonator spectroscopy
@@ -626,27 +626,27 @@ for QubitIndex in Qs_to_look_at:
                 (qspec_I, qspec_Q, qspec_freqs, qspec_fit, qubit_freq, sys_config_qspec, ss_Q_e_qspec, ss_Q_g_qspec,
                  ss_I_e_qspec, ss_I_g_qspec) = q_spec.run(scaling=True,qze_pulse='const')
 
-                if qubit_freq is None:
-                    if stored_qspec_list[QubitIndex] is not None:
-                        # exp.qubit_cfg['qubit_freq_ge'] = stored_qspec_list[QubitIndex]
-                        rr_logger.warning(f"Using previous stored value: {stored_qspec_list[QubitIndex]}")
-                        recycled_qfreq = True
-                        qubit_freq = stored_qspec_list[QubitIndex]
-                        # exp.qubit_cfg['qubit_freq_ge'] = float(qubit_freq)
-                        stored_qspec_list[QubitIndex] = float(qubit_freq)
-                        if verbose:
-                            print(f"Using previous stored value: {qubit_freq}")
-                    else:
-                        rr_logger.warning(f"No stored g-e qubit spec value for qubit {QubitIndex}; skipping iteration.")
-                        if verbose:
-                            print('No stored g-e qubit spec value for qubit {QubitIndex}; skipping iteration.')
-                        del q_spec
-
-                        continue
-
-                else:
-                    # exp.qubit_cfg['qubit_freq_ge'] = float(qubit_freq)
-                    stored_qspec_list[QubitIndex] = float(qubit_freq)
+                # if qubit_freq is None:
+                #     if stored_qspec_list[QubitIndex] is not None:
+                #         # exp.qubit_cfg['qubit_freq_ge'] = stored_qspec_list[QubitIndex]
+                #         rr_logger.warning(f"Using previous stored value: {stored_qspec_list[QubitIndex]}")
+                #         recycled_qfreq = True
+                #         qubit_freq = stored_qspec_list[QubitIndex]
+                #         # exp.qubit_cfg['qubit_freq_ge'] = float(qubit_freq)
+                #         stored_qspec_list[QubitIndex] = float(qubit_freq)
+                #         if verbose:
+                #             print(f"Using previous stored value: {qubit_freq}")
+                #     else:
+                #         rr_logger.warning(f"No stored g-e qubit spec value for qubit {QubitIndex}; skipping iteration.")
+                #         if verbose:
+                #             print('No stored g-e qubit spec value for qubit {QubitIndex}; skipping iteration.')
+                #         del q_spec
+                #
+                #         continue
+                #
+                # else:
+                #     # exp.qubit_cfg['qubit_freq_ge'] = float(qubit_freq)
+                #     stored_qspec_list[QubitIndex] = float(qubit_freq)
 
                 qspec_data[QubitIndex]['Dates'][0] = (
                     time.mktime(datetime.datetime.now().timetuple()))

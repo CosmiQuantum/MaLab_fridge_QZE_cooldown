@@ -13,7 +13,7 @@ run_number = 3 #starting from first run with qubits. Run 1 = run4a at quiet, run
 figure_quality = 100 #ramp this up to like 500 for presentation plots
 final_figure_quality = 200
 
-path = 'QZE_IBM_checking_t1_consistency_short_gain0p01_q5_round0_v4'
+path = 'QZE_IBM_t1_consistency_gain0p01_q5_round0_morelottareps'
 FRIDGE = "QUIET"
 run_notes = ('Added IR shielding, better cryo terminators, thermalizing with 0dB attenuator ') #please make it brief for the plot
 qubits=[4]
