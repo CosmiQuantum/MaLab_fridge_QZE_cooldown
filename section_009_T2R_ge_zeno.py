@@ -17,6 +17,7 @@ import numpy as np
 import warnings
 from scipy.optimize import OptimizeWarning
 import logging
+from section_005_single_shot_ge import SingleShotProgram_g, SingleShotProgram_e
 
 
 class Fit:
@@ -480,6 +481,15 @@ class T2RMeasurementZeno:
         else:
             ramsey = T2RProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay=self.config['relax_delay'],
                              cfg=self.config)
+        if scaling:
+            q_config = all_qubit_state(self.experiment, self.number_of_qubits)
+            ss_exp_cfg = add_qubit_experiment(expt_cfg, 'Readout_Optimization', self.QubitIndex)
+            ss_config = {**q_config[self.Qubit], **ss_exp_cfg}
+
+            ssp_g = SingleShotProgram_g(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'],
+                                        cfg=ss_config)
+            ssp_e = SingleShotProgram_e(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'],
+                                        cfg=ss_config)
 
         # for live plotting open http://localhost:8097/ on firefox
         if self.live_plot:
@@ -490,52 +500,39 @@ class T2RMeasurementZeno:
                                          threshold=self.experiment.readout_cfg["threshold"],
                                          angle=self.experiment.readout_cfg["ro_phase"], progress=self.qick_verbose)
             else:
-                iq_list = ramsey.acquire(self.experiment.soc, rounds=self.config['rounds'], progress=self.qick_verbose)
-            iq_list = iq_list[0][0].T
-            I = (iq_list[0])
-            Q = (iq_list[1])
+                Is_all = []
+                Qs_all = []
+                ss_I_g_all = []
+                ss_Q_g_all = []
+                ss_I_e_all = []
+                ss_Q_e_all = []
+                for round_num in range(self.config["rounds"]):
+                    iq_list = ramsey.acquire(self.experiment.soc, rounds=1, progress=self.qick_verbose)
+                    iq_list = iq_list[0][0].T
+                    I = (iq_list[0])
+                    Q = (iq_list[1])
+                    Is_all.append(I)
+                    Qs_all.append(Q)
+
+                    iq_list_g = ssp_g.acquire(self.experiment.soc, rounds=1, progress=True)
+                    iq_list_e = ssp_e.acquire(self.experiment.soc, rounds=1, progress=True)
+
+                    ss_I_g = iq_list_g[0][0].T[0]
+                    ss_Q_g = iq_list_g[0][0].T[1]
+                    ss_I_e = iq_list_e[0][0].T[0]
+                    ss_Q_e = iq_list_e[0][0].T[1]
+
+                    ss_I_g_all.append(ss_I_g)
+                    ss_Q_g_all.append(ss_Q_g)
+                    ss_I_e_all.append(ss_I_e)
+                    ss_Q_e_all.append(ss_Q_e)
+
             delay_times = ramsey.get_pulse_param(pulsename='qze_pulse', parname='length', as_array=True)
-            # delay_times = ramsey.get_time_param('wait', "t", as_array=True)
-        if scaling:
-            from section_005_single_shot_ge import SingleShotProgram_g, SingleShotProgram_e
-            q_config = all_qubit_state(self.experiment, self.number_of_qubits)
-            ss_exp_cfg = add_qubit_experiment(expt_cfg, 'Readout_Optimization', self.QubitIndex)
-            ss_config = {**q_config[self.Qubit], **ss_exp_cfg}
-            print('performing single shot for g-e calibration')
 
-            ssp_g = SingleShotProgram_g(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'], cfg=ss_config)
-            iq_list_g = ssp_g.acquire(self.experiment.soc, rounds=1, progress=True)
-
-            ssp_e = SingleShotProgram_e(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'], cfg=ss_config)
-            iq_list_e = ssp_e.acquire(self.experiment.soc, rounds=1, progress=True)
-
-            ss_I_g = iq_list_g[0][0].T[0]
-            ss_Q_g = iq_list_g[0][0].T[1]
-            ss_I_e = iq_list_e[0][0].T[0]
-            ss_Q_e = iq_list_e[0][0].T[1]
-
-            e = np.mean((ss_I_e + 1j * ss_Q_e))
-            g = np.mean((ss_I_g + 1j * ss_Q_g))
-            ### Normalization ###
-            pop_norm = abs(((I + 1j * Q) - g) * (e - g) / abs(e - g) ** 2)
-            ydata = pop_norm
-
-            if self.fit_data:
-                fit, t2r_est, t2r_err, plot_sig = self.t2_fit(delay_times, I, Q, mag=ydata)
-            else:
-                fit, t2r_est, t2r_err, plot_sig = None, None, None, None
-            self.plot_results(I, Q, delay_times, now, fit, t2r_est, t2r_err, plot_sig, mag=ydata)
-            return  t2r_est, t2r_err, I, Q, delay_times, fit, self.config, ss_Q_e, ss_Q_g, ss_I_e, ss_I_g
-        else:
-            if self.fit_data:
-                fit, t2r_est, t2r_err, plot_sig = self.t2_fit(delay_times, I, Q)
-            else:
-                fit, t2r_est, t2r_err, plot_sig = None, None, None, None
-
-            if self.save_figs:
-                self.plot_results(I, Q, delay_times, now, fit, t2r_est, t2r_err, plot_sig)
-
-            return  t2r_est, t2r_err, I, Q, delay_times, fit, self.config
+            self.plot_results_interweaved_cal(Is_all, Qs_all, delay_times, now, scaling=scaling, Ie = ss_I_e_all
+                                  , Ig = ss_I_g_all, Qe = ss_Q_e_all, Qg = ss_Q_g_all)
+            return  None, None, Is_all, Qs_all, delay_times, None, self.config, ss_Q_e_all\
+                , ss_Q_g_all, ss_I_e_all, ss_I_g_all
 
     def adjust_qspec(self, thresholding=False,correction=False):
         now = datetime.datetime.now()
@@ -733,3 +730,188 @@ class T2RMeasurementZeno:
                 fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')  # , facecolor='white'
             plt.close(fig)
 
+    def plot_results_interweaved_cal(self, I, Q, delay_times, now, config=None, fig_quality=100,
+                     scaling=False, Ie=None, Ig=None, Qe=None, Qg=None):
+        def _as_sets(x):
+            """
+            Normalize input to a list of 1D numpy arrays.
+            - If x is 1D -> returns [np.asarray(x)]  (backwards compatible)
+            - If x is list-of-lists/2D -> returns [np.asarray(row) for row in x]
+            """
+            arr = np.asarray(x, dtype=object)
+            if arr.ndim == 1 or (arr.ndim == 2 and arr.dtype != object and arr.shape[0] == 1):
+                return [np.asarray(x, dtype=float)]
+            # assume iterable of iterables
+            return [np.asarray(xx, dtype=float) for xx in x]
+
+        def _calibrated_population(I, Q, Ie, Ig, Qe, Qg):
+            """
+            Single-dataset calibration: returns population trace for one IQ dataset.
+            """
+            IQ = np.asarray(I) + 1j * np.asarray(Q)
+            e = np.mean(np.asarray(Ie) + 1j * np.asarray(Qe))
+            g = np.mean(np.asarray(Ig) + 1j * np.asarray(Qg))
+            return np.abs((IQ - g) * (e - g) / (np.abs(e - g) ** 2))
+
+        def calibrate_and_average(I, Q, Ie, Ig, Qe, Qg):
+            """
+            Vectorized over datasets:
+            - I,Q are list-of-lists (or 1D).
+            - Ie,Ig,Qe,Qg are list-of-lists (or 1D).
+            Returns:
+              y_avg: averaged calibrated population (1D array)
+              y_each: list of calibrated populations, one per dataset
+            """
+            I_sets = _as_sets(I)
+            Q_sets = _as_sets(Q)
+            Ie_sets = _as_sets(Ie)
+            Ig_sets = _as_sets(Ig)
+            Qe_sets = _as_sets(Qe)
+            Qg_sets = _as_sets(Qg)
+
+            # datasets correspond 1:1
+            pops = [
+                _calibrated_population(Ii, Qi, Iei, Igi, Qei, Qgi)
+                for Ii, Qi, Iei, Igi, Qei, Qgi in zip(I_sets, Q_sets, Ie_sets, Ig_sets, Qe_sets, Qg_sets)
+            ]
+            y_avg = np.mean(np.stack(pops, axis=0), axis=0)
+            return y_avg, pops
+
+        def average_IQ(I, Q):
+            """
+            Averages raw I,Q over datasets (useful when scaling=False).
+            """
+            I_sets = _as_sets(I)
+            Q_sets = _as_sets(Q)
+            I_avg = np.mean(np.stack(I_sets, axis=0), axis=0)
+            Q_avg = np.mean(np.stack(Q_sets, axis=0), axis=0)
+            return I_avg, Q_avg
+        if scaling:
+            # --- NEW: handle list-of-lists calibration + average calibrated populations ---
+            if any(v is None for v in (Ie, Ig, Qe, Qg)):
+                raise ValueError("scaling=True requires Ie, Ig, Qe, Qg (each list-of-lists or 1D).")
+
+            ydata, _ = calibrate_and_average(I, Q, Ie, Ig, Qe, Qg)
+
+            fig, (ax1) = plt.subplots(1, 1)
+            plt.rcParams.update({'font.size': 18})
+
+            # Center title on the axes area
+            plot_middle = (ax1.get_position().x0 + ax1.get_position().x1) / 2
+
+            if self.fit_data:
+                # Fit using magnitude data (already a population)
+                self.signal = 'Mag'
+
+                if config is not None:
+                    fig.text(
+                        plot_middle, 0.98,
+                        f"Q{self.QubitIndex + 1} "
+                        f"{float(config['reps'])}*{float(config['rounds'])} avgs, "
+                        f"Zeno pulse gain {round(self.config['res_gain_qze'], 3)}",
+                        fontsize=14, ha='center', va='top'
+                    )
+                else:
+                    fig.text(
+                        plot_middle, 0.98,
+                        f"T2R Q{self.QubitIndex + 1}, "
+                        f"{self.config['reps']}*{self.config['rounds']} avgs, "
+                        f"Zeno pulse gain {round(self.config['res_gain_qze'], 3)}",
+                        fontsize=14, ha='center', va='top'
+                    )
+            else:
+                if config is not None:
+                    fig.text(
+                        plot_middle, 0.98,
+                        f"T2R Q{self.QubitIndex + 1}, {float(config['reps'])}*{float(config['rounds'])} avgs, "
+                        f"Zeno pulse gain {round(self.config['res_gain_qze'], 3)}",
+                        fontsize=14, ha='center', va='top'
+                    )
+                else:
+                    fig.text(plot_middle, 0.98, f"T1 Q{self.QubitIndex + 1}", fontsize=24, ha='center', va='top')
+                q1_fit_exponential = T1_est = T1_err = None
+
+            # Plot averaged calibrated population
+            ax1.plot(delay_times, ydata, label="Gain (a.u.)", linewidth=2)
+            ax1.set_ylabel("Qubit Population", fontsize=20)
+            ax1.tick_params(axis='both', which='major', labelsize=16)
+
+            plt.tight_layout()
+            plt.subplots_adjust(top=0.93)
+
+            if self.save_figs:
+                outerFolder_expt = os.path.join(self.outerFolder, self.expt_name)
+                self.create_folder_if_not_exists(outerFolder_expt)
+                now = datetime.datetime.now()
+                formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
+                file_name = os.path.join(
+                    outerFolder_expt,
+                    f"R_{self.round_num}_Q_{self.QubitIndex + 1}_{formatted_datetime}_{self.expt_name}_q{self.QubitIndex + 1}.png"
+                )
+                fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')
+            plt.close(fig)
+
+        else:
+            # --- OLD behavior but averages across datasets if list-of-lists ---
+            I_avg, Q_avg = average_IQ(I, Q)
+
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+            plt.rcParams.update({'font.size': 18})
+            plot_middle = (ax1.get_position().x0 + ax1.get_position().x1) / 2
+
+            if self.fit_data:
+                q1_fit_exponential, T1_err, T1_est, plot_sig = self.t1_fit(I_avg, Q_avg, delay_times)
+
+                if 'I' in plot_sig:
+                    ax1.plot(delay_times, q1_fit_exponential, '-', color='red', linewidth=3, label="Fit")
+                else:
+                    ax2.plot(delay_times, q1_fit_exponential, '-', color='red', linewidth=3, label="Fit")
+
+                if config is not None:
+                    fig.text(
+                        plot_middle, 0.98,
+                        f"Q{self.QubitIndex + 1} T2R={T1_est:.2f} us, {float(config['reps'])}*{float(config['rounds'])} avgs,",
+                        fontsize=24, ha='center', va='top'
+                    )
+                else:
+                    fig.text(
+                        plot_middle, 0.98,
+                        f"T2R Q{self.QubitIndex + 1}, T1 {T1_est:.2f} us, {self.config['reps']}*{self.config['rounds']} avgs,",
+                        fontsize=24, ha='center', va='top'
+                    )
+            else:
+                if config is not None:
+                    fig.text(
+                        plot_middle, 0.98,
+                        f"T2R Q{self.QubitIndex + 1}, {float(config['reps'])}*{float(config['rounds'])} avgs,",
+                        fontsize=24, ha='center', va='top'
+                    )
+                else:
+                    fig.text(plot_middle, 0.98, f"T2R Q{self.QubitIndex + 1}", fontsize=24, ha='center', va='top')
+                q1_fit_exponential = T1_est = T1_err = None
+
+            # I subplot
+            ax1.plot(delay_times, I_avg, label="Gain (a.u.)", linewidth=2)
+            ax1.set_ylabel("I Amplitude (a.u.)", fontsize=20)
+            ax1.tick_params(axis='both', which='major', labelsize=16)
+
+            # Q subplot
+            ax2.plot(delay_times, Q_avg, label="Q", linewidth=2)
+            ax2.set_xlabel("Delay time (us)", fontsize=20)
+            ax2.set_ylabel("Q Amplitude (a.u.)", fontsize=20)
+            ax2.tick_params(axis='both', which='major', labelsize=16)
+
+            plt.tight_layout()
+            plt.subplots_adjust(top=0.93)
+
+            if self.save_figs:
+                outerFolder_expt = os.path.join(self.outerFolder, self.expt_name)
+                self.create_folder_if_not_exists(outerFolder_expt)
+                now = datetime.datetime.now()
+                formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
+                file_name = os.path.join(
+                    outerFolder_expt,
+                    f"R_{self.round_num}_Q_{self.QubitIndex + 1}_{formatted_datetime}_{self.expt_name}_q{self.QubitIndex + 1}.png"
+                )
+                fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')
+            plt.close(fig)
