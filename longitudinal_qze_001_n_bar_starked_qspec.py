@@ -46,7 +46,7 @@ run_name = 'bob_run_started_Aug_23'
 device_name = 'squill'
 substudy_txt_notes = ('testing')
 
-study = 'n_bar_calibration_starked'
+study = 'n_bar_calibration_starked_debug'
 
 ################################################ optimization outputs ##################################################
 res_leng_vals = [19]*6#[5,4.2,8.3,7.9,7.5,15]
@@ -102,8 +102,7 @@ sub_study = f'n_bar_calibration_starked_qspec'
 data_set = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 # set which of the following you'd like to run to 'True'
-run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss": True, "rabi": True,
-             "t1": True}
+run_flags = {"res_spec": False, "q_spec": False}
 
 if not os.path.exists(f"M:/_Data/20250822 - Olivia/{run_name}/"):
     os.makedirs(f"M:/_Data/20250822 - Olivia/{run_name}/")

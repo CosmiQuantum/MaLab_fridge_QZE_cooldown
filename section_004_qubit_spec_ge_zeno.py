@@ -856,7 +856,7 @@ class PulseProbeSpectroscopyProgram(AveragerProgramV2):
                        gain=cfg['qubit_gain_ge'],
                        )
 
-        self.add_pulse(ch=res_ch, name="qze_pulse",
+        self.add_pulse(ch=res_ch, name="qze_pulse",  ro_ch=ro_ch,
                        style="const",
                        length=cfg['qubit_length_ge']+3,#+3us for res ring up time
                        freq=cfg['res_freq_qze'],

@@ -31,7 +31,7 @@ class T1ProgramIBMZeno(AveragerProgramV2):
                        gain=cfg['res_gain_ge']
                        )
 
-        self.add_pulse(ch=res_ch, name="qze_pulse",
+        self.add_pulse(ch=res_ch, name="qze_pulse", ro_ch=ro_ch,
                        style="const",
                        length=QickSweep1D("waitloop", cfg['start'], cfg['stop']),
                        freq=cfg['res_freq_qze'],
@@ -41,7 +41,7 @@ class T1ProgramIBMZeno(AveragerProgramV2):
 
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
         self.add_gauss(ch=qubit_ch, name="ramp", sigma=cfg['sigma'], length=cfg['sigma'] * 4, even_length=False)
-        self.add_pulse(ch=qubit_ch, name="qubit_pulse",
+        self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch,
                        style="arb",
                        envelope="ramp",
                        freq=cfg['qubit_freq_ge'],

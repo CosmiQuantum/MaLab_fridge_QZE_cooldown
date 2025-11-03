@@ -284,12 +284,12 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "ckp_mask": [],
         },
         "res_stark_shift_2D": {
-            "reps": 10000,
-            "rounds": 1,
+            "reps": 30,
+            "rounds": 500,
             "list_of_all_qubits": list_of_all_qubits,
             "qubit_pulse_delay": 3, #[us] time to wait for qubit pulse after stark tone is sent
             "stark_length": 19,  # [us] stark tone length for 2D scan, overlaps qubit pulse
-            "gain_steps": 20,
+            "gain_steps": 1,
             "start_gain": 0.00,
             "end_gain": 0.2, #res gain values between -1 and 1
             "qubit_pulse_steps": 500,

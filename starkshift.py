@@ -245,7 +245,7 @@ class ResStarkShift2DProgram(AveragerProgramV2):
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-        self.add_pulse(ch=res_ch, name="stark_tone",
+        self.add_pulse(ch=res_ch, name="stark_tone",  ro_ch=ro_ch,
                        style="const",
                        length=cfg['stark_length'],
                        freq=cfg['res_freq_ge'],
@@ -253,7 +253,7 @@ class ResStarkShift2DProgram(AveragerProgramV2):
                        gain=cfg['stark_gain']
                        )
 
-        self.add_pulse(ch=res_ch, name="readout_pulse",
+        self.add_pulse(ch=res_ch, name="readout_pulse", ro_ch=ro_ch,
                        style="const",
                        length=cfg['res_length'],
                        freq=cfg['res_freq_ge'],
@@ -262,14 +262,6 @@ class ResStarkShift2DProgram(AveragerProgramV2):
                        )
 
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
-        # self.add_gauss(ch=qubit_ch, name="ramp", sigma=cfg['sigma'], length=cfg['sigma'] * 4, even_length=False)
-        # self.add_pulse(ch=qubit_ch, name="qubit_pulse",
-        #                style="arb",
-        #                envelope="ramp",
-        #                freq=QickSweep1D("qubit_pulse_loop", cfg['qubit_freq_ge'] + cfg["start_freq"], cfg['qubit_freq_ge'] + cfg["end_freq"]),
-        #                phase=cfg['qubit_phase'],
-        #                gain=cfg['pi_amp'],
-        #                )
 
         self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch,
                        style="const",
