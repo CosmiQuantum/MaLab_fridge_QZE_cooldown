@@ -50,7 +50,7 @@ run_name = 'bob_run_started_Aug_23'
 device_name = 'squill'
 substudy_txt_notes = ('script longitudinal_qze_005_ge_ramsey_consistency_test_adapted_for_gain.py')
 
-study = 'QZE_IBM_time_phase_bug_fixed_overnight_test2'#_gaus'
+study = 'QZE_IBM_more_rounds_long_run_2'
 
 ################################################ optimization outputs ##################################################
 # Optimization parameters for resonator spectroscopy
@@ -574,7 +574,7 @@ for QubitIndex in Qs_to_look_at:
     t1_data = create_data_dict(t1_keys, save_r, list_of_all_qubits)
     t2r_data = create_data_dict(t2r_keys, save_r, list_of_all_qubits)
     ########################################### go through each gain ######################################
-    pulse_gains = np.linspace(0.0001, 0.2, 50)
+    pulse_gains = np.linspace(0.0001, 0.2, 150)
     #pulse_gains = [0.01]#
     #try:
     for repeat_round in range(0,3):
