@@ -541,7 +541,9 @@ class SingleShot:
         ie = data[2]
         qe = data[3]
 
-        numbins = round(math.sqrt(float(cfg["steps"])))
+
+        n_total = len(ig) + len(ie)  # use total sample count
+        numbins = max(1, int(math.ceil(math.log2(n_total) + 1)))
 
         # # Use means for the centroids (requested)
         # gx_mean, gy_mean = float(np.mean(ig)), float(np.mean(qg))

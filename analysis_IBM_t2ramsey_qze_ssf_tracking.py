@@ -50,7 +50,7 @@ amps_qspec = {i: [] for i in range(6)}
 gains_qspec = {i: [] for i in range(6)}
 rounds_qspec = {i: [] for i in range(6)}
 freqs_qspec = {i: [] for i in range(6)}
-path= 'test_interweaved_calibration_full_reoptimized'
+path= 'test_interweaved_calibration_big_dataset'
 for qubit in qubits:
     run_name = f'bob_run_started_Aug_23/squill/{path}/all_qubits/'
     top_folder_dates = []
@@ -77,9 +77,9 @@ for qubit in qubits:
     from section_005_single_shot_ge import SingleShot
     ss = SingleShot(qubit, 6, f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/', 0, True)
 
-    t1_vs_time.plot_all_t1_heatmaps_with_singular_ssf_plotting(amps, gains, rounds, delay_times,
+    t1_vs_time.plot_t1_ssf_only(amps, gains, rounds, delay_times,
                                     f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/',ss_class_instance=ss,            # your object that has hist_ssf(...)
-                                    ss_cfg={"steps": steps}, max_ylabels=6,
+                                    ss_cfg={"steps": steps},
                                     Ig_calibration=Ig_calibration,
                                     Ie_calibration=Ie_calibration,
                                     Qg_calibration=Qg_calibration,

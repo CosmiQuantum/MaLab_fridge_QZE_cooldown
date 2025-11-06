@@ -1718,56 +1718,41 @@ class T1VsTime:
 
         return mu_I + 1j * mu_Q
 
-    def plot_all_t1_heatmaps_with_singular_ssf_plotting(
+    def plot_t1_ssf_only(
             self,
             amps,
             gains,
             rounds,
             delay_times,
             save_path,
-            max_ylabels=6,
-            # --- NEW: optional SSD inputs ---
+            # --- SSF inputs (required to actually plot) ---
             ss_class_instance=None,
             ss_cfg=None,
             Ig_calibration=None,
             Ie_calibration=None,
             Qg_calibration=None,
             Qe_calibration=None,
-            # --- NEW: experiment single-shot sources (same format as amps) ---
+            # --- experiment single-shot sources (same format as amps) ---
             I_experiment=None,
             Q_experiment=None,
     ):
         """
-        NEW FORMAT ONLY (augmented to also emit SSD plots per T1 curve, now with
-        a single experiment point (I,Q) per dataset).
+        SSF-only version of plot_all_t1_heatmaps_with_singular_ssf_plotting.
+        For each dataset i of this qubit, generates ONE SSF plot via
+        ss_class_instance.hist_ssf_with_annotations(...) and saves results
+        under <save_path>/analysis/.
 
-        Data model (per qubit q):
-          - amps[q]         : list of lists/arrays; amps[q][i] are amplitude samples for dataset i
-          - gains[q]        : list; gains[q][i] is scalar or array aligned with amps[q][i]
-          - rounds[q]       : list; rounds[q][i] is the round label for dataset i
-          - delay_times[q]  : list; delay_times[q][i] scalar or array aligned with amps[q][i]
+        Inputs (per qubit q) match the original function:
+          - amps[q], gains[q], rounds[q], delay_times[q]
+          - I_experiment[q], Q_experiment[q] (optional single-shot (I,Q))
+          - Ig/Ie/Qg/Qe_calibration[q][gain_index][dataset_index]: arrays for g/e calibration
 
-        NEW:
-          - I_experiment[q] : list; I_experiment[q][i] is scalar or array of I-shots for dataset i
-          - Q_experiment[q] : list; Q_experiment[q][i] is scalar or array of Q-shots for dataset i
-
-        If SSD is enabled (provide ss_class_instance, ss_cfg and all four calibration dicts),
-        then for EACH dataset i we will call:
-            ss_class_instance.hist_ssf_with_annotations(
-                data=[I_g, Q_g, I_e, Q_e],
-                cfg=ss_cfg,
-                plot=True,
-                I_meas=I_single,   # <- pulled from I_experiment[q][i]
-                Q_meas=Q_single    # <- pulled from Q_experiment[q][i]
-            )
-        and direct its output folder to: <save_path>/analysis/ss_plots/Q<qubit+1>/Round_<round_id>/
+        Heatmaps are NOT produced here.
         """
         import os
         import numpy as np
-        import matplotlib.pyplot as plt
-        from collections import defaultdict
 
-        # --- helpers ---
+        # -------- helpers (kept from your original) --------
         def fmt_p(x, sig=4):
             try:
                 s = f"{float(x):.{sig}g}"
@@ -1790,16 +1775,6 @@ class T1VsTime:
                 return np.nan
             return float(np.median(a))
 
-        def centers_to_edges(centers):
-            centers = np.asarray(sorted(np.unique(centers)), dtype=float)
-            if centers.size == 1:
-                d = 1.0
-                return np.array([centers[0] - d / 2, centers[0] + d / 2])
-            mids = (centers[:-1] + centers[1:]) / 2.0
-            first = centers[0] - (centers[1] - centers[0]) / 2.0
-            last = centers[-1] + (centers[-1] - centers[-2]) / 2.0
-            return np.concatenate([[first], mids, [last]])
-
         def pick_single_shot(x, k=0):
             """
             Return ONE scalar from x.
@@ -1813,27 +1788,58 @@ class T1VsTime:
             finite_idx = np.flatnonzero(np.isfinite(a))
             if finite_idx.size == 0:
                 return np.nan
-            #k = max(0, min(k, finite_idx.size - 1))  # clamp
             return float(a[finite_idx[0]])
 
-        # --- extract this qubit's lists ---
+        # ---------------------------------------------------
+
+        # --- new tiny helpers to gracefully read flat/per-gain/per-dataset structures ---
+        def nested_get(container, g_idx, d_idx, default=np.nan):
+            """
+            Try container[g_idx][d_idx] (per-gain-per-dataset),
+            then container[g_idx] (per-gain),
+            then container[d_idx] (flat per-dataset),
+            then the first finite scalar in container,
+            else default.
+            """
+            try:
+                # per-gain-per-dataset
+                if isinstance(container, (list, tuple)) and g_idx < len(container):
+                    maybe = container[g_idx]
+                    if isinstance(maybe, (list, tuple)) and d_idx is not None and d_idx < len(maybe):
+                        return maybe[d_idx]
+                    # per-gain scalar/list
+                    return maybe
+            except Exception:
+                pass
+            try:
+                # flat per-dataset
+                if isinstance(container, (list, tuple)) and d_idx is not None and d_idx < len(container):
+                    return container[d_idx]
+            except Exception:
+                pass
+            # fallback to first finite scalar
+            val = first_scalar_or_nan(container)
+            return val if np.isfinite(val) else default
+
         q = self.qubit
         gains_q = gains.get(q, [])
         amps_q = amps.get(q, [])
         rounds_q = rounds.get(q, [])
         delay_q = delay_times.get(q, [])
 
-        # NEW: experiment I/Q per dataset (optional)
+        # optional experiment (I,Q)
         Iexp_q = (I_experiment or {}).get(q, [])
         Qexp_q = (Q_experiment or {}).get(q, [])
 
-        n = min(len(amps_q), len(gains_q), len(rounds_q), len(delay_q))
-        if n == 0 or not (len(amps_q) == len(gains_q) == len(rounds_q) == len(delay_q)):
+        n = min(len(amps_q), len(gains_q), len(rounds_q), len(delay_q)) if all(
+            isinstance(x, list) for x in (amps_q, gains_q, rounds_q, delay_q)
+        ) else max(len(gains_q), 1)
+        if n == 0:
             print(f"No usable data for qubit {q} (missing lists or length mismatch). Skipping.")
             return
 
-        # --- OPTIONAL: pull calibration lists for SSD if provided ---
-        do_ssd = (
+        # --------- SSF required inputs check ---------
+        do_ssf = (
                 ss_class_instance is not None and
                 ss_cfg is not None and
                 Ig_calibration is not None and
@@ -1841,201 +1847,109 @@ class T1VsTime:
                 Qg_calibration is not None and
                 Qe_calibration is not None
         )
-
-        if do_ssd:
-            Ig_q = Ig_calibration.get(q, [])
-            Ie_q = Ie_calibration.get(q, [])
-            Qg_q = Qg_calibration.get(q, [])
-            Qe_q = Qe_calibration.get(q, [])
-            n_ss = min(len(Ig_q), len(Ie_q), len(Qg_q), len(Qe_q), n)
-            if n_ss == 0:
-                print("SSD requested but no calibration arrays found; skipping SSD.")
-                do_ssd = False
-
-        # --- collect points for heatmaps ---
-        all_points = []  # (round_id, gain, delay, amp)
-        for i in range(n):
-            r_id = str(rounds_q[i])
-            a_samples = np.asarray(amps_q[i], dtype=float).ravel()
-            if a_samples.size == 0:
-                continue
-
-            g_i = gains_q[i]
-            g_arr = np.asarray(g_i, dtype=float).ravel() if isinstance(g_i, (list, tuple, np.ndarray)) else None
-            if g_arr is None or g_arr.size == 1:
-                try:
-                    g_scalar = float(g_i)
-                except Exception:
-                    continue
-                g_arr = np.full(a_samples.shape, g_scalar, dtype=float)
-            elif g_arr.size != a_samples.size:
-                continue
-
-            d_i = delay_q[i]
-            d_arr = np.asarray(d_i, dtype=float).ravel() if isinstance(d_i, (list, tuple, np.ndarray)) else None
-            if d_arr is None or d_arr.size == 1:
-                try:
-                    d_scalar = float(d_i)
-                except Exception:
-                    continue
-                d_arr = np.full(a_samples.shape, d_scalar, dtype=float)
-            elif d_arr.size != a_samples.size:
-                continue
-
-            mask = np.isfinite(a_samples) & np.isfinite(g_arr) & np.isfinite(d_arr)
-            if not np.any(mask):
-                continue
-
-            for g, d, a in zip(g_arr[mask], d_arr[mask], a_samples[mask]):
-                all_points.append((r_id, float(g), float(d), float(a)))
-
-        if not all_points:
-            print(f"No numeric points for qubit {q}. Skipping.")
+        if not do_ssf:
+            print("SSF plotting requires ss_class_instance, ss_cfg, and all four calibration dicts. Aborting.")
             return
 
-        unique_rounds = sorted({r for (r, _, __, ___) in all_points})
+        Ig_q = Ig_calibration.get(q, [])
+        Ie_q = Ie_calibration.get(q, [])
+        Qg_q = Qg_calibration.get(q, [])
+        Qe_q = Qe_calibration.get(q, [])
 
-        # ensure save root exists
+        # Outer dimension = number of gains
+        num_gains = min(len(Ig_q), len(Ie_q), len(Qg_q), len(Qe_q))
+        if num_gains == 0:
+            print("SSF requested but no calibration arrays found; aborting SSF.")
+            return
+
+        # ensure save root exists (re-using your helper)
         self.create_folder_if_not_exists(save_path)
+        analysis_root = os.path.join(save_path, "analysis")
+        self.create_folder_if_not_exists(analysis_root)
 
-        # ---------- compute global z scale ----------
-        all_amps = np.array([a for (_, _, _, a) in all_points], dtype=float)
-        global_vmin = float(np.nanmin(all_amps))
-        global_vmax = float(np.nanmax(all_amps))
-        # -------------------------------------------
+        # --- temporarily set context on the SSF class for saving like before ---
+        _old_outer = getattr(ss_class_instance, "outerFolder", None)
+        _old_qidx = getattr(ss_class_instance, "QubitIndex", None)
+        _old_rnum = getattr(ss_class_instance, "round_num", None)
+        _old_name = getattr(ss_class_instance, "expt_name", None)
 
-        # ---------- NEW: emit SSD plots per dataset (once per T1 curve) ----------
-        if do_ssd:
-            analysis_root = os.path.join(save_path, "analysis")
-            self.create_folder_if_not_exists(analysis_root)
+        try:
+            ss_class_instance.outerFolder = analysis_root
+            ss_class_instance.QubitIndex = getattr(self, "qubit", 0)
 
-            # Temporarily adjust ss context so its own saver drops files here
-            _old_outer = getattr(ss_class_instance, "outerFolder", None)
-            _old_qidx = getattr(ss_class_instance, "QubitIndex", None)
-            _old_rnum = getattr(ss_class_instance, "round_num", None)
-            _old_name = getattr(ss_class_instance, "expt_name", None)
+            for g_idx in range(num_gains):
+                # datasets under this gain (inner lists)
+                try:
+                    n_datasets = min(
+                        len(Ig_q[g_idx]),
+                        len(Ie_q[g_idx]),
+                        len(Qg_q[g_idx]),
+                        len(Qe_q[g_idx]),
+                    )
+                except Exception:
+                    print(f"[SSF] Gain index {g_idx}: malformed calibration lists; skipping gain.")
+                    continue
+                if n_datasets == 0:
+                    print(f"[SSF] Gain index {g_idx}: empty calibration; skipping gain.")
+                    continue
 
-            try:
-                ss_class_instance.outerFolder = analysis_root
-                ss_class_instance.QubitIndex = getattr(self, "qubit", 0)
+                # derive a gain label (works if gains_q is scalar, list, per-gain list, etc.)
+                g_lbl = first_scalar_or_nan(nested_get(gains_q, g_idx, None, default=np.nan))
 
-                for i in range(n_ss):
-                    r_id = str(rounds_q[i])
-                    g_lbl = first_scalar_or_nan(gains_q[i])
-                    d_lbl = first_scalar_or_nan(delay_q[i])
+                for d_idx in range(n_datasets):
+                    # labels: rounds & delays can be flat/per-gain/per-dataset
+                    r_raw = nested_get(rounds_q, g_idx, d_idx, default=np.nan)
+                    d_lbl = first_scalar_or_nan(nested_get(delay_q, g_idx, d_idx, default=np.nan))
+                    r_id = str(int(r_raw)) if np.isfinite(first_scalar_or_nan(r_raw)) else f"{g_idx}_{d_idx}"
 
                     ss_class_instance.round_num = r_id
                     gain_tag = f"gain_{fmt_p(g_lbl)}_"
                     delay_tag = f"delay_{fmt_p(d_lbl)}"
-                    ss_class_instance.expt_name = f"{gain_tag}{delay_tag}_t1_ssd"
+                    ss_class_instance.expt_name = f"{gain_tag}{delay_tag}_t1_ssf"
 
-                    # Pull calibration vectors
+                    # read calibration vectors for this (gain, dataset)
                     try:
-                        I_g = np.asarray(Ig_q[i]).ravel()
-                        Q_g = np.asarray(Qg_q[i]).ravel()
-                        I_e = np.asarray(Ie_q[i]).ravel()
-                        Q_e = np.asarray(Qe_q[i]).ravel()
+                        I_g = np.asarray(Ig_q[g_idx][d_idx]).ravel()
+                        Q_g = np.asarray(Qg_q[g_idx][d_idx]).ravel()
+                        I_e = np.asarray(Ie_q[g_idx][d_idx]).ravel()
+                        Q_e = np.asarray(Qe_q[g_idx][d_idx]).ravel()
                         if min(I_g.size, Q_g.size, I_e.size, Q_e.size) == 0:
-                            print(f"[SSD] Skipping dataset {i}: empty calibration vectors.")
+                            print(f"[SSF] Skipping gain {g_idx} dataset {d_idx}: empty calibration vectors.")
                             continue
                     except Exception as e:
-                        print(f"[SSD] Failed to read calibration for dataset {i}: {e}")
+                        print(f"[SSF] Failed to read calibration for gain {g_idx} dataset {d_idx}: {e}")
                         continue
 
-                    # --- NEW: pick ONE single-shot (I,Q) for this dataset from experiment dicts ---
-                    I_single = np.nan
-                    Q_single = np.nan
-                    if i < len(Iexp_q):
-                        I_single = pick_single_shot(Iexp_q[i])
-                    if i < len(Qexp_q):
-                        Q_single = pick_single_shot(Qexp_q[i])
-
-                    # If either is nan, just omit (hist_ssf will still plot g/e and save)
+                    # optional single-shot (I,Q) marker (supports flat/per-gain/per-dataset)
+                    I_single = pick_single_shot(nested_get(Iexp_q, g_idx, d_idx, default=np.nan))
+                    Q_single = pick_single_shot(nested_get(Qexp_q, g_idx, d_idx, default=np.nan))
                     kwargs_meas = {}
                     if np.isfinite(I_single) and np.isfinite(Q_single):
                         kwargs_meas = {"I_meas": I_single, "Q_meas": Q_single}
 
-                    # Call your SSD routine (handles plotting/saving internally)
+                    # Call your SSF routine; it handles plotting/saving internally
                     try:
                         ss_class_instance.hist_ssf_with_annotations(
                             data=[I_g, Q_g, I_e, Q_e],
                             cfg=ss_cfg,
-                            plot=True, path_ext='_t1',
+                            plot=True,
+                            path_ext='_t1',  # keep same suffix as before for continuity
                             **kwargs_meas
                         )
+                        print(f"[SSF] Saved SSF plot for gain {g_idx}, dataset {d_idx} (round {r_id}).")
                     except Exception as e:
-                        print(f"[SSD] Failed on dataset {i} (round {r_id}): {e}")
+                        print(f"[SSF] Failed on gain {g_idx}, dataset {d_idx} (round {r_id}): {e}")
 
-            finally:
-                # restore prior context
-                if _old_outer is not None:
-                    ss_class_instance.outerFolder = _old_outer
-                if _old_qidx is not None:
-                    ss_class_instance.QubitIndex = _old_qidx
-                if _old_rnum is not None:
-                    ss_class_instance.round_num = _old_rnum
-                if _old_name is not None:
-                    ss_class_instance.expt_name = _old_name
-
-        # -------------------------------------------------------------------------
-
-        # ---------- per-round heatmaps (unchanged logic; fixed z across rounds) ----------
-        def centers_to_edges_local(centers):
-            return centers_to_edges(centers)
-
-        for r_id in unique_rounds:
-            pts = [(g, d, a) for (r, g, d, a) in all_points if r == r_id]
-            if not pts:
-                continue
-
-            gains_r = sorted({g for (g, _, _) in pts})
-            delays_r = sorted({d for (_, d, _) in pts})
-
-            bucket = defaultdict(list)
-            gi_map = {g: i for i, g in enumerate(gains_r)}
-            di_map = {d: i for i, d in enumerate(delays_r)}
-            for g, d, a in pts:
-                bucket[(di_map[d], gi_map[g])].append(a)
-
-            Ny, Nx = len(delays_r), len(gains_r)
-            C = np.full((Ny, Nx), np.nan, dtype=float)
-            for (iy, ix), vals in bucket.items():
-                C[iy, ix] = float(np.nanmean(vals))
-
-            x_edges = centers_to_edges_local(gains_r)
-            y_edges = centers_to_edges_local(delays_r)
-
-            fig, ax = plt.subplots(figsize=(6.5, 4.5))
-            mesh = ax.pcolormesh(
-                x_edges, y_edges, C, shading='flat',
-                vmin=global_vmin, vmax=global_vmax
-            )
-            cbar = fig.colorbar(mesh, ax=ax, pad=0.02)
-            cbar.set_label("Qubit Population")
-
-            ax.set_title(f"Qubit {self.qubit + 1} — Round {r_id}")
-            ax.set_xlabel("Pulse gain (a.u.)")
-            ax.set_ylabel("Delay time")
-
-            import matplotlib.ticker as mticker
-            ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=7, prune=None))
-            plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
-
-            if Ny > 0:
-                if Ny <= max_ylabels:
-                    yticks_idx = list(range(Ny))
-                else:
-                    yticks_idx = np.linspace(0, Ny - 1, num=max_ylabels, dtype=int).tolist()
-                    yticks_idx = sorted(set(yticks_idx))
-                yticks_vals = [delays_r[i] for i in yticks_idx]
-                ax.set_yticks(yticks_vals)
-                ax.set_yticklabels([f"{v:.0f}" for v in yticks_vals])
-
-            fig.tight_layout()
-            outfile = (save_path + f"t1_heatmap_q{self.qubit}_round{r_id}.png")
-            fig.savefig(outfile, transparent=False, dpi=self.final_figure_quality)
-            plt.close(fig)
-            print(f"Saved heatmap for round {r_id} to: {outfile}")
+        finally:
+            # restore prior context
+            if _old_outer is not None:
+                ss_class_instance.outerFolder = _old_outer
+            if _old_qidx is not None:
+                ss_class_instance.QubitIndex = _old_qidx
+            if _old_rnum is not None:
+                ss_class_instance.round_num = _old_rnum
+            if _old_name is not None:
+                ss_class_instance.expt_name = _old_name
 
     def plot_all_t1_heatmaps_with_singular_ssf_vs_time_plotting(
             self,
