@@ -40,8 +40,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "qubit_spec_ge": {
-            "reps":30,#10000,
-            "rounds": 500,
+            "reps":100,#10000,
+            "rounds": 200,
             "start": list(VNA_qubit-30), # [MHz] -40
             "stop": list(VNA_qubit+15), # [MHz] +40
             "steps": 500,#200,
@@ -49,8 +49,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "list_of_all_qubits": list_of_all_qubits,
         },
         "qubit_spec_ge_zeno": {
-            "reps": 30,
-            "rounds": 500,
+            "reps": 100,
+            "rounds": 200,
             "start": list(VNA_qubit - 30),  # [MHz] -40
             "stop": list(VNA_qubit + 15),  # [MHz] +40
             "steps": 500,  # 200,
@@ -209,8 +209,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "relax_delay": 500,  # [us]
         },
         "T1_ge": {
-            "reps": 30,#,50, #300
-            "rounds": 500, #1
+            "reps": 200,#,50, #300
+            "rounds": 20, #1
             "start":  0,  # [us]
             "stop": 500,  # [us] ### Should be ~10x T1! Should change this per qubit.
             "steps": 80,
@@ -231,8 +231,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "T1_IBM_qze_loop": {
-            "reps": 30,
-            "rounds": 100,  # 1
+            "reps": 200,
+            "rounds": 20,  # 1
             "start": 0.01,  # [us]
             "stop": 100,  # [250.0] * 6,  # [us] ### Should be ~10x T1! Should change this per qubit.
             "steps": 200,
@@ -285,16 +285,16 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
         "res_stark_shift_2D": {
             "reps": 30,
-            "rounds": 500,
+            "rounds": 1500,
             "list_of_all_qubits": list_of_all_qubits,
             "qubit_pulse_delay": 3, #[us] time to wait for qubit pulse after stark tone is sent
             "stark_length": 19,  # [us] stark tone length for 2D scan, overlaps qubit pulse
-            "gain_steps": 1,
+            "gain_steps": 20,
             "start_gain": 0.00,
-            "end_gain": 0.2, #res gain values between -1 and 1
+            "end_gain": 0.1, #res gain values between -1 and 1
             "qubit_pulse_steps": 500,
-            "start_freq": -55,#-35, #[MHz] from qubit freq
-            "end_freq":  4,#3, # [MHz] from qubit freq
+            "start_freq": -65, #[MHz] from qubit freq
+            "end_freq":  20, # [MHz] from qubit freq
             "readout_pulse_delay": 5, #2/kappa
             "stark_gain": [],
             "res_freq_stark": [],
@@ -375,8 +375,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "Ramsey_ge": {
-            "reps": 300,
-            "rounds": 5,
+            "reps": 200,
+            "rounds": 20,
             "start": 0.0, # [us]
             "stop":  100, # [us]
             "steps": 200,
@@ -387,8 +387,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "Ramsey_ge_zeno": {
-            "reps": 100,
-            "rounds": 30,
+            "reps": 200,
+            "rounds": 20,
             "start": 0.01,  # [us]
             "stop": 60,  # [us]
             "steps": 200,
@@ -491,7 +491,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
     # #
 
         "Readout_Optimization":{
-            "steps": 100, # shots
+            "steps": 1000, # shots
             "py_avg": 1,
             "gain_start" : [0, 0, 0, 0],
             "gain_stop" : [1, 0, 0, 0],

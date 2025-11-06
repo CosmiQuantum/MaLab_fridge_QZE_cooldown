@@ -496,6 +496,9 @@ class T2RMeasurementZeno:
             I, Q, delay_times = self.live_plotting(ramsey, thresholding)
         else:
             if thresholding:
+                ramsey = T2RProgram(self.experiment.soccfg, reps=self.config['reps'],
+                                    final_delay=self.config['relax_delay'],
+                                    cfg=self.config)
                 iq_list = ramsey.acquire(self.experiment.soc, rounds=self.config['rounds'],
                                          threshold=self.experiment.readout_cfg["threshold"],
                                          angle=self.experiment.readout_cfg["ro_phase"], progress=self.qick_verbose)
@@ -509,11 +512,15 @@ class T2RMeasurementZeno:
                 for round_num in range(self.config["rounds"]):
                     iq_list = ramsey.acquire(self.experiment.soc, rounds=1, progress=self.qick_verbose)
                     iq_list = iq_list[0][0].T
-                    I = (iq_list[0])
-                    Q = (iq_list[1])
+                    I = iq_list[0]
+                    Q = iq_list[1]
                     Is_all.append(I)
                     Qs_all.append(Q)
 
+                    ssp_g = SingleShotProgram_g(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'],
+                                                cfg=ss_config)
+                    ssp_e = SingleShotProgram_e(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'],
+                                                cfg=ss_config)
                     iq_list_g = ssp_g.acquire(self.experiment.soc, rounds=1, progress=True)
                     iq_list_e = ssp_e.acquire(self.experiment.soc, rounds=1, progress=True)
 

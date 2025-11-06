@@ -166,27 +166,23 @@ class T1Measurement_with_Zeno_loop:
 
     def run(self, thresholding=False, scaling=False,qze_pulse='const'):
         now = datetime.datetime.now()
-        if qze_pulse=='flat_top':
-            t1 = T1ProgramIBMZenoFlatTop(self.experiment.soccfg, reps=self.config['reps'],
-                                  final_delay=self.config['relax_delay'], cfg=self.config)
-
-        else:
-            t1 = T1ProgramIBMZeno(self.experiment.soccfg, reps=self.config['reps'], final_delay=self.config['relax_delay'], cfg=self.config)
 
         if scaling:
             q_config = all_qubit_state(self.experiment, self.number_of_qubits)
             ss_exp_cfg = add_qubit_experiment(expt_cfg, 'Readout_Optimization', self.QubitIndex)
             ss_config = {**q_config[self.Qubit], **ss_exp_cfg}
 
-            ssp_g = SingleShotProgram_g(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'],
-                                        cfg=ss_config)
-            ssp_e = SingleShotProgram_e(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'],
-                                        cfg=ss_config)
+
 
         if self.live_plot:
+            t1 = T1ProgramIBMZeno(self.experiment.soccfg, reps=self.config['reps'],
+                                  final_delay=self.config['relax_delay'], cfg=self.config)
             I, Q, delay_times = self.live_plotting(t1, thresholding)
         else:
             if thresholding:
+                t1 = T1ProgramIBMZeno(self.experiment.soccfg, reps=self.config['reps'],
+                                      final_delay=self.config['relax_delay'], cfg=self.config)
+
                 iq_list = t1.acquire(self.experiment.soc, rounds=self.config['rounds'],
                                            threshold=self.experiment.readout_cfg["threshold"],
                                            angle=self.experiment.readout_cfg["ro_phase"], progress=True)
@@ -198,14 +194,23 @@ class T1Measurement_with_Zeno_loop:
                 ss_I_e_all = []
                 ss_Q_e_all = []
                 for round_num in range(self.config["rounds"]):
+                    t1 = T1ProgramIBMZeno(self.experiment.soccfg, reps=self.config['reps'],
+                                          final_delay=self.config['relax_delay'], cfg=self.config)
+
                     iq_list = t1.acquire(self.experiment.soc, rounds=1, progress=True)
                     iq_list = iq_list[0][0].T
-                    I = (iq_list[0])
-                    Q = (iq_list[1])
+                    I = iq_list[0]
+                    Q = iq_list[1]
                     Is_all.append(I)
                     Qs_all.append(Q)
 
                     if scaling:
+                        ssp_g = SingleShotProgram_g(self.experiment.soccfg, reps=1,
+                                                    final_delay=ss_config['relax_delay'],
+                                                    cfg=ss_config)
+                        ssp_e = SingleShotProgram_e(self.experiment.soccfg, reps=1,
+                                                    final_delay=ss_config['relax_delay'],
+                                                    cfg=ss_config)
                         iq_list_g = ssp_g.acquire(self.experiment.soc, rounds=1, progress=True)
                         iq_list_e = ssp_e.acquire(self.experiment.soc, rounds=1, progress=True)
 

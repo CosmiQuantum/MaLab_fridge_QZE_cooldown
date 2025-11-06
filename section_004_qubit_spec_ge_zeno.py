@@ -75,21 +75,12 @@ class QubitSpectroscopyZeno:
 
         if self.increase_reps:
             self.config['reps'] = self.increase_reps_to
-        if qze_pulse == 'flat_top':
-            qspec = PulseProbeSpectroscopyProgramFlatTop(self.experiment.soccfg, reps=self.config['reps'], final_delay=0.5,
-                                                  cfg=self.config)
-
-        else:
-            qspec = PulseProbeSpectroscopyProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay=0.5, cfg=self.config)
         if scaling:
             q_config = all_qubit_state(self.experiment, self.number_of_qubits)
             ss_exp_cfg = add_qubit_experiment(expt_cfg, 'Readout_Optimization', self.QubitIndex)
             ss_config = {**q_config[self.Qubit], **ss_exp_cfg}
 
-            ssp_g = SingleShotProgram_g(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'],
-                                        cfg=ss_config)
-            ssp_e = SingleShotProgram_e(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'],
-                                        cfg=ss_config)
+
         # iq_lists= []
         if self.live_plot:
             I, Q, freqs = self.live_plotting(qspec)
@@ -101,14 +92,21 @@ class QubitSpectroscopyZeno:
             ss_I_e_all = []
             ss_Q_e_all = []
             for round_num in range(self.exp_cfg["rounds"]):
+                qspec = PulseProbeSpectroscopyProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay=0.5,
+                                                      cfg=self.config)
+
                 iq_list = qspec.acquire(self.experiment.soc, rounds=1, progress=self.qick_verbose)
                 iq_list = iq_list[0][0].T
-                I = (iq_list[0])
-                Q = (iq_list[1])
+                I = iq_list[0]
+                Q = iq_list[1]
                 Is_all.append(I)
                 Qs_all.append(Q)
 
                 if scaling:
+                    ssp_g = SingleShotProgram_g(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'],
+                                                cfg=ss_config)
+                    ssp_e = SingleShotProgram_e(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'],
+                                                cfg=ss_config)
                     iq_list_g = ssp_g.acquire(self.experiment.soc, rounds=1, progress=True)
                     iq_list_e = ssp_e.acquire(self.experiment.soc, rounds=1, progress=True)
 

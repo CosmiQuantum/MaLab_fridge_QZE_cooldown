@@ -38,7 +38,7 @@ live_plot = False                    # for live plotting do "visdom" in comand l
 fit_data = False                     # fit the data here and save or plot the fits?
 save_data_h5 = True                  # save all of the data to h5 files?
 verbose = True                       # print everything to the console in real time, good for debugging, bad for memory
-debug_mode = True                  # if True, it disables the continuing function of RR if an error pops up in a class -- errors now stop the RR script
+debug_mode = False                  # if True, it disables the continuing function of RR if an error pops up in a class -- errors now stop the RR script
 thresholding = False                 # use internal QICK threshold for ratio of Binary values on y for rabi/t1/t2r/t2e, or analog avg when false
 increase_qubit_reps = False          # if you want to increase the reps for a qubit, set to True
 qubit_to_increase_reps_for = 0       # only has impact if previous line is True
@@ -50,13 +50,13 @@ run_name = 'bob_run_started_Aug_23'
 device_name = 'squill'
 substudy_txt_notes = ('script longitudinal_qze_005_ge_ramsey.py')
 
-study = 'test_interweaved_calibration'
+study = 'test_interweaved_calibration_big_dataset'
 
 ################################################ optimization outputs ##################################################
 # Optimization parameters for resonator spectroscopy
-res_leng_vals = [19]*6#[5,4.2,8.3,7.9,7.5,15]
-res_gain = [0.15,0.2, 0.2, 0.2, 0.15, 0.15]
-freq_offsets = [0, -0.15, -0.15,-0.15, -0.15, -0.15]
+res_leng_vals = [10]*6
+res_gain = [0.15,0.2, 0.2, 0.2, 0.2833, 0.15]
+freq_offsets = [0, -0.15, -0.15,-0.15, -0.08, -0.15]
 ####################################################### RR #############################################################
 
 def create_data_dict(keys, save_r, qs):
@@ -514,7 +514,7 @@ for QubitIndex in Qs_to_look_at:
     t1_data = create_data_dict(t1_keys, save_r, list_of_all_qubits)
     t2r_data = create_data_dict(t2r_keys, save_r, list_of_all_qubits)
     ########################################### go through each gain ######################################
-    pulse_gains = np.linspace(0.0001, 0.2, 50)
+    pulse_gains = np.linspace(0.0001, 0.2, 150)
     #pulse_gains = [0.01]#
     #try:
     for repeat_round in range(0,3):

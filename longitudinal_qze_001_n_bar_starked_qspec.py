@@ -39,14 +39,14 @@ thresholding = False                 # use internal QICK threshold for ratio of 
 increase_qubit_reps = False          # if you want to increase the reps for a qubit, set to True
 qubit_to_increase_reps_for = 0       # only has impact if previous line is True
 multiply_qubit_reps_by = 2           # only has impact if the line two above is True
-Qs_to_look_at = [0,1,2,3,4,5]        # only list the qubits you want to do the RR for
+Qs_to_look_at = [4]        # only list the qubits you want to do the RR for
 
 #Data saving info
 run_name = 'bob_run_started_Aug_23'
 device_name = 'squill'
 substudy_txt_notes = ('testing')
 
-study = 'n_bar_calibration_starked_debug'
+study = 'n_bar_calibration_full'
 
 ################################################ optimization outputs ##################################################
 res_leng_vals = [19]*6#[5,4.2,8.3,7.9,7.5,15]

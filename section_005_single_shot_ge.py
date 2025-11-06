@@ -491,6 +491,36 @@ class SingleShot:
             fid = contrast[tind]
             return fid, threshold, float(theta), ig_new, ie_new
 
+
+    def robust_center(self,z, c=4.5, iters=100, eps=1e-12):
+        """
+        z: complex array of IQ samples (I + 1j*Q)
+        c: Tukey biweight tuning constant (~4.685 gives ~95% efficiency for Gaussian)
+        iters: small fixed number of IRLS steps
+        returns complex robust location estimate
+        """
+        I = np.real(z);
+        Q = np.imag(z)
+        # start from median (very robust) to avoid bias from tails
+        mu_I, mu_Q = np.median(I), np.median(Q)
+
+        for _ in range(iters):
+            d = np.hypot(I - mu_I, Q - mu_Q)
+            # robust scale via MAD of distances
+            s = 1.4826 * np.median(np.abs(d - np.median(d))) + eps
+            u = d / (c * s + eps)
+            # Tukey biweight weights (points past u>=1 get weight 0)
+            w = (1 - u ** 2) ** 2
+            w[u >= 1] = 0.0
+            # if all weights vanished (e.g., tiny cluster), fall back to equal weights
+            if np.all(w == 0):
+                w = np.ones_like(d)
+            # weighted means
+            mu_I = np.sum(w * I) / (np.sum(w) + eps)
+            mu_Q = np.sum(w * Q) / (np.sum(w) + eps)
+
+        return mu_I + 1j * mu_Q
+
     def hist_ssf_with_annotations(self, data=None, cfg=None, plot=True, fig_quality=100, I_meas=None, Q_meas=None,
                                   path_ext='', ):
         """
@@ -513,9 +543,19 @@ class SingleShot:
 
         numbins = round(math.sqrt(float(cfg["steps"])))
 
-        # Use means for the centroids (requested)
-        gx_mean, gy_mean = float(np.mean(ig)), float(np.mean(qg))
-        ex_mean, ey_mean = float(np.mean(ie)), float(np.mean(qe))
+        # # Use means for the centroids (requested)
+        # gx_mean, gy_mean = float(np.mean(ig)), float(np.mean(qg))
+        # ex_mean, ey_mean = float(np.mean(ie)), float(np.mean(qe))
+        #
+        # # (Optional) medians if you still want to compare visually
+        # gx_med, gy_med = float(np.median(ig)), float(np.median(qg))
+        # ex_med, ey_med = float(np.median(ie)), float(np.median(qe))
+
+        # Use robust centers for the centroids
+        gc = self.robust_center(ig + 1j * qg)  # complex
+        ec = self.robust_center(ie + 1j * qe)  # complex
+        gx_mean, gy_mean = float(np.real(gc)), float(np.imag(gc))
+        ex_mean, ey_mean = float(np.real(ec)), float(np.imag(ec))
 
         # (Optional) medians if you still want to compare visually
         gx_med, gy_med = float(np.median(ig)), float(np.median(qg))

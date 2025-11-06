@@ -50,7 +50,7 @@ amps_qspec = {i: [] for i in range(6)}
 gains_qspec = {i: [] for i in range(6)}
 rounds_qspec = {i: [] for i in range(6)}
 freqs_qspec = {i: [] for i in range(6)}
-path= 'QZE_IBM_time_phase_bug_fixed_overnight_test2'
+path= 'test_interweaved_calibration_full_reoptimized'
 for qubit in qubits:
     run_name = f'bob_run_started_Aug_23/squill/{path}/all_qubits/'
     top_folder_dates = []
@@ -61,7 +61,7 @@ for qubit in qubits:
     t1_vs_time = T1VsTime(figure_quality, final_figure_quality, tot_num_of_qubits, top_folder_dates, save_figs, fit_saved,
                      signal, run_name, FRIDGE,exp_name = 'ge', qubit=qubit, t1_slice=f'{slice}us')
     Is1,Qs1,amps1,gains1,rounds1,delay_times1,Ig_calibration1, \
-        Ie_calibration1, Qe_calibration1, Qg_calibration1, steps = t1_vs_time.run_t1_sweep(exp_extension='_ge', scaling=True,
+        Ie_calibration1, Qe_calibration1, Qg_calibration1, steps = t1_vs_time.run_t1_sweep_new(exp_extension='_ge', scaling=True,
                                                                                  return_calibration_data=True)
     Is[qubit]=Is1[qubit]
     Qs[qubit]=Qs1[qubit]
@@ -90,7 +90,7 @@ for qubit in qubits:
                           fit_saved,
                           signal, run_name,fridge=FRIDGE,  exp_name='ge', qubit=qubit)
     Is1_t2, Qs1_t2, amps1_t2, gains1_t2, rounds1_t2, delay_times1_t2,Ig_calibration1_t2, \
-        Ie_calibration1_t2, Qe_calibration1_t2, Qg_calibration1_t2,steps = t2_vs_time.run_t2_sweep(exp_extension='_ge',
+        Ie_calibration1_t2, Qe_calibration1_t2, Qg_calibration1_t2,steps = t2_vs_time.run_t2_sweep_new(exp_extension='_ge',
                                                                                              scaling=True,
                                                                                              return_calibration_data=True)
     Is_t2[qubit] = Is1_t2[qubit]
@@ -119,7 +119,7 @@ for qubit in qubits:
                            fit_saved,
                            signal, run_name, fridge=FRIDGE, exp_name='ge', qubit=qubit)
     Is1_qspec, Qs1_qspec, amps1_qspec, gains1_qspec, rounds1_qspec, delay_times1_qspec,Ig_calibration1_qspec, \
-        Ie_calibration1_qspec, Qe_calibration1_qspec, Qg_calibration1_qspec, steps = q_vs_time.run_q_sweep(exp_extension='_ge',
+        Ie_calibration1_qspec, Qe_calibration1_qspec, Qg_calibration1_qspec, steps = q_vs_time.run_q_sweep_new(exp_extension='_ge',
                                                                                                     scaling=True,
                                                                                                     return_calibration_data=True)
     Is_qspec[qubit] = Is1_qspec[qubit]

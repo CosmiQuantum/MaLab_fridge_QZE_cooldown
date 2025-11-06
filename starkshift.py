@@ -180,10 +180,11 @@ class ResStarkShift2D:
         I = []
         Q = []
         res_gain_ge = copy.deepcopy(self.config['res_gain_ge'])
-        gain_sweep = np.linspace(self.config['start_gain'], self.config['res_gain_ge'], self.config['gain_steps'])
+        gain_sweep = np.linspace(self.config['start_gain'], self.config['end_gain'], self.config['gain_steps'])
         for g in gain_sweep:
             gain = round(g, 3)
             self.config['stark_gain'] = gain  #readout pulse gain, stark tone gain
+            print(self.config)
             prog = ResStarkShift2DProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay = 0.5, cfg=self.config)
             iq_list = prog.acquire(self.experiment.soc, rounds=self.exp_cfg["rounds"], progress=True) #check soft_avgs
             iq_list = iq_list[0][0].T
