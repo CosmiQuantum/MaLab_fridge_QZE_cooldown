@@ -264,7 +264,7 @@ class QubitFreqsVsTime:
             return Is, Qs, amps, gains, rounds_completed, delay_times, Ig_calibration, Ie_calibration, Qe_calibration, Qg_calibration, steps
         else:
             return Is,Qs,amps, gains, rounds_completed, delay_times
-    def robust_center(self,z, c=100.5, iters=100, eps=1e-12):
+    def robust_center(self,z, c=5.5, iters=100, eps=1e-12):
         """
         z: complex array of IQ samples (I + 1j*Q)
         c: Tukey biweight tuning constant (~4.685 gives ~95% efficiency for Gaussian)
@@ -611,15 +611,18 @@ class QubitFreqsVsTime:
 
                 del H5_class_instance
         return date_times, qubit_frequencies, qspec_fit_errs
+
     def plot_all_q_heatmaps_new_format(
-        self,
-        amps,
-        gains,
-        rounds,
-        delay_times,
-        save_path,
-        max_ylabels=6,
-        individual_subfolder="individual_specs"
+            self,
+            amps,
+            gains,
+            rounds,
+            delay_times,
+            save_path,
+            max_ylabels=6,
+            individual_subfolder="individual_specs",
+            # NEW:
+            n_bar=None,  # list/np.array OR dict[str]->(list or {"lorentzian"/"gaussian"})
     ):
         """
         NEW FORMAT ONLY + per-gain individual spec plots
@@ -630,11 +633,10 @@ class QubitFreqsVsTime:
           Files go to: {save_path}/{individual_subfolder}/
           Filenames include the gain value.
 
-        Data model (per qubit q):
-          - amps[q]         : list of lists; amps[q][i] is a list of amplitude samples for dataset i
-          - gains[q]        : list; gains[q][i] is the gain for dataset i (scalar or per-sample)
-          - rounds[q]       : list; rounds[q][i] is the round label for dataset i
-          - delay_times[q]  : list; delay_times[q][i] is the delay (scalar or per-sample)
+        If n_bar is provided, the heatmap x-axis shows n̄ instead of gain:
+          - n_bar can be a single list/array aligned to the sorted gains for that round,
+          - or a dict mapping round_id -> list, or -> {"gains":..., "lorentzian":..., "gaussian":...}
+            (prefers 'lorentzian' if present, else 'gaussian').
         """
         import os
         import numpy as np
@@ -722,7 +724,41 @@ class QubitFreqsVsTime:
         all_amps = np.array([a for (_, _, _, a) in all_points], dtype=float)
         global_vmin = float(np.nanmin(all_amps))
         global_vmax = float(np.nanmax(all_amps))
+
         # ---------------------------------------------------
+
+        # --- helper to pull the n̄ vector for a given round (if provided) ---
+        def get_nbar_for_round(r_id_str, gains_sorted):
+            if n_bar is None:
+                return None
+
+            # direct list/array: assume aligned to sorted gains for this round
+            if isinstance(n_bar, (list, tuple, np.ndarray)):
+                nb = np.asarray(n_bar, float).ravel()
+                return nb if nb.size == len(gains_sorted) else None
+
+            # dict-like
+            if isinstance(n_bar, dict):
+                # keys might be strings or numbers; normalize to string
+                key = r_id_str if r_id_str in n_bar else str(r_id_str)
+                entry = n_bar.get(key, None)
+                if entry is None:
+                    return None
+                # earlier return format: {"gains":[...], "lorentzian":[...], "gaussian":[...]}
+                if isinstance(entry, dict):
+                    candidate = entry.get("lorentzian") or entry.get("gaussian") or entry.get("nbar") or entry.get(
+                        "values")
+                    if candidate is None:
+                        return None
+                    nb = np.asarray(candidate, float).ravel()
+                    # if "gains" present and mismatched order, we could align, but we assume ascending/aligned per spec
+                    return nb if nb.size == len(gains_sorted) else None
+                # maybe it's already the list
+                if isinstance(entry, (list, tuple, np.ndarray)):
+                    nb = np.asarray(entry, float).ravel()
+                    return nb if nb.size == len(gains_sorted) else None
+
+            return None
 
         for r_id in unique_rounds:
             # Collect this round's points
@@ -746,21 +782,35 @@ class QubitFreqsVsTime:
             for (iy, ix), vals in bucket.items():
                 C[iy, ix] = float(np.nanmean(vals))
 
+            # Decide x-axis values & label
+            nbar_vec = get_nbar_for_round(str(r_id), gains_r)
+            if nbar_vec is not None:
+                x_vals = np.asarray(nbar_vec, float)
+                x_label = "n̄"
+            else:
+                x_vals = np.asarray(gains_r, float)
+                x_label = "Pulse gain (a.u.)"
+
+            # If x_vals not strictly increasing, sort and reorder columns accordingly
+            order = np.argsort(x_vals)
+            x_vals_sorted = x_vals[order]
+            C_sorted = C[:, order]
+
             # Bin edges for pcolormesh
-            x_edges = centers_to_edges(gains_r)
+            x_edges = centers_to_edges(x_vals_sorted)
             y_edges = centers_to_edges(delays_r)
 
             # ---------- Heatmap ----------
             fig, ax = plt.subplots(figsize=(6.5, 4.5))
             mesh = ax.pcolormesh(
-                x_edges, y_edges, C, shading='flat',
+                x_edges, y_edges, C_sorted, shading='flat',
                 vmin=global_vmin, vmax=global_vmax
             )
             cbar = fig.colorbar(mesh, ax=ax, pad=0.02)
             cbar.set_label("Qubit Population")
 
             ax.set_title(f"Qubit {self.qubit + 1} — Round {r_id}")
-            ax.set_xlabel("Pulse gain (a.u.)")
+            ax.set_xlabel(x_label)
             ax.set_ylabel("Frequency (MHz)")
 
             ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=7, prune=None))
@@ -783,8 +833,7 @@ class QubitFreqsVsTime:
             plt.close(fig)
             print(f"Saved heatmap for round {r_id} to: {outfile}")
 
-            # ---------- NEW: per-gain individual calibrated spec plots ----------
-            # For each gain, compute mean amplitude vs delay and plot as 1D
+            # ---------- Per-gain individual calibrated spec plots (unchanged) ----------
             round_folder = os.path.join(indiv_root, f"round_{r_id}")
             self.create_folder_if_not_exists(round_folder)
 
@@ -804,13 +853,22 @@ class QubitFreqsVsTime:
 
                 fig2, ax2 = plt.subplots(figsize=(6.5, 4.0))
                 ax2.plot(delays_sorted, amps_avg, marker='o', linewidth=1.5)
-                ax2.set_title(f"Qubit {self.qubit + 1} — Round {r_id} — Gain {g:g}")
+                # If n̄ is provided, add it in the title for clarity
+                title_suffix = ""
+                if nbar_vec is not None:
+                    # n̄ value corresponding to this gain index
+                    idx = gi_map[g]
+                    try:
+                        nbar_val = float(nbar_vec[idx])
+                        title_suffix = f" — n̄ {nbar_val:g}"
+                    except Exception:
+                        title_suffix = ""
+                ax2.set_title(f"Qubit {self.qubit + 1} — Round {r_id} — Gain {g:g}{title_suffix}")
                 ax2.set_xlabel("Frequency (MHz)")
                 ax2.set_ylabel("Qubit Population")
                 ax2.grid(True, alpha=0.3)
                 fig2.tight_layout()
 
-                # sanitize gain for filename
                 gain_str = f"{g:.6g}".replace("/", "_")
                 out_indiv = os.path.join(
                     round_folder,
@@ -838,14 +896,25 @@ class QubitFreqsVsTime:
             robust_loss='soft_l1',  # 'soft_l1' or 'huber'
             window_factor=3.0,  # fit range ±window_factor*gamma_guess around peak
             allow_quadratic_baseline=False,  # set True if baseline is curved
+            # --- NEW: opt-in return of nbar values ---
+            return_nbar=False
     ):
         """
         Heatmaps + per-gain specs + nbar extraction.
         Uses robust Lorentzian + baseline fitting for vastly better centers/FWHM.
 
         Frequency axis must be MHz. chi_MHz is χ/2π in MHz.
-        """
 
+        If return_nbar=True, returns:
+            {
+              <round_id_str>: {
+                "gains": [g1, g2, ...] (ascending),
+                "gaussian":   [nbar_at_g1, ...] or None,
+                "lorentzian": [nbar_at_g1, ...] or None,
+              },
+              ...
+            }
+        """
         import os
         import numpy as np
         import matplotlib.pyplot as plt
@@ -884,7 +953,6 @@ class QubitFreqsVsTime:
             y = np.asarray(y)
             xbar = x.mean()
             y_s = savgol_filter(y, max(5, (len(y) // 25) * 2 + 1), 2, mode='interp') if len(y) >= 11 else y
-            # choose peak or dip automatically
             imax, imin = np.argmax(y_s), np.argmin(y_s)
             prom_max = y_s[imax] - np.median(np.r_[y_s[:max(1, imax - 20)], y_s[min(len(y_s), imax + 20):]])
             prom_min = np.median(np.r_[y_s[:max(1, imin - 20)], y_s[min(len(y_s), imin + 20):]]) - y_s[imin]
@@ -903,7 +971,8 @@ class QubitFreqsVsTime:
             # amplitude guess relative to baseline at center
             y_base0 = c0_0 + c1_0 * (x[idx0] - xbar)
             A_0 = (y[idx0] - y_base0)
-            if not is_peak and A_0 > 0: A_0 = -abs(A_0)
+            if not is_peak and A_0 > 0:
+                A_0 = -abs(A_0)
 
             # width from half-height crossings (fallback to 1/20 span)
             y_half = y_base0 + 0.5 * A_0
@@ -930,7 +999,6 @@ class QubitFreqsVsTime:
             xs, ys = x[m], y[m]
 
             span = x.max() - x.min()
-            # bounds: f0 within a bit beyond range; gamma positive; others loose
             if allow_quadratic_baseline:
                 # params = [f0, gamma, A, c0, c1, c2]
                 p0 = np.array([f0_0, g0, A0, c0_0, c1_0, 0.0])
@@ -973,8 +1041,8 @@ class QubitFreqsVsTime:
 
         n = min(len(amps_q), len(gains_q), len(rounds_q), len(delay_q))
         if n == 0 or not (len(amps_q) == len(gains_q) == len(rounds_q) == len(delay_q)):
-            print(f"No usable data for qubit {q} (missing lists or length mismatch). Skipping.");
-            return
+            print(f"No usable data for qubit {q} (missing lists or length mismatch). Skipping.")
+            return None if return_nbar else None
 
         all_points = []
         for i in range(n):
@@ -1010,8 +1078,8 @@ class QubitFreqsVsTime:
                 all_points.append((r_id, float(gval), float(dval), float(aval)))
 
         if not all_points:
-            print(f"No numeric points for qubit {q}. Skipping.");
-            return
+            print(f"No numeric points for qubit {q}. Skipping.")
+            return None if return_nbar else None
 
         unique_rounds = sorted({r for (r, _, __, ___) in all_points})
 
@@ -1026,6 +1094,9 @@ class QubitFreqsVsTime:
         all_amps = np.array([a for (_, _, _, a) in all_points], float)
         global_vmin = float(np.nanmin(all_amps));
         global_vmax = float(np.nanmax(all_amps))
+
+        # --- NEW: where we collect outputs if requested ---
+        nbar_return = {}  # { round_id: {"gains": [...], "gaussian": [...]/None, "lorentzian": [...]/None} }
 
         for r_id in unique_rounds:
             pts = [(g, d, a) for (r, g, d, a) in all_points if r == r_id]
@@ -1077,7 +1148,7 @@ class QubitFreqsVsTime:
                     rms_L.append(np.nan)
                     continue
 
-                # quick guesses for the optional Gaussian (mostly for comparison)
+                # quick guesses (Gaussian)
                 i0 = np.argmin(yy) if np.ptp(yy) > 0 else np.argmax(yy)
                 x0g = x[i0];
                 H = float(np.median(yy));
@@ -1097,7 +1168,7 @@ class QubitFreqsVsTime:
                         centers_G.append(np.nan);
                         widths_G.append(np.nan)
 
-                # --- NEW robust Lorentzian + baseline fit
+                # robust Lorentzian + baseline
                 if fit_lorentzian:
                     fit = fit_slice(x, yy)
                     centers_L.append(fit["f0"]);
@@ -1118,7 +1189,7 @@ class QubitFreqsVsTime:
                     ax2.set_ylabel("Qubit Population")
                     ax2.grid(True, alpha=0.3);
                     ax2.legend()
-                    fig2.tight_layout()
+                    fig2.tight_layout();
                     fig2.savefig(out_png, dpi=self.final_figure_quality)
 
                     out_npz = os.path.join(round_lorentz_folder,
@@ -1136,7 +1207,7 @@ class QubitFreqsVsTime:
 
                 gains_used.append(g)
 
-            gains_used = np.array(gains_used, float)
+            gains_used = np.array(gains_used, float)  # ascending because gains_r was sorted
             pwr = gains_used ** 2
 
             # heatmap + overlay centers
@@ -1171,31 +1242,36 @@ class QubitFreqsVsTime:
             plt.close(fig)
             print(f"Saved heatmap for round {r_id} to: {out_hm}")
 
-            # regress center vs power, compute nbar
+            # --- helper to regress & plot + (NEW) capture nbar series
+            # Will return the nbar array (aligned with gains_used) or None.
             def do_regress_and_plot(label, centers, widths):
                 centers = np.array(centers, float)
                 ok = np.isfinite(centers) & np.isfinite(pwr)
-                if ok.sum() < 2: return
+                if ok.sum() < 2:
+                    # Not enough points to fit; still return an array of NaNs aligned to gains_used
+                    nbar_series = np.full_like(gains_used, np.nan, dtype=float)
+                    return nbar_series
+
                 slope, intercept, r, pval, stderr = linregress(pwr[ok], centers[ok])
                 wq = slope * pwr + intercept
-                nbar = (wq - intercept) / (2.0 * chi_MHz)  # keep your sign convention
+                nbar = (wq - intercept) / (2.0 * chi_MHz)  # sign convention unchanged
 
                 fig3, ax3 = plt.subplots(1, 3, figsize=(15, 4.2))
                 ax3[0].plot(pwr, centers, 'o', ms=4, label=f'{label} centers')
-                ax3[0].plot(pwr, wq, '-', label=f'fit (r={r:.3f})');
+                ax3[0].plot(pwr, wq, '-', label=f'fit (r={r:.3f})')
                 ax3[0].legend();
                 ax3[0].grid(alpha=0.3)
                 ax3[0].set_xlabel('Gain^2 (a.u.)');
                 ax3[0].set_ylabel('Center freq (MHz)')
 
-                ax3[1].plot(gains_used, nbar, '-', label=f'{label} n̄');
+                ax3[1].plot(gains_used, nbar, '-', label=f'{label} n̄')
                 ax3[1].legend();
                 ax3[1].grid(alpha=0.3)
                 ax3[1].set_xlabel('Gain (a.u.)');
                 ax3[1].set_ylabel('n̄')
 
                 if np.isfinite(widths).any():
-                    ax3[2].plot(gains_used, widths, '-', label=f'{label} FWHM');
+                    ax3[2].plot(gains_used, widths, '-', label=f'{label} FWHM')
                     ax3[2].legend();
                     ax3[2].grid(alpha=0.3)
                     ax3[2].set_xlabel('Gain (a.u.)');
@@ -1208,10 +1284,28 @@ class QubitFreqsVsTime:
                 fig3.savefig(out_sum, dpi=self.final_figure_quality);
                 plt.close(fig3)
 
+                return nbar
+
+            # compute & collect nbar (aligned with ascending gains_used)
+            gaussian_nbar = None
+            lorentzian_nbar = None
+
             if fit_gaussian and len(centers_G):
-                do_regress_and_plot("gaussian", centers_G, np.array(widths_G, float))
+                gaussian_nbar = do_regress_and_plot("gaussian", centers_G, np.array(widths_G, float))
             if fit_lorentzian and len(centers_L):
-                do_regress_and_plot("lorentzian", centers_L, np.array(widths_L, float))
+                lorentzian_nbar = do_regress_and_plot("lorentzian", centers_L, np.array(widths_L, float))
+
+            if return_nbar:
+                # Ensure lists and ascending gains order
+                nbar_return[r_id] =  nbar_return[r_id] = {
+                        "gains": list(map(float, gains_used.tolist())),
+                        "gaussian": None if gaussian_nbar is None else list(map(float, np.asarray(gaussian_nbar, float))),
+                        "lorentzian": None if lorentzian_nbar is None else list(map(float, np.asarray(lorentzian_nbar, float))),
+                    }
+
+        # NEW: return results if requested; otherwise, keep legacy behavior (no return)
+        if return_nbar:
+            return nbar_return
 
     def plot_all_q_heatmaps_with_singular_ssf_plotting(
             self,

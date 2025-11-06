@@ -40,7 +40,7 @@ class T1VsTime:
         self.fridge = fridge
         self.exp_name = exp_name
 
-    def robust_center(self,z, c=100.5, iters=100, eps=1e-12):
+    def robust_center(self,z, c=5.5, iters=100, eps=1e-12):
         """
         z: complex array of IQ samples (I + 1j*Q)
         c: Tukey biweight tuning constant (~4.685 gives ~95% efficiency for Gaussian)
@@ -68,6 +68,41 @@ class T1VsTime:
             mu_Q = np.sum(w * Q) / (np.sum(w) + eps)
 
         return mu_I + 1j * mu_Q
+
+    def _is_list_of_lists(self,x):
+        return isinstance(x, (list, tuple)) and len(x) > 0 and isinstance(x[0], (list, tuple))
+
+    def _flatten_all_sublists(self,arr):
+        """Flatten list or list-of-lists to 1D np.array(float)."""
+        import numpy as np
+        if self._is_list_of_lists(arr):
+            return np.asarray([v for sub in arr for v in sub], dtype=float)
+        return np.asarray(arr, dtype=float)
+
+    def compute_ssf_discriminant(self, Ig_list, Qg_list, Ie_list, Qe_list, c=5.5):
+        import numpy as np
+        Ig = self._flatten_all_sublists(Ig_list);
+        Qg = self._flatten_all_sublists(Qg_list)
+        Ie = self._flatten_all_sublists(Ie_list);
+        Qe = self._flatten_all_sublists(Qe_list)
+
+        zg = Ig + 1j * Qg
+        ze = Ie + 1j * Qe
+
+        mu_g = self.robust_center(zg, c=c)
+        mu_e = self.robust_center(ze, c=c)
+
+        v = mu_e - mu_g
+        norm2 = (v.real * v.real + v.imag * v.imag)
+        return {"mu_g": mu_g, "mu_e": mu_e, "v": v, "norm2": norm2}
+
+    def project_population(self, z, disc):
+        import numpy as np
+        mu_g = disc["mu_g"];
+        v = disc["v"];
+        norm2 = disc["norm2"]
+        t = np.real((z - mu_g) * np.conj(v)) / (norm2 + 1e-12)
+        return np.clip(t, 0.0, 1.0)
 
     def datetime_to_unix(self, dt):
         # Convert to Unix timestamp
@@ -756,6 +791,281 @@ class T1VsTime:
                     Ig_calibration, Ie_calibration, Qe_calibration, Qg_calibration, steps)
         else:
             # original return order preserved; new I/Q averages appended
+            return I_avgs, Q_avgs, amps, gains, rounds_completed, delay_times
+
+    def _ema_update_disc_with_ssf(self, disc, Ig_list, Qg_list, Ie_list, Qe_list,
+                                  alpha=0.05, mode='translate', c=5.5):
+        """
+        Update the frozen discriminant using the small SSF taken for THIS main dataset.
+        mode:
+          - 'translate' (default): estimate drift from g; translate μg and μe together; keep axis v fixed.
+          - 'full': EMA μg and μe separately from observed per-main μ's; axis v slowly adapts.
+        """
+        import numpy as np
+        # If we don't have references, do nothing
+        if (Ig_list is None) or (Qg_list is None) or (Ie_list is None) or (Qe_list is None):
+            return disc
+
+        Ig = self._flatten_all_sublists(Ig_list);
+        Qg = self._flatten_all_sublists(Qg_list)
+        Ie = self._flatten_all_sublists(Ie_list);
+        Qe = self._flatten_all_sublists(Qe_list)
+        if Ig.size == 0 or Qg.size == 0 or Ie.size == 0 or Qe.size == 0:
+            return disc
+
+        mu_g_obs = self.robust_center(Ig + 1j * Qg, c=c)
+        mu_e_obs = self.robust_center(Ie + 1j * Qe, c=c)
+
+        mu_g = disc["mu_g"];
+        mu_e = disc["mu_e"];
+        v = disc["v"];
+        norm2 = disc["norm2"]
+
+        if mode == 'translate':
+            # common-mode drift from g only (most stable)
+            d = mu_g_obs - mu_g
+            mu_g = mu_g + alpha * d
+            mu_e = mu_e + alpha * d
+            # keep v fixed (direction & scale unchanged)
+            # (if you want a tiny scale adjust, uncomment below)
+            # s = np.abs(mu_e_obs - mu_g_obs) / (np.sqrt(norm2) + 1e-12)
+            # v = v * (1 - alpha + alpha * s); norm2 = (v.real*v.real + v.imag*v.imag)
+        else:  # 'full'
+            mu_g = (1 - alpha) * mu_g + alpha * mu_g_obs
+            mu_e = (1 - alpha) * mu_e + alpha * mu_e_obs
+            v = mu_e - mu_g
+            norm2 = (v.real * v.real + v.imag * v.imag)
+
+        return {"mu_g": mu_g, "mu_e": mu_e, "v": v, "norm2": norm2}
+
+    def run_t1_sweep_combine_ssf_rounds(self, exp_extension='', scaling=False,
+                                        freeze_discriminant=True, return_calibration_data=False,
+                                        tukey_c=5.5, drift_alpha=0.05, drift_mode='translate'):
+        import datetime
+        import glob, os, re
+        import numpy as np
+
+        # ----------Load/get data------------------------
+        steps = 0
+        frozen_disc_by_q_gain = {}  # base discriminant per (q_key, gain)
+        Ig_calibration = {i: [] for i in range(self.number_of_qubits)}
+        Ie_calibration = {i: [] for i in range(self.number_of_qubits)}
+        Qg_calibration = {i: [] for i in range(self.number_of_qubits)}
+        Qe_calibration = {i: [] for i in range(self.number_of_qubits)}
+        Is = {i: [] for i in range(self.number_of_qubits)}
+        Qs = {i: [] for i in range(self.number_of_qubits)}
+        amps = {i: [] for i in range(self.number_of_qubits)}
+        gains = {i: [] for i in range(self.number_of_qubits)}
+        rounds_completed = {i: [] for i in range(self.number_of_qubits)}
+        reps = []
+        file_names = []
+        date_times = {i: [] for i in range(self.number_of_qubits)}
+        delay_times = {i: [] for i in range(self.number_of_qubits)}
+        I_avgs = {i: [] for i in range(self.number_of_qubits)}
+        Q_avgs = {i: [] for i in range(self.number_of_qubits)}
+
+        def _is_list_of_lists(x):
+            return isinstance(x, (list, tuple)) and len(x) > 0 and isinstance(x[0], (list, tuple))
+
+        def _avg_over_sublists(list_of_lists):
+            arr = np.array(list_of_lists, dtype=float)
+            return np.mean(arr, axis=0)
+
+        # --- existing folder/file discovery code unchanged ---
+
+        for folder_date in self.top_folder_dates:
+            if self.fridge.upper() == 'QUIET':
+                outerFolder = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "/study_data"
+                outerFolder_save_plots = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "_plots/"
+            elif self.fridge.upper() == 'NEXUS':
+                outerFolder = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/" + folder_date + "/"
+                outerFolder_save_plots = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/" + folder_date + "_plots/"
+            else:
+                raise ValueError("fridge must be either 'QUIET' or 'NEXUS'")
+
+            if '_' in exp_extension:
+                outerFolder_expt = outerFolder + f"/Data_h5/T1{exp_extension}_zeno/"
+            else:
+                outerFolder_expt = outerFolder + "/Data_h5/T1_ge_zeno/"
+            round_we_are_on = outerFolder_expt.split(f'qubit_{self.qubit}round')[-1].split('/')[0].split('_')[0]
+            h5_files = glob.glob(os.path.join(outerFolder_expt, "*.h5"))
+            TS = re.compile(r'(\d{4})[-_\.]?(\d{2})[-_\.]?(\d{2})[ Tt_-]?(\d{2})[-_\.]?(\d{2})[-_\.]?(\d{2})')
+            import datetime as dt
+            def dt_from_name(path):
+                name = os.path.basename(path)
+                m = TS.search(name)
+                if not m:
+                    return dt.datetime.min
+                y, mo, d, h, mi, s = map(int, m.groups())
+                return dt.datetime(y, mo, d, h, mi, s)
+
+            h5_files = sorted(h5_files, key=dt_from_name)
+
+            for h5_file in h5_files:
+                save_round = h5_file.split('Num_per_batch')[-1].split('.')[0]
+                H5_class_instance = Data_H5(h5_file)
+                load_data = H5_class_instance.load_from_h5(data_type=f'T1{exp_extension}_zeno', save_r=int(save_round),
+                                                           scaling=scaling)
+
+                exclude_dates = {
+                    datetime.date(2025, 1, 26),
+                    datetime.date(2025, 1, 29),
+                    datetime.date(2025, 1, 30),
+                    datetime.date(2025, 1, 31)
+                }
+
+                for q_key in load_data[f'T1{exp_extension}_zeno']:
+                    for dataset in range(len(load_data[f'T1{exp_extension}_zeno'][q_key].get('Dates', [])[0])):
+                        if 'nan' in str(load_data[f'T1{exp_extension}_zeno'][q_key].get('Dates', [])[0][dataset]):
+                            continue
+                        date = datetime.datetime.fromtimestamp(
+                            load_data[f'T1{exp_extension}_zeno'][q_key].get('Dates', [])[0][dataset])
+                        if date.date() in exclude_dates:
+                            print(f"Skipping data for {date} (excluded date)")
+                            continue
+
+                        delays = self.process_h5_data(
+                            load_data[f'T1{exp_extension}_zeno'][q_key].get('Delay Times', [])[0][dataset].decode())
+                        I = self.process_string_of_nested_lists(
+                            load_data[f'T1{exp_extension}_zeno'][q_key].get('I', [])[0][dataset].decode())
+                        Q = self.process_string_of_nested_lists(
+                            load_data[f'T1{exp_extension}_zeno'][q_key].get('Q', [])[0][dataset].decode())
+
+                        if scaling:
+                            Ie = self.process_string_of_nested_lists(
+                                load_data[f'T1{exp_extension}_zeno'][q_key].get('ss_I_e', [])[0][dataset].decode())
+                            Ig = self.process_string_of_nested_lists(
+                                load_data[f'T1{exp_extension}_zeno'][q_key].get('ss_I_g', [])[0][dataset].decode())
+                            Qe = self.process_string_of_nested_lists(
+                                load_data[f'T1{exp_extension}_zeno'][q_key].get('ss_Q_e', [])[0][dataset].decode())
+                            Qg = self.process_string_of_nested_lists(
+                                load_data[f'T1{exp_extension}_zeno'][q_key].get('ss_Q_g', [])[0][dataset].decode())
+
+                        round_num = load_data[f'T1{exp_extension}_zeno'][q_key].get('Round Num', [])[0][dataset]
+                        try:
+                            batch_num = load_data[f'T1{exp_extension}_zeno'][q_key].get('Batch Num', [])[0][dataset]
+                            syst_config = load_data[f'T1{exp_extension}_zeno'][q_key].get('Syst Config', [])[0][
+                                dataset].decode()
+                            exp_config = load_data[f'T1{exp_extension}_zeno'][q_key].get('Exp Config', [])[0][
+                                dataset].decode()
+                        except:
+                            exp_config = None
+
+                        if len(I) > 0:
+                            Is[q_key].append(I);
+                            Qs[q_key].append(Q)
+
+                            if exp_config is not None:
+                                gain = round(float(syst_config.split("res_gain_qze': ")[-1].split(',')[0]), 6)
+                                steps = round(float(
+                                    exp_config.split("Readout_Optimization': ")[-1].split("steps': ")[-1].split(',')[
+                                        0]), 6)
+                                gains[q_key].append(gain)
+                            rounds_completed[q_key].append(round_we_are_on)
+
+                            if scaling:
+                                # wrap to list-of-lists
+                                I_nested = I if _is_list_of_lists(I) else [I]
+                                Q_nested = Q if _is_list_of_lists(Q) else [Q]
+                                Ie_nested = Ie if _is_list_of_lists(Ie) else [Ie]
+                                Ig_nested = Ig if _is_list_of_lists(Ig) else [Ig]
+                                Qe_nested = Qe if _is_list_of_lists(Qe) else [Qe]
+                                Qg_nested = Qg if _is_list_of_lists(Qg) else [Qg]
+
+                                # ---------- ONE base SSF per (q,gain), then drift tracking per dataset ----------
+                                gain_key = gains[q_key][-1] if len(gains[q_key]) > 0 else None
+                                cache_key = (q_key, gain_key)
+
+                                # --- base discriminant (combine ALL SSF sublists, only once) ---
+                                if freeze_discriminant and cache_key not in frozen_disc_by_q_gain:
+                                    base_disc = self.compute_ssf_discriminant(
+                                        Ig_nested, Qg_nested, Ie_nested, Qe_nested, c=tukey_c
+                                    )
+                                    frozen_disc_by_q_gain[cache_key] = base_disc
+
+                                # start from the cached base
+                                current_disc = frozen_disc_by_q_gain.get(cache_key, None)
+
+                                # --- NEW: drift update using THIS dataset's SSF (small EMA) ---
+                                if freeze_discriminant and current_disc is not None:
+                                    current_disc = self._ema_update_disc_with_ssf(
+                                        current_disc, Ig_nested, Qg_nested, Ie_nested, Qe_nested,
+                                        alpha=drift_alpha, mode=drift_mode, c=tukey_c
+                                    )
+                                    # keep the updated disc so next dataset starts from here
+                                    frozen_disc_by_q_gain[cache_key] = current_disc
+
+                                calibrated_sublists = []
+                                I_sublists, Q_sublists = [], []
+
+                                for sub_I, sub_Q in zip(
+                                        I_nested, Q_nested
+                                ):
+                                    sub_I = np.asarray(sub_I, dtype=float)
+                                    sub_Q = np.asarray(sub_Q, dtype=float)
+                                    z = sub_I + 1j * sub_Q
+
+                                    if freeze_discriminant and current_disc is not None:
+                                        pop = self.project_population(z, current_disc)
+                                    else:
+                                        # fallback: per-sublist fit (shouldn't happen with freeze_discriminant=True)
+                                        e = self.robust_center(
+                                            _flatten_all_sublists(Ie_nested) + 1j * _flatten_all_sublists(Qe_nested),
+                                            c=tukey_c)
+                                        g = self.robust_center(
+                                            _flatten_all_sublists(Ig_nested) + 1j * _flatten_all_sublists(Qg_nested),
+                                            c=tukey_c)
+                                        v = e - g;
+                                        norm2 = (v.real * v.real + v.imag * v.imag)
+                                        pop = np.clip(np.real((z - g) * np.conj(v)) / (norm2 + 1e-12), 0.0, 1.0)
+
+                                    calibrated_sublists.append(pop.tolist())
+                                    I_sublists.append(sub_I.tolist())
+                                    Q_sublists.append(sub_Q.tolist())
+
+                                amp_avg = _avg_over_sublists(calibrated_sublists)
+                                I_avg = _avg_over_sublists(I_sublists)
+                                Q_avg = _avg_over_sublists(Q_sublists)
+
+                                amps[q_key].append(amp_avg.tolist())
+                                I_avgs[q_key].append(I_avg.tolist())
+                                Q_avgs[q_key].append(Q_avg.tolist())
+
+                                Ig_calibration[q_key].append(Ig_nested)
+                                Ie_calibration[q_key].append(Ie_nested)
+                                Qg_calibration[q_key].append(Qg_nested)
+                                Qe_calibration[q_key].append(Qe_nested)
+
+                            else:
+                                I_nested = I if _is_list_of_lists(I) else [I]
+                                Q_nested = Q if _is_list_of_lists(Q) else [Q]
+                                amp_sublists = []
+                                I_sublists = []
+                                Q_sublists = []
+                                for sub_I, sub_Q in zip(I_nested, Q_nested):
+                                    sub_I = np.asarray(sub_I, dtype=float)
+                                    sub_Q = np.asarray(sub_Q, dtype=float)
+                                    amp_sublists.append(np.hypot(sub_I, sub_Q).tolist())
+                                    I_sublists.append(sub_I.tolist())
+                                    Q_sublists.append(sub_Q.tolist())
+
+                                amp_avg = _avg_over_sublists(amp_sublists)
+                                I_avg = _avg_over_sublists(I_sublists)
+                                Q_avg = _avg_over_sublists(Q_sublists)
+
+                                amps[q_key].append(amp_avg.tolist())
+                                I_avgs[q_key].append(I_avg.tolist())
+                                Q_avgs[q_key].append(Q_avg.tolist())
+
+                            delay_times[q_key].append(delays)
+                            date_times[q_key].extend([date.strftime("%Y-%m-%d %H:%M:%S")])
+
+                del H5_class_instance
+
+        if return_calibration_data:
+            return (I_avgs, Q_avgs, amps, gains, rounds_completed, delay_times,
+                    Ig_calibration, Ie_calibration, Qe_calibration, Qg_calibration, steps)
+        else:
             return I_avgs, Q_avgs, amps, gains, rounds_completed, delay_times
 
     def run_t1_sweep(self, exp_extension='', scaling=False, return_calibration_data=False):
@@ -1689,7 +1999,7 @@ class T1VsTime:
         }
 
 
-    def robust_center(self,z, c=100.5, iters=100, eps=1e-12):
+    def robust_center(self,z, c=5.5, iters=100, eps=1e-12):
         """
         z: complex array of IQ samples (I + 1j*Q)
         c: Tukey biweight tuning constant (~4.685 gives ~95% efficiency for Gaussian)
@@ -2356,23 +2666,357 @@ class T1VsTime:
             plt.close(fig)
             print(f"Saved heatmap for round {r_id} to: {outfile}")
 
-    def plot_all_t1_heatmaps_new_format(self, amps, gains, rounds, delay_times, save_path, max_ylabels=6):
+    def fit_and_save_t1_slices_new_format(
+            self,
+            amps,
+            gains,
+            rounds,
+            delay_times,
+            save_path,
+            min_points_for_fit=4,
+            figure_size=(6.0, 4.0),
+            # NEW:
+            n_bar=None,  # list/np.array OR dict[str]->(list or {"lorentzian"/"gaussian"})
+    ):
+        """
+        For each round and each gain, fit an exponential T1 curve vs delay and save
+        a slice plot with the fit overlaid. Only figures are saved (no CSV/TXT).
+        Additionally, for each round, save a single plot of T1 vs gain (or vs n̄ if provided) with error bars.
+
+        If n_bar is provided, the summary plot x-axis uses n̄ instead of gain:
+          - n_bar can be a single list/array aligned to the round's sorted gains,
+          - or a dict mapping round_id -> list, or -> {"gains":..., "lorentzian":..., "gaussian":...}
+            (prefers 'lorentzian' if present, else 'gaussian').
+        """
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from collections import defaultdict
+        from scipy.optimize import curve_fit
+        import os
+
+        q = self.qubit
+        gains_q = gains.get(q, [])
+        amps_q = amps.get(q, [])
+        rounds_q = rounds.get(q, [])
+        delay_q = delay_times.get(q, [])
+
+        n = min(len(amps_q), len(gains_q), len(rounds_q), len(delay_q))
+        if n == 0 or not (len(amps_q) == len(gains_q) == len(rounds_q) == len(delay_q)):
+            print(f"No usable data for qubit {q} (missing lists or length mismatch). Skipping.")
+            return
+
+        # ---------- Flatten all points into (round_id, gain, delay, amp) ----------
+        all_points = []
+        for i in range(n):
+            r_id = str(rounds_q[i])
+
+            a_samples = np.asarray(amps_q[i], dtype=float).ravel()
+            if a_samples.size == 0:
+                continue
+
+            # gain can be scalar or per-sample
+            g_i = gains_q[i]
+            g_arr = np.asarray(g_i, dtype=float).ravel() if isinstance(g_i, (list, tuple, np.ndarray)) else None
+            if g_arr is None or g_arr.size == 1:
+                try:
+                    g_scalar = float(g_i)
+                except Exception:
+                    continue
+                g_arr = np.full(a_samples.shape, g_scalar, dtype=float)
+            elif g_arr.size != a_samples.size:
+                continue
+
+            # delay can be scalar or per-sample
+            d_i = delay_q[i]
+            d_arr = np.asarray(d_i, dtype=float).ravel() if isinstance(d_i, (list, tuple, np.ndarray)) else None
+            if d_arr is None or d_arr.size == 1:
+                try:
+                    d_scalar = float(d_i)
+                except Exception:
+                    continue
+                d_arr = np.full(a_samples.shape, d_scalar, dtype=float)
+            elif d_arr.size != a_samples.size:
+                continue
+
+            mask = np.isfinite(a_samples) & np.isfinite(g_arr) & np.isfinite(d_arr)
+            if not np.any(mask):
+                continue
+
+            for g_val, d_val, a_val in zip(g_arr[mask], d_arr[mask], a_samples[mask]):
+                all_points.append((r_id, float(g_val), float(d_val), float(a_val)))
+
+        if not all_points:
+            print(f"No numeric points for qubit {q}. Skipping.")
+            return
+
+        # Unique rounds present
+        unique_rounds = sorted({r for (r, _, __, ___) in all_points})
+
+        # Ensure base save folder exists
+        self.create_folder_if_not_exists(save_path)
+
+        # Helper: average amplitudes per (gain, delay) for one round
+        def avg_grid_for_round(r_id):
+            pts = [(g, d, a) for (r, g, d, a) in all_points if r == r_id]
+            if not pts:
+                return {}, {}
+
+            # bucket by (gain, delay)
+            by_key = defaultdict(list)
+            for g, d, a in pts:
+                by_key[(g, d)].append(a)
+
+            # averaged amplitude for each key
+            avg = {k: float(np.nanmean(v)) for k, v in by_key.items()}
+
+            # build: gains -> {delay: amp}
+            per_gain = defaultdict(dict)
+            for (g, d), val in avg.items():
+                per_gain[g][d] = val
+
+            # also capture all unique delays seen per round
+            return per_gain, {d for (_, d) in by_key.keys()}
+
+        # Pull the n̄ vector for a given round (if provided), aligned to sorted_gains
+        def get_nbar_for_round(r_id_str, sorted_gains):
+            if n_bar is None:
+                return None
+
+            # direct list/array: assume aligned to sorted gains for this round
+            if isinstance(n_bar, (list, tuple, np.ndarray)):
+                nb = np.asarray(n_bar, float).ravel()
+                return nb if nb.size == len(sorted_gains) else None
+
+            # dict-like
+            if isinstance(n_bar, dict):
+                key = r_id_str if r_id_str in n_bar else str(r_id_str)
+                entry = n_bar.get(key, None)
+                if entry is None:
+                    return None
+                if isinstance(entry, dict):
+                    candidate = entry.get("lorentzian") or entry.get("gaussian") or entry.get("nbar") or entry.get(
+                        "values")
+                    if candidate is None:
+                        return None
+                    nb = np.asarray(candidate, float).ravel()
+                    return nb if nb.size == len(sorted_gains) else None
+                if isinstance(entry, (list, tuple, np.ndarray)):
+                    nb = np.asarray(entry, float).ravel()
+                    return nb if nb.size == len(sorted_gains) else None
+
+            return None
+
+        # Fit a single slice (y vs t) with robust defaults
+        def fit_slice(t, y):
+            t = np.asarray(t, dtype=float).ravel()
+            y = np.asarray(y, dtype=float).ravel()
+
+            order = np.argsort(t)
+            t = t[order]
+            y = y[order]
+
+            # initial guesses
+            a_guess = np.nanmax(y) - np.nanmin(y)
+            b_guess = float(t[0]) if np.isfinite(t[0]) else 0.0
+            c_guess = (t[-1] - t[0]) / 5.0 if t.size >= 2 else max(abs(t[0]), 1.0)
+            d_guess = np.nanmin(y)
+
+            p0 = [a_guess, b_guess, max(c_guess, 1e-9), d_guess]
+            bounds = ([-np.inf, -np.inf, 0.0, -np.inf], [np.inf, np.inf, np.inf, np.inf])
+
+            try:
+                popt, pcov = curve_fit(self.exponential, t, y, p0=p0, bounds=bounds,
+                                       method='trf', maxfev=10000)
+                yfit = self.exponential(t, *popt)
+                T1 = popt[2]
+                T1_err = float(np.sqrt(pcov[2][2])) if pcov.shape == (4, 4) and pcov[2][2] >= 0 else float('inf')
+                success = True
+            except Exception:
+                popt, yfit, T1, T1_err, success = [np.nan] * 4, np.full_like(t, np.nan), np.nan, np.nan, False
+
+            return t, y, yfit, popt, T1, T1_err, success
+
+        # ---------- iterate rounds/gains; fit & save ----------
+        for r_id in unique_rounds:
+            per_gain, _ = avg_grid_for_round(r_id)
+            if not per_gain:
+                continue
+
+            # Single folder per round (all gains go here)
+            round_dir = os.path.join(save_path, f"t1_slices_q{q}_round_{r_id}")
+            self.create_folder_if_not_exists(round_dir)
+
+            # stable gain ordering
+            sorted_gains = sorted(per_gain.keys())
+
+            # n̄ for this round (if provided)
+            nbar_vec = get_nbar_for_round(str(r_id), sorted_gains)
+
+            # collect T1 vs (x) for this round
+            t1_points = []  # (gain, T1, T1_err, fit_ok)
+
+            for g_val in sorted_gains:
+                # slice for this gain: (t -> y)
+                delays = sorted(per_gain[g_val].keys())
+                yvals = [per_gain[g_val][d] for d in delays]
+
+                # need enough points to fit
+                finite_mask = [np.isfinite(d) and np.isfinite(y) for d, y in zip(delays, yvals)]
+                delays = [d for d, m in zip(delays, finite_mask) if m]
+                yvals = [y for y, m in zip(yvals, finite_mask) if m]
+
+                if len(delays) < min_points_for_fit:
+                    print(f"[q{q} round {r_id} gain {g_val}] Not enough points ({len(delays)}) for fit. Skipping.")
+                    continue
+
+                t, y, yfit, popt, T1, T1_err, ok = fit_slice(delays, yvals)
+
+                # save figure with overlay (fit a different color)
+                fig, ax = plt.subplots(figsize=figure_size)
+                ax.scatter(t, y, s=18, label="data")  # default color (C0)
+                ax.plot(t, yfit, linewidth=2.0, label="fit", color='C1')  # different color (C1)
+
+                # title suffix with n̄ if available
+                suffix = ""
+                if nbar_vec is not None:
+                    try:
+                        idx = sorted_gains.index(g_val)
+                        suffix = f" — n̄ {float(nbar_vec[idx]):g}"
+                    except Exception:
+                        suffix = ""
+
+                ax.set_title(f"Qubit {q + 1} — Round {r_id} — Gain {g_val}{suffix}")
+                ax.set_xlabel("Delay time")
+                ax.set_ylabel("Signal (arb.)")
+                ax.grid(True, alpha=0.25)
+
+                # annotate T1
+                if ok and np.isfinite(T1):
+                    ax.text(0.02, 0.98,
+                            f"T1 = {T1:.3g} ± {T1_err:.2g}",
+                            transform=ax.transAxes, va='top', ha='left')
+
+                ax.legend()
+                fig.tight_layout()
+
+                safe_gain = str(g_val).replace('.', 'p').replace('-', 'm')
+                f_png = os.path.join(round_dir, f"t1_slice_gain{safe_gain}_q{q}_round_{r_id}.png")
+                fig.savefig(f_png, dpi=self.final_figure_quality)
+                plt.close(fig)
+
+                t1_points.append((float(g_val), float(T1), float(T1_err), bool(ok)))
+
+                print(f"Saved T1 slice & fit for round {r_id}, gain {g_val} to: {round_dir}")
+
+            # ---- Save a single T1 vs gain (or vs n̄) plot with error bars for this round ----
+            if t1_points:
+                ok_pts = [(g, t1, e) for (g, t1, e, ok) in t1_points if ok and np.isfinite(t1)]
+                if ok_pts:
+                    gs, t1s, errs = list(zip(*sorted(ok_pts)))  # sort by gain
+
+                    # T1, err are in µs
+                    gs = np.asarray(gs, float)
+                    t1_us = np.asarray(t1s, float)
+                    err_us = np.asarray(errs, float)
+
+                    # keep only positive, finite T1
+                    m = np.isfinite(t1_us) & (t1_us > 0) & np.isfinite(err_us)
+                    gs, t1_us, err_us = gs[m], t1_us[m], err_us[m]
+
+                    Gamma = 1000.0 / t1_us  # [1/ms]
+                    Gamma_err = 1000.0 * err_us / (t1_us ** 2)  # [1/ms]
+
+                    if nbar_vec is not None and len(nbar_vec) == len(sorted_gains):
+                        # map gains -> nbar, then reorder by ascending nbar for plotting
+                        gain_to_idx = {g: i for i, g in enumerate(sorted_gains)}
+                        xs = []
+                        ys = []
+                        es = []
+                        for g, t1, e in zip(gs, t1s, errs):
+                            idx = gain_to_idx.get(g, None)
+                            if idx is None:
+                                continue
+                            xs.append(float(nbar_vec[idx]))
+                            ys.append(float(t1))
+                            es.append(float(e))
+                        xs = np.asarray(xs, float)
+                        ys = np.asarray(ys, float)
+                        es = np.asarray(es, float)
+
+                        # sort by x (n̄)
+                        order = np.argsort(xs)
+                        xs, ys, es = xs[order], ys[order], es[order]
+
+                        # after you build xs, ys, es from gains -> nbar mapping, replace them:
+                        # xs stays the same (n̄). Use Gamma and Gamma_err instead of T1.
+                        ys = Gamma[np.argsort(xs)]
+                        es = Gamma_err[np.argsort(xs)]
+                        xs = np.sort(xs)
+
+                        fig2, ax2 = plt.subplots(figsize=figure_size)
+                        ax2.errorbar(xs, ys, yerr=es, fmt='o', capsize=3, label="Γ = 1/T1")
+                        ax2.set_title(f"Qubit {q + 1} — Round {r_id} — Γ vs n̄")
+                        ax2.set_xlabel("n̄")
+                        ax2.set_ylabel(r"$\Gamma$ (1/ms)")
+                        ax2.grid(True, alpha=0.25)
+                        ax2.legend()
+                        fig2.tight_layout()
+
+                        f_vs = os.path.join(round_dir, f"Gamma_vs_nbar_round{r_id}.png")
+                        fig2.savefig(f_vs, dpi=self.final_figure_quality)
+                        plt.close(fig2)
+                        print(f"Saved Γ vs n̄ (with error bars) for round {r_id} to: {round_dir}")
+
+                    else:
+                        fig2, ax2 = plt.subplots(figsize=figure_size)
+                        ax2.errorbar(gs, Gamma, yerr=Gamma_err, fmt='o', capsize=3, label="Γ = 1/T1")
+                        ax2.set_title(f"Qubit {q + 1} — Round {r_id} — Γ vs Gain")
+                        ax2.set_xlabel("Gain")
+                        ax2.set_ylabel(r"$\Gamma$ (1/ms)")
+                        ax2.grid(True, alpha=0.25)
+                        ax2.legend()
+                        fig2.tight_layout()
+
+                        f_vs = os.path.join(round_dir, f"Gamma_vs_gain_round{r_id}.png")
+                        fig2.savefig(f_vs, dpi=self.final_figure_quality)
+                        plt.close(fig2)
+                        print(f"Saved Γ vs Gain (with error bars) for round {r_id} to: {round_dir}")
+                else:
+                    print(f"[q{q} round {r_id}] No successful T1 fits to plot.")
+
+    def plot_all_t1_heatmaps_new_format(
+            self,
+            amps,
+            gains,
+            rounds,
+            delay_times,
+            save_path,
+            max_ylabels=6,
+            # NEW:
+            n_bar=None,  # list/np.array OR dict[str]->(list or {"lorentzian"/"gaussian"})
+    ):
         """
         NEW FORMAT ONLY
 
-        Changes vs your original:
-          - Y-axis now shows at most `max_ylabels` delay_time tick labels (evenly spaced).
-          - Color scale (z) is fixed across rounds using the global min/max amplitude.
+        - Y-axis shows at most `max_ylabels` delay_time tick labels (evenly spaced).
+        - Color scale (z) is fixed across rounds using the global min/max amplitude.
+        - If n_bar is provided, x-axis uses n̄ instead of gain (sorted ascending).
 
         Data model (per qubit q):
           - amps[q]         : list of lists; amps[q][i] is a list of amplitude samples for dataset i
           - gains[q]        : list; gains[q][i] is the gain for dataset i
           - rounds[q]       : list; rounds[q][i] is the round label for dataset i
           - delay_times[q]  : list; delay_times[q][i] is the delay (scalar) for dataset i
+
+        n_bar may be:
+          - list/array aligned to the round's sorted gains, or
+          - dict mapping round_id -> list, or -> {"gains":..., "lorentzian":..., "gaussian":...}
+            (prefers 'lorentzian' if present, else 'gaussian').
         """
         import numpy as np
         import matplotlib.pyplot as plt
         from collections import defaultdict
+        import matplotlib.ticker as mticker
 
         q = self.qubit
         gains_q = gains.get(q, [])
@@ -2391,7 +3035,6 @@ class T1VsTime:
         for i in range(n):
             r_id = str(rounds_q[i])
 
-            # amplitudes (required)
             a_samples = np.asarray(amps_q[i], dtype=float).ravel()
             if a_samples.size == 0:
                 continue
@@ -2449,11 +3092,38 @@ class T1VsTime:
             last = centers[-1] + (centers[-1] - centers[-2]) / 2.0
             return np.concatenate([[first], mids, [last]])
 
-        # ---------- NEW: compute global color scale limits (z) ----------
+        # ---------- global color scale limits (z) ----------
         all_amps = np.array([a for (_, _, _, a) in all_points], dtype=float)
         global_vmin = float(np.nanmin(all_amps))
         global_vmax = float(np.nanmax(all_amps))
-        # ----------------------------------------------------------------
+
+        # ---------------------------------------------------
+
+        # helper to pull the n̄ vector for a given round (if provided)
+        def get_nbar_for_round(r_id_str, gains_sorted):
+            if n_bar is None:
+                return None
+            # direct list/array: assume aligned to sorted gains for this round
+            if isinstance(n_bar, (list, tuple, np.ndarray)):
+                nb = np.asarray(n_bar, float).ravel()
+                return nb if nb.size == len(gains_sorted) else None
+            # dict-like
+            if isinstance(n_bar, dict):
+                key = r_id_str if r_id_str in n_bar else str(r_id_str)
+                entry = n_bar.get(key, None)
+                if entry is None:
+                    return None
+                if isinstance(entry, dict):
+                    candidate = entry.get("lorentzian") or entry.get("gaussian") or entry.get("nbar") or entry.get(
+                        "values")
+                    if candidate is None:
+                        return None
+                    nb = np.asarray(candidate, float).ravel()
+                    return nb if nb.size == len(gains_sorted) else None
+                if isinstance(entry, (list, tuple, np.ndarray)):
+                    nb = np.asarray(entry, float).ravel()
+                    return nb if nb.size == len(gains_sorted) else None
+            return None
 
         for r_id in unique_rounds:
             # Collect this round's points
@@ -2465,7 +3135,6 @@ class T1VsTime:
             delays_r = sorted({d for (_, d, _) in pts})
 
             # Map (delay_idx, gain_idx) -> list of amplitudes
-            from collections import defaultdict
             bucket = defaultdict(list)
             gi_map = {g: i for i, g in enumerate(gains_r)}
             di_map = {d: i for i, d in enumerate(delays_r)}
@@ -2478,51 +3147,56 @@ class T1VsTime:
             for (iy, ix), vals in bucket.items():
                 C[iy, ix] = float(np.nanmean(vals))
 
+            # Decide x-axis values & label (gain or n̄) and reorder columns accordingly
+            nbar_vec = get_nbar_for_round(str(r_id), gains_r)
+            if nbar_vec is not None:
+                x_vals = np.asarray(nbar_vec, float)
+                x_label = "n̄"
+            else:
+                x_vals = np.asarray(gains_r, float)
+                x_label = "Pulse gain (a.u.)"
+
+            order = np.argsort(x_vals)
+            x_vals_sorted = x_vals[order]
+            C_sorted = C[:, order]
+
             # Bin edges for pcolormesh
-            x_edges = centers_to_edges(gains_r)
+            x_edges = centers_to_edges(x_vals_sorted)
             y_edges = centers_to_edges(delays_r)
 
             # Plot
             fig, ax = plt.subplots(figsize=(6.5, 4.5))
             mesh = ax.pcolormesh(
-                x_edges, y_edges, C, shading='flat',
-                vmin=global_vmin, vmax=global_vmax  # <-- fixed z scale
+                x_edges, y_edges, C_sorted, shading='flat',
+                vmin=global_vmin, vmax=global_vmax  # fixed z scale
             )
             cbar = fig.colorbar(mesh, ax=ax, pad=0.02)
             cbar.set_label("Qubit Population")
 
             ax.set_title(f"Qubit {self.qubit + 1} — Round {r_id}")
-            ax.set_xlabel("Pulse gain (a.u.)")
+            ax.set_xlabel(x_label)
             ax.set_ylabel("Delay time")
 
-            # X ticks at actual centers
-
-            import matplotlib.ticker as mticker
             ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=7, prune=None))
-
             plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
 
-            # ---------- NEW: only label a subset of delay times on Y ----------
+            # only label a subset of delay times on Y
             if Ny > 0:
                 if Ny <= max_ylabels:
-                    # small: show all
                     yticks_idx = list(range(Ny))
                 else:
-                    # large: pick evenly spaced indices
                     yticks_idx = np.linspace(0, Ny - 1, num=max_ylabels, dtype=int).tolist()
-                    # ensure uniqueness/monotonic
                     yticks_idx = sorted(set(yticks_idx))
-
                 yticks_vals = [delays_r[i] for i in yticks_idx]
                 ax.set_yticks(yticks_vals)
                 ax.set_yticklabels([f"{v:.0f}" for v in yticks_vals])
-            # -------------------------------------------------------------------
 
             fig.tight_layout()
             outfile = (save_path + f"t1_heatmap_q{self.qubit}_round{r_id}.png")
             fig.savefig(outfile, transparent=False, dpi=self.final_figure_quality)
             plt.close(fig)
             print(f"Saved heatmap for round {r_id} to: {outfile}")
+
     def plot_all_t1_heatmaps_single_calibration(self, Is,Qs,Ig_calibration1, \
         Ie_calibration1, Qe_calibration1, Qg_calibration1, gains, rounds, delay_times, save_path, max_ylabels=6):
         """

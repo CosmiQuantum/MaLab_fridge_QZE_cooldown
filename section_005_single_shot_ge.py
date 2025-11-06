@@ -492,7 +492,7 @@ class SingleShot:
             return fid, threshold, float(theta), ig_new, ie_new
 
 
-    def robust_center(self,z, c=100.5, iters=100, eps=1e-12):
+    def robust_center(self,z, c=5.5, iters=100, eps=1e-12):
         """
         z: complex array of IQ samples (I + 1j*Q)
         c: Tukey biweight tuning constant (~4.685 gives ~95% efficiency for Gaussian)
@@ -693,7 +693,7 @@ class SingleShot:
 
         return fid, threshold, theta, ig_new, ie_new
 
-    def robust_center_debug(self,z, c=100.5, iters=100, eps=1e-12, keep_path_steps=5):
+    def robust_center_debug(self,z, c=5.5, iters=100, eps=1e-12, keep_path_steps=5):
         """
         Run robust_center but return useful intermediates for visualization.
         Returns:
@@ -751,7 +751,7 @@ class SingleShot:
             self, data=None, cfg=None, plot=True, fig_quality=100,
             I_meas=None, Q_meas=None, path_ext='',
             show_weight_labels=False, max_weight_labels=10,
-            show_path_steps=True, path_steps=5, tukey_c=100.5):
+            show_path_steps=True, path_steps=5, tukey_c=5.5):
         """
         Same outputs, but with robust_center step-by-step annotations:
           - plot starting medians (mu0)

@@ -44,14 +44,28 @@ for qubit in qubits:
     for round in range(4):
         top_folder_dates.append(f'qubit_{qubit}round{round}')
 
+    q_vs_time = QubitFreqsVsTime(figure_quality, final_figure_quality, tot_num_of_qubits, top_folder_dates, save_figs,
+                                 fit_saved,
+                                 signal, run_name, fridge=FRIDGE, exp_name='ge', qubit=qubit)
+    Is1, Qs1, amps1, gains1, rounds1, delay_times1 = q_vs_time.run_q_sweep_new(exp_extension='_ge', scaling=True)
+    Is_qspec[qubit] = Is1[qubit]
+    Qs_qspec[qubit] = Qs1[qubit]
+    amps_qspec[qubit] = amps1[qubit]
+    gains_qspec[qubit] = gains1[qubit]
+    rounds_qspec[qubit] = rounds1[qubit]
+    freqs_qspec[qubit] = delay_times1[qubit]
+
+    n_bars= q_vs_time.plot_all_q_heatmaps_nbar(amps_qspec, gains_qspec, rounds_qspec, freqs_qspec,
+                                       f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/',
+                                       chi_MHz=-0.137, return_nbar=True)  # used 1/2 of 2X
+
+    q_vs_time.plot_all_q_heatmaps_new_format(amps_qspec, gains_qspec, rounds_qspec, freqs_qspec,
+                                             f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/', n_bar=n_bars)
+
 
     t1_vs_time = T1VsTime(figure_quality, final_figure_quality, tot_num_of_qubits, top_folder_dates, save_figs, fit_saved,
                      signal, run_name, FRIDGE,exp_name = 'ge', qubit=qubit, t1_slice=f'{slice}us')
     Is1,Qs1,amps1,gains1,rounds1,delay_times1 = t1_vs_time.run_t1_sweep_new(exp_extension='_ge', scaling=True)
-    # Is1, Qs1, amps1, gains1, rounds1, delay_times1 = t1_vs_time.run_t1_sweep_combine_ssf_rounds(exp_extension='_ge',
-    #                                                                                             scaling=True,tukey_c=5.5,          # robust center tuning
-    #                                                                                             drift_alpha=0.05,     # 0.01–0.1 is typical (slower→smoother)
-    #                                                                                             drift_mode='translate' )
 
     Is[qubit]=Is1[qubit]
     Qs[qubit]=Qs1[qubit]
@@ -60,9 +74,10 @@ for qubit in qubits:
     rounds[qubit]=rounds1[qubit]
     delay_times[qubit]=delay_times1[qubit]
 
+    t1_vs_time.fit_and_save_t1_slices_new_format(amps, gains, rounds, delay_times,
+                                    f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/', n_bar=n_bars)
     t1_vs_time.plot_all_t1_heatmaps_new_format(amps, gains, rounds, delay_times,
-                                    f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/')
-
+                                               f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/', n_bar=n_bars)
 
     t2_vs_time = T2rVsTime(figure_quality, final_figure_quality, tot_num_of_qubits, top_folder_dates, save_figs,
                           fit_saved,
@@ -76,18 +91,5 @@ for qubit in qubits:
     delay_times_t2[qubit] = delay_times1[qubit]
 
     t2_vs_time.plot_all_t2_heatmaps_new_format(amps_t2, gains_t2, rounds_t2, delay_times_t2,
-                                               f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/')
+                                               f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/', n_bar=n_bars)
 
-    q_vs_time = QubitFreqsVsTime(figure_quality, final_figure_quality, tot_num_of_qubits, top_folder_dates, save_figs,
-                           fit_saved,
-                           signal, run_name, fridge=FRIDGE, exp_name='ge', qubit=qubit)
-    Is1, Qs1, amps1, gains1, rounds1, delay_times1 = q_vs_time.run_q_sweep_new(exp_extension='_ge', scaling=True)
-    Is_qspec[qubit] = Is1[qubit]
-    Qs_qspec[qubit] = Qs1[qubit]
-    amps_qspec[qubit] = amps1[qubit]
-    gains_qspec[qubit] = gains1[qubit]
-    rounds_qspec[qubit] = rounds1[qubit]
-    freqs_qspec[qubit] = delay_times1[qubit]
-
-    q_vs_time.plot_all_q_heatmaps_new_format(amps_qspec, gains_qspec, rounds_qspec, freqs_qspec,
-                                               f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/')

@@ -263,7 +263,7 @@ class T2rVsTime:
             return Is,Qs,amps, gains, rounds_completed, delay_times, Ig_calibration, Ie_calibration, Qe_calibration, Qg_calibration,steps
         else:
             return Is, Qs, amps, gains, rounds_completed, delay_times
-    def robust_center(self,z, c=100.5, iters=100, eps=1e-12):
+    def robust_center(self,z, c=5.5, iters=100, eps=1e-12):
         """
         z: complex array of IQ samples (I + 1j*Q)
         c: Tukey biweight tuning constant (~4.685 gives ~95% efficiency for Gaussian)
@@ -737,23 +737,40 @@ class T2rVsTime:
         else:
             return date_times, t2_vals
 
-    def plot_all_t2_heatmaps_new_format(self, amps, gains, rounds, delay_times, save_path, max_ylabels=6):
+    def plot_all_t2_heatmaps_new_format(
+            self,
+            amps,
+            gains,
+            rounds,
+            delay_times,
+            save_path,
+            max_ylabels=6,
+            # NEW:
+            n_bar=None,  # list/np.array OR dict[str]->(list or {"lorentzian"/"gaussian"})
+    ):
         """
         NEW FORMAT ONLY
 
         Changes vs your original:
-          - Y-axis now shows at most `max_ylabels` delay_time tick labels (evenly spaced).
+          - Y-axis shows at most `max_ylabels` delay_time tick labels (evenly spaced).
           - Color scale (z) is fixed across rounds using the global min/max amplitude.
+          - If n_bar is provided, x-axis uses n̄ instead of gain (sorted ascending).
 
         Data model (per qubit q):
           - amps[q]         : list of lists; amps[q][i] is a list of amplitude samples for dataset i
           - gains[q]        : list; gains[q][i] is the gain for dataset i
           - rounds[q]       : list; rounds[q][i] is the round label for dataset i
           - delay_times[q]  : list; delay_times[q][i] is the delay (scalar) for dataset i
+
+        n_bar may be:
+          - list/array aligned to the round's sorted gains, or
+          - dict mapping round_id -> list, or -> {"gains":..., "lorentzian":..., "gaussian":...}
+            (prefers 'lorentzian' if present, else 'gaussian').
         """
         import numpy as np
         import matplotlib.pyplot as plt
         from collections import defaultdict
+        import matplotlib.ticker as mticker
 
         q = self.qubit
         gains_q = gains.get(q, [])
@@ -834,7 +851,34 @@ class T2rVsTime:
         all_amps = np.array([a for (_, _, _, a) in all_points], dtype=float)
         global_vmin = float(np.nanmin(all_amps))
         global_vmax = float(np.nanmax(all_amps))
+
         # ----------------------------------------------------------------
+
+        # helper to pull the n̄ vector for a given round (if provided)
+        def get_nbar_for_round(r_id_str, gains_sorted):
+            if n_bar is None:
+                return None
+            # direct list/array: assume aligned to sorted gains for this round
+            if isinstance(n_bar, (list, tuple, np.ndarray)):
+                nb = np.asarray(n_bar, float).ravel()
+                return nb if nb.size == len(gains_sorted) else None
+            # dict-like
+            if isinstance(n_bar, dict):
+                key = r_id_str if r_id_str in n_bar else str(r_id_str)
+                entry = n_bar.get(key, None)
+                if entry is None:
+                    return None
+                if isinstance(entry, dict):
+                    candidate = entry.get("lorentzian") or entry.get("gaussian") or entry.get("nbar") or entry.get(
+                        "values")
+                    if candidate is None:
+                        return None
+                    nb = np.asarray(candidate, float).ravel()
+                    return nb if nb.size == len(gains_sorted) else None
+                if isinstance(entry, (list, tuple, np.ndarray)):
+                    nb = np.asarray(entry, float).ravel()
+                    return nb if nb.size == len(gains_sorted) else None
+            return None
 
         for r_id in unique_rounds:
             # Collect this round's points
@@ -846,7 +890,6 @@ class T2rVsTime:
             delays_r = sorted({d for (_, d, _) in pts})
 
             # Map (delay_idx, gain_idx) -> list of amplitudes
-            from collections import defaultdict
             bucket = defaultdict(list)
             gi_map = {g: i for i, g in enumerate(gains_r)}
             di_map = {d: i for i, d in enumerate(delays_r)}
@@ -859,44 +902,49 @@ class T2rVsTime:
             for (iy, ix), vals in bucket.items():
                 C[iy, ix] = float(np.nanmean(vals))
 
+            # Decide x-axis values & label (gain or n̄) and reorder columns accordingly
+            nbar_vec = get_nbar_for_round(str(r_id), gains_r)
+            if nbar_vec is not None:
+                x_vals = np.asarray(nbar_vec, float)
+                x_label = "n̄"
+            else:
+                x_vals = np.asarray(gains_r, float)
+                x_label = "Pulse gain (a.u.)"
+
+            order = np.argsort(x_vals)
+            x_vals_sorted = x_vals[order]
+            C_sorted = C[:, order]
+
             # Bin edges for pcolormesh
-            x_edges = centers_to_edges(gains_r)
+            x_edges = centers_to_edges(x_vals_sorted)
             y_edges = centers_to_edges(delays_r)
 
             # Plot
             fig, ax = plt.subplots(figsize=(6.5, 4.5))
             mesh = ax.pcolormesh(
-                x_edges, y_edges, C, shading='flat',
-                vmin=global_vmin, vmax=global_vmax  # <-- fixed z scale
+                x_edges, y_edges, C_sorted, shading='flat',
+                vmin=global_vmin, vmax=global_vmax  # fixed z scale
             )
             cbar = fig.colorbar(mesh, ax=ax, pad=0.02)
             cbar.set_label("Qubit Population")
 
             ax.set_title(f"Qubit {self.qubit + 1} — Round {r_id}")
-            ax.set_xlabel("Pulse gain (a.u.)")
+            ax.set_xlabel(x_label)
             ax.set_ylabel("Delay time")
 
-            # X ticks at actual centers
-            import matplotlib.ticker as mticker
             ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=7, prune=None))
-
             plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
 
-            # ---------- NEW: only label a subset of delay times on Y ----------
+            # only label a subset of delay times on Y
             if Ny > 0:
                 if Ny <= max_ylabels:
-                    # small: show all
                     yticks_idx = list(range(Ny))
                 else:
-                    # large: pick evenly spaced indices
                     yticks_idx = np.linspace(0, Ny - 1, num=max_ylabels, dtype=int).tolist()
-                    # ensure uniqueness/monotonic
                     yticks_idx = sorted(set(yticks_idx))
-
                 yticks_vals = [delays_r[i] for i in yticks_idx]
                 ax.set_yticks(yticks_vals)
                 ax.set_yticklabels([f"{v:.0f}" for v in yticks_vals])
-            # -------------------------------------------------------------------
 
             fig.tight_layout()
             outfile = (save_path + f"t2_heatmap_q{self.qubit}_round{r_id}.png")
