@@ -264,7 +264,7 @@ class QubitFreqsVsTime:
             return Is, Qs, amps, gains, rounds_completed, delay_times, Ig_calibration, Ie_calibration, Qe_calibration, Qg_calibration, steps
         else:
             return Is,Qs,amps, gains, rounds_completed, delay_times
-    def robust_center(self,z, c=4.5, iters=100, eps=1e-12):
+    def robust_center(self,z, c=100.5, iters=100, eps=1e-12):
         """
         z: complex array of IQ samples (I + 1j*Q)
         c: Tukey biweight tuning constant (~4.685 gives ~95% efficiency for Gaussian)

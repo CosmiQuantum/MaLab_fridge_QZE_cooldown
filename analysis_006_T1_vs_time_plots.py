@@ -40,7 +40,7 @@ class T1VsTime:
         self.fridge = fridge
         self.exp_name = exp_name
 
-    def robust_center(self,z, c=4.5, iters=100, eps=1e-12):
+    def robust_center(self,z, c=100.5, iters=100, eps=1e-12):
         """
         z: complex array of IQ samples (I + 1j*Q)
         c: Tukey biweight tuning constant (~4.685 gives ~95% efficiency for Gaussian)
@@ -1689,7 +1689,7 @@ class T1VsTime:
         }
 
 
-    def robust_center(self,z, c=4.5, iters=100, eps=1e-12):
+    def robust_center(self,z, c=100.5, iters=100, eps=1e-12):
         """
         z: complex array of IQ samples (I + 1j*Q)
         c: Tukey biweight tuning constant (~4.685 gives ~95% efficiency for Gaussian)
@@ -1929,7 +1929,7 @@ class T1VsTime:
 
                     # Call your SSF routine; it handles plotting/saving internally
                     try:
-                        ss_class_instance.hist_ssf_with_annotations(
+                        ss_class_instance.hist_ssf_with_annotations_tukey(
                             data=[I_g, Q_g, I_e, Q_e],
                             cfg=ss_cfg,
                             plot=True,

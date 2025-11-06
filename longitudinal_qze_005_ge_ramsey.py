@@ -50,7 +50,7 @@ run_name = 'bob_run_started_Aug_23'
 device_name = 'squill'
 substudy_txt_notes = ('script longitudinal_qze_005_ge_ramsey.py')
 
-study = 'test_interweaved_calibration_big_dataset'
+study = 'test_interweaved_calibration_big_dataset_0p1'
 
 ################################################ optimization outputs ##################################################
 # Optimization parameters for resonator spectroscopy
@@ -514,7 +514,7 @@ for QubitIndex in Qs_to_look_at:
     t1_data = create_data_dict(t1_keys, save_r, list_of_all_qubits)
     t2r_data = create_data_dict(t2r_keys, save_r, list_of_all_qubits)
     ########################################### go through each gain ######################################
-    pulse_gains = np.linspace(0.0001, 0.2, 150)
+    pulse_gains = np.linspace(0.0001, 0.1, 75)
     #pulse_gains = [0.01]#
     #try:
     for repeat_round in range(0,3):

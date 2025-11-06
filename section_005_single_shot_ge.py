@@ -492,7 +492,7 @@ class SingleShot:
             return fid, threshold, float(theta), ig_new, ie_new
 
 
-    def robust_center(self,z, c=4.5, iters=100, eps=1e-12):
+    def robust_center(self,z, c=100.5, iters=100, eps=1e-12):
         """
         z: complex array of IQ samples (I + 1j*Q)
         c: Tukey biweight tuning constant (~4.685 gives ~95% efficiency for Gaussian)
@@ -663,6 +663,301 @@ class SingleShot:
                             textcoords='offset points', rotation=90, va='bottom', ha='left')
             axs[2].annotate(f"e μI={ex_mean_r:.3f}", xy=(ex_mean_r, 0), xytext=(5, 10),
                             textcoords='offset points', rotation=90, va='bottom', ha='left')
+
+            axs[2].set_xlabel('I (a.u.)')
+        else:
+            ng, binsg = np.histogram(ig_new, bins=numbins, range=xlims)
+            ne, binse = np.histogram(ie_new, bins=numbins, range=xlims)
+
+        # ------- Fidelity via histogram overlap (unchanged) -------
+        contrast = np.abs(((np.cumsum(ng) - np.cumsum(ne)) / (0.5 * ng.sum() + 0.5 * ne.sum())))
+        tind = contrast.argmax()
+        threshold = binsg[tind]
+        fid = contrast[tind]
+
+        if plot:
+            self.create_folder_if_not_exists(self.outerFolder)
+            out_dir = os.path.join(self.outerFolder, f"ss_repeat_meas_ge{path_ext}")
+            self.create_folder_if_not_exists(out_dir)
+            out_dir = os.path.join(out_dir, "Q" + str(self.QubitIndex + 1))
+            self.create_folder_if_not_exists(out_dir)
+            now = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            file_name = os.path.join(
+                out_dir,
+                f"R_{self.round_num}_Q_{self.QubitIndex + 1}_{self.expt_name}{now}_q{self.QubitIndex + 1}.png"
+            )
+            axs[2].set_title(f"Fidelity = {fid * 100:.2f}%")
+            plt.tight_layout()
+            fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')
+            plt.close(fig)
+
+        return fid, threshold, theta, ig_new, ie_new
+
+    def robust_center_debug(self,z, c=100.5, iters=100, eps=1e-12, keep_path_steps=5):
+        """
+        Run robust_center but return useful intermediates for visualization.
+        Returns:
+            {
+              'mu0': complex median start,
+              's0': float initial MAD-based scale (from distances to mu0),
+              'u0': np.array of standardized distances in first step,
+              'w0': np.array of Tukey weights from the first step,
+              'cutoff_radius': c*s0,
+              'path': [complex mu after each iter] (first keep_path_steps+1 entries incl. mu0)
+              'final_mu': complex final location
+            }
+        """
+        I = np.real(z)
+        Q = np.imag(z)
+
+        mu_I, mu_Q = np.median(I), np.median(Q)  # start
+        path = [mu_I + 1j * mu_Q]
+
+        # first pass: distances from median
+        d0 = np.hypot(I - mu_I, Q - mu_Q)
+        s0 = 1.4826 * np.median(np.abs(d0 - np.median(d0))) + eps
+        u0 = d0 / (c * s0 + eps)
+        w0 = (1 - u0 ** 2) ** 2
+        w0[u0 >= 1] = 0.0
+        cutoff_radius = c * s0
+
+        # run full IRLS, store a short path
+        for k in range(iters):
+            d = np.hypot(I - mu_I, Q - mu_Q)
+            s = 1.4826 * np.median(np.abs(d - np.median(d))) + eps
+            u = d / (c * s + eps)
+            w = (1 - u ** 2) ** 2
+            w[u >= 1] = 0.0
+            if np.all(w == 0):
+                w = np.ones_like(d)
+
+            mu_I = np.sum(w * I) / (np.sum(w) + eps)
+            mu_Q = np.sum(w * Q) / (np.sum(w) + eps)
+
+            if k < keep_path_steps:
+                path.append(mu_I + 1j * mu_Q)
+
+        return {
+            'mu0': path[0],
+            's0': s0,
+            'u0': u0,
+            'w0': w0,
+            'cutoff_radius': cutoff_radius,
+            'path': path,
+            'final_mu': mu_I + 1j * mu_Q
+        }
+
+    def hist_ssf_with_annotations_tukey(
+            self, data=None, cfg=None, plot=True, fig_quality=100,
+            I_meas=None, Q_meas=None, path_ext='',
+            show_weight_labels=False, max_weight_labels=10,
+            show_path_steps=True, path_steps=5, tukey_c=100.5):
+        """
+        Same outputs, but with robust_center step-by-step annotations:
+          - plot starting medians (mu0)
+          - draw Tukey cutoff circle (radius = c*s from the median) where weights drop to 0
+          - color points by first-iteration weight w0
+          - print a few weight values near selected points
+          - optionally show the first few iteration updates of mu ("path")
+
+        Returns:
+            fid, threshold, theta, ig_new, ie_new
+        """
+        import os, math, datetime
+        import numpy as np
+        import matplotlib.pyplot as plt
+
+        ig, qg, ie, qe = data[0], data[1], data[2], data[3]
+        zg = ig + 1j * qg
+        ze = ie + 1j * qe
+
+        # --- robust centers (final) for centroids ---
+        gc = self.robust_center(zg, c=tukey_c)  # final robust center g
+        ec = self.robust_center(ze, c=tukey_c)  # final robust center e
+        gx_mean, gy_mean = float(np.real(gc)), float(np.imag(gc))
+        ex_mean, ey_mean = float(np.real(ec)), float(np.imag(ec))
+
+        # --- debug traces for step-by-step visualization (short path) ---
+        dbg_g = self.robust_center_debug(zg, c=tukey_c, keep_path_steps=path_steps)
+        dbg_e = self.robust_center_debug(ze, c=tukey_c, keep_path_steps=path_steps)
+
+        gx_med0, gy_med0 = float(np.real(dbg_g['mu0'])), float(np.imag(dbg_g['mu0']))
+        ex_med0, ey_med0 = float(np.real(dbg_e['mu0'])), float(np.imag(dbg_e['mu0']))
+
+        # also keep plain medians if desired
+        gx_med, gy_med = float(np.median(ig)), float(np.median(qg))
+        ex_med, ey_med = float(np.median(ie)), float(np.median(qe))
+
+        n_total = len(ig) + len(ie)
+        numbins = max(1, int(math.ceil(math.log2(n_total) + 1)))
+
+        if plot:
+            fig, axs = plt.subplots(nrows=1, ncols=3, figsize=(18, 5))
+            fig.tight_layout()
+
+            # ------- Unrotated with robust-center debugging -------
+            # Color points by first-iteration Tukey weight (w0) to show influence
+            # Normalize colors separately for g/e for clarity.
+            g_colors = dbg_g['w0']
+            e_colors = dbg_e['w0']
+
+            sc_g = axs[0].scatter(ig, qg, c=g_colors, cmap='viridis', marker='o', alpha=0.7, label='g shots')
+            sc_e = axs[0].scatter(ie, qe, c=e_colors, cmap='plasma', marker='o', alpha=0.7, label='e shots')
+
+            from matplotlib.colors import Normalize
+
+            from matplotlib.colors import Normalize
+
+            # Bigger canvas + extra bottom margin for colorbars
+            fig, axs = plt.subplots(nrows=1, ncols=3, figsize=(22, 7))
+            fig.subplots_adjust(bottom=0.20, wspace=0.28)  # <- room for two cbars below axs[0]
+
+            # ---------- Unrotated with two horizontal colorbars UNDER axs[0] ----------
+            norm = Normalize(vmin=0.0, vmax=1.0)
+
+            sc_g = axs[0].scatter(
+                ig, qg, c=dbg_g['w0'], cmap='viridis', norm=norm,
+                marker='o', alpha=0.70, edgecolors='none', label='g shots'
+            )
+            sc_e = axs[0].scatter(
+                ie, qe, c=dbg_e['w0'], cmap='plasma', norm=norm,
+                marker='s', alpha=0.55, edgecolors='none', label='e shots'
+            )
+
+            # ---- two small horizontal colorbars centered under axs[0] ----
+            axpos = axs[0].get_position()  # [x0, y0, width, height] in figure coords
+
+            cbar_h = 0.025  # height of each colorbar (in fig coords)
+            gap_y = 0.04  # vertical gap below axs[0]
+            bar_w = axpos.width * 0.30  # each bar = 40% of axes width
+            bar_gap = axpos.width * 0.05  # gap between the two bars (10% of axes width)
+
+            # center the pair under axs[0]
+            total_w = 2 * bar_w + bar_gap
+            x_start = axpos.x0 + (axpos.width - total_w) / 2
+            y_cbar = max(0.02, axpos.y0 - gap_y)  # keep above bottom of figure
+
+            cax_g = fig.add_axes([x_start, y_cbar, bar_w, cbar_h])
+            cax_e = fig.add_axes([x_start + bar_w + bar_gap, y_cbar, bar_w, cbar_h])
+
+            cbar_g = fig.colorbar(sc_g, cax=cax_g, orientation='horizontal')
+            cbar_e = fig.colorbar(sc_e, cax=cax_e, orientation='horizontal')
+            cbar_g.set_label('g first-step weight  $w_0$', labelpad=2)
+            cbar_e.set_label('e first-step weight  $w_0$', labelpad=2)
+            for cb in (cbar_g, cbar_e):
+                cb.ax.tick_params(labelsize=9)
+
+            # Starting medians (mu0) = robust_center start
+            axs[0].scatter([gx_med0], [gy_med0], color='k', marker='^', s=90, label='g start (median)')
+            axs[0].scatter([ex_med0], [ey_med0], color='k', marker='v', s=90, label='e start (median)')
+
+            # Final robust centers
+            axs[0].scatter([gx_mean], [gy_mean], color='k', marker='X', s=110, label='g robust center')
+            axs[0].scatter([ex_mean], [ey_mean], color='k', marker='X', s=110, label='e robust center')
+
+            # Optional: show short path (a few IRLS updates) so you see how mu moves
+            if show_path_steps:
+                path_g = np.array(dbg_g['path'])
+                path_e = np.array(dbg_e['path'])
+                axs[0].plot(np.real(path_g), np.imag(path_g), linestyle='--', linewidth=2, label='g μ path')
+                axs[0].plot(np.real(path_e), np.imag(path_e), linestyle='--', linewidth=2, label='e μ path')
+
+            # Tukey cutoff circles: radius = c*s from the starting median (where w goes to zero on 1st step)
+            theta_circle = np.linspace(0, 2 * np.pi, 361)
+            for (cx, cy, rad) in [
+                (gx_med0, gy_med0, float(dbg_g['cutoff_radius'])),
+                (ex_med0, ey_med0, float(dbg_e['cutoff_radius']))]:
+                axs[0].plot(cx + rad * np.cos(theta_circle), cy + rad * np.sin(theta_circle),
+                            linestyle=':', linewidth=2, color='k')
+
+            # Label a few representative weights (near selected distances) so it’s easy to read
+            if show_weight_labels and max_weight_labels > 0:
+                def annotate_weights(I, Q, w, cx, cy, N):
+                    # pick points near quantiles of distance to spread labels
+                    d = np.hypot(I - cx, Q - cy)
+                    qs = np.linspace(0.05, 0.95, min(N, 10))
+                    targets = np.quantile(d, qs)
+                    for t in targets:
+                        idx = np.argmin(np.abs(d - t))
+                        axs[0].annotate(f"w={w[idx]:.2f}",
+                                        xy=(I[idx], Q[idx]),
+                                        xytext=(5, 5),
+                                        textcoords='offset points',
+                                        fontsize=9, bbox=dict(boxstyle='round,pad=0.2', fc='white', alpha=0.6))
+
+                annotate_weights(ig, qg, dbg_g['w0'], gx_med0, gy_med0, max_weight_labels)
+                annotate_weights(ie, qe, dbg_e['w0'], ex_med0, ey_med0, max_weight_labels)
+
+            # Optional raw measurement
+            if (I_meas is not None) and (Q_meas is not None):
+                axs[0].scatter([I_meas], [Q_meas], s=90, edgecolor='k', facecolor='none', linewidth=1.5,
+                               label='meas z (raw)')
+                axs[0].annotate("z", xy=(I_meas, Q_meas), xytext=(I_meas + 0.05, Q_meas + 0.05))
+
+            axs[0].set_xlabel('I (a.u.)')
+            axs[0].set_ylabel('Q (a.u.)')
+            axs[0].set_title('Unrotated — robust_center internals')
+            axs[0].legend(loc='best')
+            axs[0].axis('equal')
+
+        # ------- Rotation so g->e is horizontal (use robust centers) -------
+        theta = -np.arctan2((ey_mean - gy_mean), (ex_mean - gx_mean))
+        cos_t, sin_t = np.cos(theta), np.sin(theta)
+
+        ig_new = ig * cos_t - qg * sin_t
+        qg_new = ig * sin_t + qg * cos_t
+        ie_new = ie * cos_t - qe * sin_t
+        qe_new = ie * sin_t + qe * cos_t
+
+        gx_mean_r = gx_mean * cos_t - gy_mean * sin_t
+        gy_mean_r = gx_mean * sin_t + gy_mean * cos_t
+        ex_mean_r = ex_mean * cos_t - ey_mean * sin_t
+        ey_mean_r = ex_mean * sin_t + ey_mean * cos_t
+
+        if (I_meas is not None) and (Q_meas is not None):
+            zI_r = I_meas * cos_t - Q_meas * sin_t
+            zQ_r = I_meas * sin_t + Q_meas * cos_t
+        else:
+            z_ix = len(ie_new) // 2
+            zI_r, zQ_r = float(ie_new[z_ix]), float(qe_new[z_ix])
+
+        xlims = [min(np.min(ig_new), np.min(ie_new)), max(np.max(ig_new), np.max(ie_new))]
+
+        if plot:
+            # ------- Rotated scatter & vectors -------
+            axs[1].scatter(ig_new, qg_new, label='g shots', color='b', marker='*', alpha=0.25)
+            axs[1].scatter(ie_new, qe_new, label='e shots', color='r', marker='*', alpha=0.25)
+            axs[1].scatter([gx_mean_r], [gy_mean_r], color='k', marker='X', s=90, label='g robust center (rot)')
+            axs[1].scatter([ex_mean_r], [ey_mean_r], color='k', marker='X', s=90, label='e robust center (rot)')
+
+            axs[1].plot([gx_mean_r, ex_mean_r], [gy_mean_r, ey_mean_r], linestyle='--', linewidth=2, label='g → e')
+
+            axs[1].arrow(gx_mean_r, gy_mean_r, (zI_r - gx_mean_r), (zQ_r - gy_mean_r),
+                         length_includes_head=True, head_width=0.04, alpha=0.9)
+            axs[1].scatter([zI_r], [zQ_r], s=80, label='meas z (rot)')
+            axs[1].annotate("z", xy=(zI_r, zQ_r), xytext=(zI_r + 0.05, zQ_r + 0.05))
+
+            zg_vec = complex(zI_r - gx_mean_r, zQ_r - gy_mean_r)
+            eg_vec = complex(ex_mean_r - gx_mean_r, ey_mean_r - gy_mean_r)
+            pop_norm = np.abs(zg_vec) / (np.abs(eg_vec) + 1e-12)
+            pop_proj = (((zI_r - gx_mean_r) * (ex_mean_r - gx_mean_r) + (zQ_r - gy_mean_r) * (ey_mean_r - gy_mean_r))
+                        / ((ex_mean_r - gx_mean_r) ** 2 + (ey_mean_r - gy_mean_r) ** 2 + 1e-12))
+            axs[1].text(0.02, 0.02,
+                        f"|z−g| = {np.abs(zg_vec):.3f}\n|e−g| = {np.abs(eg_vec):.3f}\n"
+                        f"|z−g|/|e−g| = {pop_norm:.3f}\nproj = {np.clip(pop_proj, 0, 1):.3f}",
+                        transform=axs[1].transAxes)
+
+            axs[1].set_xlabel('I (a.u.)')
+            axs[1].legend(loc='lower right')
+            axs[1].set_title(f'Rotated  (θ = {round(theta, 5)})')
+            axs[1].axis('equal')
+
+            # ------- Histograms in rotated I -------
+            ng, binsg, _ = axs[2].hist(ig_new, bins=numbins, range=xlims, color='b', label='g', alpha=0.25)
+            ne, binse, _ = axs[2].hist(ie_new, bins=numbins, range=xlims, color='r', label='e', alpha=0.25)
+
+            axs[2].axvline(gx_mean_r, linestyle='--', linewidth=2, color='b', label='g robust μI')
+            axs[2].axvline(ex_mean_r, linestyle='--', linewidth=2, color='r', label='e robust μI')
 
             axs[2].set_xlabel('I (a.u.)')
         else:
