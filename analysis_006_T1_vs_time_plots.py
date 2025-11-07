@@ -2927,45 +2927,65 @@ class T1VsTime:
                     Gamma_err = 1000.0 * err_us / (t1_us ** 2)  # [1/ms]
 
                     if nbar_vec is not None and len(nbar_vec) == len(sorted_gains):
-                        # map gains -> nbar, then reorder by ascending nbar for plotting
+                        # map gains -> nbar
                         gain_to_idx = {g: i for i, g in enumerate(sorted_gains)}
-                        xs = []
-                        ys = []
-                        es = []
-                        for g, t1, e in zip(gs, t1s, errs):
-                            idx = gain_to_idx.get(g, None)
+                        xs_list, Gamma_list, Gamma_err_list = [], [], []
+                        for g_val, T1_val, T1_err_val in zip(gs, t1_us, err_us):
+                            idx = gain_to_idx.get(g_val)
                             if idx is None:
                                 continue
-                            xs.append(float(nbar_vec[idx]))
-                            ys.append(float(t1))
-                            es.append(float(e))
-                        xs = np.asarray(xs, float)
-                        ys = np.asarray(ys, float)
-                        es = np.asarray(es, float)
+                            xs_list.append(float(nbar_vec[idx]))
+                            # use already-computed Gamma & Gamma_err for this same ordering
+                            # find the matching Gamma/Gamma_err for g_val
+                            g_mask = (gs == g_val)
+                            Gamma_list.append(float(Gamma[g_mask][0]))
+                            Gamma_err_list.append(float(Gamma_err[g_mask][0]))
 
-                        # sort by x (n̄)
+                        xs = np.asarray(xs_list, float)
+                        ys = np.asarray(Gamma_list, float)
+                        es = np.asarray(Gamma_err_list, float)
+
+                        # sort by nbar
                         order = np.argsort(xs)
                         xs, ys, es = xs[order], ys[order], es[order]
 
-                        # after you build xs, ys, es from gains -> nbar mapping, replace them:
-                        # xs stays the same (n̄). Use Gamma and Gamma_err instead of T1.
-                        ys = Gamma[np.argsort(xs)]
-                        es = Gamma_err[np.argsort(xs)]
-                        xs = np.sort(xs)
+                        # ---- One figure, two rows: linear (top) and log-x (bottom) ----
+                        import numpy as _np
+                        import matplotlib.pyplot as _plt
 
-                        fig2, ax2 = plt.subplots(figsize=figure_size)
-                        ax2.errorbar(xs, ys, yerr=es, fmt='o', capsize=3, label="Γ = 1/T1")
-                        ax2.set_title(f"Qubit {q + 1} — Round {r_id} — Γ vs n̄")
-                        ax2.set_xlabel("n̄")
-                        ax2.set_ylabel(r"$\Gamma$ (1/ms)")
-                        ax2.grid(True, alpha=0.25)
-                        ax2.legend()
+                        fig2, (ax_lin, ax_log) = _plt.subplots(
+                            2, 1, figsize=(figure_size[0], figure_size[1] * 1.4),
+                            sharey=True,
+                            gridspec_kw={'height_ratios': [2, 1], 'hspace': 0.08}
+                        )
+
+                        # Top: linear x
+                        ax_lin.errorbar(xs, ys, yerr=es, fmt='o', capsize=3, label=r"$\Gamma = 1/T_1$")
+                        ax_lin.set_title(f"Qubit {q + 1} — Round {r_id} — Γ vs n̄")
+                        ax_lin.set_ylabel(r"$\Gamma$ (1/ms)")
+                        ax_lin.grid(True, alpha=0.25)
+                        ax_lin.legend()
+
+                        # Bottom: log x (mask nonpositive nbar)
+                        pos_mask = _np.isfinite(xs) & (xs > 0) & _np.isfinite(ys) & _np.isfinite(es)
+                        if _np.any(pos_mask):
+                            ax_log.errorbar(xs[pos_mask], ys[pos_mask], yerr=es[pos_mask],
+                                            fmt='o', capsize=3)
+                            ax_log.set_xscale('log')
+                            ax_log.grid(True, which='both', alpha=0.25)
+                        else:
+                            ax_log.text(0.5, 0.5, "No positive n̄ values available for log scale.",
+                                        transform=ax_log.transAxes, ha='center', va='center')
+                        ax_log.set_xlabel(r"$\bar{n}$ (log scale)")
+                        ax_log.set_ylabel(r"$\Gamma$ (1/ms)")
+
                         fig2.tight_layout()
-
-                        f_vs = os.path.join(round_dir, f"Gamma_vs_nbar_round{r_id}.png")
+                        f_vs = os.path.join(round_dir, f"Gamma_vs_nbar_linear_and_log_round{r_id}.png")
                         fig2.savefig(f_vs, dpi=self.final_figure_quality)
-                        plt.close(fig2)
-                        print(f"Saved Γ vs n̄ (with error bars) for round {r_id} to: {round_dir}")
+                        _plt.close(fig2)
+
+                        print(f"Saved Γ vs n̄ with linear+log x subplots for round {r_id} to: {round_dir}")
+
 
                     else:
                         fig2, ax2 = plt.subplots(figsize=figure_size)
@@ -3192,7 +3212,12 @@ class T1VsTime:
                 ax.set_yticklabels([f"{v:.0f}" for v in yticks_vals])
 
             fig.tight_layout()
-            outfile = (save_path + f"t1_heatmap_q{self.qubit}_round{r_id}.png")
+            if n_bar is not None:
+                outfile = (save_path + f"t1_heatmap_q{self.qubit}_round{r_id}_nbar.png")
+            else:
+                outfile = (save_path + f"t1_heatmap_q{self.qubit}_round{r_id}.png")
+
+
             fig.savefig(outfile, transparent=False, dpi=self.final_figure_quality)
             plt.close(fig)
             print(f"Saved heatmap for round {r_id} to: {outfile}")

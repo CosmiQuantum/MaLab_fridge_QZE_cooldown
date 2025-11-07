@@ -828,7 +828,12 @@ class QubitFreqsVsTime:
                 ax.set_yticklabels([f"{v:.2f}" for v in yticks_vals])
 
             fig.tight_layout()
-            outfile = os.path.join(save_path, f"qspec_heatmap_q{self.qubit}_round{r_id}.png")
+            if n_bar is not None:
+                outfile = (save_path + f"qspec_heatmap_q{self.qubit}_round{r_id}_nbar.png")
+            else:
+                outfile = (save_path + f"qspec_heatmap_q{self.qubit}_round{r_id}.png")
+
+
             fig.savefig(outfile, transparent=False, dpi=self.final_figure_quality)
             plt.close(fig)
             print(f"Saved heatmap for round {r_id} to: {outfile}")

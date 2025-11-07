@@ -947,7 +947,10 @@ class T2rVsTime:
                 ax.set_yticklabels([f"{v:.0f}" for v in yticks_vals])
 
             fig.tight_layout()
-            outfile = (save_path + f"t2_heatmap_q{self.qubit}_round{r_id}.png")
+            if n_bar is not None:
+                outfile = (save_path + f"t2_heatmap_q{self.qubit}_round{r_id}_nbar.png")
+            else:
+                outfile = (save_path + f"t2_heatmap_q{self.qubit}_round{r_id}.png")
             fig.savefig(outfile, transparent=False, dpi=self.final_figure_quality)
             plt.close(fig)
             print(f"Saved heatmap for round {r_id} to: {outfile}")

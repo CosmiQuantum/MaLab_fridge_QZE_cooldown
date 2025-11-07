@@ -48,6 +48,7 @@ for qubit in qubits:
                                  fit_saved,
                                  signal, run_name, fridge=FRIDGE, exp_name='ge', qubit=qubit)
     Is1, Qs1, amps1, gains1, rounds1, delay_times1 = q_vs_time.run_q_sweep_new(exp_extension='_ge', scaling=True)
+
     Is_qspec[qubit] = Is1[qubit]
     Qs_qspec[qubit] = Qs1[qubit]
     amps_qspec[qubit] = amps1[qubit]
@@ -58,7 +59,7 @@ for qubit in qubits:
     n_bars= q_vs_time.plot_all_q_heatmaps_nbar(amps_qspec, gains_qspec, rounds_qspec, freqs_qspec,
                                        f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/',
                                        chi_MHz=-0.137, return_nbar=True)  # used 1/2 of 2X
-
+    print(n_bars)
     q_vs_time.plot_all_q_heatmaps_new_format(amps_qspec, gains_qspec, rounds_qspec, freqs_qspec,
                                              f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/', n_bar=n_bars)
 
