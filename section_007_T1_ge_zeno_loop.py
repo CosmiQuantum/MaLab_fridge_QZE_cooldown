@@ -193,6 +193,8 @@ class T1Measurement_with_Zeno_loop:
                 ss_Q_g_all = []
                 ss_I_e_all = []
                 ss_Q_e_all = []
+                I_shots_all = []
+                Q_shots_all = []
                 for round_num in range(self.config["rounds"]):
                     t1 = T1ProgramIBMZeno(self.experiment.soccfg, reps=self.config['reps'],
                                           final_delay=self.config['relax_delay'], cfg=self.config)
@@ -203,6 +205,15 @@ class T1Measurement_with_Zeno_loop:
                     Q = iq_list[1]
                     Is_all.append(I)
                     Qs_all.append(Q)
+
+                    raw_0 = t1.get_raw()  # I,Q data without normalizing to readout window, subtracting readout offset, or rotation/thresholding
+                    A = np.squeeze(raw_0[0])
+                    I_shots = A[:, :,
+                              0]  # if you have 4 steps and 3 shots/reps this is like [[1,2,3,4],[1,2,3,4],[1,2,3,4]]
+                    Q_shots = A[:, :, 1]
+
+                    I_shots_all.append(I_shots)
+                    Q_shots_all.append(Q_shots)
 
                     if scaling:
                         ssp_g = SingleShotProgram_g(self.experiment.soccfg, reps=1,
@@ -232,7 +243,7 @@ class T1Measurement_with_Zeno_loop:
                                   , Ig = ss_I_g_all, Qe = ss_Q_e_all, Qg = ss_Q_g_all)
             q1_fit_exponential, T1_est, T1_err = None, None, None
             return T1_est, T1_err, Is_all, Qs_all, delay_times, q1_fit_exponential, self.config, ss_Q_e_all\
-                , ss_Q_g_all,ss_I_e_all, ss_I_g_all
+                , ss_Q_g_all,ss_I_e_all, ss_I_g_all, I_shots_all, Q_shots_all
 
 
     def live_plotting(self, t1, thresholding):

@@ -100,6 +100,11 @@ class AmplitudeRabiExperiment:
             I = (iq_list[0])
             Q = (iq_list[1])
 
+            raw_0 = amp_rabi.get_raw()  # I,Q data without normalizing to readout window, subtracting readout offset, or rotation/thresholding
+            A = np.squeeze(raw_0[0])
+            I_shots = A[:, :, 0]  # if you have 4 steps and 3 shots/reps this is like [[1,2,3,4],[1,2,3,4],[1,2,3,4]]
+            Q_shots = A[:, :, 1]
+
             #get the gains that were used so you can use to plot on the x axis
             gains = amp_rabi.get_pulse_param('qubit_pulse', "gain", as_array=True)
 
@@ -135,9 +140,9 @@ class AmplitudeRabiExperiment:
 
         else:
             if scaling:
-                return I, Q, gains, q1_fit_cosine, pi_amp, self.config, ss_Q_e, ss_Q_g,ss_I_e, ss_I_g
+                return I, Q, gains, q1_fit_cosine, pi_amp, self.config, ss_Q_e, ss_Q_g,ss_I_e, ss_I_g, I_shots, Q_shots
             else:
-                return I, Q, gains, q1_fit_cosine, pi_amp, self.config
+                return I, Q, gains, q1_fit_cosine, pi_amp, self.config, I_shots, Q_shots
 
     def live_plotting(self, amp_rabi, thresholding):
         I = Q = expt_mags = expt_phases = expt_pop = None

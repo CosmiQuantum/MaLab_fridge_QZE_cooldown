@@ -415,6 +415,12 @@ class T2RMeasurement:
             iq_list = iq_list[0][0].T
             I = (iq_list[0])
             Q = (iq_list[1])
+
+            raw_0 = ramsey.get_raw()  # I,Q data without normalizing to readout window, subtracting readout offset, or rotation/thresholding
+            A = np.squeeze(raw_0[0])
+            I_shots = A[:, :, 0]  # if you have 4 steps and 3 shots/reps this is like [[1,2,3,4],[1,2,3,4],[1,2,3,4]]
+            Q_shots = A[:, :, 1]
+
             delay_times = ramsey.get_time_param('wait', "t", as_array=True)
         if scaling:
             from section_005_single_shot_ge import SingleShotProgram_g, SingleShotProgram_e
@@ -436,7 +442,7 @@ class T2RMeasurement:
 
             fit, t2r_est, t2r_err, plot_sig = None, None, None, None
             self.plot_results(I, Q, delay_times, now, fit, t2r_est, t2r_err, plot_sig,scaling=scaling, Ie = ss_I_e, Ig = ss_I_g, Qe = ss_Q_e, Qg = ss_Q_g)
-            return  t2r_est, t2r_err, I, Q, delay_times, fit, self.config, ss_Q_e, ss_Q_g, ss_I_e, ss_I_g
+            return  t2r_est, t2r_err, I, Q, delay_times, fit, self.config, ss_Q_e, ss_Q_g, ss_I_e, ss_I_g, I_shots, Q_shots
         else:
             if self.fit_data:
                 fit, t2r_est, t2r_err, plot_sig = self.t2_fit(delay_times, I, Q)
@@ -446,7 +452,7 @@ class T2RMeasurement:
             if self.save_figs:
                 self.plot_results(I, Q, delay_times, now, fit, t2r_est, t2r_err, plot_sig)
 
-            return  t2r_est, t2r_err, I, Q, delay_times, fit, self.config
+            return  t2r_est, t2r_err, I, Q, delay_times, fit, self.config, I_shots, Q_shots
 
     def adjust_qspec(self, thresholding=False,correction=False):
         now = datetime.datetime.now()
@@ -466,6 +472,12 @@ class T2RMeasurement:
             iq_list = iq_list[0][0].T
             I = (iq_list[0])
             Q = (iq_list[1])
+
+            raw_0 = ramsey.get_raw()  # I,Q data without normalizing to readout window, subtracting readout offset, or rotation/thresholding
+            A = np.squeeze(raw_0[0])
+            I_shots = A[:, :, 0]  # if you have 4 steps and 3 shots/reps this is like [[1,2,3,4],[1,2,3,4],[1,2,3,4]]
+            Q_shots = A[:, :, 1]
+
             delay_times = ramsey.get_time_param('wait', "t", as_array=True)
 
         if self.fit_data:
@@ -476,7 +488,7 @@ class T2RMeasurement:
         if self.save_figs:
             self.plot_results(I, Q, delay_times, now, fit, t2r_est, t2r_err, plot_sig)
 
-        return t2r_est, t2r_err, I, Q, delay_times, fit, self.config, freq
+        return t2r_est, t2r_err, I, Q, delay_times, fit, self.config, freq, I_shots, Q_shots
 
     def live_plotting(self, ramsey, thresholding):
         I = Q = expt_mags = expt_phases = expt_pop = None

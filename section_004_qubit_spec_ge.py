@@ -83,10 +83,17 @@ class QubitSpectroscopy:
         if self.live_plot:
             I, Q, freqs = self.live_plotting(qspec)
         else:
-            iq_list = qspec.acquire(self.experiment.soc, rounds=self.exp_cfg["rounds"], progress=self.qick_verbose)
+            iq_list = qspec.acquire(self.experiment.soc, rounds=self.exp_cfg["rounds"], progress=self.qick_verbose) #stays the same shape regardless of round number so i think rounds are averaged over in qick
+
             iq_list = iq_list[0][0].T
             I = (iq_list[0])
             Q = (iq_list[1])
+
+            raw_0 = qspec.get_raw()  # I,Q data without normalizing to readout window, subtracting readout offset, or rotation/thresholding
+            A = np.squeeze(raw_0[0])
+            I_shots = A[:,:, 0]  #if you have 4 steps and 3 shots/reps this is like [[1,2,3,4],[1,2,3,4],[1,2,3,4]]
+            Q_shots = A[:,:, 1]
+
             freqs = qspec.get_pulse_param('qubit_pulse', "freq", as_array=True)
             self.plot_results(I, Q, freqs, config=self.config,
                               return_fwhm=return_fwhm)
@@ -113,24 +120,24 @@ class QubitSpectroscopy:
                 largest_amp_curve_mean, y_data_fit, fwhm = self.plot_results(I, Q, freqs, config=self.config,
                                                                                return_fwhm=return_fwhm,scaling=scaling,Ie = ss_I_e,
                                                                                Ig = ss_I_g, Qe = ss_Q_e, Qg = ss_Q_g)
-                return I, Q, freqs, y_data_fit, largest_amp_curve_mean, self.config, fwhm, ss_Q_e, ss_Q_g, ss_I_e, ss_I_g
+                return I, Q, freqs, y_data_fit, largest_amp_curve_mean, self.config, fwhm, ss_Q_e, ss_Q_g, ss_I_e, ss_I_g, I_shots, Q_shots
             else:
                 largest_amp_curve_mean, y_data_fit = self.plot_results(I, Q, freqs, config=self.config,
                                                                          return_fwhm=return_fwhm,scaling=scaling,Ie = ss_I_e,
                                                                          Ig = ss_I_g, Qe = ss_Q_e, Qg = ss_Q_g)
-                return I, Q, freqs, y_data_fit, largest_amp_curve_mean, self.config, ss_Q_e, ss_Q_g,ss_I_e, ss_I_g
+                return I, Q, freqs, y_data_fit, largest_amp_curve_mean, self.config, ss_Q_e, ss_Q_g,ss_I_e, ss_I_g, I_shots, Q_shots
         else:
             if self.fit_data:
                 if return_fwhm:
                     largest_amp_curve_mean, I_fit, Q_fit, fwhm = self.plot_results(I, Q, freqs, config=self.config,
                                                                                return_fwhm=return_fwhm)
-                    return I, Q, freqs, I_fit, Q_fit, largest_amp_curve_mean, self.config, fwhm
+                    return I, Q, freqs, I_fit, Q_fit, largest_amp_curve_mean, self.config, fwhm, I_shots, Q_shots
                 else:
                     largest_amp_curve_mean, I_fit, Q_fit = self.plot_results(I, Q, freqs, config=self.config,
                                                                                return_fwhm=return_fwhm)
-                    return I, Q, freqs, I_fit, Q_fit, largest_amp_curve_mean, self.config
+                    return I, Q, freqs, I_fit, Q_fit, largest_amp_curve_mean, self.config, I_shots, Q_shots
             else:
-                return I, Q, freqs, None, None, None, self.config
+                return I, Q, freqs, None, None, None, self.config, I_shots, Q_shots
             # return I, Q, freqs, None, None, None, self.config
 
     def run_with_stark_tone(self, wait_for_res_ring_up=False):

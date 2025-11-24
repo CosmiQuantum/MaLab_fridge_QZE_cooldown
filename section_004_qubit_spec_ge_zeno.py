@@ -91,6 +91,8 @@ class QubitSpectroscopyZeno:
             ss_Q_g_all = []
             ss_I_e_all = []
             ss_Q_e_all = []
+            I_shots_all=[]
+            Q_shots_all=[]
             for round_num in range(self.exp_cfg["rounds"]):
                 qspec = PulseProbeSpectroscopyProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay=0.5,
                                                       cfg=self.config)
@@ -101,6 +103,15 @@ class QubitSpectroscopyZeno:
                 Q = iq_list[1]
                 Is_all.append(I)
                 Qs_all.append(Q)
+
+                raw_0 = qspec.get_raw()  # I,Q data without normalizing to readout window, subtracting readout offset, or rotation/thresholding
+                A = np.squeeze(raw_0[0])
+                I_shots = A[:, :,
+                          0]  # if you have 4 steps and 3 shots/reps this is like [[1,2,3,4],[1,2,3,4],[1,2,3,4]]
+                Q_shots = A[:, :, 1]
+
+                I_shots_all.append(I_shots)
+                Q_shots_all.append(Q_shots)
 
                 if scaling:
                     ssp_g = SingleShotProgram_g(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'],
@@ -127,13 +138,13 @@ class QubitSpectroscopyZeno:
                                                                                return_fwhm=return_fwhm,scaling=scaling,Ie = ss_I_e_all,
                                                                                Ig = ss_I_g_all, Qe = ss_Q_e_all, Qg = ss_Q_g_all)
                 return Is_all, Qs_all, freqs, y_data_fit, largest_amp_curve_mean, self.config, fwhm, ss_Q_e_all\
-                    , ss_Q_g_all, ss_I_e_all, ss_I_g_all
+                    , ss_Q_g_all, ss_I_e_all, ss_I_g_all, I_shots_all, Q_shots_all
             else:
                 largest_amp_curve_mean, y_data_fit = self.plot_results_interweaved_cal(Is_all, Qs_all, freqs, config=self.config,
                                                                          return_fwhm=return_fwhm,scaling=scaling,Ie = ss_I_e_all,
                                                                          Ig = ss_I_g_all, Qe = ss_Q_e_all, Qg = ss_Q_g_all)
                 return Is_all, Qs_all, freqs, y_data_fit, largest_amp_curve_mean, self.config, ss_Q_e_all, ss_Q_g_all,ss_I_e_all\
-                    , ss_I_g_all
+                    , ss_I_g_all, I_shots_all, Q_shots_all
 
     def run_with_stark_tone(self, wait_for_res_ring_up=False):
 

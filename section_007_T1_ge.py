@@ -38,12 +38,10 @@ class T1Program(AveragerProgramV2):
                        phase=cfg['qubit_phase'],
                        gain=cfg['pi_amp'],
                        )
-        print('t1 config in the program', cfg)
         self.add_loop("waitloop", cfg["steps"])
 
     def _body(self, cfg):
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)  # play probe pulse
-        print('wait_time',cfg['wait_time'])
         self.delay_auto(cfg['wait_time'] + 0.01, tag='wait')  # wait_time after last pulse
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
@@ -109,6 +107,11 @@ class T1Measurement:
             I = (iq_list[0])
             Q = (iq_list[1])
 
+            raw_0 = t1.get_raw()  # I,Q data without normalizing to readout window, subtracting readout offset, or rotation/thresholding
+            A = np.squeeze(raw_0[0])
+            I_shots = A[:, :, 0]  # if you have 4 steps and 3 shots/reps this is like [[1,2,3,4],[1,2,3,4],[1,2,3,4]]
+            Q_shots = A[:, :, 1]
+
             delay_times = t1.get_time_param('wait', "t", as_array=True)
 
         if scaling:
@@ -135,7 +138,7 @@ class T1Measurement:
 
             if self.plot_results:
                 self.plot_results(I, Q, delay_times, now, scaling=scaling, Ie = ss_I_e, Ig = ss_I_g, Qe = ss_Q_e, Qg = ss_Q_g)
-            return  T1_est, T1_err, I, Q, delay_times, q1_fit_exponential, self.config, ss_Q_e, ss_Q_g, ss_I_e, ss_I_g
+            return  T1_est, T1_err, I, Q, delay_times, q1_fit_exponential, self.config, ss_Q_e, ss_Q_g, ss_I_e, ss_I_g, I_shots, Q_shots
         else:
             if self.fit_data:
                 q1_fit_exponential, T1_err, T1_est, plot_sig = self.t1_fit(I, Q, delay_times)
@@ -149,10 +152,10 @@ class T1Measurement:
                 raw_0 = t1.get_raw()  # I,Q data without normalizing to readout window, subtracting readout offset, or rotation/thresholding
                 Ishots = raw_0[self.QubitIndex][:, :, 0, 0]
                 Qshots = raw_0[self.QubitIndex][:, :, 0, 1]
-                return T1_est, T1_err, Ishots, Qshots, delay_times, q1_fit_exponential, self.config
+                return T1_est, T1_err, Ishots, Qshots, delay_times, q1_fit_exponential, self.config, I_shots, Q_shots
 
             else:
-                return  T1_est, T1_err, I, Q, delay_times, q1_fit_exponential, self.config
+                return  T1_est, T1_err, I, Q, delay_times, q1_fit_exponential, self.config, I_shots, Q_shots
 
     def live_plotting(self, t1, thresholding):
         I = Q = expt_mags = expt_phases = expt_pop = None

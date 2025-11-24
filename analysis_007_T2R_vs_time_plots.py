@@ -18,7 +18,10 @@ import ast
 import os
 import matplotlib.pyplot as plt
 from scipy.stats import norm
+from scipy import optimize
 from scipy.optimize import curve_fit
+from sklearn import preprocessing
+from sklearn.preprocessing import normalize
 
 class T2rVsTime:
     def __init__(self, figure_quality, final_figure_quality, number_of_qubits, top_folder_dates, save_figs, fit_saved,
@@ -291,7 +294,7 @@ class T2rVsTime:
             mu_Q = np.sum(w * Q) / (np.sum(w) + eps)
 
         return mu_I + 1j * mu_Q
-    def run_t2_sweep_new(self, exp_extension='', scaling=False, return_calibration_data=False):
+    def run_t2_sweep_new(self, exp_extension='', scaling=False, return_calibration_data=False, weighted_mean=True):
         import datetime
         import glob, os, re
         import numpy as np
@@ -451,8 +454,14 @@ class T2rVsTime:
                                     sub_Ig = np.asarray(sub_Ig, dtype=float)
                                     sub_Qg = np.asarray(sub_Qg, dtype=float)
 
-                                    e = self.robust_center(sub_Ie + 1j * sub_Qe)
-                                    g = self.robust_center(sub_Ig + 1j * sub_Qg)
+                                    if weighted_mean:
+                                        e = self.robust_center(sub_Ie + 1j * sub_Qe)
+                                        g = self.robust_center(sub_Ig + 1j * sub_Qg)
+
+
+                                    else:
+                                        e = np.mean((sub_Ie + 1j * sub_Qe))
+                                        g = np.mean((sub_Ig + 1j * sub_Qg))
 
                                     pop_norm = np.abs(((sub_I + 1j * sub_Q) - g) * (e - g) / (np.abs(e - g) ** 2))
                                     calibrated_sublists.append(pop_norm.tolist())
@@ -736,6 +745,347 @@ class T2rVsTime:
             return date_times, t2_vals, t2_errs
         else:
             return date_times, t2_vals
+    def t2_fit(self, x_data, I, Q, verbose = False, guess=None, plot=False,amp=None):
+        #fitting code adapted from https://github.com/qua-platform/py-qua-tools/blob/37c741ade5a8f91888419c6fd23fd34e14372b06/qualang_tools/plot/fitting.py
+
+        if abs(I[-1] - I[0]) > abs(Q[-1] - Q[0]):
+            y_data = I
+            plot_sig = 'I'
+        elif amp is not None:
+            y_data = amp
+            plot_sig = 'Pop'
+        else:
+            y_data = Q
+            plot_sig = 'Q'
+
+        # Normalizing the vectors
+        xn = preprocessing.normalize([x_data], return_norm=True)
+        yn = preprocessing.normalize([y_data], return_norm=True)
+        x = xn[0][0]
+        y = yn[0][0]
+        x_normal = xn[1][0]
+        y_normal = yn[1][0]
+
+        # Compute the FFT for guessing the frequency
+        fft = np.fft.fft(y)
+        f = np.fft.fftfreq(len(x))
+        # Take the positive part only
+        fft = fft[1: len(f) // 2]
+        f = f[1: len(f) // 2]
+        # Remove the DC peak if there is one
+        if (np.abs(fft)[1:] - np.abs(fft)[:-1] > 0).any():
+            first_read_data_ind = np.where(np.abs(fft)[1:] - np.abs(fft)[:-1] > 0)[0][0]  # away from the DC peak
+            fft = fft[first_read_data_ind:]
+            f = f[first_read_data_ind:]
+
+        # Finding a guess for the frequency
+        out_freq = f[np.argmax(np.abs(fft))]
+        guess_freq = out_freq / (x[1] - x[0])
+
+        # The period is 1 / guess_freq --> number of oscillations --> peaks decay to get guess_T2
+        period = int(np.ceil(1 / out_freq))
+        peaks = (
+                np.array([np.std(y[i * period: (i + 1) * period]) for i in range(round(len(y) / period))]) * np.sqrt(
+            2) * 2
+        )
+
+        # Finding a guess for the decay (slope of log(peaks))
+        if len(peaks) > 1:
+            guess_T2 = -1 / ((np.log(peaks)[-1] - np.log(peaks)[0]) / (period * (len(peaks) - 1))) * (x[1] - x[0])
+        else:
+            guess_T2 = 100 / x_normal
+
+        # Finding a guess for the offsets
+        initial_offset = np.mean(y[:period])
+        final_offset = np.mean(y[-period:])
+
+        # Finding a guess for the phase
+        guess_phase = np.angle(fft[np.argmax(np.abs(fft))]) - guess_freq * 2 * np.pi * x[0]
+
+        # Check user guess
+        if guess is not None:
+            for key in guess.keys():
+                if key == "f":
+                    guess_freq = float(guess[key]) * x_normal
+                elif key == "phase":
+                    guess_phase = float(guess[key])
+                elif key == "T2":
+                    guess_T2 = float(guess[key]) * x_normal
+                elif key == "amp":
+                    peaks[0] = float(guess[key]) / y_normal
+                elif key == "initial_offset":
+                    initial_offset = float(guess[key]) / y_normal
+                elif key == "final_offset":
+                    final_offset = float(guess[key]) / y_normal
+                else:
+                    raise Exception(
+                        f"The key '{key}' specified in 'guess' does not match a fitting parameters for this function."
+                    )
+
+        # Print the initial guess if verbose=True
+        if verbose:
+            print(
+                f"Initial guess:\n"
+                f" f = {guess_freq / x_normal:.3f}, \n"
+                f" phase = {guess_phase:.3f}, \n"
+                f" T2 = {guess_T2 * x_normal:.3f}, \n"
+                f" amp = {peaks[0] * y_normal:.3f}, \n"
+                f" initial offset = {initial_offset * y_normal:.3f}, \n"
+                f" final_offset = {final_offset * y_normal:.3f}"
+            )
+
+        # Fitting function
+        def func(x_var, a0, a1, a2, a3, a4, a5):
+            return final_offset * a4 * (1 - np.exp(-x_var / (guess_T2 * a1))) + peaks[0] / 2 * a2 * (
+                    np.exp(-x_var / (guess_T2 * a1))
+                    * (a5 * initial_offset / peaks[0] * 2 + np.cos(2 * np.pi * a0 * guess_freq * x + a3))
+            )
+
+        def fit_type(x_var, a):
+            return func(x_var, a[0], a[1], a[2], a[3], a[4], a[5])
+
+        popt, pcov = optimize.curve_fit(
+            func,
+            x,
+            y,
+            p0=[1, 1, 1, guess_phase, 1, 1],
+        )
+
+        perr = np.sqrt(np.diag(pcov))
+
+        # Output the fitting function and its parameters
+        out = {
+            "fit_func": lambda x_var: fit_type(x_var / x_normal, popt) * y_normal,
+            "f": [popt[0] * guess_freq / x_normal, perr[0] * guess_freq / x_normal],
+            "phase": [popt[3] % (2 * np.pi), perr[3] % (2 * np.pi)],
+            "T2": [(guess_T2 * popt[1]) * x_normal, perr[1] * guess_T2 * x_normal],
+            "amp": [peaks[0] * popt[2] * y_normal, perr[2] * peaks[0] * y_normal],
+            "initial_offset": [
+                popt[5] * initial_offset * y_normal,
+                perr[5] * initial_offset * y_normal,
+            ],
+            "final_offset": [
+                final_offset * popt[4] * y_normal,
+                perr[4] * final_offset * y_normal,
+            ],
+        }
+        # Print the fitting results if verbose=True
+        if verbose:
+            print(
+                f"Fitting results:\n"
+                f" f = {out['f'][0] * 1000:.3f} +/- {out['f'][1] * 1000:.3f} MHz, \n"
+                f" phase = {out['phase'][0]:.3f} +/- {out['phase'][1]:.3f} rad, \n"
+                f" T2 = {out['T2'][0]:.2f} +/- {out['T2'][1]:.3f} ns, \n"
+                f" amp = {out['amp'][0]:.2f} +/- {out['amp'][1]:.3f} a.u., \n"
+                f" initial offset = {out['initial_offset'][0]:.2f} +/- {out['initial_offset'][1]:.3f}, \n"
+                f" final_offset = {out['final_offset'][0]:.2f} +/- {out['final_offset'][1]:.3f} a.u."
+            )
+        # Plot the data and the fitting function if plot=True
+        if plot:
+            plt.plot(x_data, fit_type(x, popt) * y_normal)
+            plt.plot(
+                x_data,
+                y_data,
+                ".",
+                label=f"T2  = {out['T2'][0]:.1f} +/- {out['T2'][1]:.1f}ns \n f = {out['f'][0] * 1000:.3f} +/- {out['f'][1] * 1000:.3f} MHz",
+            )
+            plt.legend(loc="upper right")
+        t2e_est = out['T2'][0] #in ns
+        t2e_err = out['T2'][1] #in ns
+        return fit_type(x, popt) * y_normal, t2e_est, t2e_err, plot_sig
+    def plot_all_t2_curves(
+            self,
+            amps,
+            gains,
+            rounds,
+            delay_times,
+            save_path,
+            n_bar=None,  # optional; shown in title next to gain if provided
+    ):
+        """
+        Per-gain T2 curves using the *same* data processing as plot_all_t2_heatmaps_new_format.
+
+        For each round:
+          - build the (delay x gain) grid of average amplitudes (same bucketing as heatmap),
+          - for each gain (column), take y=amplitude vs x=delay,
+          - fit T2 with self.t2_fit (amp=y),
+          - save each curve under <save_path>/t2r_fits/ with gain in title+filename.
+        """
+        import os
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from collections import defaultdict
+
+        q = self.qubit
+        gains_q = gains.get(q, [])
+        amps_q = amps.get(q, [])
+        rounds_q = rounds.get(q, [])
+        delay_q = delay_times.get(q, [])
+
+        # Basic presence & length checks
+        n = min(len(amps_q), len(gains_q), len(rounds_q), len(delay_q))
+        if n == 0 or not (len(amps_q) == len(gains_q) == len(rounds_q) == len(delay_q)):
+            print(f"No usable data for qubit {q} (missing lists or length mismatch). Skipping.")
+            return
+
+        # --------- flatten to points using the SAME logic as the heatmap ----------
+        all_points = []
+        for i in range(n):
+            r_id = str(rounds_q[i])
+
+            # amplitudes (required)
+            a_samples = np.asarray(amps_q[i], dtype=float).ravel()
+            if a_samples.size == 0:
+                continue
+
+            # gain can be scalar or per-sample
+            g_i = gains_q[i]
+            g_arr = np.asarray(g_i, dtype=float).ravel() if isinstance(g_i, (list, tuple, np.ndarray)) else None
+            if g_arr is None or g_arr.size == 1:
+                try:
+                    g_scalar = float(g_i)
+                except Exception:
+                    continue
+                g_arr = np.full(a_samples.shape, g_scalar, dtype=float)
+            elif g_arr.size != a_samples.size:
+                continue
+
+            # delay can be scalar or per-sample
+            d_i = delay_q[i]
+            d_arr = np.asarray(d_i, dtype=float).ravel() if isinstance(d_i, (list, tuple, np.ndarray)) else None
+            if d_arr is None or d_arr.size == 1:
+                try:
+                    d_scalar = float(d_i)
+                except Exception:
+                    continue
+                d_arr = np.full(a_samples.shape, d_scalar, dtype=float)
+            elif d_arr.size != a_samples.size:
+                continue
+
+            # keep only finite triples
+            mask = np.isfinite(a_samples) & np.isfinite(g_arr) & np.isfinite(d_arr)
+            if not np.any(mask):
+                continue
+
+            for g, d, a in zip(g_arr[mask], d_arr[mask], a_samples[mask]):
+                all_points.append((r_id, float(g), float(d), float(a)))
+
+        if not all_points:
+            print(f"No numeric points for qubit {q}. Skipping.")
+            return
+
+        # --------- helpers ----------
+        def round_gains_delays_and_grid(points_for_round):
+            """Return sorted gains, sorted delays, and NyxNx grid C of mean amplitudes."""
+            gains_r = sorted({g for (g, _, __) in points_for_round})
+            delays_r = sorted({d for (_, d, __) in points_for_round})
+            Ny, Nx = len(delays_r), len(gains_r)
+
+            # bucket (delay_idx, gain_idx) -> list of amplitudes
+            gi_map = {g: i for i, g in enumerate(gains_r)}
+            di_map = {d: i for i, d in enumerate(delays_r)}
+            bucket = defaultdict(list)
+            for g, d, a in points_for_round:
+                bucket[(di_map[d], gi_map[g])].append(a)
+
+            C = np.full((Ny, Nx), np.nan, dtype=float)
+            for (iy, ix), vals in bucket.items():
+                C[iy, ix] = float(np.nanmean(vals))
+            return gains_r, delays_r, C
+
+        def get_nbar_for_round(r_id_str, gains_sorted):
+            if n_bar is None:
+                return None
+            if isinstance(n_bar, (list, tuple, np.ndarray)):
+                nb = np.asarray(n_bar, float).ravel()
+                return nb if nb.size == len(gains_sorted) else None
+            if isinstance(n_bar, dict):
+                key = r_id_str if r_id_str in n_bar else str(r_id_str)
+                entry = n_bar.get(key, None)
+                if entry is None:
+                    return None
+                if isinstance(entry, dict):
+                    candidate = entry.get("lorentzian") or entry.get("gaussian") \
+                                or entry.get("nbar") or entry.get("values")
+                    if candidate is None:
+                        return None
+                    nb = np.asarray(candidate, float).ravel()
+                    return nb if nb.size == len(gains_sorted) else None
+                if isinstance(entry, (list, tuple, np.ndarray)):
+                    nb = np.asarray(entry, float).ravel()
+                    return nb if nb.size == len(gains_sorted) else None
+            return None
+
+        # --------- ensure output folder ----------
+        out_root = os.path.join(save_path, "t2r_fits")
+        self.create_folder_if_not_exists(out_root)
+
+        # --------- iterate rounds, then gains (columns) ----------
+        unique_rounds = sorted({r for (r, _, __, ___) in all_points})
+        for r_id in unique_rounds:
+            pts = [(g, d, a) for (r, g, d, a) in all_points if r == r_id]
+            if not pts:
+                continue
+
+            gains_r, delays_r, C = round_gains_delays_and_grid(pts)
+            Ny, Nx = C.shape
+
+            # optional n̄ display (aligned to gains_r)
+            nbar_vec = get_nbar_for_round(str(r_id), gains_r)
+
+            # walk each gain (column) and build the curve y(delay)
+            for ix, g_val in enumerate(gains_r):
+                x = np.asarray(delays_r, float)  # delays on Y-axis of heatmap → x for fit
+                y = C[:, ix]  # amplitude vs delay for this gain
+                finite = np.isfinite(x) & np.isfinite(y)
+                x, y = x[finite], y[finite]
+
+                if x.size < 3:
+                    print(
+                        f"[q{self.qubit}] Round {r_id}, gain {g_val}: not enough finite points to fit. Plotting raw only.")
+                    fit_ok = False
+                else:
+                    # Run the provided T2 fit, using amp=y to force the amplitude path
+                    try:
+                        I0 = np.zeros_like(y)
+                        Q0 = np.zeros_like(y)
+                        y_fit, t2e_est, t2e_err, _ = self.t2_fit(
+                            x_data=x, I=I0, Q=Q0, verbose=False, guess=None, plot=False, amp=y
+                        )
+                        fit_ok = True
+                    except Exception as e:
+                        print(f"[q{self.qubit}] Round {r_id}, gain {g_val}: T2 fit failed ({e}). Plotting raw only.")
+                        fit_ok = False
+                        y_fit = None
+                        t2e_est = t2e_err = np.nan
+
+                # ---- plot & save ----
+                fig, ax = plt.subplots(figsize=(6.0, 4.0))
+                ax.plot(x, y, ".", label="data")
+                if fit_ok and y_fit is not None:
+                    # y_fit returned at the same x positions we passed (normalized internally)
+                    ax.plot(x, y_fit, "-", label=f"fit: T2 = {t2e_est:.1f} ± {t2e_err:.1f} us")
+
+                title_extra = ""
+                if nbar_vec is not None:
+                    try:
+                        title_extra = f", n̄≈{float(nbar_vec[ix]):.3g}"
+                    except Exception:
+                        pass
+
+                ax.set_title(f"Qubit {self.qubit + 1} — Round {r_id} — Gain {g_val:g}{title_extra}")
+                ax.set_xlabel("Delay time")
+                ax.set_ylabel("Qubit Population")
+                ax.legend(loc="best")
+
+                fig.tight_layout()
+
+                # Filename with gain embedded (sanitize)
+                gain_str = str(g_val).replace(".", "p").replace("-", "m")
+                out_file = os.path.join(out_root, f"t2curve_q{self.qubit}_round{r_id}_gain{gain_str}.png")
+                fig.savefig(out_file, transparent=False, dpi=self.final_figure_quality)
+                plt.close(fig)
+                print(f"Saved T2 curve to: {out_file}")
 
     def plot_all_t2_heatmaps_new_format(
             self,
@@ -745,8 +1095,8 @@ class T2rVsTime:
             delay_times,
             save_path,
             max_ylabels=6,
-            # NEW:
-            n_bar=None,  # list/np.array OR dict[str]->(list or {"lorentzian"/"gaussian"})
+            n_bar=None,  # list/np.array OR dict[str]->(list or {"lorentzian"/"gaussian"/"nbar"/"values"})
+            use_linear_x=True,  # if False, use equal column spacing in x
     ):
         """
         NEW FORMAT ONLY
@@ -755,17 +1105,19 @@ class T2rVsTime:
           - Y-axis shows at most `max_ylabels` delay_time tick labels (evenly spaced).
           - Color scale (z) is fixed across rounds using the global min/max amplitude.
           - If n_bar is provided, x-axis uses n̄ instead of gain (sorted ascending).
+          - `use_linear_x=True` => x spacing follows numeric values (gain/n̄).
+            `use_linear_x=False` => columns equally spaced, labels still show gain/n̄.
 
         Data model (per qubit q):
           - amps[q]         : list of lists; amps[q][i] is a list of amplitude samples for dataset i
-          - gains[q]        : list; gains[q][i] is the gain for dataset i
+          - gains[q]        : list; gains[q][i] is the gain for dataset i (scalar or per-sample)
           - rounds[q]       : list; rounds[q][i] is the round label for dataset i
-          - delay_times[q]  : list; delay_times[q][i] is the delay (scalar) for dataset i
+          - delay_times[q]  : list; delay_times[q][i] is the delay (scalar or per-sample) for dataset i
 
         n_bar may be:
           - list/array aligned to the round's sorted gains, or
-          - dict mapping round_id -> list, or -> {"gains":..., "lorentzian":..., "gaussian":...}
-            (prefers 'lorentzian' if present, else 'gaussian').
+          - dict mapping round_id -> list, or -> {"lorentzian", "gaussian", "nbar", "values"}
+            (prefers 'lorentzian' if present, else 'gaussian', else 'nbar', else 'values').
         """
         import numpy as np
         import matplotlib.pyplot as plt
@@ -847,12 +1199,12 @@ class T2rVsTime:
             last = centers[-1] + (centers[-1] - centers[-2]) / 2.0
             return np.concatenate([[first], mids, [last]])
 
-        # ---------- NEW: compute global color scale limits (z) ----------
+        # ---------- global color scale limits (z) ----------
         all_amps = np.array([a for (_, _, _, a) in all_points], dtype=float)
         global_vmin = float(np.nanmin(all_amps))
         global_vmax = float(np.nanmax(all_amps))
 
-        # ----------------------------------------------------------------
+        # ---------------------------------------------------
 
         # helper to pull the n̄ vector for a given round (if provided)
         def get_nbar_for_round(r_id_str, gains_sorted):
@@ -869,8 +1221,12 @@ class T2rVsTime:
                 if entry is None:
                     return None
                 if isinstance(entry, dict):
-                    candidate = entry.get("lorentzian") or entry.get("gaussian") or entry.get("nbar") or entry.get(
-                        "values")
+                    candidate = (
+                            entry.get("lorentzian")
+                            or entry.get("gaussian")
+                            or entry.get("nbar")
+                            or entry.get("values")
+                    )
                     if candidate is None:
                         return None
                     nb = np.asarray(candidate, float).ravel()
@@ -915,25 +1271,54 @@ class T2rVsTime:
             x_vals_sorted = x_vals[order]
             C_sorted = C[:, order]
 
-            # Bin edges for pcolormesh
-            x_edges = centers_to_edges(x_vals_sorted)
+            # --- X axis spacing control ---
+            if use_linear_x:
+                # Centers are the actual numeric values (gain or n̄)
+                x_centers = x_vals_sorted.astype(float)
+            else:
+                # Equal column spacing
+                x_centers = np.arange(len(x_vals_sorted), dtype=float)
+
+            x_edges = centers_to_edges(x_centers)
             y_edges = centers_to_edges(delays_r)
+            # -------------------------------
 
             # Plot
             fig, ax = plt.subplots(figsize=(6.5, 4.5))
             mesh = ax.pcolormesh(
-                x_edges, y_edges, C_sorted, shading='flat',
-                vmin=global_vmin, vmax=global_vmax  # fixed z scale
+                x_edges,
+                y_edges,
+                C_sorted,
+                shading='flat',
+                vmin=global_vmin,
+                vmax=global_vmax,  # fixed z scale
             )
             cbar = fig.colorbar(mesh, ax=ax, pad=0.02)
             cbar.set_label("Qubit Population")
 
             ax.set_title(f"Qubit {self.qubit + 1} — Round {r_id}")
             ax.set_xlabel(x_label)
-            ax.set_ylabel("Delay time")
+            # y-axis in microseconds
+            ax.set_ylabel(r"Delay time ($\mu$s)")
 
-            ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=7, prune=None))
-            plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
+            # X ticks: differ for linear vs equal-spacing mode
+            if use_linear_x:
+                ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=7, prune=None))
+                plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
+            else:
+                # Only label a subset of (rounded) bars
+                max_xticks = 10  # tweak as desired
+                if Nx <= max_xticks:
+                    xticks_idx = list(range(Nx))
+                else:
+                    xticks_idx = np.linspace(0, Nx - 1, num=max_xticks, dtype=int).tolist()
+                    xticks_idx = sorted(set(xticks_idx))
+
+                xtick_positions = [x_centers[i] for i in xticks_idx]
+                xtick_values = [x_vals_sorted[i] for i in xticks_idx]
+
+                ax.set_xticks(xtick_positions)
+                ax.set_xticklabels([f"{v:.3f}" for v in xtick_values], rotation=45, ha='right')
 
             # only label a subset of delay times on Y
             if Ny > 0:
@@ -951,6 +1336,7 @@ class T2rVsTime:
                 outfile = (save_path + f"t2_heatmap_q{self.qubit}_round{r_id}_nbar.png")
             else:
                 outfile = (save_path + f"t2_heatmap_q{self.qubit}_round{r_id}.png")
+
             fig.savefig(outfile, transparent=False, dpi=self.final_figure_quality)
             plt.close(fig)
             print(f"Saved heatmap for round {r_id} to: {outfile}")

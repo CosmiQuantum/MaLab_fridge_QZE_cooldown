@@ -576,7 +576,7 @@ class T1VsTime:
         y0 = 0.5 * (yedges[iy] + yedges[iy + 1])
         return x0 + 1j * y0
 
-    def run_t1_sweep_new(self, exp_extension='', scaling=False, return_calibration_data=False):
+    def run_t1_sweep_new(self, exp_extension='', scaling=False, return_calibration_data=False, weighted_mean=True):
         import datetime
         import glob, os, re
         import numpy as np
@@ -732,14 +732,20 @@ class T1VsTime:
                                     sub_Ig = np.asarray(sub_Ig, dtype=float)
                                     sub_Qg = np.asarray(sub_Qg, dtype=float)
 
-                                    e = self.robust_center(sub_Ie + 1j * sub_Qe)
-                                    g = self.robust_center(sub_Ig + 1j * sub_Qg)
+                                    if weighted_mean:
+                                        e = self.robust_center(sub_Ie + 1j * sub_Qe)
+                                        g = self.robust_center(sub_Ig + 1j * sub_Qg)
 
-                                    pop_norm = np.abs(((sub_I + 1j * sub_Q) - g) * (e - g) / (np.abs(e - g) ** 2))
 
-                                    calibrated_sublists.append(pop_norm.tolist())
-                                    I_sublists.append(sub_I.tolist())
-                                    Q_sublists.append(sub_Q.tolist())
+                                    else:
+                                        e = np.mean((sub_Ie + 1j * sub_Qe))
+                                        g = np.mean((sub_Ig + 1j * sub_Qg))
+
+                                pop_norm = np.abs(((sub_I + 1j * sub_Q) - g) * (e - g) / (np.abs(e - g) ** 2))
+
+                                calibrated_sublists.append(pop_norm.tolist())
+                                I_sublists.append(sub_I.tolist())
+                                Q_sublists.append(sub_Q.tolist())
 
                                 # element-wise averages across the sublists
                                 amp_avg = _avg_over_sublists(calibrated_sublists)  # (n_points,)
@@ -3012,27 +3018,9 @@ class T1VsTime:
             delay_times,
             save_path,
             max_ylabels=6,
-            # NEW:
-            n_bar=None,  # list/np.array OR dict[str]->(list or {"lorentzian"/"gaussian"})
+            n_bar=None,
+            use_linear_x=True,
     ):
-        """
-        NEW FORMAT ONLY
-
-        - Y-axis shows at most `max_ylabels` delay_time tick labels (evenly spaced).
-        - Color scale (z) is fixed across rounds using the global min/max amplitude.
-        - If n_bar is provided, x-axis uses n̄ instead of gain (sorted ascending).
-
-        Data model (per qubit q):
-          - amps[q]         : list of lists; amps[q][i] is a list of amplitude samples for dataset i
-          - gains[q]        : list; gains[q][i] is the gain for dataset i
-          - rounds[q]       : list; rounds[q][i] is the round label for dataset i
-          - delay_times[q]  : list; delay_times[q][i] is the delay (scalar) for dataset i
-
-        n_bar may be:
-          - list/array aligned to the round's sorted gains, or
-          - dict mapping round_id -> list, or -> {"gains":..., "lorentzian":..., "gaussian":...}
-            (prefers 'lorentzian' if present, else 'gaussian').
-        """
         import numpy as np
         import matplotlib.pyplot as plt
         from collections import defaultdict
@@ -3044,13 +3032,11 @@ class T1VsTime:
         rounds_q = rounds.get(q, [])
         delay_q = delay_times.get(q, [])
 
-        # Basic presence & length checks
         n = min(len(amps_q), len(gains_q), len(rounds_q), len(delay_q))
         if n == 0 or not (len(amps_q) == len(gains_q) == len(rounds_q) == len(delay_q)):
             print(f"No usable data for qubit {q} (missing lists or length mismatch). Skipping.")
             return
 
-        # Flatten to points: (round_id, gain, delay, amp)
         all_points = []
         for i in range(n):
             r_id = str(rounds_q[i])
@@ -3059,7 +3045,6 @@ class T1VsTime:
             if a_samples.size == 0:
                 continue
 
-            # gain can be scalar or per-sample
             g_i = gains_q[i]
             g_arr = np.asarray(g_i, dtype=float).ravel() if isinstance(g_i, (list, tuple, np.ndarray)) else None
             if g_arr is None or g_arr.size == 1:
@@ -3071,7 +3056,6 @@ class T1VsTime:
             elif g_arr.size != a_samples.size:
                 continue
 
-            # delay can be scalar or per-sample
             d_i = delay_q[i]
             d_arr = np.asarray(d_i, dtype=float).ravel() if isinstance(d_i, (list, tuple, np.ndarray)) else None
             if d_arr is None or d_arr.size == 1:
@@ -3083,7 +3067,6 @@ class T1VsTime:
             elif d_arr.size != a_samples.size:
                 continue
 
-            # keep only finite triples
             mask = np.isfinite(a_samples) & np.isfinite(g_arr) & np.isfinite(d_arr)
             if not np.any(mask):
                 continue
@@ -3095,13 +3078,10 @@ class T1VsTime:
             print(f"No numeric points for qubit {q}. Skipping.")
             return
 
-        # Unique rounds present
         unique_rounds = sorted({r for (r, _, __, ___) in all_points})
 
-        # Ensure save folder exists
         self.create_folder_if_not_exists(save_path)
 
-        # Helper to convert centers -> bin edges for pcolormesh
         def centers_to_edges(centers):
             centers = np.asarray(sorted(np.unique(centers)), dtype=float)
             if centers.size == 1:
@@ -3112,30 +3092,28 @@ class T1VsTime:
             last = centers[-1] + (centers[-1] - centers[-2]) / 2.0
             return np.concatenate([[first], mids, [last]])
 
-        # ---------- global color scale limits (z) ----------
         all_amps = np.array([a for (_, _, _, a) in all_points], dtype=float)
         global_vmin = float(np.nanmin(all_amps))
         global_vmax = float(np.nanmax(all_amps))
 
-        # ---------------------------------------------------
-
-        # helper to pull the n̄ vector for a given round (if provided)
         def get_nbar_for_round(r_id_str, gains_sorted):
             if n_bar is None:
                 return None
-            # direct list/array: assume aligned to sorted gains for this round
             if isinstance(n_bar, (list, tuple, np.ndarray)):
                 nb = np.asarray(n_bar, float).ravel()
                 return nb if nb.size == len(gains_sorted) else None
-            # dict-like
             if isinstance(n_bar, dict):
                 key = r_id_str if r_id_str in n_bar else str(r_id_str)
                 entry = n_bar.get(key, None)
                 if entry is None:
                     return None
                 if isinstance(entry, dict):
-                    candidate = entry.get("lorentzian") or entry.get("gaussian") or entry.get("nbar") or entry.get(
-                        "values")
+                    candidate = (
+                            entry.get("lorentzian")
+                            or entry.get("gaussian")
+                            or entry.get("nbar")
+                            or entry.get("values")
+                    )
                     if candidate is None:
                         return None
                     nb = np.asarray(candidate, float).ravel()
@@ -3146,7 +3124,6 @@ class T1VsTime:
             return None
 
         for r_id in unique_rounds:
-            # Collect this round's points
             pts = [(g, d, a) for (r, g, d, a) in all_points if r == r_id]
             if not pts:
                 continue
@@ -3154,20 +3131,17 @@ class T1VsTime:
             gains_r = sorted({g for (g, _, _) in pts})
             delays_r = sorted({d for (_, d, _) in pts})
 
-            # Map (delay_idx, gain_idx) -> list of amplitudes
             bucket = defaultdict(list)
             gi_map = {g: i for i, g in enumerate(gains_r)}
             di_map = {d: i for i, d in enumerate(delays_r)}
             for g, d, a in pts:
                 bucket[(di_map[d], gi_map[g])].append(a)
 
-            # Grid of average amplitudes
             Ny, Nx = len(delays_r), len(gains_r)
             C = np.full((Ny, Nx), np.nan, dtype=float)
             for (iy, ix), vals in bucket.items():
                 C[iy, ix] = float(np.nanmean(vals))
 
-            # Decide x-axis values & label (gain or n̄) and reorder columns accordingly
             nbar_vec = get_nbar_for_round(str(r_id), gains_r)
             if nbar_vec is not None:
                 x_vals = np.asarray(nbar_vec, float)
@@ -3180,27 +3154,53 @@ class T1VsTime:
             x_vals_sorted = x_vals[order]
             C_sorted = C[:, order]
 
-            # Bin edges for pcolormesh
-            x_edges = centers_to_edges(x_vals_sorted)
-            y_edges = centers_to_edges(delays_r)
+            # --- X axis spacing control ---
+            if use_linear_x:
+                x_centers = x_vals_sorted.astype(float)
+            else:
+                # Equal column spacing
+                x_centers = np.arange(len(x_vals_sorted), dtype=float)
 
-            # Plot
+            x_edges = centers_to_edges(x_centers)
+            y_edges = centers_to_edges(delays_r)
+            # ------------------------------
+
             fig, ax = plt.subplots(figsize=(6.5, 4.5))
             mesh = ax.pcolormesh(
-                x_edges, y_edges, C_sorted, shading='flat',
-                vmin=global_vmin, vmax=global_vmax  # fixed z scale
+                x_edges,
+                y_edges,
+                C_sorted,
+                shading='flat',
+                vmin=global_vmin,
+                vmax=global_vmax
             )
             cbar = fig.colorbar(mesh, ax=ax, pad=0.02)
             cbar.set_label("Qubit Population")
 
             ax.set_title(f"Qubit {self.qubit + 1} — Round {r_id}")
             ax.set_xlabel(x_label)
-            ax.set_ylabel("Delay time")
+            # NEW: add units to y-axis label
+            ax.set_ylabel(r"Delay time ($\mu$s)")
 
-            ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=7, prune=None))
-            plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
+            if use_linear_x:
+                ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=7, prune=None))
+                plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
+            else:
+                # NEW: only label a subset of (rounded) bars
+                max_xticks = 10  # you can tweak this
+                if Nx <= max_xticks:
+                    xticks_idx = list(range(Nx))
+                else:
+                    xticks_idx = np.linspace(0, Nx - 1, num=max_xticks, dtype=int).tolist()
+                    xticks_idx = sorted(set(xticks_idx))
 
-            # only label a subset of delay times on Y
+                xtick_positions = [x_centers[i] for i in xticks_idx]
+                xtick_values = [x_vals_sorted[i] for i in xticks_idx]
+
+                ax.set_xticks(xtick_positions)
+                # round n̄ / gain values for readability
+                ax.set_xticklabels([f"{v:.3f}" for v in xtick_values], rotation=45, ha='right')
+
             if Ny > 0:
                 if Ny <= max_ylabels:
                     yticks_idx = list(range(Ny))
@@ -3216,7 +3216,6 @@ class T1VsTime:
                 outfile = (save_path + f"t1_heatmap_q{self.qubit}_round{r_id}_nbar.png")
             else:
                 outfile = (save_path + f"t1_heatmap_q{self.qubit}_round{r_id}.png")
-
 
             fig.savefig(outfile, transparent=False, dpi=self.final_figure_quality)
             plt.close(fig)

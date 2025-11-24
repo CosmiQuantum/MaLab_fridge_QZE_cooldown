@@ -292,7 +292,7 @@ class QubitFreqsVsTime:
             mu_Q = np.sum(w * Q) / (np.sum(w) + eps)
 
         return mu_I + 1j * mu_Q
-    def run_q_sweep_new(self, exp_extension='', scaling=False, return_calibration_data=False):
+    def run_q_sweep_new(self, exp_extension='', scaling=False, return_calibration_data=False, weighted_mean=True, gain=''):
         import datetime
         import glob, os, re
         import numpy as np
@@ -338,9 +338,9 @@ class QubitFreqsVsTime:
 
             # ------------------------------------------------Load/Plot/Save QSpec----------------------------------------------
             if '_' in exp_extension:
-                outerFolder_expt = outerFolder + f"/Data_h5/QSpec_zeno/"
+                outerFolder_expt = outerFolder + f"/Data_h5/QSpec_zeno{gain}/"
             else:
-                outerFolder_expt = outerFolder + "/Data_h5/QSpec_zeno/"
+                outerFolder_expt = outerFolder + f"/Data_h5/QSpec_zeno{gain}/"
 
             round_we_are_on = outerFolder_expt.split(f'qubit_{self.qubit}round')[-1].split('/')[0].split('_')[0]
             h5_files = glob.glob(os.path.join(outerFolder_expt, "*.h5"))
@@ -470,8 +470,14 @@ class QubitFreqsVsTime:
                                     sub_Ig = np.asarray(sub_Ig, dtype=float)
                                     sub_Qg = np.asarray(sub_Qg, dtype=float)
 
-                                    e = self.robust_center(sub_Ie + 1j * sub_Qe)
-                                    g = self.robust_center(sub_Ig + 1j * sub_Qg)
+                                    if weighted_mean:
+                                        e = self.robust_center(sub_Ie + 1j * sub_Qe)
+                                        g = self.robust_center(sub_Ig + 1j * sub_Qg)
+
+
+                                    else:
+                                        e = np.mean((sub_Ie + 1j * sub_Qe))
+                                        g = np.mean((sub_Ig + 1j * sub_Qg))
 
                                     pop_norm = np.abs(((sub_I + 1j * sub_Q) - g) * (e - g) / (np.abs(e - g) ** 2))
                                     calibrated_sublists.append(pop_norm.tolist())
