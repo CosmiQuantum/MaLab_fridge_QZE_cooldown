@@ -856,7 +856,7 @@ class PulseProbeSpectroscopyProgram(AveragerProgramV2):
                        )
 
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
-        self.add_loop("freqloop", cfg["steps"])
+
         self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch,
                        style="const",
                        length=cfg['qubit_length_ge'],
@@ -870,8 +870,10 @@ class PulseProbeSpectroscopyProgram(AveragerProgramV2):
                        length=cfg['qubit_length_ge']+3,#+3us for res ring up time
                        freq=cfg['res_freq_qze'],
                        phase=cfg['res_phase_qze'],
-                       gain=cfg['res_gain_qze']
+                       gain=QickSweep1D("gain_loop", cfg["gain_start"], cfg["gain_stop"])
                        )
+        self.add_loop("freqloop", cfg["steps"])
+        self.add_loop("gain_loop", cfg["gain_steps"])  # inner loop
 
 
     def _body(self, cfg):

@@ -10,6 +10,10 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
     # Set this for your experiment
     tot_num_of_qubits = 6
 
+    gain_start = 0.0001
+    gain_stop = 0.07
+    gain_steps=50
+
     list_of_all_qubits = list(range(tot_num_of_qubits))
 
     expt_cfg = {
@@ -56,6 +60,9 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "steps": 500,  # 200,
             "relax_delay": 10,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
+            "gain_start": gain_start,
+            "gain_stop": gain_stop,
+            "gain_steps": gain_steps,
         },
 
         "qubit_spec_ge_extended": {
@@ -228,6 +235,9 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "relax_delay": 500,  # [us] ### Should be >10x T1!
             "wait_time": 30,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
+            "gain_start": gain_start,
+            "gain_stop": gain_stop,
+            "gain_steps": gain_steps,
         },
 
         "T1_IBM_qze_loop": {
@@ -239,6 +249,9 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "relax_delay": 500,  # [us] ### Should be >10x T1!
             "wait_time": 30,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
+            "gain_start": gain_start,
+            "gain_stop": gain_stop,
+            "gain_steps": gain_steps,
         },
 
         "T1_fe": {
@@ -397,6 +410,9 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             # [us] the time to wait to let the qubit to relax to gnd again after exciting it (make it way above T1)
             "wait_time": 0.0,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
+            "gain_start": gain_start,
+            "gain_stop": gain_stop,
+            "gain_steps": gain_steps,
         },
 
         "Ramsey_ge_correction": {
@@ -433,6 +449,9 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "relax_delay": 500,  # [us]
             "wait_time": 0.0,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
+            "gain_start": gain_start,
+            "gain_stop": gain_stop,
+            "gain_steps": gain_steps,
         },
 
 

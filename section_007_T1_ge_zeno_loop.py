@@ -36,7 +36,7 @@ class T1ProgramIBMZeno(AveragerProgramV2):
                        length=QickSweep1D("waitloop", cfg['start'], cfg['stop']),
                        freq=cfg['res_freq_qze'],
                        phase=cfg['res_phase_qze'],
-                       gain=cfg['res_gain_qze']
+                       gain=QickSweep1D("gain_loop", cfg["gain_start"], cfg["gain_stop"])
                        )
 
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
@@ -50,6 +50,7 @@ class T1ProgramIBMZeno(AveragerProgramV2):
                        )
 
         self.add_loop("waitloop", cfg["steps"])
+        self.add_loop("gain_loop", cfg["gain_steps"])  # inner loop
 
     def _body(self, cfg):
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)  # play probe pulse

@@ -183,7 +183,7 @@ class T2RProgram(AveragerProgramV2):
                        length=QickSweep1D("waitloop", cfg['start'], cfg['stop']), #varying in the loop
                        freq=cfg['res_freq_qze'],
                        phase=cfg['res_phase_qze'],
-                       gain=cfg['res_gain_qze']
+                       gain=QickSweep1D("gain_loop", cfg["gain_start"], cfg["gain_stop"])
                        )
 
         self.add_pulse(ch=qubit_ch, name="qubit_pulse2",  ro_ch=ro_ch,
@@ -195,6 +195,7 @@ class T2RProgram(AveragerProgramV2):
                       )
 
         self.add_loop("waitloop", cfg["steps"])
+        self.add_loop("gain_loop", cfg["gain_steps"])  # inner loop
 
     def _body(self, cfg):
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse1", t=0)  # put on equator
