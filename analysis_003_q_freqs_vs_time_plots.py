@@ -406,7 +406,7 @@ class QubitFreqsVsTime:
                                     load_data[f'QSpec_zeno{gain}'][q_key].get('I_shots', [])[0][dataset].decode())
                                 Q_shots = self.process_string_of_nested_lists(
                                     load_data[f'QSpec_zeno{gain}'][q_key].get('Q_shots', [])[0][dataset].decode())
-                                gains_swept = self.process_string_of_nested_lists(
+                                gains_swept = self.process_h5_data(
                                     load_data[f'QSpec_zeno{gain}'][q_key].get('Gains', [])[0][dataset].decode())
                         except:
                             I = self.process_string_of_nested_lists(
@@ -427,9 +427,8 @@ class QubitFreqsVsTime:
                                     load_data[f'QSpec_zeno{gain}'][q_key].get('I_shots', [])[0][dataset].decode())
                                 Q_shots = self.process_string_of_nested_lists(
                                     load_data[f'QSpec_zeno{gain}'][q_key].get('Q_shots', [])[0][dataset].decode())
-                                gains_swept = self.process_string_of_nested_lists(
+                                gains_swept = self.process_h5_data(
                                     load_data[f'QSpec_zeno{gain}'][q_key].get('Gains', [])[0][dataset].decode())
-
                         round_num = load_data[f'QSpec_zeno{gain}'][q_key].get('Round Num', [])[0][dataset]
                         try:
                             batch_num = load_data[f'QSpec_zeno{gain}'][q_key].get('Batch Num', [])[0][dataset]
@@ -455,7 +454,7 @@ class QubitFreqsVsTime:
                             if syst_config is not None:
                                 try:
                                     gain = round(float(syst_config.split("res_gain_qze': ")[-1].split(',')[0]), 6)
-                                    gains[q_key].append(gain)
+                                    gains[q_key]=gains_swept#.append(gain)
                                 except Exception:
                                     pass
                             rounds_completed[q_key].append(round_we_are_on)

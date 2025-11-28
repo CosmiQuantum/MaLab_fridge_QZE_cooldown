@@ -672,6 +672,8 @@ class T1VsTime:
                             load_data[f'T1{exp_extension}_zeno'][q_key].get('I', [])[0][dataset].decode())
                         Q = self.process_string_of_nested_lists(
                             load_data[f'T1{exp_extension}_zeno'][q_key].get('Q', [])[0][dataset].decode())
+                        gains_swept = self.process_h5_data(
+                            load_data[f'T1{exp_extension}_zeno'][q_key].get('Gains', [])[0][dataset].decode())
 
                         if scaling:
                             Ie = self.process_string_of_nested_lists(
@@ -694,100 +696,88 @@ class T1VsTime:
                             exp_config = None
 
                         if len(I) > 0:
-                            # Keep raw (possibly nested) I, Q for reference (unchanged behavior)
+                            # Keep raw I, Q for reference
                             Is[q_key].append(I)
                             Qs[q_key].append(Q)
 
-                            # Parse meta
+                            # Meta
                             if exp_config is not None:
-                                gain = round(float(syst_config.split("res_gain_qze': ")[-1].split(',')[0]), 6)
                                 steps = round(float(
-                                    exp_config.split("Readout_Optimization': ")[-1].split("steps': ")[-1].split(',')[
-                                        0]), 6)
-                                gains[q_key].append(gain)
+                                    exp_config.split("Readout_Optimization': ")[-1]
+                                    .split("steps': ")[-1].split(',')[0]
+                                ), 6)
+                                # Now we have a sweep of gains for this dataset
+                                gains[q_key].append(gains_swept)
                             rounds_completed[q_key].append(round_we_are_on)
 
-                            # ---- NEW core logic: handle list-of-lists with matching calibration ----
+                            # Each sublist of I/Q is now a different gain point
+                            I_nested = I if _is_list_of_lists(I) else [I]
+                            Q_nested = Q if _is_list_of_lists(Q) else [Q]
+
                             if scaling:
-                                # If data are not nested, wrap once so the same path works.
-                                I_nested = I if _is_list_of_lists(I) else [I]
-                                Q_nested = Q if _is_list_of_lists(Q) else [Q]
-                                Ie_nested = Ie if _is_list_of_lists(Ie) else [Ie]
-                                Ig_nested = Ig if _is_list_of_lists(Ig) else [Ig]
-                                Qe_nested = Qe if _is_list_of_lists(Qe) else [Qe]
-                                Qg_nested = Qg if _is_list_of_lists(Qg) else [Qg]
+                                # ---- Single calibration set, used for all gains ----
+                                Ie_arr = np.asarray(Ie, dtype=float).ravel()
+                                Ig_arr = np.asarray(Ig, dtype=float).ravel()
+                                Qe_arr = np.asarray(Qe, dtype=float).ravel()
+                                Qg_arr = np.asarray(Qg, dtype=float).ravel()
 
-                                calibrated_sublists = []
-                                # average I/Q over sublists as we go
-                                I_sublists = []
-                                Q_sublists = []
+                                if weighted_mean:
+                                    e = self.robust_center(Ie_arr + 1j * Qe_arr)
+                                    g = self.robust_center(Ig_arr + 1j * Qg_arr)
+                                else:
+                                    e = np.mean(Ie_arr + 1j * Qe_arr)
+                                    g = np.mean(Ig_arr + 1j * Qg_arr)
 
-                                for sub_I, sub_Q, sub_Ie, sub_Ig, sub_Qe, sub_Qg in zip(
-                                        I_nested, Q_nested, Ie_nested, Ig_nested, Qe_nested, Qg_nested
-                                ):
-                                    sub_I = np.asarray(sub_I, dtype=float)
-                                    sub_Q = np.asarray(sub_Q, dtype=float)
-                                    sub_Ie = np.asarray(sub_Ie, dtype=float)
-                                    sub_Qe = np.asarray(sub_Qe, dtype=float)
-                                    sub_Ig = np.asarray(sub_Ig, dtype=float)
-                                    sub_Qg = np.asarray(sub_Qg, dtype=float)
+                                gain_amps = []  # one calibrated trace per gain
+                                gain_Is = []  # one I trace per gain
+                                gain_Qs = []  # one Q trace per gain
 
-                                    if weighted_mean:
-                                        e = self.robust_center(sub_Ie + 1j * sub_Qe)
-                                        g = self.robust_center(sub_Ig + 1j * sub_Qg)
-
-
-                                    else:
-                                        e = np.mean((sub_Ie + 1j * sub_Qe))
-                                        g = np.mean((sub_Ig + 1j * sub_Qg))
-
-                                pop_norm = np.abs(((sub_I + 1j * sub_Q) - g) * (e - g) / (np.abs(e - g) ** 2))
-
-                                calibrated_sublists.append(pop_norm.tolist())
-                                I_sublists.append(sub_I.tolist())
-                                Q_sublists.append(sub_Q.tolist())
-
-                                # element-wise averages across the sublists
-                                amp_avg = _avg_over_sublists(calibrated_sublists)  # (n_points,)
-                                I_avg = _avg_over_sublists(I_sublists)
-                                Q_avg = _avg_over_sublists(Q_sublists)
-
-                                # store
-                                amps[q_key].append(amp_avg.tolist())
-                                I_avgs[q_key].append(I_avg.tolist())
-                                Q_avgs[q_key].append(Q_avg.tolist())
-
-                                # keep the calibration we actually used
-                                Ig_calibration[q_key].append(Ig_nested)
-                                Ie_calibration[q_key].append(Ie_nested)
-                                Qg_calibration[q_key].append(Qg_nested)
-                                Qe_calibration[q_key].append(Qe_nested)
-
-                            else:
-                                # No scaling: hypot per sublist, then element-wise average
-                                I_nested = I if _is_list_of_lists(I) else [I]
-                                Q_nested = Q if _is_list_of_lists(Q) else [Q]
-
-                                amp_sublists = []
-                                I_sublists = []
-                                Q_sublists = []
                                 for sub_I, sub_Q in zip(I_nested, Q_nested):
                                     sub_I = np.asarray(sub_I, dtype=float)
                                     sub_Q = np.asarray(sub_Q, dtype=float)
-                                    amp_sublists.append(np.hypot(sub_I, sub_Q).tolist())
-                                    I_sublists.append(sub_I.tolist())
-                                    Q_sublists.append(sub_Q.tolist())
 
-                                amp_avg = _avg_over_sublists(amp_sublists)
-                                I_avg = _avg_over_sublists(I_sublists)
-                                Q_avg = _avg_over_sublists(Q_sublists)
+                                    pop_norm = np.abs(
+                                        ((sub_I + 1j * sub_Q) - g) * (e - g) / (np.abs(e - g) ** 2)
+                                    )
 
-                                amps[q_key].append(amp_avg.tolist())
-                                I_avgs[q_key].append(I_avg.tolist())
-                                Q_avgs[q_key].append(Q_avg.tolist())
+                                    gain_amps.append(pop_norm.tolist())
+                                    gain_Is.append(sub_I.tolist())
+                                    gain_Qs.append(sub_Q.tolist())
+
+                                # Store: list-of-traces (one per gain) for this dataset
+                                amps[q_key].append(gain_amps)
+                                I_avgs[q_key].append(gain_Is)
+                                Q_avgs[q_key].append(gain_Qs)
+
+                                # Keep the (single) calibration we used
+                                Ig_calibration[q_key].append(Ig_arr.tolist())
+                                Ie_calibration[q_key].append(Ie_arr.tolist())
+                                Qg_calibration[q_key].append(Qg_arr.tolist())
+                                Qe_calibration[q_key].append(Qe_arr.tolist())
+
+                            else:
+                                # ---- No scaling: hypot per gain, no averaging across gains ----
+                                gain_amps = []
+                                gain_Is = []
+                                gain_Qs = []
+
+                                for sub_I, sub_Q in zip(I_nested, Q_nested):
+                                    sub_I = np.asarray(sub_I, dtype=float)
+                                    sub_Q = np.asarray(sub_Q, dtype=float)
+
+                                    amp = np.hypot(sub_I, sub_Q)
+
+                                    gain_amps.append(amp.tolist())
+                                    gain_Is.append(sub_I.tolist())
+                                    gain_Qs.append(sub_Q.tolist())
+
+                                # Again: list-of-traces, one per gain
+                                amps[q_key].append(gain_amps)
+                                I_avgs[q_key].append(gain_Is)
+                                Q_avgs[q_key].append(gain_Qs)
 
                             delay_times[q_key].append(delays)
-                            date_times[q_key].extend([date.strftime("%Y-%m-%d %H:%M:%S")])
+                            date_times[q_key].append(date.strftime("%Y-%m-%d %H:%M:%S"))
 
                 del H5_class_instance
 

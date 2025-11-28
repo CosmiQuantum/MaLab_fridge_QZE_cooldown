@@ -37,7 +37,7 @@ amps_qspec = {i: [] for i in range(6)}
 gains_qspec = {i: [] for i in range(6)}
 rounds_qspec = {i: [] for i in range(6)}
 freqs_qspec = {i: [] for i in range(6)}
-path= '2d_overnight'
+path= '2d_less_rounds'
 for qubit in qubits:
     run_name = f'bob_run_started_Aug_23/squill/{path}/all_qubits/'
     top_folder_dates = []
@@ -76,7 +76,7 @@ for qubit in qubits:
     delay_times[qubit]=delay_times1[qubit]
 
     t1_vs_time.fit_and_save_t1_slices_new_format(amps, gains, rounds, delay_times,
-                                    f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/', n_bar=n_bars)
+                                    f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/', n_bar=n_bars)#
     t1_vs_time.plot_all_t1_heatmaps_new_format(amps, gains, rounds, delay_times,
                                                f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/', n_bar=n_bars,use_linear_x=False)
 

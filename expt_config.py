@@ -53,8 +53,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "list_of_all_qubits": list_of_all_qubits,
         },
         "qubit_spec_ge_zeno": {
-            "reps": 100,#500,
-            "rounds": 10,#5
+            "reps": 500,
+            "rounds": 1,#5
             "start": list(VNA_qubit - 30),  # [MHz] -40
             "stop": list(VNA_qubit + 15),  # [MHz] +40
             "steps": 200,

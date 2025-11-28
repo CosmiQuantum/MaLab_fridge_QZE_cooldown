@@ -438,42 +438,42 @@ class T2EMeasurementZeno:
                 ss_Q_e_all = []
                 I_shots_all = []
                 Q_shots_all = []
-                for round_num in range(self.config["rounds"]):
-                    echo = T2EProgram(self.experiment.soccfg, reps=self.config['reps'],
-                                      final_delay=self.config['relax_delay'],
-                                      cfg=self.config)
-                    iq_list = echo.acquire(self.experiment.soc, rounds=1, progress=self.qick_verbose)
-                    iq_list = iq_list[0][0].T
-                    I = iq_list[0]
-                    Q = iq_list[1]
-                    Is_all.append(I)
-                    Qs_all.append(Q)
 
-                    raw_0 = echo.get_raw()  # I,Q data without normalizing to readout window, subtracting readout offset, or rotation/thresholding
-                    A = np.squeeze(raw_0[0])
-                    I_shots = A[:, :,
-                              0]  # if you have 4 steps and 3 shots/reps this is like [[1,2,3,4],[1,2,3,4],[1,2,3,4]]
-                    Q_shots = A[:, :, 1]
+                echo = T2EProgram(self.experiment.soccfg, reps=self.config['reps'],
+                                  final_delay=self.config['relax_delay'],
+                                  cfg=self.config)
+                iq_list = echo.acquire(self.experiment.soc, rounds=self.config["rounds"], progress=self.qick_verbose)
+                iq_list = iq_list[0][0].T
+                I = iq_list[0]
+                Q = iq_list[1]
+                Is_all.append(I)
+                Qs_all.append(Q)
 
-                    I_shots_all.append(I_shots)
-                    Q_shots_all.append(Q_shots)
+                raw_0 = echo.get_raw()  # I,Q data without normalizing to readout window, subtracting readout offset, or rotation/thresholding
+                A = np.squeeze(raw_0[0])
+                I_shots = A[:, :,
+                          0]  # if you have 4 steps and 3 shots/reps this is like [[1,2,3,4],[1,2,3,4],[1,2,3,4]]
+                Q_shots = A[:, :, 1]
 
-                    ssp_g = SingleShotProgram_g(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'],
-                                                cfg=ss_config)
-                    ssp_e = SingleShotProgram_e(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'],
-                                                cfg=ss_config)
-                    iq_list_g = ssp_g.acquire(self.experiment.soc, rounds=1, progress=True)
-                    iq_list_e = ssp_e.acquire(self.experiment.soc, rounds=1, progress=True)
+                I_shots_all.append(I_shots)
+                Q_shots_all.append(Q_shots)
 
-                    ss_I_g = iq_list_g[0][0].T[0]
-                    ss_Q_g = iq_list_g[0][0].T[1]
-                    ss_I_e = iq_list_e[0][0].T[0]
-                    ss_Q_e = iq_list_e[0][0].T[1]
+                ssp_g = SingleShotProgram_g(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'],
+                                            cfg=ss_config)
+                ssp_e = SingleShotProgram_e(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'],
+                                            cfg=ss_config)
+                iq_list_g = ssp_g.acquire(self.experiment.soc, rounds=1, progress=True)
+                iq_list_e = ssp_e.acquire(self.experiment.soc, rounds=1, progress=True)
 
-                    ss_I_g_all.append(ss_I_g)
-                    ss_Q_g_all.append(ss_Q_g)
-                    ss_I_e_all.append(ss_I_e)
-                    ss_Q_e_all.append(ss_Q_e)
+                ss_I_g = iq_list_g[0][0].T[0]
+                ss_Q_g = iq_list_g[0][0].T[1]
+                ss_I_e = iq_list_e[0][0].T[0]
+                ss_Q_e = iq_list_e[0][0].T[1]
+
+                ss_I_g_all.append(ss_I_g)
+                ss_Q_g_all.append(ss_Q_g)
+                ss_I_e_all.append(ss_I_e)
+                ss_Q_e_all.append(ss_Q_e)
 
             delay_times = echo.get_pulse_param(pulsename='qze_pulse', parname='length', as_array=True) * 2
             gains = echo.get_pulse_param('qze_pulse', "gain", as_array=True)
