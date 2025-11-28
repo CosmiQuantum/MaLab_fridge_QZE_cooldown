@@ -11,8 +11,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
     tot_num_of_qubits = 6
 
     gain_start = 0.0001
-    gain_stop = 0.07
-    gain_steps=50
+    gain_stop = 0.1#07
+    gain_steps= 50
 
     list_of_all_qubits = list(range(tot_num_of_qubits))
 
@@ -53,12 +53,12 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "list_of_all_qubits": list_of_all_qubits,
         },
         "qubit_spec_ge_zeno": {
-            "reps": 500,
-            "rounds": 50,
+            "reps": 100,#500,
+            "rounds": 10,#5
             "start": list(VNA_qubit - 30),  # [MHz] -40
             "stop": list(VNA_qubit + 15),  # [MHz] +40
-            "steps": 500,  # 200,
-            "relax_delay": 10,  # [us]
+            "steps": 200,
+            "relax_delay": 200,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
             "gain_start": gain_start,
             "gain_stop": gain_stop,
@@ -138,7 +138,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
 
         "power_rabi_ge": {
             "reps": 20,
-            "rounds": 5,
+            "rounds": 3,
             "start": 0, # [DAC units]
             "stop": 0.085,  # [DAC units]
             "steps": 70,
@@ -216,19 +216,19 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "relax_delay": 500,  # [us]
         },
         "T1_ge": {
-            "reps": 500,#,50, #300
-            "rounds": 5, #1
-            "start":  0,  # [us]
+            "reps": 300,#,50, #300
+            "rounds": 1, #1
+            "start":  0.01,  # [us]
             "stop": 500,  # [us] ### Should be ~10x T1! Should change this per qubit.
-            "steps": 50,
+            "steps": 200,
             "relax_delay": 500,  # [us] ### Should be >10x T1!
             "wait_time": 0.0,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
 
         "T1_IBM_qze": {
-            "reps": 30,
-            "rounds": 5,#500,
+            "reps": 100,
+            "rounds": 1,#500,
             "start": 30,  # [us]
             "stop": 31,  # [250.0] * 6,  # [us] ### Should be ~10x T1! Should change this per qubit.
             "steps": 1,
@@ -241,11 +241,11 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "T1_IBM_qze_loop": {
-            "reps": 500,
-            "rounds": 5,#20,
+            "reps": 300,
+            "rounds": 1,#20,
             "start": 0.01,  # [us]
             "stop": 100,  # [250.0] * 6,  # [us] ### Should be ~10x T1! Should change this per qubit.
-            "steps": 50,
+            "steps": 200,
             "relax_delay": 500,  # [us] ### Should be >10x T1!
             "wait_time": 30,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
@@ -388,24 +388,24 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "Ramsey_ge": {
-            "reps": 500,
-            "rounds": 20,
+            "reps": 300,
+            "rounds": 1,
             "start": 0.0, # [us]
-            "stop":  100, # [us]
-            "steps": 350,
-            "ramsey_freq": 0.15,  # [MHz]
+            "stop":  20, # [us]
+            "steps": 200,
+            "ramsey_freq": 0.6,  # [MHz]
             "relax_delay": 500, # [us] the time to wait to let the qubit to relax to gnd again after exciting it (make it way above T1)
             "wait_time": 0.0, # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
 
         "Ramsey_ge_zeno": {
-            "reps": 500,
-            "rounds": 20,
+            "reps": 300,
+            "rounds": 1,
             "start": 0.01,  # [us]
-            "stop": 60,  # [us]
-            "steps": 350,
-            "ramsey_freq": 0.15,  # [MHz]
+            "stop": 20,  # [us]
+            "steps": 200,
+            "ramsey_freq": 0.6,  #.15 [MHz]
             "relax_delay": 500,
             # [us] the time to wait to let the qubit to relax to gnd again after exciting it (make it way above T1)
             "wait_time": 0.0,  # [us]
@@ -429,23 +429,23 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "SpinEcho_ge": {
-            "reps": 500,#20,
-            "rounds": 20,
+            "reps": 300,#20,
+            "rounds": 1,
             "start": 0.01, # [us]
-            "stop":  100, # [us]
-            "steps": 350,
-            "ramsey_freq": 0.15,  #0.12 [MHz]
+            "stop":  20, # [us]
+            "steps": 200,
+            "ramsey_freq": 0.6,  #0.12 [MHz]
             "relax_delay": 500, # [us]
             "wait_time": 0.0, # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
         "SpinEcho_ge_zeno": {
-            "reps": 500,  # 20,
-            "rounds": 20,
+            "reps": 300,  # 20,
+            "rounds": 1,
             "start": 0.01,  # [us]
-            "stop": 100,  # [us]
-            "steps": 350,
-            "ramsey_freq": 0.15,  # 0.12 [MHz]
+            "stop": 20,  # [us]
+            "steps": 200,
+            "ramsey_freq": 0.6,  # 0.12 [MHz]
             "relax_delay": 500,  # [us]
             "wait_time": 0.0,  # [us]
             "list_of_all_qubits": list_of_all_qubits,

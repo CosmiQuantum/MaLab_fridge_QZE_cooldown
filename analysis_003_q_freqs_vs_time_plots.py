@@ -361,7 +361,7 @@ class QubitFreqsVsTime:
 
                 save_round = h5_file.split('Num_per_batch')[-1].split('.')[0]
                 H5_class_instance = Data_H5(h5_file)
-                load_data = H5_class_instance.load_from_h5(data_type=f'QSpec_zeno', save_r=int(save_round),
+                load_data = H5_class_instance.load_from_h5(data_type=f'QSpec_zeno{gain}', save_r=int(save_round),
                                                            scaling=scaling)
                 # H5_class_instance.print_h5_contents(h5_file)
                 exclude_dates = {
@@ -371,13 +371,13 @@ class QubitFreqsVsTime:
                     datetime.date(2025, 1, 31)  # Optimization Issues and non RR work in progress
                 }
 
-                for q_key in load_data['QSpec_zeno']:
-                    for dataset in range(len(load_data['QSpec_zeno'][q_key].get('Dates', [])[0])):
-                        if 'nan' in str(load_data['QSpec_zeno'][q_key].get('Dates', [])[0][dataset]):
+                for q_key in load_data[f'QSpec_zeno{gain}']:
+                    for dataset in range(len(load_data[f'QSpec_zeno{gain}'][q_key].get('Dates', [])[0])):
+                        if 'nan' in str(load_data[f'QSpec_zeno{gain}'][q_key].get('Dates', [])[0][dataset]):
                             continue
 
                         date = datetime.datetime.fromtimestamp(
-                            load_data['QSpec_zeno'][q_key].get('Dates', [])[0][dataset])
+                            load_data[f'QSpec_zeno{gain}'][q_key].get('Dates', [])[0][dataset])
 
                         # Skip processing if the date (as a date object) is in the excluded set
                         if date.date() in exclude_dates:
@@ -385,44 +385,56 @@ class QubitFreqsVsTime:
                             continue
 
                         delays = self.process_h5_data(
-                            load_data['QSpec_zeno'][q_key].get('Frequencies', [])[0][dataset].decode())
+                            load_data[f'QSpec_zeno{gain}'][q_key].get('Frequencies', [])[0][dataset].decode())
 
                         # Some older files might have different dataset keys; try / except as in your original
                         try:
                             I = self.process_string_of_nested_lists(
-                                load_data[f'T1{exp_extension}'][q_key].get('I', [])[0][dataset].decode())
+                                load_data[f'QSpec_zeno{gain}'][q_key].get('I', [])[0][dataset].decode())
                             Q = self.process_string_of_nested_lists(
-                                load_data[f'T1{exp_extension}'][q_key].get('Q', [])[0][dataset].decode())
+                                load_data[f'QSpec_zeno{gain}'][q_key].get('Q', [])[0][dataset].decode())
                             if scaling:
                                 Ie = self.process_string_of_nested_lists(
-                                    load_data[f'T1{exp_extension}'][q_key].get('ss_I_e', [])[0][dataset].decode())
+                                    load_data[f'QSpec_zeno{gain}'][q_key].get('ss_I_e', [])[0][dataset].decode())
                                 Ig = self.process_string_of_nested_lists(
-                                    load_data[f'T1{exp_extension}'][q_key].get('ss_I_g', [])[0][dataset].decode())
+                                    load_data[f'QSpec_zeno{gain}'][q_key].get('ss_I_g', [])[0][dataset].decode())
                                 Qe = self.process_string_of_nested_lists(
-                                    load_data[f'T1{exp_extension}_zeno'][q_key].get('ss_Q_e', [])[0][dataset].decode())
+                                    load_data[f'QSpec_zeno{gain}'][q_key].get('ss_Q_e', [])[0][dataset].decode())
                                 Qg = self.process_string_of_nested_lists(
-                                    load_data[f'T1{exp_extension}_zeno'][q_key].get('ss_Q_g', [])[0][dataset].decode())
+                                    load_data[f'QSpec_zeno{gain}'][q_key].get('ss_Q_g', [])[0][dataset].decode())
+                                I_shots = self.process_string_of_nested_lists(
+                                    load_data[f'QSpec_zeno{gain}'][q_key].get('I_shots', [])[0][dataset].decode())
+                                Q_shots = self.process_string_of_nested_lists(
+                                    load_data[f'QSpec_zeno{gain}'][q_key].get('Q_shots', [])[0][dataset].decode())
+                                gains_swept = self.process_string_of_nested_lists(
+                                    load_data[f'QSpec_zeno{gain}'][q_key].get('Gains', [])[0][dataset].decode())
                         except:
                             I = self.process_string_of_nested_lists(
-                                load_data['QSpec_zeno'][q_key].get('I', [])[0][dataset].decode())
+                                load_data[f'QSpec_zeno{gain}'][q_key].get('I', [])[0][dataset].decode())
                             Q = self.process_string_of_nested_lists(
-                                load_data['QSpec_zeno'][q_key].get('Q', [])[0][dataset].decode())
+                                load_data[f'QSpec_zeno{gain}'][q_key].get('Q', [])[0][dataset].decode())
 
                             if scaling:
                                 Ie = self.process_string_of_nested_lists(
-                                    load_data['QSpec_zeno'][q_key].get('ss_I_e', [])[0][dataset].decode())
+                                    load_data[f'QSpec_zeno{gain}'][q_key].get('ss_I_e', [])[0][dataset].decode())
                                 Ig = self.process_string_of_nested_lists(
-                                    load_data['QSpec_zeno'][q_key].get('ss_I_g', [])[0][dataset].decode())
+                                    load_data[f'QSpec_zeno{gain}'][q_key].get('ss_I_g', [])[0][dataset].decode())
                                 Qe = self.process_string_of_nested_lists(
-                                    load_data['QSpec_zeno'][q_key].get('ss_Q_e', [])[0][dataset].decode())
+                                    load_data[f'QSpec_zeno{gain}'][q_key].get('ss_Q_e', [])[0][dataset].decode())
                                 Qg = self.process_string_of_nested_lists(
-                                    load_data['QSpec_zeno'][q_key].get('ss_Q_g', [])[0][dataset].decode())
+                                    load_data[f'QSpec_zeno{gain}'][q_key].get('ss_Q_g', [])[0][dataset].decode())
+                                I_shots = self.process_string_of_nested_lists(
+                                    load_data[f'QSpec_zeno{gain}'][q_key].get('I_shots', [])[0][dataset].decode())
+                                Q_shots = self.process_string_of_nested_lists(
+                                    load_data[f'QSpec_zeno{gain}'][q_key].get('Q_shots', [])[0][dataset].decode())
+                                gains_swept = self.process_string_of_nested_lists(
+                                    load_data[f'QSpec_zeno{gain}'][q_key].get('Gains', [])[0][dataset].decode())
 
-                        round_num = load_data['QSpec_zeno'][q_key].get('Round Num', [])[0][dataset]
+                        round_num = load_data[f'QSpec_zeno{gain}'][q_key].get('Round Num', [])[0][dataset]
                         try:
-                            batch_num = load_data['QSpec_zeno'][q_key].get('Batch Num', [])[0][dataset]
-                            syst_config = load_data['QSpec_zeno'][q_key].get('Syst Config', [])[0][dataset].decode()
-                            exp_config = load_data['QSpec_zeno'][q_key].get('Exp Config', [])[0][dataset].decode()
+                            batch_num = load_data[f'QSpec_zeno{gain}'][q_key].get('Batch Num', [])[0][dataset]
+                            syst_config = load_data[f'QSpec_zeno{gain}'][q_key].get('Syst Config', [])[0][dataset].decode()
+                            exp_config = load_data[f'QSpec_zeno{gain}'][q_key].get('Exp Config', [])[0][dataset].decode()
                         except:
                             exp_config = None
                             syst_config = None

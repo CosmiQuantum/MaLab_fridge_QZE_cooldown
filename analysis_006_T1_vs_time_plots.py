@@ -2942,7 +2942,6 @@ class T1VsTime:
                                 continue
                             xs_list.append(float(nbar_vec[idx]))
                             # use already-computed Gamma & Gamma_err for this same ordering
-                            # find the matching Gamma/Gamma_err for g_val
                             g_mask = (gs == g_val)
                             Gamma_list.append(float(Gamma[g_mask][0]))
                             Gamma_err_list.append(float(Gamma_err[g_mask][0]))
@@ -2951,46 +2950,29 @@ class T1VsTime:
                         ys = np.asarray(Gamma_list, float)
                         es = np.asarray(Gamma_err_list, float)
 
-                        # sort by nbar
+                        # sort by n̄
                         order = np.argsort(xs)
                         xs, ys, es = xs[order], ys[order], es[order]
 
-                        # ---- One figure, two rows: linear (top) and log-x (bottom) ----
-                        import numpy as _np
-                        import matplotlib.pyplot as _plt
-
-                        fig2, (ax_lin, ax_log) = _plt.subplots(
-                            2, 1, figsize=(figure_size[0], figure_size[1] * 1.4),
-                            sharey=True,
-                            gridspec_kw={'height_ratios': [2, 1], 'hspace': 0.08}
+                        # ---- Single linear Γ vs n̄ plot ----
+                        fig2, ax_lin = plt.subplots(
+                            figsize=(figure_size[0], figure_size[1])
                         )
 
-                        # Top: linear x
-                        ax_lin.errorbar(xs, ys, yerr=es, fmt='o', capsize=3, label=r"$\Gamma = 1/T_1$")
+                        ax_lin.errorbar(xs, ys, yerr=es, fmt='o', capsize=3,
+                                        label=r"$\Gamma = 1/T_1$")
                         ax_lin.set_title(f"Qubit {q + 1} — Round {r_id} — Γ vs n̄")
+                        ax_lin.set_xlabel(r"$\bar{n}$")
                         ax_lin.set_ylabel(r"$\Gamma$ (1/ms)")
                         ax_lin.grid(True, alpha=0.25)
                         ax_lin.legend()
 
-                        # Bottom: log x (mask nonpositive nbar)
-                        pos_mask = _np.isfinite(xs) & (xs > 0) & _np.isfinite(ys) & _np.isfinite(es)
-                        if _np.any(pos_mask):
-                            ax_log.errorbar(xs[pos_mask], ys[pos_mask], yerr=es[pos_mask],
-                                            fmt='o', capsize=3)
-                            ax_log.set_xscale('log')
-                            ax_log.grid(True, which='both', alpha=0.25)
-                        else:
-                            ax_log.text(0.5, 0.5, "No positive n̄ values available for log scale.",
-                                        transform=ax_log.transAxes, ha='center', va='center')
-                        ax_log.set_xlabel(r"$\bar{n}$ (log scale)")
-                        ax_log.set_ylabel(r"$\Gamma$ (1/ms)")
-
                         fig2.tight_layout()
-                        f_vs = os.path.join(round_dir, f"Gamma_vs_nbar_linear_and_log_round{r_id}.png")
+                        f_vs = os.path.join(round_dir, f"Gamma_vs_nbar_round{r_id}.png")
                         fig2.savefig(f_vs, dpi=self.final_figure_quality)
-                        _plt.close(fig2)
+                        plt.close(fig2)
 
-                        print(f"Saved Γ vs n̄ with linear+log x subplots for round {r_id} to: {round_dir}")
+                        print(f"Saved Γ vs n̄ (linear x) for round {r_id} to: {round_dir}")
 
 
                     else:

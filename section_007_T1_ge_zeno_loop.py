@@ -165,7 +165,7 @@ class T1Measurement_with_Zeno_loop:
                 self.config['relax_delay'] = relax_delay
                 print(f'set t1 relax delay to {relax_delay} us')
 
-    def run(self, thresholding=False, scaling=False,qze_pulse='const'):
+    def run(self, thresholding=False, scaling=False, qze_pulse='const'):
         now = datetime.datetime.now()
 
         if scaling:
@@ -237,14 +237,14 @@ class T1Measurement_with_Zeno_loop:
                         ss_Q_e_all.append(ss_Q_e)
 
             delay_times = t1.get_pulse_param(pulsename='qze_pulse', parname='length', as_array=True)
-
+            gains = t1.get_pulse_param('qze_pulse', "gain", as_array=True)
 
             if self.plot_results:
-                self.plot_results_interweaved_cal(Is_all, Qs_all, delay_times, now, scaling=scaling, Ie = ss_I_e_all
+                self.plot_results_interweaved_cal_t1(Is_all, Qs_all, delay_times, gains=gains, scaling=scaling, Ie = ss_I_e_all
                                   , Ig = ss_I_g_all, Qe = ss_Q_e_all, Qg = ss_Q_g_all)
             q1_fit_exponential, T1_est, T1_err = None, None, None
             return T1_est, T1_err, Is_all, Qs_all, delay_times, q1_fit_exponential, self.config, ss_Q_e_all\
-                , ss_Q_g_all,ss_I_e_all, ss_I_g_all, I_shots_all, Q_shots_all
+                , ss_Q_g_all,ss_I_e_all, ss_I_g_all, I_shots_all, Q_shots_all, gains
 
 
     def live_plotting(self, t1, thresholding):
@@ -334,114 +334,167 @@ class T1Measurement_with_Zeno_loop:
 
         return q1_fit_exponential, T1_err, T1_est, plot_sig
 
-    def plot_results_interweaved_cal(self, I, Q, delay_times, now, config=None, fig_quality=100,
-                     scaling=False, Ie=None, Ig=None, Qe=None, Qg=None):
-        def _as_sets(x):
-            """
-            Normalize input to a list of 1D numpy arrays.
-            - If x is 1D -> returns [np.asarray(x)]  (backwards compatible)
-            - If x is list-of-lists/2D -> returns [np.asarray(row) for row in x]
-            """
-            arr = np.asarray(x, dtype=object)
-            if arr.ndim == 1 or (arr.ndim == 2 and arr.dtype != object and arr.shape[0] == 1):
-                return [np.asarray(x, dtype=float)]
-            # assume iterable of iterables
-            return [np.asarray(xx, dtype=float) for xx in x]
+    def plot_results_interweaved_cal_t1(self, I, Q, delay_times, gains,
+                                        config=None, fig_quality=100,
+                                        scaling=False, Ie=None, Ig=None, Qe=None, Qg=None):
+        """
+        T1 plotting with support for:
+          - 1D data (delay_times)
+          - 2D data (gains x delay_times), plotted as a heatmap:
+                x-axis: gain
+                y-axis: delay time
+        No fitting is performed.
+        """
 
-        def _calibrated_population(I, Q, Ie, Ig, Qe, Qg):
+        # --- helpers (same idea as in spectroscopy function) ---
+        def _to_stack(x):
             """
-            Single-dataset calibration: returns population trace for one IQ dataset.
+            Return a list of np arrays; if x is already 2D-like (list of arrays), keep;
+            if 1D or 2D np.ndarray, wrap into length-1 list for uniform handling.
             """
-            IQ = np.asarray(I) + 1j * np.asarray(Q)
-            e = np.mean(np.asarray(Ie) + 1j * np.asarray(Qe))
-            g = np.mean(np.asarray(Ig) + 1j * np.asarray(Qg))
-            return np.abs((IQ - g) * (e - g) / (np.abs(e - g) ** 2))
+            if x is None:
+                return None
+            if isinstance(x, (list, tuple)) and len(x) > 0 and isinstance(x[0], (list, tuple, np.ndarray)):
+                return [np.asarray(row) for row in x]
+            else:
+                return [np.asarray(x)]
 
-        def calibrate_and_average(I, Q, Ie, Ig, Qe, Qg):
-            """
-            Vectorized over datasets:
-            - I,Q are list-of-lists (or 1D).
-            - Ie,Ig,Qe,Qg are list-of-lists (or 1D).
-            Returns:
-              y_avg: averaged calibrated population (1D array)
-              y_each: list of calibrated populations, one per dataset
-            """
-            I_sets = _as_sets(I)
-            Q_sets = _as_sets(Q)
-            Ie_sets = _as_sets(Ie)
-            Ig_sets = _as_sets(Ig)
-            Qe_sets = _as_sets(Qe)
-            Qg_sets = _as_sets(Qg)
+        delay_times = np.asarray(delay_times)
+        gains = np.asarray(gains) if gains is not None else None
 
-            # datasets correspond 1:1
-            pops = [
-                _calibrated_population(Ii, Qi, Iei, Igi, Qei, Qgi)
-                for Ii, Qi, Iei, Igi, Qei, Qgi in zip(I_sets, Q_sets, Ie_sets, Ig_sets, Qe_sets, Qg_sets)
-            ]
-            y_avg = np.mean(np.stack(pops, axis=0), axis=0)
-            return y_avg, pops
+        I_stack = _to_stack(I)
+        Q_stack = _to_stack(Q)
 
-        def average_IQ(I, Q):
-            """
-            Averages raw I,Q over datasets (useful when scaling=False).
-            """
-            I_sets = _as_sets(I)
-            Q_sets = _as_sets(Q)
-            I_avg = np.mean(np.stack(I_sets, axis=0), axis=0)
-            Q_avg = np.mean(np.stack(Q_sets, axis=0), axis=0)
-            return I_avg, Q_avg
+        plt.rcParams.update({'font.size': 18})
+
         if scaling:
-            # --- NEW: handle list-of-lists calibration + average calibrated populations ---
+            # --- scaling: use calibration to compute populations; support 1D & 2D ---
+
+            # Normalize calibration inputs similarly
             if any(v is None for v in (Ie, Ig, Qe, Qg)):
-                raise ValueError("scaling=True requires Ie, Ig, Qe, Qg (each list-of-lists or 1D).")
+                raise ValueError("scaling=True requires Ie, Ig, Qe, Qg (each list/array).")
 
-            ydata, _ = calibrate_and_average(I, Q, Ie, Ig, Qe, Qg)
+            Ie_stack = _to_stack(Ie)
+            Ig_stack = _to_stack(Ig)
+            Qe_stack = _to_stack(Qe)
+            Qg_stack = _to_stack(Qg)
 
-            fig, (ax1) = plt.subplots(1, 1)
-            plt.rcParams.update({'font.size': 18})
+            n_traces = len(I_stack)
 
-            # Center title on the axes area
-            plot_middle = (ax1.get_position().x0 + ax1.get_position().x1) / 2
+            # Broadcast single calibration set to all traces if needed
+            if len(Ie_stack) == 1 and n_traces > 1:
+                Ie_stack = Ie_stack * n_traces
+                Ig_stack = Ig_stack * n_traces
+                Qe_stack = Qe_stack * n_traces
+                Qg_stack = Qg_stack * n_traces
 
-            if self.fit_data:
-                # Fit using magnitude data (already a population)
-                self.signal = 'Mag'
-                q1_fit_exponential, T1_err, T1_est, plot_sig = self.t1_fit(None, None, delay_times, mag=ydata)
+            # Basic checks
+            assert len(Q_stack) == n_traces, "I and Q must have the same number of traces"
+            assert len(Ie_stack) == n_traces and len(Ig_stack) == n_traces \
+                   and len(Qe_stack) == n_traces and len(Qg_stack) == n_traces, \
+                "Calibration lists must match number of traces"
 
-                ax1.plot(delay_times, q1_fit_exponential, '-', color='red', linewidth=3, label="Fit")
+            # 1) Per-trace calibration -> population (works for 1D or 2D arrays)
+            pop_traces = []
+            for k in range(n_traces):
+                I_k = np.asarray(I_stack[k])
+                Q_k = np.asarray(Q_stack[k])
 
+                e_k = np.mean(Ie_stack[k] + 1j * Qe_stack[k])
+                g_k = np.mean(Ig_stack[k] + 1j * Qg_stack[k])
+                denom = np.abs(e_k - g_k) ** 2
+                if denom == 0:
+                    raise ValueError(f"Calibration |e-g| is zero for trace index {k}.")
+
+                z_k = I_k + 1j * Q_k
+                pop_k = np.abs(((z_k - g_k) * (e_k - g_k)) / denom)  # same shape as I_k/Q_k
+                pop_traces.append(pop_k)
+
+            # 2) Average calibrated populations across traces
+            pop_arr = np.stack(pop_traces, axis=0)  # shape: (n_traces, ...) -> 2D or 3D
+            pop_mean = np.mean(pop_arr, axis=0)  # shape: 1D (delay) or 2D (gains, delay)
+
+            # --- plotting (no fits) ---
+            if pop_mean.ndim == 2:
+                # 2D case: (n_gains, n_delays) -> heatmap
+                if gains is None:
+                    raise ValueError("For 2D data (gains x delay_times), 'gains' must be provided.")
+
+                n_gains, n_delays = pop_mean.shape
+
+                if gains.shape[0] != n_gains:
+                    raise ValueError(
+                        f"gains length ({gains.shape[0]}) does not match population gain dimension ({n_gains})"
+                    )
+                if delay_times.shape[0] != n_delays:
+                    raise ValueError(
+                        f"delay_times length ({delay_times.shape[0]}) does not match population delay dimension ({n_delays})"
+                    )
+
+                fig, ax = plt.subplots(1, 1, figsize=(10, 6))
+
+                # imshow expects shape (Ny, Nx) = (len(y), len(x))
+                # pop_mean is (n_gains, n_delays), so transpose to (n_delays, n_gains)
+                im = ax.imshow(
+                    pop_mean.T,
+                    origin='lower',
+                    aspect='auto',
+                    extent=(gains[0], gains[-1], delay_times[0], delay_times[-1])
+                )
+
+                ax.set_xlabel("Gain", fontsize=20)
+                ax.set_ylabel("Delay Time (us)", fontsize=20)
+                ax.tick_params(axis='both', which='major', labelsize=16)
+
+                cbar = fig.colorbar(im, ax=ax)
+                cbar.set_label("Qubit Population (avg)", fontsize=18)
+
+                # Title
+                plot_middle = (ax.get_position().x0 + ax.get_position().x1) / 2
                 if config is not None:
                     fig.text(
                         plot_middle, 0.98,
-                        f"Q{self.QubitIndex + 1} "
-                        f"T1={T1_est:.2f} us, {float(config['reps'])}*{float(config['rounds'])} avgs, "
-                        f"Zeno pulse gain {round(self.config['res_gain_qze'], 3)}",
-                        fontsize=14, ha='center', va='top'
+                        f"T1 Q{self.QubitIndex + 1}, "
+                        f"{float(config['reps'])}*{float(config['rounds'])} avgs",
+                        fontsize=16, ha='center', va='top'
                     )
                 else:
                     fig.text(
                         plot_middle, 0.98,
-                        f"T1 Q{self.QubitIndex + 1}, T1 {T1_est:.2f} us, "
-                        f"{self.config['reps']}*{self.config['rounds']} avgs, "
-                        f"Zeno pulse gain {round(self.config['res_gain_qze'], 3)}",
-                        fontsize=14, ha='center', va='top'
+                        f"T1 Q{self.QubitIndex + 1}",
+                        fontsize=16, ha='center', va='top'
+                    )
+
+            elif pop_mean.ndim == 1:
+                # 1D case: simple line plot vs delay_times
+                if delay_times.shape[0] != pop_mean.shape[0]:
+                    raise ValueError(
+                        f"delay_times length ({delay_times.shape[0]}) does not match data length ({pop_mean.shape[0]})"
+                    )
+
+                fig, ax = plt.subplots(1, 1, figsize=(10, 5))
+                ax.plot(delay_times, pop_mean, linewidth=2, label="Qubit Population (avg)")
+                ax.set_xlabel("Delay Time (us)", fontsize=20)
+                ax.set_ylabel("Qubit Population", fontsize=20)
+                ax.tick_params(axis='both', which='major', labelsize=16)
+                ax.legend()
+
+                plot_middle = (ax.get_position().x0 + ax.get_position().x1) / 2
+                if config is not None:
+                    fig.text(
+                        plot_middle, 0.98,
+                        f"T1 Q{self.QubitIndex + 1}, "
+                        f"{float(config['reps'])}*{float(config['rounds'])} avgs",
+                        fontsize=16, ha='center', va='top'
+                    )
+                else:
+                    fig.text(
+                        plot_middle, 0.98,
+                        f"T1 Q{self.QubitIndex + 1}",
+                        fontsize=16, ha='center', va='top'
                     )
             else:
-                if config is not None:
-                    fig.text(
-                        plot_middle, 0.98,
-                        f"T1 Q{self.QubitIndex + 1}, {float(config['reps'])}*{float(config['rounds'])} avgs, "
-                        f"Zeno pulse gain {round(self.config['res_gain_qze'], 3)}",
-                        fontsize=14, ha='center', va='top'
-                    )
-                else:
-                    fig.text(plot_middle, 0.98, f"T1 Q{self.QubitIndex + 1}", fontsize=24, ha='center', va='top')
-                q1_fit_exponential = T1_est = T1_err = None
-
-            # Plot averaged calibrated population
-            ax1.plot(delay_times, ydata, label="Gain (a.u.)", linewidth=2)
-            ax1.set_ylabel("Qubit Population", fontsize=20)
-            ax1.tick_params(axis='both', which='major', labelsize=16)
+                raise ValueError(f"Unexpected population array dimensionality: {pop_mean.ndim}")
 
             plt.tight_layout()
             plt.subplots_adjust(top=0.93)
@@ -459,69 +512,131 @@ class T1Measurement_with_Zeno_loop:
             plt.close(fig)
 
         else:
-            # --- OLD behavior but averages across datasets if list-of-lists ---
-            I_avg, Q_avg = average_IQ(I, Q)
+            # --- non-scaling: average I/Q and plot; support 1D & 2D (heatmap of magnitude for 2D) ---
+            I_arr = np.stack(I_stack, axis=0)  # (n_traces, ...) -> 2D or 3D
+            Q_arr = np.stack(Q_stack, axis=0)
 
-            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
-            plt.rcParams.update({'font.size': 18})
-            plot_middle = (ax1.get_position().x0 + ax1.get_position().x1) / 2
+            I_mean_all = np.mean(I_arr, axis=0)  # 1D (delay) or 2D (gains, delay)
+            Q_mean_all = np.mean(Q_arr, axis=0)
 
-            if self.fit_data:
-                q1_fit_exponential, T1_err, T1_est, plot_sig = self.t1_fit(I_avg, Q_avg, delay_times)
+            if I_mean_all.ndim == 1:
+                # Original 1D behavior: I/Q vs delay_times
+                if delay_times.shape[0] != I_mean_all.shape[0]:
+                    raise ValueError(
+                        f"delay_times length ({delay_times.shape[0]}) does not match data length ({I_mean_all.shape[0]})"
+                    )
 
-                if 'I' in plot_sig:
-                    ax1.plot(delay_times, q1_fit_exponential, '-', color='red', linewidth=3, label="Fit")
-                else:
-                    ax2.plot(delay_times, q1_fit_exponential, '-', color='red', linewidth=3, label="Fit")
+                fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+
+                plot_middle = (ax1.get_position().x0 + ax1.get_position().x1) / 2
+
+                # I subplot
+                ax1.plot(delay_times, I_mean_all, label="I (avg)", linewidth=2)
+                ax1.set_ylabel("I Amplitude (a.u.)", fontsize=20)
+                ax1.tick_params(axis='both', which='major', labelsize=16)
+                ax1.legend()
+
+                # Q subplot
+                ax2.plot(delay_times, Q_mean_all, label="Q (avg)", linewidth=2)
+                ax2.set_xlabel("Delay Time (us)", fontsize=20)
+                ax2.set_ylabel("Q Amplitude (a.u.)", fontsize=20)
+                ax2.tick_params(axis='both', which='major', labelsize=16)
+                ax2.legend()
 
                 if config is not None:
                     fig.text(
                         plot_middle, 0.98,
-                        f"Q{self.QubitIndex + 1} T1={T1_est:.2f} us, {float(config['reps'])}*{float(config['rounds'])} avgs,",
-                        fontsize=24, ha='center', va='top'
+                        f"T1 Q{self.QubitIndex + 1}, "
+                        f"{float(config['reps'])}*{float(config['rounds'])} avgs",
+                        fontsize=16, ha='center', va='top'
                     )
                 else:
                     fig.text(
                         plot_middle, 0.98,
-                        f"T1 Q{self.QubitIndex + 1}, T1 {T1_est:.2f} us, {self.config['reps']}*{self.config['rounds']} avgs,",
-                        fontsize=24, ha='center', va='top'
+                        f"T1 Q{self.QubitIndex + 1}",
+                        fontsize=16, ha='center', va='top'
                     )
-            else:
-                if config is not None:
-                    fig.text(
-                        plot_middle, 0.98,
-                        f"T1 Q{self.QubitIndex + 1}, {float(config['reps'])}*{float(config['rounds'])} avgs,",
-                        fontsize=24, ha='center', va='top'
+
+                plt.tight_layout()
+                plt.subplots_adjust(top=0.93)
+
+                if self.save_figs:
+                    outerFolder_expt = os.path.join(self.outerFolder, self.expt_name)
+                    self.create_folder_if_not_exists(outerFolder_expt)
+                    now = datetime.datetime.now()
+                    formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
+                    file_name = os.path.join(
+                        outerFolder_expt,
+                        f"R_{self.round_num}_Q_{self.QubitIndex + 1}_{formatted_datetime}_{self.expt_name}_q{self.QubitIndex + 1}.png"
                     )
-                else:
-                    fig.text(plot_middle, 0.98, f"T1 Q{self.QubitIndex + 1}", fontsize=24, ha='center', va='top')
-                q1_fit_exponential = T1_est = T1_err = None
+                    fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')
+                plt.close(fig)
 
-            # I subplot
-            ax1.plot(delay_times, I_avg, label="Gain (a.u.)", linewidth=2)
-            ax1.set_ylabel("I Amplitude (a.u.)", fontsize=20)
-            ax1.tick_params(axis='both', which='major', labelsize=16)
+            elif I_mean_all.ndim == 2:
+                # 2D case: make a heatmap of the magnitude sqrt(I^2+Q^2)
+                if gains is None:
+                    raise ValueError("For 2D data (gains x delay_times), 'gains' must be provided.")
 
-            # Q subplot
-            ax2.plot(delay_times, Q_avg, label="Q", linewidth=2)
-            ax2.set_xlabel("Delay time (us)", fontsize=20)
-            ax2.set_ylabel("Q Amplitude (a.u.)", fontsize=20)
-            ax2.tick_params(axis='both', which='major', labelsize=16)
+                mag = np.sqrt(I_mean_all ** 2 + Q_mean_all ** 2)  # shape (n_gains, n_delays)
+                n_gains, n_delays = mag.shape
 
-            plt.tight_layout()
-            plt.subplots_adjust(top=0.93)
+                if gains.shape[0] != n_gains:
+                    raise ValueError(
+                        f"gains length ({gains.shape[0]}) does not match gain dimension ({n_gains})"
+                    )
+                if delay_times.shape[0] != n_delays:
+                    raise ValueError(
+                        f"delay_times length ({delay_times.shape[0]}) does not match delay dimension ({n_delays})"
+                    )
 
-            if self.save_figs:
-                outerFolder_expt = os.path.join(self.outerFolder, self.expt_name)
-                self.create_folder_if_not_exists(outerFolder_expt)
-                now = datetime.datetime.now()
-                formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
-                file_name = os.path.join(
-                    outerFolder_expt,
-                    f"R_{self.round_num}_Q_{self.QubitIndex + 1}_{formatted_datetime}_{self.expt_name}_q{self.QubitIndex + 1}.png"
+                fig, ax = plt.subplots(1, 1, figsize=(10, 6))
+
+                im = ax.imshow(
+                    mag.T,
+                    origin='lower',
+                    aspect='auto',
+                    extent=(gains[0], gains[-1], delay_times[0], delay_times[-1])
                 )
-                fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')
-            plt.close(fig)
+
+                ax.set_xlabel("Gain", fontsize=20)
+                ax.set_ylabel("Delay Time (us)", fontsize=20)
+                ax.tick_params(axis='both', which='major', labelsize=16)
+
+                cbar = fig.colorbar(im, ax=ax)
+                cbar.set_label("Signal Magnitude (avg)", fontsize=18)
+
+                plot_middle = (ax.get_position().x0 + ax.get_position().x1) / 2
+                if config is not None:
+                    fig.text(
+                        plot_middle, 0.98,
+                        f"T1 Q{self.QubitIndex + 1}, "
+                        f"{float(config['reps'])}*{float(config['rounds'])} avgs",
+                        fontsize=16, ha='center', va='top'
+                    )
+                else:
+                    fig.text(
+                        plot_middle, 0.98,
+                        f"T1 Q{self.QubitIndex + 1}",
+                        fontsize=16, ha='center', va='top'
+                    )
+
+                plt.tight_layout()
+                plt.subplots_adjust(top=0.93)
+
+                if self.save_figs:
+                    outerFolder_expt = os.path.join(self.outerFolder, self.expt_name)
+                    self.create_folder_if_not_exists(outerFolder_expt)
+                    now = datetime.datetime.now()
+                    formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
+                    file_name = os.path.join(
+                        outerFolder_expt,
+                        f"R_{self.round_num}_Q_{self.QubitIndex + 1}_{formatted_datetime}_{self.expt_name}_q{self.QubitIndex + 1}.png"
+                    )
+                    fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')
+                plt.close(fig)
+
+            else:
+                raise ValueError(f"Unexpected dimensionality for I/Q in non-scaling mode: {I_mean_all.ndim}")
 
     def plot_results(self, I, Q, delay_times, now, config = None, fig_quality =100,scaling=False, Ie=None, Ig=None, Qe=None, Qg=None):
 

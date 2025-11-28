@@ -99,7 +99,7 @@ class QubitSpectroscopyZeno:
 
                 iq_list = qspec.acquire(self.experiment.soc, rounds=1, progress=self.qick_verbose)
                 iq_list = iq_list[0][0].T
-                I = iq_list[0]
+                I = iq_list[0] # shape 3, 500 for 3 gains in the sweep and 500 steps (reps already averaged over here)
                 Q = iq_list[1]
                 Is_all.append(I)
                 Qs_all.append(Q)
@@ -132,6 +132,7 @@ class QubitSpectroscopyZeno:
                     ss_Q_e_all.append(ss_Q_e)
 
             freqs = qspec.get_pulse_param('qubit_pulse', "freq", as_array=True) #only need to get it once
+            gains = qspec.get_pulse_param('qze_pulse', "gain", as_array=True)
 
             if return_fwhm:
                 largest_amp_curve_mean, y_data_fit, fwhm = self.plot_results_interweaved_cal(Is_all, Qs_all, freqs, config=self.config,
@@ -140,11 +141,11 @@ class QubitSpectroscopyZeno:
                 return Is_all, Qs_all, freqs, y_data_fit, largest_amp_curve_mean, self.config, fwhm, ss_Q_e_all\
                     , ss_Q_g_all, ss_I_e_all, ss_I_g_all, I_shots_all, Q_shots_all
             else:
-                largest_amp_curve_mean, y_data_fit = self.plot_results_interweaved_cal(Is_all, Qs_all, freqs, config=self.config,
-                                                                         return_fwhm=return_fwhm,scaling=scaling,Ie = ss_I_e_all,
+                largest_amp_curve_mean, y_data_fit = self.plot_results_interweaved_cal(Is_all, Qs_all, freqs,gains, config=self.config,
+                                                                         return_fwhm=return_fwhm,scaling=scaling, Ie = ss_I_e_all,
                                                                          Ig = ss_I_g_all, Qe = ss_Q_e_all, Qg = ss_Q_g_all)
                 return Is_all, Qs_all, freqs, y_data_fit, largest_amp_curve_mean, self.config, ss_Q_e_all, ss_Q_g_all,ss_I_e_all\
-                    , ss_I_g_all, I_shots_all, Q_shots_all
+                    , ss_I_g_all, I_shots_all, Q_shots_all, gains
 
     def run_with_stark_tone(self, wait_for_res_ring_up=False):
 
@@ -231,7 +232,7 @@ class QubitSpectroscopyZeno:
             # Plot the fits
             if self.plot_fit:
                 ax1.plot(freqs, y_data_fit, 'r--', label='Lorentzian Fit')
-                ax1.axvline(largest_amp_curve_mean, color='orange', linestyle='--', linewidth=2)
+                #ax1.axvline(largest_amp_curve_mean, color='orange', linestyle='--', linewidth=2)
 
             # Calculate the middle of the plot area
             plot_middle = (ax1.get_position().x0 + ax1.get_position().x1) / 2
@@ -314,10 +315,10 @@ class QubitSpectroscopyZeno:
             # Plot the fits
             if self.plot_fit:
                 ax1.plot(freqs, I_fit, 'r--', label='Lorentzian Fit')
-                ax1.axvline(largest_amp_curve_mean, color='orange', linestyle='--', linewidth=2)
+                #ax1.axvline(largest_amp_curve_mean, color='orange', linestyle='--', linewidth=2)
 
                 ax2.plot(freqs, Q_fit, 'r--', label='Lorentzian Fit')
-                ax2.axvline(largest_amp_curve_mean, color='orange', linestyle='--', linewidth=2)
+                #ax2.axvline(largest_amp_curve_mean, color='orange', linestyle='--', linewidth=2)
 
             # Calculate the middle of the plot area
             plot_middle = (ax1.get_position().x0 + ax1.get_position().x1) / 2
@@ -370,13 +371,15 @@ class QubitSpectroscopyZeno:
             else:
                 return largest_amp_curve_mean, I_fit, Q_fit
 
-    def plot_results_interweaved_cal(self, I, Q, freqs, config=None, fig_quality=100, sigma_guess=1, return_fwhm=False, scaling=False,
-                     Ie=None, Ig=None, Qe=None, Qg=None):
+    def plot_results_interweaved_cal(self, I, Q, freqs, gains,
+                                     config=None, fig_quality=100, sigma_guess=1,
+                                     return_fwhm=False, scaling=False,
+                                     Ie=None, Ig=None, Qe=None, Qg=None):
 
         # --- helpers ---
         def _to_stack(x):
-            """Return a list of 1D np arrays; if x is already 2D-like (list of lists), keep;
-               if 1D, wrap into length-1 list for uniform handling."""
+            """Return a list of np arrays; if x is already 2D-like (list of arrays), keep;
+               if 1D or 2D np.ndarray, wrap into length-1 list for uniform handling."""
             if x is None:
                 return None
             if isinstance(x, (list, tuple)) and len(x) > 0 and isinstance(x[0], (list, tuple, np.ndarray)):
@@ -385,6 +388,7 @@ class QubitSpectroscopyZeno:
                 return [np.asarray(x)]
 
         freqs = np.asarray(freqs)
+        gains = np.asarray(gains)
 
         I_stack = _to_stack(I)
         Q_stack = _to_stack(Q)
@@ -410,69 +414,169 @@ class QubitSpectroscopyZeno:
             assert len(Ig_stack) == n_traces and len(Qe_stack) == n_traces and len(Qg_stack) == n_traces, \
                 "Calibration lists must match number of traces"
 
-            # 1) Per-trace calibration -> population
+            # 1) Per-trace calibration -> population (works for 1D or 2D arrays)
             pop_traces = []
             for k in range(n_traces):
+                I_k = np.asarray(I_stack[k])
+                Q_k = np.asarray(Q_stack[k])
+
                 e_k = np.mean(Ie_stack[k] + 1j * Qe_stack[k])
                 g_k = np.mean(Ig_stack[k] + 1j * Qg_stack[k])
                 denom = np.abs(e_k - g_k) ** 2
                 # protect against pathological calibration
                 if denom == 0:
                     raise ValueError("Calibration |e-g| is zero for trace index {}.".format(k))
-                z_k = I_stack[k] + 1j * Q_stack[k]
-                pop_k = np.abs(((z_k - g_k) * (e_k - g_k)) / denom)
+
+                z_k = I_k + 1j * Q_k
+                pop_k = np.abs(((z_k - g_k) * (e_k - g_k)) / denom)  # same shape as I_k/Q_k
                 pop_traces.append(pop_k)
 
             # 2) Average calibrated populations across traces
-            ydata = np.mean(np.vstack(pop_traces), axis=0)
+            pop_arr = np.stack(pop_traces, axis=0)  # shape: (n_traces, ...) -> 2D or 3D
+            pop_mean = np.mean(pop_arr, axis=0)  # shape: 1D (freq) or 2D (gains, freq)
+            # print("freqs: ", freqs)
+            # print("gains: ", gains)
+            # print("pop_mean: (gains, freq)", pop_mean)
+            # 3) For Lorentzian fit, we need a 1D population vs freq.
+            #    If we have a gain axis, average over gains.
+            if pop_mean.ndim == 1:
+                # old 1D case
+                ydata_1d = pop_mean
+            elif pop_mean.ndim == 2:
+                # new 2D case: average over gains -> 1D vs frequency
+                # pop_mean shape assumed (n_gains, n_freqs)
+                ydata_1d = np.mean(pop_mean, axis=0)
+            else:
+                raise ValueError("Unexpected population array dimensionality: {}".format(pop_mean.ndim))
 
-            # 3) Find peak from the averaged population
-            freq_q = freqs[np.argmax(ydata)]
+            freq_q = freqs[np.argmax(ydata_1d)]
 
             mean_y_data, y_data_fit, largest_amp_curve_mean, largest_amp_curve_fwhm, fit_err = \
-                self.fit_lorenzian_scaled(ydata, freqs, freq_q, sigma_guess)
+                self.fit_lorenzian_scaled(ydata_1d, freqs, freq_q, sigma_guess)
 
             if (mean_y_data is None and y_data_fit is None and
                     largest_amp_curve_mean is None and largest_amp_curve_fwhm is None):
                 return None, None, None
 
-            # --- plotting (unchanged, but now plotting averaged population) ---
-            fig, (ax1) = plt.subplots(1, 1, figsize=(10, 5))
+            # --- plotting ---
             plt.rcParams.update({'font.size': 18})
 
-            ax1.plot(freqs, ydata, label='', linewidth=2)
-            ax1.set_ylabel("Qubit Population (avg)", fontsize=20)
-            ax1.tick_params(axis='both', which='major', labelsize=16)
-            ax1.legend()
+            # If we have 2D data (gains × freqs), make a heatmap.
+            if pop_mean.ndim == 2:
+                n_gains, n_freqs = pop_mean.shape
 
-            if self.plot_fit:
-                ax1.plot(freqs, y_data_fit, 'r--', label='Lorentzian Fit')
-                ax1.axvline(largest_amp_curve_mean, color='orange', linestyle='--', linewidth=2)
+                # Sanity checks
+                if len(freqs) != n_freqs:
+                    raise ValueError(
+                        f"freqs length ({len(freqs)}) does not match population freq dimension ({n_freqs})"
+                    )
+                if len(gains) != n_gains:
+                    raise ValueError(
+                        f"gains length ({len(gains)}) does not match population gain dimension ({n_gains})"
+                    )
 
-            plot_middle = (ax1.get_position().x0 + ax1.get_position().x1) / 2
-            if self.plot_fit:
-                if config is not None:
-                    fig.text(plot_middle, 0.98,
-                             f"Qubit Spectroscopy Q{self.QubitIndex + 1}, %.2f MHz" % largest_amp_curve_mean +
-                             f" FWHM: {round(largest_amp_curve_fwhm, 1)}" +
-                             f", {config['reps']}*{config['rounds']} avgs, Zeno pulse gain {round(self.config['res_gain_qze'], 3)}",
-                             fontsize=14, ha='center', va='top')
+                fig, ax = plt.subplots(1, 1, figsize=(10, 6))
+
+                # imshow expects shape (Ny, Nx) = (len(freqs), len(gains))
+                # pop_mean is (n_gains, n_freqs), so transpose to (n_freqs, n_gains)
+                im = ax.imshow(
+                    pop_mean.T,
+                    origin='lower',
+                    aspect='auto',
+                    extent=(gains[0], gains[-1], freqs[0], freqs[-1]),
+                    interpolation = 'nearest'
+                )
+
+                ax.set_xlabel("Gain", fontsize=20)
+                ax.set_ylabel("Qubit Frequency (MHz)", fontsize=20)
+                ax.tick_params(axis='both', which='major', labelsize=16)
+
+                cbar = fig.colorbar(im, ax=ax)
+                cbar.set_label("Qubit Population (avg)", fontsize=18)
+
+                # Optionally overlay the fitted peak (averaged over gain)
+                if self.plot_fit:
+                    ax.axhline(largest_amp_curve_mean, color='orange', linestyle='--', linewidth=2)
+
+                # Title text
+                plot_middle = (ax.get_position().x0 + ax.get_position().x1) / 2
+                if self.plot_fit:
+                    if config is not None:
+                        fig.text(
+                            plot_middle, 0.98,
+                            f"Qubit Spectroscopy Q{self.QubitIndex + 1}, %.2f MHz" % largest_amp_curve_mean +
+                            f" FWHM: {round(largest_amp_curve_fwhm, 1)}" +
+                            f", {config['reps']}*{config['rounds']} avgs",
+                            fontsize=16, ha='center', va='top'
+                        )
+                    else:
+                        fig.text(
+                            plot_middle, 0.98,
+                            f"Qubit Spectroscopy Q{self.QubitIndex + 1}, %.2f MHz" % largest_amp_curve_mean +
+                            f" FWHM: {round(largest_amp_curve_fwhm, 1)}" +
+                            f", {self.config['reps']}*{self.config['rounds']} avgs",
+                            fontsize=16, ha='center', va='top'
+                        )
                 else:
-                    fig.text(plot_middle, 0.98,
-                             f"Qubit Spectroscopy Q{self.QubitIndex + 1}, %.2f MHz" % largest_amp_curve_mean +
-                             f" FWHM: {round(largest_amp_curve_fwhm, 1)}" +
-                             f", {self.config['reps']}*{self.config['rounds']} avgs",
-                             fontsize=24, ha='center', va='top')
+                    if config is not None:
+                        fig.text(
+                            plot_middle, 0.98,
+                            f"Qubit Spectroscopy Q{self.QubitIndex + 1}" +
+                            f", {config['reps']}*{config['rounds']} avgs",
+                            fontsize=16, ha='center', va='top'
+                        )
+                    else:
+                        fig.text(
+                            plot_middle, 0.98,
+                            f"Qubit Spectroscopy Q{self.QubitIndex + 1}",
+                            fontsize=16, ha='center', va='top'
+                        )
+
             else:
-                if config is not None:
-                    fig.text(plot_middle, 0.98,
-                             f"Qubit Spectroscopy Q{self.QubitIndex + 1}" +
-                             f", {config['reps']}*{config['rounds']} avgs",
-                             fontsize=24, ha='center', va='top')
+                # Fallback: old 1D-style plot (no gain axis)
+                fig, ax1 = plt.subplots(1, 1, figsize=(10, 5))
+                ax1.plot(freqs, ydata_1d, label='', linewidth=2)
+                ax1.set_ylabel("Qubit Population (avg)", fontsize=20)
+                ax1.set_xlabel("Qubit Frequency (MHz)", fontsize=20)
+                ax1.tick_params(axis='both', which='major', labelsize=16)
+                ax1.legend()
+
+                if self.plot_fit:
+                    ax1.plot(freqs, y_data_fit, 'r--', label='Lorentzian Fit')
+                    #ax1.axvline(largest_amp_curve_mean, color='orange', linestyle='--', linewidth=2)
+
+                plot_middle = (ax1.get_position().x0 + ax1.get_position().x1) / 2
+                if self.plot_fit:
+                    if config is not None:
+                        fig.text(
+                            plot_middle, 0.98,
+                            f"Qubit Spectroscopy Q{self.QubitIndex + 1}, %.2f MHz" % largest_amp_curve_mean +
+                            f" FWHM: {round(largest_amp_curve_fwhm, 1)}" +
+                            f", {config['reps']}*{config['rounds']} avgs",
+                            fontsize=14, ha='center', va='top'
+                        )
+                    else:
+                        fig.text(
+                            plot_middle, 0.98,
+                            f"Qubit Spectroscopy Q{self.QubitIndex + 1}, %.2f MHz" % largest_amp_curve_mean +
+                            f" FWHM: {round(largest_amp_curve_fwhm, 1)}" +
+                            f", {self.config['reps']}*{self.config['rounds']} avgs",
+                            fontsize=24, ha='center', va='top'
+                        )
                 else:
-                    fig.text(plot_middle, 0.98,
-                             f"Qubit Spectroscopy Q{self.QubitIndex + 1}",
-                             fontsize=24, ha='center', va='top')
+                    if config is not None:
+                        fig.text(
+                            plot_middle, 0.98,
+                            f"Qubit Spectroscopy Q{self.QubitIndex + 1}" +
+                            f", {config['reps']}*{config['rounds']} avgs",
+                            fontsize=24, ha='center', va='top'
+                        )
+                    else:
+                        fig.text(
+                            plot_middle, 0.98,
+                            f"Qubit Spectroscopy Q{self.QubitIndex + 1}",
+                            fontsize=24, ha='center', va='top'
+                        )
 
             plt.tight_layout()
             plt.subplots_adjust(top=0.93)
@@ -482,8 +586,14 @@ class QubitSpectroscopyZeno:
                 self.create_folder_if_not_exists(outerFolder_expt)
                 now = datetime.datetime.now()
                 formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
-                file_name = os.path.join(outerFolder_expt, f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" +
-                                         f"{formatted_datetime}_" + self.expt_name + f"_q{self.QubitIndex + 1}.png")
+                file_name = os.path.join(
+                    outerFolder_expt,
+                    f"R_{self.round_num}_"
+                    + f"Q_{self.QubitIndex + 1}_"
+                    + f"{formatted_datetime}_"
+                    + self.expt_name
+                    + f"_q{self.QubitIndex + 1}.png"
+                )
                 fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')
             plt.close(fig)
 
@@ -493,28 +603,43 @@ class QubitSpectroscopyZeno:
                 return largest_amp_curve_mean, y_data_fit
 
         else:
-            # Non-scaling: average multiple traces if provided, then behave as before.
-            I_mean = np.mean(np.vstack(I_stack), axis=0)
-            Q_mean = np.mean(np.vstack(Q_stack), axis=0)
+            # Non-scaling: handle 1D or 2D I/Q.
+            I_arr = np.stack(I_stack, axis=0)  # (n_traces, ...) -> 2D or 3D
+            Q_arr = np.stack(Q_stack, axis=0)
 
-            freq_q = freqs[np.argmax(I_mean)]
+            I_mean_all = np.mean(I_arr, axis=0)  # 1D (freq) or 2D (gains, freq)
+            Q_mean_all = np.mean(Q_arr, axis=0)
+
+            # For fitting, reduce to 1D vs frequency if necessary
+            if I_mean_all.ndim == 1:
+                I_mean_1d = I_mean_all
+                Q_mean_1d = Q_mean_all
+            elif I_mean_all.ndim == 2:
+                I_mean_1d = np.mean(I_mean_all, axis=0)  # average over gains
+                Q_mean_1d = np.mean(Q_mean_all, axis=0)
+            else:
+                raise ValueError("Unexpected dimensionality for I/Q in non-scaling mode: {}".format(I_mean_all.ndim))
+
+            freq_q = freqs[np.argmax(I_mean_1d)]
 
             mean_I, mean_Q, I_fit, Q_fit, largest_amp_curve_mean, largest_amp_curve_fwhm, fit_err = \
-                self.fit_lorenzian(I_mean, Q_mean, freqs, freq_q, sigma_guess)
+                self.fit_lorenzian(I_mean_1d, Q_mean_1d, freqs, freq_q, sigma_guess)
 
             if (mean_I is None and mean_Q is None and I_fit is None and Q_fit is None
                     and largest_amp_curve_mean is None and largest_amp_curve_fwhm is None):
                 return None, None, None
 
-            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
             plt.rcParams.update({'font.size': 18})
 
-            ax1.plot(freqs, I_mean, label='I (avg)', linewidth=2)
+            # Keep original 1D plots based on averaged traces.
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+
+            ax1.plot(freqs, I_mean_1d, label='I (avg)', linewidth=2)
             ax1.set_ylabel("I Amplitude (a.u.)", fontsize=20)
             ax1.tick_params(axis='both', which='major', labelsize=16)
             ax1.legend()
 
-            ax2.plot(freqs, Q_mean, label='Q (avg)', linewidth=2)
+            ax2.plot(freqs, Q_mean_1d, label='Q (avg)', linewidth=2)
             ax2.set_xlabel("Qubit Frequency (MHz)", fontsize=20)
             ax2.set_ylabel("Q Amplitude (a.u.)", fontsize=20)
             ax2.tick_params(axis='both', which='major', labelsize=16)
@@ -522,34 +647,42 @@ class QubitSpectroscopyZeno:
 
             if self.plot_fit:
                 ax1.plot(freqs, I_fit, 'r--', label='Lorentzian Fit')
-                ax1.axvline(largest_amp_curve_mean, color='orange', linestyle='--', linewidth=2)
+                #ax1.axvline(largest_amp_curve_mean, color='orange', linestyle='--', linewidth=2)
                 ax2.plot(freqs, Q_fit, 'r--', label='Lorentzian Fit')
-                ax2.axvline(largest_amp_curve_mean, color='orange', linestyle='--', linewidth=2)
+                #ax2.axvline(largest_amp_curve_mean, color='orange', linestyle='--', linewidth=2)
 
             plot_middle = (ax1.get_position().x0 + ax1.get_position().x1) / 2
             if self.plot_fit:
                 if config is not None:
-                    fig.text(plot_middle, 0.98,
-                             f"Qubit Spectroscopy Q{self.QubitIndex + 1}, %.2f MHz" % largest_amp_curve_mean +
-                             f" FWHM: {round(largest_amp_curve_fwhm, 1)}" +
-                             f", {config['reps']}*{config['rounds']} avgs",
-                             fontsize=24, ha='center', va='top')
+                    fig.text(
+                        plot_middle, 0.98,
+                        f"Qubit Spectroscopy Q{self.QubitIndex + 1}, %.2f MHz" % largest_amp_curve_mean +
+                        f" FWHM: {round(largest_amp_curve_fwhm, 1)}" +
+                        f", {config['reps']}*{config['rounds']} avgs",
+                        fontsize=24, ha='center', va='top'
+                    )
                 else:
-                    fig.text(plot_middle, 0.98,
-                             f"Qubit Spectroscopy Q{self.QubitIndex + 1}, %.2f MHz" % largest_amp_curve_mean +
-                             f" FWHM: {round(largest_amp_curve_fwhm, 1)}" +
-                             f", {self.config['reps']}*{self.config['rounds']} avgs",
-                             fontsize=24, ha='center', va='top')
+                    fig.text(
+                        plot_middle, 0.98,
+                        f"Qubit Spectroscopy Q{self.QubitIndex + 1}, %.2f MHz" % largest_amp_curve_mean +
+                        f" FWHM: {round(largest_amp_curve_fwhm, 1)}" +
+                        f", {self.config['reps']}*{self.config['rounds']} avgs",
+                        fontsize=24, ha='center', va='top'
+                    )
             else:
                 if config is not None:
-                    fig.text(plot_middle, 0.98,
-                             f"Qubit Spectroscopy Q{self.QubitIndex + 1}" +
-                             f", {config['reps']}*{config['rounds']} avgs",
-                             fontsize=24, ha='center', va='top')
+                    fig.text(
+                        plot_middle, 0.98,
+                        f"Qubit Spectroscopy Q{self.QubitIndex + 1}" +
+                        f", {config['reps']}*{config['rounds']} avgs",
+                        fontsize=24, ha='center', va='top'
+                    )
                 else:
-                    fig.text(plot_middle, 0.98,
-                             f"Qubit Spectroscopy Q{self.QubitIndex + 1}",
-                             fontsize=24, ha='center', va='top')
+                    fig.text(
+                        plot_middle, 0.98,
+                        f"Qubit Spectroscopy Q{self.QubitIndex + 1}",
+                        fontsize=24, ha='center', va='top'
+                    )
 
             plt.tight_layout()
             plt.subplots_adjust(top=0.93)
@@ -559,8 +692,14 @@ class QubitSpectroscopyZeno:
                 self.create_folder_if_not_exists(outerFolder_expt)
                 now = datetime.datetime.now()
                 formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
-                file_name = os.path.join(outerFolder_expt, f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" +
-                                         f"{formatted_datetime}_" + self.expt_name + f"_q{self.QubitIndex + 1}.png")
+                file_name = os.path.join(
+                    outerFolder_expt,
+                    f"R_{self.round_num}_"
+                    + f"Q_{self.QubitIndex + 1}_"
+                    + f"{formatted_datetime}_"
+                    + self.expt_name
+                    + f"_q{self.QubitIndex + 1}.png"
+                )
                 fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')
             plt.close(fig)
 
@@ -872,8 +1011,11 @@ class PulseProbeSpectroscopyProgram(AveragerProgramV2):
                        phase=cfg['res_phase_qze'],
                        gain=QickSweep1D("gain_loop", cfg["gain_start"], cfg["gain_stop"])
                        )
+
         self.add_loop("freqloop", cfg["steps"])
         self.add_loop("gain_loop", cfg["gain_steps"])  # inner loop
+
+
 
 
     def _body(self, cfg):
@@ -1154,7 +1296,7 @@ class QZEStyleResStarkShift2D:
 
 
         ax1.plot(freqs, fit, 'r--', label='Lorentzian Fit')
-        ax1.axvline(mean, color='orange', linestyle='--', linewidth=2)
+        #ax1.axvline(mean, color='orange', linestyle='--', linewidth=2)
 
         # Calculate the middle of the plot area
         plot_middle = (ax1.get_position().x0 + ax1.get_position().x1) / 2
