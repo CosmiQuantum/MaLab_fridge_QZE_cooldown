@@ -5,7 +5,7 @@ from analysis_003_q_freqs_vs_time_plots import QubitFreqsVsTime
 
 # Configuration
 save_figs = True
-save_individual_qspec = False  # Set to False to skip saving individual qspec plots
+save_individual_qspec = True  # Set to False to skip saving individual qspec plots
 figure_quality = 100
 final_figure_quality = 200
 FRIDGE = "QUIET"
