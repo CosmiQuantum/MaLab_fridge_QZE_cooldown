@@ -639,7 +639,6 @@ class T1VsTime:
                         if len(I) > 0:
                             round_current = int(folder_date.split('round')[-1])
                             rounds_completed[q_key].append(round_current)
-                            gains[q_key].append(gains_swept)
                             
                             # Assume I and Q are list-of-lists (one per gain), single calibration per round
                             if scaling:
@@ -653,27 +652,61 @@ class T1VsTime:
                                 g = np.mean(Ig_cal + 1j * Qg_cal)
                                 
                                 # Apply calibration to each gain's data
-                                gain_amps = []
+                                calibrated_sublists = []
                                 for sub_I, sub_Q in zip(I, Q):
                                     sub_I = np.asarray(sub_I, dtype=float)
                                     sub_Q = np.asarray(sub_Q, dtype=float)
                                     pop_norm = np.abs(((sub_I + 1j * sub_Q) - g) * (e - g) / (np.abs(e - g) ** 2))
-                                    gain_amps.append(pop_norm.tolist())
+                                    calibrated_sublists.append(pop_norm.tolist())
                                 
-                                # Store list-of-traces (one per gain)
-                                amps[q_key].append(gain_amps)
+                                # Check if this is a gain sweep (multiple gains matching multiple sublists)
+                                is_sweep = len(gains_swept) > 1 and len(gains_swept) == len(I)
+                                
+                                if is_sweep:
+                                    # Flatten the list of lists
+                                    flat_amps = [item for sublist in calibrated_sublists for item in sublist]
+                                    amps[q_key].append(flat_amps)
+                                    
+                                    # Expand gains to match the flattened structure
+                                    expanded_gains = np.repeat(gains_swept, len(delays))
+                                    gains[q_key].append(expanded_gains.tolist())
+                                    
+                                    # Expand delays to match
+                                    expanded_delays = np.tile(delays, len(gains_swept))
+                                    delay_times[q_key].append(expanded_delays.tolist())
+                                else:
+                                    # Standard averaging over repetitions (single gain)
+                                    amp_avg = np.mean(np.array(calibrated_sublists), axis=0)
+                                    amps[q_key].append(amp_avg.tolist())
+                                    gains[q_key].append(gains_swept)
+                                    delay_times[q_key].append(delays)
                             else:
                                 # No scaling - just compute amplitude from I/Q
-                                gain_amps = []
+                                amp_sublists = []
                                 for sub_I, sub_Q in zip(I, Q):
                                     sub_I = np.asarray(sub_I, dtype=float)
                                     sub_Q = np.asarray(sub_Q, dtype=float)
-                                    amp = np.hypot(sub_I, sub_Q)
-                                    gain_amps.append(amp.tolist())
+                                    amp_sublists.append(np.hypot(sub_I, sub_Q).tolist())
                                 
-                                amps[q_key].append(gain_amps)
-
-                            delay_times[q_key].append(delays)
+                                # Check if this is a gain sweep
+                                is_sweep = len(gains_swept) > 1 and len(gains_swept) == len(I)
+                                
+                                if is_sweep:
+                                    # Flatten for gain sweep
+                                    flat_amps = [item for sublist in amp_sublists for item in sublist]
+                                    amps[q_key].append(flat_amps)
+                                    
+                                    expanded_gains = np.repeat(gains_swept, len(delays))
+                                    gains[q_key].append(expanded_gains.tolist())
+                                    
+                                    expanded_delays = np.tile(delays, len(gains_swept))
+                                    delay_times[q_key].append(expanded_delays.tolist())
+                                else:
+                                    # Average over repetitions
+                                    amp_avg = np.mean(np.array(amp_sublists), axis=0)
+                                    amps[q_key].append(amp_avg.tolist())
+                                    gains[q_key].append(gains_swept)
+                                    delay_times[q_key].append(delays)
 
                 del H5_class_instance
 
