@@ -44,8 +44,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "qubit_spec_ge": {
-            "reps": 500,
-            "rounds": 50,
+            "reps": 250,
+            "rounds": 5,
             "start": list(VNA_qubit-30), # [MHz] -30
             "stop": list(VNA_qubit+15), # [MHz] +15
             "steps": 500,
@@ -53,8 +53,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "list_of_all_qubits": list_of_all_qubits,
         },
         "qubit_spec_ge_zeno": {
-            "reps": 500,
-            "rounds": 1,#5
+            "reps": 250,
+            "rounds": 5,
             "start": list(VNA_qubit - 30),  # [MHz] -40
             "stop": list(VNA_qubit + 15),  # [MHz] +40
             "steps": 200,
@@ -216,7 +216,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "relax_delay": 500,  # [us]
         },
         "T1_ge": {
-            "reps": 300,#,50, #300
+            "reps": 100,#,50, #300
             "rounds": 1, #1
             "start":  0.01,  # [us]
             "stop": 500,  # [us] ### Should be ~10x T1! Should change this per qubit.
@@ -241,7 +241,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "T1_IBM_qze_loop": {
-            "reps": 300,
+            "reps": 100,
             "rounds": 1,#20,
             "start": 0.01,  # [us]
             "stop": 100,  # [250.0] * 6,  # [us] ### Should be ~10x T1! Should change this per qubit.
@@ -388,7 +388,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "Ramsey_ge": {
-            "reps": 300,
+            "reps": 100,
             "rounds": 1,
             "start": 0.0, # [us]
             "stop":  20, # [us]
@@ -400,7 +400,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "Ramsey_ge_zeno": {
-            "reps": 300,
+            "reps": 100,
             "rounds": 1,
             "start": 0.01,  # [us]
             "stop": 20,  # [us]
@@ -429,7 +429,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "SpinEcho_ge": {
-            "reps": 300,#20,
+            "reps": 100,#20,
             "rounds": 1,
             "start": 0.01, # [us]
             "stop":  20, # [us]
@@ -440,7 +440,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "list_of_all_qubits": list_of_all_qubits,
         },
         "SpinEcho_ge_zeno": {
-            "reps": 300,  # 20,
+            "reps": 100,  # 20,
             "rounds": 1,
             "start": 0.01,  # [us]
             "stop": 20,  # [us]
