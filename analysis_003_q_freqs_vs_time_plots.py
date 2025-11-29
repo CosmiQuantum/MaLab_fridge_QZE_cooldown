@@ -297,277 +297,108 @@ class QubitFreqsVsTime:
         import glob, os, re
         import numpy as np
 
-        # ----------Load/get data------------------------
-        Is = {i: [] for i in range(self.number_of_qubits)}
-        Qs = {i: [] for i in range(self.number_of_qubits)}
-        Ig_calibration = {i: [] for i in range(self.number_of_qubits)}
-        Ie_calibration = {i: [] for i in range(self.number_of_qubits)}
-        Qg_calibration = {i: [] for i in range(self.number_of_qubits)}
-        Qe_calibration = {i: [] for i in range(self.number_of_qubits)}
-        amps = {i: [] for i in range(self.number_of_qubits)}  # averaged amplitude list per dataset
+        # Initialize data containers
+        amps = {i: [] for i in range(self.number_of_qubits)}
         gains = {i: [] for i in range(self.number_of_qubits)}
         rounds_completed = {i: [] for i in range(self.number_of_qubits)}
-        reps = []
-        steps = 0
-        file_names = []
-        date_times = {i: [] for i in range(self.number_of_qubits)}
         delay_times = {i: [] for i in range(self.number_of_qubits)}
-        mean_values = {}
-
-        # NEW: element-wise averages of I and Q across sublists (per dataset)
-        I_avgs = {i: [] for i in range(self.number_of_qubits)}
-        Q_avgs = {i: [] for i in range(self.number_of_qubits)}
-
-        def _is_list_of_lists(x):
-            return isinstance(x, (list, tuple)) and len(x) > 0 and isinstance(x[0], (list, tuple))
-
-        def _avg_over_sublists(list_of_lists):
-            """Element-wise average over a list of equal-length sublists."""
-            arr = np.array(list_of_lists, dtype=float)  # (n_sublists, n_points)
-            return np.mean(arr, axis=0)  # (n_points,)
 
         for folder_date in self.top_folder_dates:
-            if self.fridge.upper() == 'QUIET':
-                outerFolder = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "/study_data"
-                outerFolder_save_plots = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "_plots/"
-            elif self.fridge.upper() == 'NEXUS':
-                outerFolder = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/" + folder_date + "/"
-                outerFolder_save_plots = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/" + folder_date + "_plots/"
-            else:
-                raise ValueError("fridge must be either 'QUIET' or 'NEXUS'")
-
-            # ------------------------------------------------Load/Plot/Save QSpec----------------------------------------------
-            if '_' in exp_extension:
-                outerFolder_expt = outerFolder + f"/Data_h5/QSpec_zeno{gain}/"
-            else:
-                outerFolder_expt = outerFolder + f"/Data_h5/QSpec_zeno{gain}/"
-
-            round_we_are_on = outerFolder_expt.split(f'qubit_{self.qubit}round')[-1].split('/')[0].split('_')[0]
+            outerFolder = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "/study_data"
+            outerFolder_expt = outerFolder + f"/Data_h5/QSpec_zeno{gain}/"
+            
             h5_files = glob.glob(os.path.join(outerFolder_expt, "*.h5"))
-
             TS = re.compile(r'(\d{4})[-_\.]?(\d{2})[-_\.]?(\d{2})[ Tt_-]?(\d{2})[-_\.]?(\d{2})[-_\.]?(\d{2})')
-            import datetime as dt
+            
             def dt_from_name(path):
                 name = os.path.basename(path)
                 m = TS.search(name)
                 if not m:
-                    return dt.datetime.min  # or dt.datetime.max to push unknowns to the end
+                    return datetime.datetime.min
                 y, mo, d, h, mi, s = map(int, m.groups())
-                return dt.datetime(y, mo, d, h, mi, s)
+                return datetime.datetime(y, mo, d, h, mi, s)
 
             h5_files = sorted(h5_files, key=dt_from_name)
 
             for h5_file in h5_files:
-
                 save_round = h5_file.split('Num_per_batch')[-1].split('.')[0]
                 H5_class_instance = Data_H5(h5_file)
-                load_data = H5_class_instance.load_from_h5(data_type=f'QSpec_zeno{gain}', save_r=int(save_round),
-                                                           scaling=scaling)
-                # H5_class_instance.print_h5_contents(h5_file)
-                exclude_dates = {
-                    datetime.date(2025, 1, 26),  # power outage
-                    datetime.date(2025, 1, 29),  # HEMT Issues
-                    datetime.date(2025, 1, 30),  # HEMT Issues
-                    datetime.date(2025, 1, 31)  # Optimization Issues and non RR work in progress
-                }
+                load_data = H5_class_instance.load_from_h5(data_type=f'QSpec_zeno{gain}', save_r=int(save_round), scaling=scaling)
 
                 for q_key in load_data[f'QSpec_zeno{gain}']:
                     for dataset in range(len(load_data[f'QSpec_zeno{gain}'][q_key].get('Dates', [])[0])):
-                        if 'nan' in str(load_data[f'QSpec_zeno{gain}'][q_key].get('Dates', [])[0][dataset]):
-                            continue
-
-                        date = datetime.datetime.fromtimestamp(
-                            load_data[f'QSpec_zeno{gain}'][q_key].get('Dates', [])[0][dataset])
-
-                        # Skip processing if the date (as a date object) is in the excluded set
-                        if date.date() in exclude_dates:
-                            print(f"Skipping data for {date} (excluded date)")
-                            continue
-
+                        
                         delays = self.process_h5_data(
                             load_data[f'QSpec_zeno{gain}'][q_key].get('Frequencies', [])[0][dataset].decode())
-
-                        # Some older files might have different dataset keys; try / except as in your original
-                        try:
-                            I = self.process_string_of_nested_lists(
-                                load_data[f'QSpec_zeno{gain}'][q_key].get('I', [])[0][dataset].decode())
-                            Q = self.process_string_of_nested_lists(
-                                load_data[f'QSpec_zeno{gain}'][q_key].get('Q', [])[0][dataset].decode())
-                            if scaling:
-                                Ie = self.process_string_of_nested_lists(
-                                    load_data[f'QSpec_zeno{gain}'][q_key].get('ss_I_e', [])[0][dataset].decode())
-                                Ig = self.process_string_of_nested_lists(
-                                    load_data[f'QSpec_zeno{gain}'][q_key].get('ss_I_g', [])[0][dataset].decode())
-                                Qe = self.process_string_of_nested_lists(
-                                    load_data[f'QSpec_zeno{gain}'][q_key].get('ss_Q_e', [])[0][dataset].decode())
-                                Qg = self.process_string_of_nested_lists(
-                                    load_data[f'QSpec_zeno{gain}'][q_key].get('ss_Q_g', [])[0][dataset].decode())
-                                I_shots = self.process_string_of_nested_lists(
-                                    load_data[f'QSpec_zeno{gain}'][q_key].get('I_shots', [])[0][dataset].decode())
-                                Q_shots = self.process_string_of_nested_lists(
-                                    load_data[f'QSpec_zeno{gain}'][q_key].get('Q_shots', [])[0][dataset].decode())
-                                gains_swept = self.process_h5_data(
-                                    load_data[f'QSpec_zeno{gain}'][q_key].get('Gains', [])[0][dataset].decode())
-                        except:
-                            I = self.process_string_of_nested_lists(
-                                load_data[f'QSpec_zeno{gain}'][q_key].get('I', [])[0][dataset].decode())
-                            Q = self.process_string_of_nested_lists(
-                                load_data[f'QSpec_zeno{gain}'][q_key].get('Q', [])[0][dataset].decode())
-
-                            if scaling:
-                                Ie = self.process_string_of_nested_lists(
-                                    load_data[f'QSpec_zeno{gain}'][q_key].get('ss_I_e', [])[0][dataset].decode())
-                                Ig = self.process_string_of_nested_lists(
-                                    load_data[f'QSpec_zeno{gain}'][q_key].get('ss_I_g', [])[0][dataset].decode())
-                                Qe = self.process_string_of_nested_lists(
-                                    load_data[f'QSpec_zeno{gain}'][q_key].get('ss_Q_e', [])[0][dataset].decode())
-                                Qg = self.process_string_of_nested_lists(
-                                    load_data[f'QSpec_zeno{gain}'][q_key].get('ss_Q_g', [])[0][dataset].decode())
-                                I_shots = self.process_string_of_nested_lists(
-                                    load_data[f'QSpec_zeno{gain}'][q_key].get('I_shots', [])[0][dataset].decode())
-                                Q_shots = self.process_string_of_nested_lists(
-                                    load_data[f'QSpec_zeno{gain}'][q_key].get('Q_shots', [])[0][dataset].decode())
-                                gains_swept = self.process_h5_data(
-                                    load_data[f'QSpec_zeno{gain}'][q_key].get('Gains', [])[0][dataset].decode())
-                        round_num = load_data[f'QSpec_zeno{gain}'][q_key].get('Round Num', [])[0][dataset]
-                        try:
-                            batch_num = load_data[f'QSpec_zeno{gain}'][q_key].get('Batch Num', [])[0][dataset]
-                            syst_config = load_data[f'QSpec_zeno{gain}'][q_key].get('Syst Config', [])[0][dataset].decode()
-                            exp_config = load_data[f'QSpec_zeno{gain}'][q_key].get('Exp Config', [])[0][dataset].decode()
-                        except:
-                            exp_config = None
-                            syst_config = None
+                        
+                        I = self.process_string_of_nested_lists(
+                            load_data[f'QSpec_zeno{gain}'][q_key].get('I', [])[0][dataset].decode())
+                        Q = self.process_string_of_nested_lists(
+                            load_data[f'QSpec_zeno{gain}'][q_key].get('Q', [])[0][dataset].decode())
+                        
+                        gains_swept = self.process_h5_data(
+                            load_data[f'QSpec_zeno{gain}'][q_key].get('Gains', [])[0][dataset].decode())
+                        
+                        if scaling:
+                            Ie = self.process_string_of_nested_lists(
+                                load_data[f'QSpec_zeno{gain}'][q_key].get('ss_I_e', [])[0][dataset].decode())
+                            Ig = self.process_string_of_nested_lists(
+                                load_data[f'QSpec_zeno{gain}'][q_key].get('ss_I_g', [])[0][dataset].decode())
+                            Qe = self.process_string_of_nested_lists(
+                                load_data[f'QSpec_zeno{gain}'][q_key].get('ss_Q_e', [])[0][dataset].decode())
+                            Qg = self.process_string_of_nested_lists(
+                                load_data[f'QSpec_zeno{gain}'][q_key].get('ss_Q_g', [])[0][dataset].decode())
 
                         if len(I) > 0:
-                            # keep raw nested I/Q
-                            Is[q_key].append(I)
-                            Qs[q_key].append(Q)
-
-                            # meta
-                            if exp_config is not None:
-                                try:
-                                    steps = round(
-                                        float(exp_config.split("Readout_Optimization': ")[-1]
-                                              .split("steps': ")[-1].split(',')[0]), 6)
-                                except Exception:
-                                    pass
-                            gains[q_key].append(gains_swept)
-                            round_current=int(folder_date.split('round')[-1])
+                            round_current = int(folder_date.split('round')[-1])
                             rounds_completed[q_key].append(round_current)
-                            # -------- NEW: list-of-lists handling + per-index calibration ----------
+                            gains[q_key].append(gains_swept)
+                            
+                            # Assume I and Q are list-of-lists (one per gain), single calibration per round
                             if scaling:
-                                I_nested = I if _is_list_of_lists(I) else [I]
-                                Q_nested = Q if _is_list_of_lists(Q) else [Q]
-                                Ie_nested = Ie if _is_list_of_lists(Ie) else [Ie]
-                                Ig_nested = Ig if _is_list_of_lists(Ig) else [Ig]
-                                Qe_nested = Qe if _is_list_of_lists(Qe) else [Qe]
-                                Qg_nested = Qg if _is_list_of_lists(Qg) else [Qg]
-
-                                # DEBUG CALIBRATION
-                                print(f"DEBUG: len(I_nested)={len(I_nested)}")
-                                if len(I_nested) > 0: print(f"DEBUG: len(I_nested[0])={len(I_nested[0])}")
-                                print(f"DEBUG: len(Ie_nested)={len(Ie_nested)}")
-                                if len(Ie_nested) > 0: print(f"DEBUG: len(Ie_nested[0])={len(Ie_nested[0])}")
-
-                                # Broadcast calibration data if necessary
-                                num_sublists = len(I_nested)
-                                if num_sublists > 1:
-                                    if len(Ie_nested) == 1:
-                                        # Check if it needs splitting instead of broadcasting
-                                        if len(Ie_nested[0]) == num_sublists * len(I_nested[0]):
-                                            print("DEBUG: Splitting flattened calibration data")
-                                            # It's likely flattened. We should split it.
-                                            # But let's just print for now to confirm.
-                                            pass
-                                        Ie_nested = Ie_nested * num_sublists
-                                    if len(Ig_nested) == 1: Ig_nested = Ig_nested * num_sublists
-                                    if len(Qe_nested) == 1: Qe_nested = Qe_nested * num_sublists
-                                    if len(Qg_nested) == 1: Qg_nested = Qg_nested * num_sublists
-
+                                # Single calibration for all gains
+                                Ie_cal = np.asarray(Ie[0], dtype=float)
+                                Ig_cal = np.asarray(Ig[0], dtype=float)
+                                Qe_cal = np.asarray(Qe[0], dtype=float)
+                                Qg_cal = np.asarray(Qg[0], dtype=float)
+                                
+                                e = np.mean(Ie_cal + 1j * Qe_cal)
+                                g = np.mean(Ig_cal + 1j * Qg_cal)
+                                
+                                # Apply calibration to each gain's data
                                 calibrated_sublists = []
-
-                                for sub_I, sub_Q, sub_Ie, sub_Ig, sub_Qe, sub_Qg in zip(
-                                        I_nested, Q_nested, Ie_nested, Ig_nested, Qe_nested, Qg_nested
-                                ):
+                                for sub_I, sub_Q in zip(I, Q):
                                     sub_I = np.asarray(sub_I, dtype=float)
                                     sub_Q = np.asarray(sub_Q, dtype=float)
-                                    sub_Ie = np.asarray(sub_Ie, dtype=float)
-                                    sub_Qe = np.asarray(sub_Qe, dtype=float)
-                                    sub_Ig = np.asarray(sub_Ig, dtype=float)
-                                    sub_Qg = np.asarray(sub_Qg, dtype=float)
-
-                                    if weighted_mean:
-                                        e = self.robust_center(sub_Ie + 1j * sub_Qe)
-                                        g = self.robust_center(sub_Ig + 1j * sub_Qg)
-                                    else:
-                                        e = np.mean((sub_Ie + 1j * sub_Qe))
-                                        g = np.mean((sub_Ig + 1j * sub_Qg))
-
                                     pop_norm = np.abs(((sub_I + 1j * sub_Q) - g) * (e - g) / (np.abs(e - g) ** 2))
                                     calibrated_sublists.append(pop_norm.tolist())
-
-                                # Check if this is a gain sweep (multiple gains matching multiple sublists)
-                                is_sweep = len(gains_swept) > 1 and len(gains_swept) == len(I_nested)
-
-                                if is_sweep:
-                                    # Flatten the list of lists
-                                    flat_amps = [item for sublist in calibrated_sublists for item in sublist]
-                                    amps[q_key].append(flat_amps)
-
-                                    # Expand gains to match the flattened structure
-                                    # gains_swept is [g1, g2, ...], delays is [d1, d2, ...] (length N)
-                                    # We want g1 repeated N times, then g2 repeated N times...
-                                    expanded_gains = np.repeat(gains_swept, len(delays))
-                                    gains[q_key][-1] = expanded_gains.tolist()
-
-                                    # Expand delays to match
-                                    # We want [d1...dN, d1...dN, ...]
-                                    expanded_delays = np.tile(delays, len(gains_swept))
-                                    # Update the variable that will be appended later
-                                    delays = expanded_delays.tolist()
-
-                                else:
-                                    # Standard averaging over repetitions
-                                    amp_avg = _avg_over_sublists(calibrated_sublists)
-                                    amps[q_key].append(amp_avg.tolist())
-
-                                # keep exactly what we used for calibration (nested)
-                                Ig_calibration[q_key].append(Ig_nested)
-                                Ie_calibration[q_key].append(Ie_nested)
-                                Qg_calibration[q_key].append(Qg_nested)
-                                Qe_calibration[q_key].append(Qe_nested)
-
+                                
+                                # Flatten for gain sweep
+                                flat_amps = [item for sublist in calibrated_sublists for item in sublist]
+                                amps[q_key].append(flat_amps)
+                                
+                                # Expand gains and delays to match flattened structure
+                                expanded_gains = np.repeat(gains_swept, len(delays))
+                                gains[q_key][-1] = expanded_gains.tolist()
+                                
+                                expanded_delays = np.tile(delays, len(gains_swept))
+                                delay_times[q_key].append(expanded_delays.tolist())
                             else:
-                                I_nested = I if _is_list_of_lists(I) else [I]
-                                Q_nested = Q if _is_list_of_lists(Q) else [Q]
-
+                                # No scaling - just compute amplitude from I/Q
                                 amp_sublists = []
-                                I_sublists, Q_sublists = [], []
-                                for sub_I, sub_Q in zip(I_nested, Q_nested):
+                                for sub_I, sub_Q in zip(I, Q):
                                     sub_I = np.asarray(sub_I, dtype=float)
                                     sub_Q = np.asarray(sub_Q, dtype=float)
                                     amp_sublists.append(np.hypot(sub_I, sub_Q).tolist())
-                                    I_sublists.append(sub_I.tolist())
-                                    Q_sublists.append(sub_Q.tolist())
-
-                                amp_avg = _avg_over_sublists(amp_sublists)
-                                I_avg = _avg_over_sublists(I_sublists)
-                                Q_avg = _avg_over_sublists(Q_sublists)
-
+                                
+                                # Average over gains
+                                amp_avg = np.mean(np.array(amp_sublists), axis=0)
                                 amps[q_key].append(amp_avg.tolist())
-                                I_avgs[q_key].append(I_avg.tolist())
-                                Q_avgs[q_key].append(Q_avg.tolist())
-
-                            delay_times[q_key].append(delays)
-                            date_times[q_key].extend([date.strftime("%Y-%m-%d %H:%M:%S")])
+                                delay_times[q_key].append(delays)
 
                 del H5_class_instance
 
-        if return_calibration_data:
-            return (Is, Qs, amps, gains, rounds_completed, delay_times,
-                    Ig_calibration, Ie_calibration, Qe_calibration, Qg_calibration, steps)
-        else:
-            return Is, Qs, amps, gains, rounds_completed, delay_times
+        return None, None, amps, gains, rounds_completed, delay_times
 
     def run(self,exp_extension=''):
         import datetime
