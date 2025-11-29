@@ -493,19 +493,10 @@ class QubitFreqsVsTime:
                                     pop_norm = np.abs(((sub_I + 1j * sub_Q) - g) * (e - g) / (np.abs(e - g) ** 2))
                                     calibrated_sublists.append(pop_norm.tolist())
 
-                                # DEBUG PRINTS
-                                print(f"DEBUG: len(gains_swept)={len(gains_swept)}")
-                                print(f"DEBUG: len(I_nested)={len(I_nested)}")
-                                if len(I_nested) > 0:
-                                    print(f"DEBUG: len(I_nested[0])={len(I_nested[0])}")
-                                print(f"DEBUG: len(delays)={len(delays)}")
-
                                 # Check if this is a gain sweep (multiple gains matching multiple sublists)
                                 is_sweep = len(gains_swept) > 1 and len(gains_swept) == len(I_nested)
-                                print(f"DEBUG: is_sweep={is_sweep}")
 
                                 if is_sweep:
-                                    print("DEBUG: Entering SWEEP block")
                                     # Flatten the list of lists
                                     flat_amps = [item for sublist in calibrated_sublists for item in sublist]
                                     amps[q_key].append(flat_amps)
@@ -523,7 +514,6 @@ class QubitFreqsVsTime:
                                     delays = expanded_delays.tolist()
 
                                 else:
-                                    print("DEBUG: Entering REPS block")
                                     # Standard averaging over repetitions
                                     amp_avg = _avg_over_sublists(calibrated_sublists)
                                     amps[q_key].append(amp_avg.tolist())
@@ -557,21 +547,6 @@ class QubitFreqsVsTime:
 
                             delay_times[q_key].append(delays)
                             date_times[q_key].extend([date.strftime("%Y-%m-%d %H:%M:%S")])
-
-                            # CONSISTENCY CHECK
-                            last_amp = amps[q_key][-1]
-                            last_gain = gains[q_key][-1]
-                            last_delay = delay_times[q_key][-1]
-                            
-                            size_amp = len(last_amp)
-                            size_gain = len(last_gain) if isinstance(last_gain, list) else 1
-                            size_delay = len(last_delay) if isinstance(last_delay, list) else 1
-                            
-                            if size_gain > 1 and size_gain != size_amp:
-                                 print(f"WARNING: Mismatch detected! Gain size {size_gain}, Amp size {size_amp}, Delay size {size_delay}")
-                                 print(f"is_sweep: {locals().get('is_sweep', 'N/A')}")
-                                 print(f"gains_swept len: {len(gains_swept)}")
-                                 print(f"I_nested len: {len(I_nested)}")
 
                 del H5_class_instance
 
