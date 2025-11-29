@@ -143,91 +143,36 @@ class T2eVsTime:
         import glob, os, re
         import numpy as np
 
-        # ----------Load/get data------------------------
-        Is = {i: [] for i in range(self.number_of_qubits)}
-        Qs = {i: [] for i in range(self.number_of_qubits)}
-        Ig_calibration = {i: [] for i in range(self.number_of_qubits)}
-        Ie_calibration = {i: [] for i in range(self.number_of_qubits)}
-        Qg_calibration = {i: [] for i in range(self.number_of_qubits)}
-        Qe_calibration = {i: [] for i in range(self.number_of_qubits)}
-        amps = {i: [] for i in range(self.number_of_qubits)}  # averaged amplitude list per dataset
+        # Initialize data containers
+        amps = {i: [] for i in range(self.number_of_qubits)}
         gains = {i: [] for i in range(self.number_of_qubits)}
         rounds_completed = {i: [] for i in range(self.number_of_qubits)}
-        reps = []
-        steps = 0
-        file_names = []
-        date_times = {i: [] for i in range(self.number_of_qubits)}
         delay_times = {i: [] for i in range(self.number_of_qubits)}
-        mean_values = {}
 
-        # NEW: element-wise averages of I and Q across sublists (per dataset)
-        I_avgs = {i: [] for i in range(self.number_of_qubits)}
-        Q_avgs = {i: [] for i in range(self.number_of_qubits)}
-
-        def _is_list_of_lists(x):
-            return isinstance(x, (list, tuple)) and len(x) > 0 and isinstance(x[0], (list, tuple))
-
-        def _avg_over_sublists(list_of_lists):
-            """Element-wise average over a list of equal-length sublists."""
-            arr = np.array(list_of_lists, dtype=float)  # (n_sublists, n_points)
-            return np.mean(arr, axis=0)  # (n_points,)
-
-        # print(self.top_folder_dates)
         for folder_date in self.top_folder_dates:
-            if self.fridge.upper() == 'QUIET':
-                outerFolder = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "/study_data"
-                outerFolder_save_plots = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "_plots/"
-            elif self.fridge.upper() == 'NEXUS':
-                outerFolder = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/" + folder_date + "/"
-                outerFolder_save_plots = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/" + folder_date + "_plots/"
-            else:
-                raise ValueError("fridge must be either 'QUIET' or 'NEXUS'")
-
-            # ------------------------------------------------Load/Plot/Save T2----------------------------------------------
-            if '_' in exp_extension:
-                outerFolder_expt = outerFolder + f"/Data_h5/T2E{exp_extension}_zeno/"
-            else:
-                outerFolder_expt = outerFolder + "/Data_h5/T2E_ge_zeno/"
-            round_we_are_on = outerFolder_expt.split(f'qubit_{self.qubit}round')[-1].split('/')[0].split('_')[0]
+            outerFolder = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "/study_data"
+            outerFolder_expt = outerFolder + f"/Data_h5/T2E{exp_extension}_zeno/"
+            
             h5_files = glob.glob(os.path.join(outerFolder_expt, "*.h5"))
             TS = re.compile(r'(\d{4})[-_\.]?(\d{2})[-_\.]?(\d{2})[ Tt_-]?(\d{2})[-_\.]?(\d{2})[-_\.]?(\d{2})')
-            import datetime as dt
+            
             def dt_from_name(path):
                 name = os.path.basename(path)
                 m = TS.search(name)
                 if not m:
-                    return dt.datetime.min
+                    return datetime.datetime.min
                 y, mo, d, h, mi, s = map(int, m.groups())
-                return dt.datetime(y, mo, d, h, mi, s)
+                return datetime.datetime(y, mo, d, h, mi, s)
 
             h5_files = sorted(h5_files, key=dt_from_name)
 
             for h5_file in h5_files:
-
                 save_round = h5_file.split('Num_per_batch')[-1].split('.')[0]
                 H5_class_instance = Data_H5(h5_file)
-                load_data = H5_class_instance.load_from_h5(data_type=f'T2E{exp_extension}_zeno',
-                                                           save_r=int(save_round), scaling=scaling)
-                # H5_class_instance.print_h5_contents(h5_file)
-                exclude_dates = {
-                    datetime.date(2025, 1, 26),  # power outage
-                    datetime.date(2025, 1, 29),  # HEMT Issues
-                    datetime.date(2025, 1, 30),  # HEMT Issues
-                    datetime.date(2025, 1, 31)  # Optimization Issues and non RR work in progress
-                }
+                load_data = H5_class_instance.load_from_h5(data_type=f'T2E{exp_extension}_zeno', save_r=int(save_round), scaling=scaling)
 
                 for q_key in load_data[f'T2E{exp_extension}_zeno']:
                     for dataset in range(len(load_data[f'T2E{exp_extension}_zeno'][q_key].get('Dates', [])[0])):
-                        if 'nan' in str(load_data[f'T2E{exp_extension}_zeno'][q_key].get('Dates', [])[0][dataset]):
-                            continue
-
-                        date = datetime.datetime.fromtimestamp(
-                            load_data[f'T2E{exp_extension}_zeno'][q_key].get('Dates', [])[0][dataset])
-
-                        if date.date() in exclude_dates:
-                            print(f"Skipping data for {date} (excluded date)")
-                            continue
-
                         delays = self.process_h5_data(
                             load_data[f'T2E{exp_extension}_zeno'][q_key].get('Delay Times', [])[0][dataset].decode())
 
@@ -235,6 +180,9 @@ class T2eVsTime:
                             load_data[f'T2E{exp_extension}_zeno'][q_key].get('I', [])[0][dataset].decode())
                         Q = self.process_string_of_nested_lists(
                             load_data[f'T2E{exp_extension}_zeno'][q_key].get('Q', [])[0][dataset].decode())
+                        
+                        gains_swept = self.process_h5_data(
+                            load_data[f'T2E{exp_extension}_zeno'][q_key].get('Gains', [])[0][dataset].decode())
 
                         if scaling:
                             Ie = self.process_string_of_nested_lists(
@@ -246,119 +194,81 @@ class T2eVsTime:
                             Qg = self.process_string_of_nested_lists(
                                 load_data[f'T2E{exp_extension}_zeno'][q_key].get('ss_Q_g', [])[0][dataset].decode())
 
-                        round_num = load_data[f'T2E{exp_extension}_zeno'][q_key].get('Round Num', [])[0][dataset]
-                        try:
-                            batch_num = load_data[f'T2E{exp_extension}_zeno'][q_key].get('Batch Num', [])[0][dataset]
-                            syst_config = load_data[f'T2E{exp_extension}_zeno'][q_key].get('Syst Config', [])[0][
-                                dataset].decode()
-                            exp_config = load_data[f'T2E{exp_extension}_zeno'][q_key].get('Exp Config', [])[0][
-                                dataset].decode()
-                        except:
-                            exp_config = None
-
                         if len(I) > 0:
-                            # keep raw nested I/Q for compatibility
-                            Is[q_key].append(I)
-                            Qs[q_key].append(Q)
-
-                            # parse meta when available
-                            if exp_config is not None:
-                                try:
-                                    steps = round(float(exp_config.split("Readout_Optimization': ")[-1]
-                                                        .split("steps': ")[-1].split(',')[0]), 6)
-                                except Exception:
-                                    pass
-                            try:
-                                gain = round(float(syst_config.split("res_gain_qze': ")[-1].split(',')[0]), 6)
-                                gains[q_key].append(gain)
-                            except Exception:
-                                pass
-
-                            rounds_completed[q_key].append(round_we_are_on)
-
-                            # ---- NEW core logic: list-of-lists handling + per-index calibration ----
+                            round_current = int(folder_date.split('round')[-1])
+                            rounds_completed[q_key].append(round_current)
+                            
+                            # Assume I and Q are list-of-lists (one per gain/repetition), single calibration per round
                             if scaling:
-                                I_nested = I if _is_list_of_lists(I) else [I]
-                                Q_nested = Q if _is_list_of_lists(Q) else [Q]
-                                Ie_nested = Ie if _is_list_of_lists(Ie) else [Ie]
-                                Ig_nested = Ig if _is_list_of_lists(Ig) else [Ig]
-                                Qe_nested = Qe if _is_list_of_lists(Qe) else [Qe]
-                                Qg_nested = Qg if _is_list_of_lists(Qg) else [Qg]
-
+                                # Single calibration for all gains/repetitions
+                                Ie_cal = np.asarray(Ie[0], dtype=float)
+                                Ig_cal = np.asarray(Ig[0], dtype=float)
+                                Qe_cal = np.asarray(Qe[0], dtype=float)
+                                Qg_cal = np.asarray(Qg[0], dtype=float)
+                                
+                                e = np.mean(Ie_cal + 1j * Qe_cal)
+                                g = np.mean(Ig_cal + 1j * Qg_cal)
+                                
+                                # Apply calibration to each repetition's data
                                 calibrated_sublists = []
-                                I_sublists, Q_sublists = [], []
-
-                                for sub_I, sub_Q, sub_Ie, sub_Ig, sub_Qe, sub_Qg in zip(
-                                        I_nested, Q_nested, Ie_nested, Ig_nested, Qe_nested, Qg_nested
-                                ):
+                                for sub_I, sub_Q in zip(I, Q):
                                     sub_I = np.asarray(sub_I, dtype=float)
                                     sub_Q = np.asarray(sub_Q, dtype=float)
-                                    sub_Ie = np.asarray(sub_Ie, dtype=float)
-                                    sub_Qe = np.asarray(sub_Qe, dtype=float)
-                                    sub_Ig = np.asarray(sub_Ig, dtype=float)
-                                    sub_Qg = np.asarray(sub_Qg, dtype=float)
-
-                                    if weighted_mean:
-                                        e = self.robust_center(sub_Ie + 1j * sub_Qe)
-                                        g = self.robust_center(sub_Ig + 1j * sub_Qg)
-
-
-                                    else:
-                                        e = np.mean((sub_Ie + 1j * sub_Qe))
-                                        g = np.mean((sub_Ig + 1j * sub_Qg))
-
                                     pop_norm = np.abs(((sub_I + 1j * sub_Q) - g) * (e - g) / (np.abs(e - g) ** 2))
                                     calibrated_sublists.append(pop_norm.tolist())
-                                    I_sublists.append(sub_I.tolist())
-                                    Q_sublists.append(sub_Q.tolist())
-
-                                amp_avg = _avg_over_sublists(calibrated_sublists)
-                                I_avg = _avg_over_sublists(I_sublists)
-                                Q_avg = _avg_over_sublists(Q_sublists)
-
-                                amps[q_key].append(amp_avg.tolist())
-                                I_avgs[q_key].append(I_avg.tolist())
-                                Q_avgs[q_key].append(Q_avg.tolist())
-
-                                # keep the exact calibration data we used (nested)
-                                Ig_calibration[q_key].append(Ig_nested)
-                                Ie_calibration[q_key].append(Ie_nested)
-                                Qg_calibration[q_key].append(Qg_nested)
-                                Qe_calibration[q_key].append(Qe_nested)
-
+                                
+                                # Check if this is a gain sweep (multiple gains matching multiple sublists)
+                                is_sweep = len(gains_swept) > 1 and len(gains_swept) == len(I)
+                                
+                                if is_sweep:
+                                    # Flatten the list of lists
+                                    flat_amps = [item for sublist in calibrated_sublists for item in sublist]
+                                    amps[q_key].append(flat_amps)
+                                    
+                                    # Expand gains to match the flattened structure
+                                    expanded_gains = np.repeat(gains_swept, len(delays))
+                                    gains[q_key].append(expanded_gains.tolist())
+                                    
+                                    # Expand delays to match
+                                    expanded_delays = np.tile(delays, len(gains_swept))
+                                    delay_times[q_key].append(expanded_delays.tolist())
+                                else:
+                                    # Average over repetitions (single gain or no sweep)
+                                    amp_avg = np.mean(np.array(calibrated_sublists), axis=0)
+                                    amps[q_key].append(amp_avg.tolist())
+                                    gains[q_key].append(gains_swept)
+                                    delay_times[q_key].append(delays)
                             else:
-                                I_nested = I if _is_list_of_lists(I) else [I]
-                                Q_nested = Q if _is_list_of_lists(Q) else [Q]
-
+                                # No scaling - just compute amplitude from I/Q
                                 amp_sublists = []
-                                I_sublists, Q_sublists = [], []
-                                for sub_I, sub_Q in zip(I_nested, Q_nested):
+                                for sub_I, sub_Q in zip(I, Q):
                                     sub_I = np.asarray(sub_I, dtype=float)
                                     sub_Q = np.asarray(sub_Q, dtype=float)
                                     amp_sublists.append(np.hypot(sub_I, sub_Q).tolist())
-                                    I_sublists.append(sub_I.tolist())
-                                    Q_sublists.append(sub_Q.tolist())
-
-                                amp_avg = _avg_over_sublists(amp_sublists)
-                                I_avg = _avg_over_sublists(I_sublists)
-                                Q_avg = _avg_over_sublists(Q_sublists)
-
-                                amps[q_key].append(amp_avg.tolist())
-                                I_avgs[q_key].append(I_avg.tolist())
-                                Q_avgs[q_key].append(Q_avg.tolist())
-
-                            delay_times[q_key].append(delays)
-                            date_times[q_key].extend([date.strftime("%Y-%m-%d %H:%M:%S")])
+                                
+                                # Check if this is a gain sweep
+                                is_sweep = len(gains_swept) > 1 and len(gains_swept) == len(I)
+                                
+                                if is_sweep:
+                                    # Flatten for gain sweep
+                                    flat_amps = [item for sublist in amp_sublists for item in sublist]
+                                    amps[q_key].append(flat_amps)
+                                    
+                                    expanded_gains = np.repeat(gains_swept, len(delays))
+                                    gains[q_key].append(expanded_gains.tolist())
+                                    
+                                    expanded_delays = np.tile(delays, len(gains_swept))
+                                    delay_times[q_key].append(expanded_delays.tolist())
+                                else:
+                                    # Average over repetitions
+                                    amp_avg = np.mean(np.array(amp_sublists), axis=0)
+                                    amps[q_key].append(amp_avg.tolist())
+                                    gains[q_key].append(gains_swept)
+                                    delay_times[q_key].append(delays)
 
                 del H5_class_instance
 
-        if return_calibration_data:
-            # original order preserved; new I/Q averages appended for convenience
-            return (I_avgs, Q_avgs, amps, gains, rounds_completed, delay_times,
-                    Ig_calibration, Ie_calibration, Qe_calibration, Qg_calibration, steps)
-        else:
-            # original order preserved; new I/Q averages appended
-            return I_avgs, Q_avgs, amps, gains, rounds_completed, delay_times
+        return None, None, amps, gains, rounds_completed, delay_times
 
     def run(self,return_errs=False):
         import datetime
@@ -463,32 +373,17 @@ class T2eVsTime:
             delay_times,
             save_path,
             max_ylabels=6,
-            # NEW:
-            n_bar=None,  # list/np.array OR dict[str]->(list or {"lorentzian"/"gaussian"})
+            n_bar=None,
+            save_individual_plots=True
     ):
         """
-        NEW FORMAT ONLY
-
-        Changes vs your original:
-          - Y-axis shows at most `max_ylabels` delay_time tick labels (evenly spaced).
-          - Color scale (z) is fixed across rounds using the global min/max amplitude.
-          - If n_bar is provided, x-axis uses n̄ instead of gain (sorted ascending).
-
-        Data model (per qubit q):
-          - amps[q]         : list of lists; amps[q][i] is a list of amplitude samples for dataset i
-          - gains[q]        : list; gains[q][i] is the gain for dataset i
-          - rounds[q]       : list; rounds[q][i] is the round label for dataset i
-          - delay_times[q]  : list; delay_times[q][i] is the delay (scalar) for dataset i
-
-        n_bar may be:
-          - list/array aligned to the round's sorted gains, or
-          - dict mapping round_id -> list, or -> {"gains":..., "lorentzian":..., "gaussian":...}
-            (prefers 'lorentzian' if present, else 'gaussian').
+        Heatmaps + per-gain T2E fits + T2E vs nbar plotting.
         """
         import numpy as np
         import matplotlib.pyplot as plt
         from collections import defaultdict
         import matplotlib.ticker as mticker
+        from scipy.optimize import curve_fit
 
         q = self.qubit
         gains_q = gains.get(q, [])
@@ -506,40 +401,27 @@ class T2eVsTime:
         all_points = []
         for i in range(n):
             r_id = str(rounds_q[i])
-
-            # amplitudes (required)
             a_samples = np.asarray(amps_q[i], dtype=float).ravel()
-            if a_samples.size == 0:
-                continue
+            if a_samples.size == 0: continue
 
-            # gain can be scalar or per-sample
             g_i = gains_q[i]
             g_arr = np.asarray(g_i, dtype=float).ravel() if isinstance(g_i, (list, tuple, np.ndarray)) else None
             if g_arr is None or g_arr.size == 1:
-                try:
-                    g_scalar = float(g_i)
-                except Exception:
-                    continue
+                try: g_scalar = float(g_i)
+                except: continue
                 g_arr = np.full(a_samples.shape, g_scalar, dtype=float)
-            elif g_arr.size != a_samples.size:
-                continue
+            elif g_arr.size != a_samples.size: continue
 
-            # delay can be scalar or per-sample
             d_i = delay_q[i]
             d_arr = np.asarray(d_i, dtype=float).ravel() if isinstance(d_i, (list, tuple, np.ndarray)) else None
             if d_arr is None or d_arr.size == 1:
-                try:
-                    d_scalar = float(d_i)
-                except Exception:
-                    continue
+                try: d_scalar = float(d_i)
+                except: continue
                 d_arr = np.full(a_samples.shape, d_scalar, dtype=float)
-            elif d_arr.size != a_samples.size:
-                continue
+            elif d_arr.size != a_samples.size: continue
 
-            # keep only finite triples
             mask = np.isfinite(a_samples) & np.isfinite(g_arr) & np.isfinite(d_arr)
-            if not np.any(mask):
-                continue
+            if not np.any(mask): continue
 
             for g, d, a in zip(g_arr[mask], d_arr[mask], a_samples[mask]):
                 all_points.append((r_id, float(g), float(d), float(a)))
@@ -548,13 +430,9 @@ class T2eVsTime:
             print(f"No numeric points for qubit {q}. Skipping.")
             return
 
-        # Unique rounds present
         unique_rounds = sorted({r for (r, _, __, ___) in all_points})
-
-        # Ensure save folder exists
         self.create_folder_if_not_exists(save_path)
 
-        # Helper to convert centers -> bin edges for pcolormesh
         def centers_to_edges(centers):
             centers = np.asarray(sorted(np.unique(centers)), dtype=float)
             if centers.size == 1:
@@ -565,32 +443,22 @@ class T2eVsTime:
             last = centers[-1] + (centers[-1] - centers[-2]) / 2.0
             return np.concatenate([[first], mids, [last]])
 
-        # ---------- NEW: compute global color scale limits (z) ----------
         all_amps = np.array([a for (_, _, _, a) in all_points], dtype=float)
         global_vmin = float(np.nanmin(all_amps))
         global_vmax = float(np.nanmax(all_amps))
 
-        # ----------------------------------------------------------------
-
-        # helper to pull the n̄ vector for a given round (if provided)
         def get_nbar_for_round(r_id_str, gains_sorted):
-            if n_bar is None:
-                return None
-            # direct list/array: assume aligned to sorted gains for this round
+            if n_bar is None: return None
             if isinstance(n_bar, (list, tuple, np.ndarray)):
                 nb = np.asarray(n_bar, float).ravel()
                 return nb if nb.size == len(gains_sorted) else None
-            # dict-like
             if isinstance(n_bar, dict):
                 key = r_id_str if r_id_str in n_bar else str(r_id_str)
                 entry = n_bar.get(key, None)
-                if entry is None:
-                    return None
+                if entry is None: return None
                 if isinstance(entry, dict):
-                    candidate = entry.get("lorentzian") or entry.get("gaussian") or entry.get("nbar") or entry.get(
-                        "values")
-                    if candidate is None:
-                        return None
+                    candidate = entry.get("lorentzian") or entry.get("gaussian") or entry.get("nbar") or entry.get("values")
+                    if candidate is None: return None
                     nb = np.asarray(candidate, float).ravel()
                     return nb if nb.size == len(gains_sorted) else None
                 if isinstance(entry, (list, tuple, np.ndarray)):
@@ -598,29 +466,79 @@ class T2eVsTime:
                     return nb if nb.size == len(gains_sorted) else None
             return None
 
+        # Exponential decay function
+        def exp_decay(t, A, T2, C):
+            return A * np.exp(-t / T2) + C
+
         for r_id in unique_rounds:
-            # Collect this round's points
             pts = [(g, d, a) for (r, g, d, a) in all_points if r == r_id]
-            if not pts:
-                continue
+            if not pts: continue
 
             gains_r = sorted({g for (g, _, _) in pts})
             delays_r = sorted({d for (_, d, _) in pts})
 
-            # Map (delay_idx, gain_idx) -> list of amplitudes
             bucket = defaultdict(list)
             gi_map = {g: i for i, g in enumerate(gains_r)}
             di_map = {d: i for i, d in enumerate(delays_r)}
             for g, d, a in pts:
                 bucket[(di_map[d], gi_map[g])].append(a)
 
-            # Grid of average amplitudes
             Ny, Nx = len(delays_r), len(gains_r)
             C = np.full((Ny, Nx), np.nan, dtype=float)
-            for (iy, ix), vals in bucket.items():
-                C[iy, ix] = float(np.nanmean(vals))
+            
+            # For T2E vs nbar plotting
+            t2e_vals = []
+            t2e_errs = []
+            gains_for_plot = []
+            
+            # Fit each gain slice
+            if save_individual_plots:
+                round_dir = os.path.join(save_path, f"t2e_slices_q{q}_round_{r_id}")
+                self.create_folder_if_not_exists(round_dir)
 
-            # Decide x-axis values & label (gain or n̄) and reorder columns accordingly
+            for ix, g_val in enumerate(gains_r):
+                # Collect data for this gain
+                d_vals = []
+                a_vals = []
+                for iy, d_val in enumerate(delays_r):
+                    vals = bucket.get((iy, ix), [])
+                    if vals:
+                        avg_a = float(np.nanmean(vals))
+                        C[iy, ix] = avg_a
+                        d_vals.append(d_val)
+                        a_vals.append(avg_a)
+                
+                # Fit
+                if len(d_vals) >= 4:
+                    try:
+                        p0 = [np.max(a_vals)-np.min(a_vals), d_vals[-1]/2.0, np.min(a_vals)]
+                        popt, pcov = curve_fit(exp_decay, d_vals, a_vals, p0=p0, maxfev=2000)
+                        perr = np.sqrt(np.diag(pcov))
+                        t2e = popt[1]
+                        t2e_err = perr[1]
+                        
+                        if 0 < t2e < 500 and t2e_err < t2e:
+                            t2e_vals.append(t2e)
+                            t2e_errs.append(t2e_err)
+                            gains_for_plot.append(g_val)
+                            
+                            # Save individual plot
+                            if save_individual_plots:
+                                fig_slice, ax_slice = plt.subplots(figsize=(6, 4))
+                                ax_slice.plot(d_vals, a_vals, 'o', label='Data')
+                                t_fit = np.linspace(min(d_vals), max(d_vals), 100)
+                                ax_slice.plot(t_fit, exp_decay(t_fit, *popt), '-', label=f'Fit T2={t2e:.2f}us')
+                                ax_slice.set_title(f"Q{q+1} R{r_id} Gain {g_val}")
+                                ax_slice.set_xlabel("Delay (us)")
+                                ax_slice.set_ylabel("Population")
+                                ax_slice.legend()
+                                safe_gain = str(g_val).replace('.', 'p').replace('-', 'm')
+                                fig_slice.savefig(os.path.join(round_dir, f"t2e_slice_gain{safe_gain}.png"), dpi=100)
+                                plt.close(fig_slice)
+                    except:
+                        pass
+
+            # Heatmap Plotting
             nbar_vec = get_nbar_for_round(str(r_id), gains_r)
             if nbar_vec is not None:
                 x_vals = np.asarray(nbar_vec, float)
@@ -632,46 +550,57 @@ class T2eVsTime:
             order = np.argsort(x_vals)
             x_vals_sorted = x_vals[order]
             C_sorted = C[:, order]
-
-            # Bin edges for pcolormesh
             x_edges = centers_to_edges(x_vals_sorted)
             y_edges = centers_to_edges(delays_r)
 
-            # Plot
             fig, ax = plt.subplots(figsize=(6.5, 4.5))
-            mesh = ax.pcolormesh(
-                x_edges, y_edges, C_sorted, shading='flat',
-                vmin=global_vmin, vmax=global_vmax  # fixed z scale
-            )
+            mesh = ax.pcolormesh(x_edges, y_edges, C_sorted, shading='flat', vmin=global_vmin, vmax=global_vmax)
             cbar = fig.colorbar(mesh, ax=ax, pad=0.02)
             cbar.set_label("Qubit Population")
-
-            ax.set_title(f"Qubit {self.qubit + 1} — Round {r_id}")
+            ax.set_title(f"Qubit {self.qubit + 1} — Round {r_id} (T2E)")
             ax.set_xlabel(x_label)
             ax.set_ylabel("Delay time")
-
             ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=7, prune=None))
             plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
-
-            # only label a subset of delay times on Y
+            
             if Ny > 0:
-                if Ny <= max_ylabels:
-                    yticks_idx = list(range(Ny))
-                else:
-                    yticks_idx = np.linspace(0, Ny - 1, num=max_ylabels, dtype=int).tolist()
-                    yticks_idx = sorted(set(yticks_idx))
-                yticks_vals = [delays_r[i] for i in yticks_idx]
-                ax.set_yticks(yticks_vals)
-                ax.set_yticklabels([f"{v:.0f}" for v in yticks_vals])
+                yt = list(range(Ny)) if Ny <= max_ylabels else sorted(set(np.linspace(0, Ny - 1, max_ylabels, dtype=int)))
+                ax.set_yticks([delays_r[i] for i in yt])
+                ax.set_yticklabels([f"{delays_r[i]:.0f}" for i in yt])
 
             fig.tight_layout()
-            if n_bar is not None:
-                outfile = (save_path + f"t2e_heatmap_q{self.qubit}_round{r_id}_nbar.png")
-            else:
-                outfile = (save_path + f"t2e_heatmap_q{self.qubit}_round{r_id}.png")
+            outfile = (save_path + f"t2e_heatmap_q{self.qubit}_round{r_id}{'_nbar' if n_bar is not None else ''}.png")
             fig.savefig(outfile, transparent=False, dpi=self.final_figure_quality)
             plt.close(fig)
-            print(f"Saved heatmap for round {r_id} to: {outfile}")
+            print(f"Saved T2E heatmap for round {r_id} to: {outfile}")
+            
+            # T2E vs nbar/gain Plotting
+            if len(t2e_vals) > 1:
+                fig_vs, ax_vs = plt.subplots(figsize=(6, 4))
+                
+                # Determine x-axis for this plot
+                if nbar_vec is not None:
+                    # Map gains to nbar
+                    gain_to_nbar = {g: n for g, n in zip(gains_r, nbar_vec)}
+                    x_plot = [gain_to_nbar[g] for g in gains_for_plot]
+                    xlabel_vs = r"$\bar{n}$"
+                else:
+                    x_plot = gains_for_plot
+                    xlabel_vs = "Gain"
+                
+                ax_vs.errorbar(x_plot, t2e_vals, yerr=t2e_errs, fmt='o', capsize=3)
+                ax_vs.set_title(f"Qubit {self.qubit + 1} — Round {r_id} — T2E vs {xlabel_vs}")
+                ax_vs.set_xlabel(xlabel_vs)
+                ax_vs.set_ylabel(r"$T_{2E}$ ($\mu$s)")
+                ax_vs.grid(True, alpha=0.25)
+                fig_vs.tight_layout()
+                
+                # Save to common folder
+                vs_folder = os.path.join(save_path, f"t2e_vs_nbar_q{q}")
+                self.create_folder_if_not_exists(vs_folder)
+                fig_vs.savefig(os.path.join(vs_folder, f"T2E_vs_nbar_round{r_id}.png"), dpi=self.final_figure_quality)
+                plt.close(fig_vs)
+                print(f"Saved T2E vs {xlabel_vs} for round {r_id}")
 
     def plot_without_errs(self, date_times, t2e_vals, show_legends):
         # ---------------------------------plot-----------------------------------------------------
