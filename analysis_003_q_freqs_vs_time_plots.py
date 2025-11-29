@@ -493,7 +493,11 @@ class QubitFreqsVsTime:
                                 print(f"DEBUG: len(delays)={len(delays)}")
 
                                 # Check if this is a gain sweep (multiple gains matching multiple sublists)
-                                if len(gains_swept) > 1 and len(gains_swept) == len(I_nested):
+                                is_sweep = len(gains_swept) > 1 and len(gains_swept) == len(I_nested)
+                                print(f"DEBUG: is_sweep={is_sweep}")
+
+                                if is_sweep:
+                                    print("DEBUG: Entering SWEEP block")
                                     # Flatten the list of lists
                                     flat_amps = [item for sublist in calibrated_sublists for item in sublist]
                                     amps[q_key].append(flat_amps)
@@ -507,10 +511,11 @@ class QubitFreqsVsTime:
                                     # Expand delays to match
                                     # We want [d1...dN, d1...dN, ...]
                                     expanded_delays = np.tile(delays, len(gains_swept))
-                                    # We need to update the LAST appended delay list
-                                    delay_times[q_key][-1] = expanded_delays.tolist()
+                                    # Update the variable that will be appended later
+                                    delays = expanded_delays.tolist()
 
                                 else:
+                                    print("DEBUG: Entering REPS block")
                                     # Standard averaging over repetitions
                                     amp_avg = _avg_over_sublists(calibrated_sublists)
                                     amps[q_key].append(amp_avg.tolist())
