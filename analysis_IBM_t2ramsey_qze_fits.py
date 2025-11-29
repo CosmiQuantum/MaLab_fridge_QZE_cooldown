@@ -37,11 +37,11 @@ amps_qspec = {i: [] for i in range(6)}
 gains_qspec = {i: [] for i in range(6)}
 rounds_qspec = {i: [] for i in range(6)}
 freqs_qspec = {i: [] for i in range(6)}
-path= '2d_less_rounds'
+path= '2d_updated_data_saving'
 for qubit in qubits:
     run_name = f'bob_run_started_Aug_23/squill/{path}/all_qubits/'
     top_folder_dates = []
-    for round in range(4):
+    for round in range(10):
         top_folder_dates.append(f'qubit_{qubit}round{round}')
 
     q_vs_time = QubitFreqsVsTime(figure_quality, final_figure_quality, tot_num_of_qubits, top_folder_dates, save_figs,

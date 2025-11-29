@@ -601,14 +601,14 @@ class T2EMeasurementZeno:
                 if config is not None:
                     fig.text(
                         plot_middle, 0.98,
-                        f"T2R Q{self.QubitIndex + 1}, "
+                        f"T2E Q{self.QubitIndex + 1}, "
                         f"{float(config['reps'])}*{float(config['rounds'])} avgs",
                         fontsize=16, ha='center', va='top'
                     )
                 else:
                     fig.text(
                         plot_middle, 0.98,
-                        f"T2R Q{self.QubitIndex + 1}",
+                        f"T2E Q{self.QubitIndex + 1}",
                         fontsize=16, ha='center', va='top'
                     )
 
