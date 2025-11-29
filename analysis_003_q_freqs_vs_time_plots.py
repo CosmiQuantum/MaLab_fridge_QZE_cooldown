@@ -454,41 +454,45 @@ class QubitFreqsVsTime:
                             gains[q_key].append(gains_swept)
                             round_current=int(folder_date.split('round')[-1])
                             rounds_completed[q_key].append(round_current)
-                            amps[q_key].append([])
-
                             # -------- NEW: list-of-lists handling + per-index calibration ----------
                             if scaling:
+                                I_nested = I if _is_list_of_lists(I) else [I]
+                                Q_nested = Q if _is_list_of_lists(Q) else [Q]
+                                Ie_nested = Ie if _is_list_of_lists(Ie) else [Ie]
+                                Ig_nested = Ig if _is_list_of_lists(Ig) else [Ig]
+                                Qe_nested = Qe if _is_list_of_lists(Qe) else [Qe]
+                                Qg_nested = Qg if _is_list_of_lists(Qg) else [Qg]
 
                                 calibrated_sublists = []
 
-                                for sub_I, sub_Q in zip(
-                                        I, Q
+                                for sub_I, sub_Q, sub_Ie, sub_Ig, sub_Qe, sub_Qg in zip(
+                                        I_nested, Q_nested, Ie_nested, Ig_nested, Qe_nested, Qg_nested
                                 ):
                                     sub_I = np.asarray(sub_I, dtype=float)
                                     sub_Q = np.asarray(sub_Q, dtype=float)
-                                    sub_Ie = np.asarray(Ie, dtype=float)
-                                    sub_Qe = np.asarray(Qe, dtype=float)
-                                    sub_Ig = np.asarray(Ig, dtype=float)
-                                    sub_Qg = np.asarray(Qg, dtype=float)
+                                    sub_Ie = np.asarray(sub_Ie, dtype=float)
+                                    sub_Qe = np.asarray(sub_Qe, dtype=float)
+                                    sub_Ig = np.asarray(sub_Ig, dtype=float)
+                                    sub_Qg = np.asarray(sub_Qg, dtype=float)
 
                                     if weighted_mean:
                                         e = self.robust_center(sub_Ie + 1j * sub_Qe)
                                         g = self.robust_center(sub_Ig + 1j * sub_Qg)
-
-
                                     else:
                                         e = np.mean((sub_Ie + 1j * sub_Qe))
                                         g = np.mean((sub_Ig + 1j * sub_Qg))
 
                                     pop_norm = np.abs(((sub_I + 1j * sub_Q) - g) * (e - g) / (np.abs(e - g) ** 2))
-                                    amps[q_key][round_current].append(pop_norm.tolist())
+                                    calibrated_sublists.append(pop_norm.tolist())
 
+                                amp_avg = _avg_over_sublists(calibrated_sublists)
+                                amps[q_key].append(amp_avg.tolist())
 
                                 # keep exactly what we used for calibration (nested)
-                                Ig_calibration[q_key].append(Ig)
-                                Ie_calibration[q_key].append(Ie)
-                                Qg_calibration[q_key].append(Qg)
-                                Qe_calibration[q_key].append(Qe)
+                                Ig_calibration[q_key].append(Ig_nested)
+                                Ie_calibration[q_key].append(Ie_nested)
+                                Qg_calibration[q_key].append(Qg_nested)
+                                Qe_calibration[q_key].append(Qe_nested)
 
                             else:
                                 I_nested = I if _is_list_of_lists(I) else [I]
