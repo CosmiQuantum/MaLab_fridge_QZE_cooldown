@@ -463,6 +463,14 @@ class QubitFreqsVsTime:
                                 Qe_nested = Qe if _is_list_of_lists(Qe) else [Qe]
                                 Qg_nested = Qg if _is_list_of_lists(Qg) else [Qg]
 
+                                # Broadcast calibration data if necessary
+                                num_sublists = len(I_nested)
+                                if num_sublists > 1:
+                                    if len(Ie_nested) == 1: Ie_nested = Ie_nested * num_sublists
+                                    if len(Ig_nested) == 1: Ig_nested = Ig_nested * num_sublists
+                                    if len(Qe_nested) == 1: Qe_nested = Qe_nested * num_sublists
+                                    if len(Qg_nested) == 1: Qg_nested = Qg_nested * num_sublists
+
                                 calibrated_sublists = []
 
                                 for sub_I, sub_Q, sub_Ie, sub_Ig, sub_Qe, sub_Qg in zip(
