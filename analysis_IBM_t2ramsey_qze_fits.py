@@ -21,9 +21,8 @@ for qubit in qubits:
                                  False, 'None', run_name, fridge=FRIDGE, exp_name='ge', qubit=qubit)
     _, _, amps_qspec, gains_qspec, rounds_qspec, freqs_qspec = q_vs_time.run_q_sweep_new(exp_extension='_ge', scaling=True)
 
-    n_bars = q_vs_time.plot_all_q_heatmaps_nbar(amps_qspec, gains_qspec, rounds_qspec, freqs_qspec,
-                                                 f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/',
-                                                 chi_MHz=-0.137, return_nbar=True)
+    # Calculate nbar (no plotting)
+    n_bars = q_vs_time.calculate_nbar(amps_qspec, gains_qspec, rounds_qspec, freqs_qspec, chi_MHz=-0.137)
 
     q_vs_time.plot_all_q_heatmaps_new_format(amps_qspec, gains_qspec, rounds_qspec, freqs_qspec,
                                               f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/', 

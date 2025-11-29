@@ -774,6 +774,160 @@ class QubitFreqsVsTime:
                     plt.close(fig2)
                     print(f"Saved individual spec for round {r_id}, gain {g:g} to: {out_indiv}")
 
+    def calculate_nbar(self, amps, gains, rounds, delay_times, chi_MHz=0.25, fit_gaussian=True, fit_lorentzian=True):
+        """
+        Calculate nbar values without plotting.
+        
+        Returns:
+            dict {<round_id_str>: {"gains": [...], "gaussian": [...], "lorentzian": [...]}}
+        """
+        import numpy as np
+        from scipy.optimize import least_squares
+        from scipy.stats import linregress
+        from scipy.signal import savgol_filter
+        from collections import defaultdict
+        
+        q = self.qubit
+        gains_q = gains.get(q, [])
+        amps_q = amps.get(q, [])
+        rounds_q = rounds.get(q, [])
+        delay_q = delay_times.get(q, [])
+        
+        n = min(len(amps_q), len(gains_q), len(rounds_q), len(delay_q))
+        if n == 0 or not (len(amps_q) == len(gains_q) == len(rounds_q) == len(delay_q)):
+            return {}
+        
+        # Flatten to points
+        all_points = []
+        for i in range(n):
+            r_id = str(rounds_q[i])
+            a_samples = np.asarray(amps_q[i], dtype=float).ravel()
+            if a_samples.size == 0:
+                continue
+            
+            g_i = gains_q[i]
+            g_arr = np.asarray(g_i, dtype=float).ravel() if isinstance(g_i, (list, tuple, np.ndarray)) else None
+            if g_arr is None or g_arr.size == 1:
+                try:
+                    g_scalar = float(g_i)
+                except:
+                    continue
+                g_arr = np.full(a_samples.shape, g_scalar, dtype=float)
+            elif g_arr.size != a_samples.size:
+                continue
+            
+            d_i = delay_q[i]
+            d_arr = np.asarray(d_i, dtype=float).ravel() if isinstance(d_i, (list, tuple, np.ndarray)) else None
+            if d_arr is None or d_arr.size == 1:
+                try:
+                    d_scalar = float(d_i)
+                except:
+                    continue
+                d_arr = np.full(a_samples.shape, d_scalar, dtype=float)
+            elif d_arr.size != a_samples.size:
+                continue
+            
+            mask = np.isfinite(a_samples) & np.isfinite(g_arr) & np.isfinite(d_arr)
+            if not np.any(mask):
+                continue
+            
+            for g, d, a in zip(g_arr[mask], d_arr[mask], a_samples[mask]):
+                all_points.append((r_id, float(g), float(d), float(a)))
+        
+        if not all_points:
+            return {}
+        
+        unique_rounds = sorted({r for (r, _, __, ___) in all_points})
+        nbar_return = {}
+        
+        # Lorentzian fit function (linear baseline)
+        def lorentz_lin(x, f0, gamma, A, c0, c1, xbar):
+            return A * (gamma ** 2) / ((x - f0) ** 2 + gamma ** 2) + (c0 + c1 * (x - xbar))
+        
+        def fit_slice_simple(x, y):
+            """Simple robust Lorentzian fit"""
+            x = np.asarray(x, float)
+            y = np.asarray(y, float)
+            
+            # Initial guesses
+            xbar = x.mean()
+            y_s = savgol_filter(y, max(5, (len(y) // 25) * 2 + 1), 2, mode='interp') if len(y) >= 11 else y
+            idx0 = np.argmax(y_s)
+            f0_0 = x[idx0]
+            
+            # Linear baseline from edges
+            n = len(x)
+            edge_ids = np.r_[np.arange(int(0.15 * n), int(0.25 * n)), np.arange(int(0.75 * n), int(0.85 * n))]
+            if len(edge_ids) < 4:
+                edge_ids = np.r_[0, 1, n - 2, n - 1]
+            c1_0, c0_0 = np.polyfit(x[edge_ids] - xbar, y[edge_ids], 1)
+            
+            y_base0 = c0_0 + c1_0 * (x[idx0] - xbar)
+            A_0 = y[idx0] - y_base0
+            gamma_0 = (x.max() - x.min()) / 20
+            
+            p0 = np.array([f0_0, gamma_0, A_0, c0_0, c1_0])
+            
+            def residuals(p):
+                return lorentz_lin(x, p[0], p[1], p[2], p[3], p[4], xbar) - y
+            
+            try:
+                res = least_squares(residuals, p0, loss='soft_l1', f_scale=0.5)
+                if res.success:
+                    f0_fit, gamma_fit = res.x[0], res.x[1]
+                    return f0_fit, 2 * gamma_fit
+            except:
+                pass
+            
+            return np.nan, np.nan
+        
+        # Process each round
+        for r_id in unique_rounds:
+            pts = [(gv, dv, av) for (rr, gv, dv, av) in all_points if rr == r_id]
+            if not pts:
+                continue
+            
+            gains_r = sorted(set(g for (g, _, __) in pts))
+            
+            centers_L = []
+            gains_used = []
+            
+            for g in gains_r:
+                d_to_vals = defaultdict(list)
+                for (gg, dd, aa) in pts:
+                    if gg == g and np.isfinite(dd) and np.isfinite(aa):
+                        d_to_vals[dd].append(aa)
+                
+                if not d_to_vals:
+                    continue
+                
+                delays_sorted = np.array(sorted(d_to_vals.keys()), dtype=float)
+                amps_avg = np.array([float(np.nanmean(d_to_vals[d])) for d in delays_sorted], dtype=float)
+                
+                if len(delays_sorted) >= 5:
+                    center, _ = fit_slice_simple(delays_sorted, amps_avg)
+                    centers_L.append(center)
+                    gains_used.append(g)
+            
+            if len(gains_used) >= 2:
+                gains_used = np.array(gains_used, float)
+                pwr = gains_used ** 2
+                centers_L = np.array(centers_L, float)
+                
+                ok = np.isfinite(centers_L) & np.isfinite(pwr)
+                if ok.sum() >= 2:
+                    slope, intercept, _, _, _ = linregress(pwr[ok], centers_L[ok])
+                    wq = slope * pwr + intercept
+                    nbar = (wq - intercept) / (2.0 * chi_MHz)
+                    
+                    nbar_return[r_id] = {
+                        "gains": list(map(float, gains_used.tolist())),
+                        "gaussian": None,
+                        "lorentzian": list(map(float, nbar.tolist())),
+                    }
+        
+        return nbar_return
+
     def plot_all_q_heatmaps_nbar(
             self,
             amps,
