@@ -485,6 +485,13 @@ class QubitFreqsVsTime:
                                     pop_norm = np.abs(((sub_I + 1j * sub_Q) - g) * (e - g) / (np.abs(e - g) ** 2))
                                     calibrated_sublists.append(pop_norm.tolist())
 
+                                # DEBUG PRINTS
+                                print(f"DEBUG: len(gains_swept)={len(gains_swept)}")
+                                print(f"DEBUG: len(I_nested)={len(I_nested)}")
+                                if len(I_nested) > 0:
+                                    print(f"DEBUG: len(I_nested[0])={len(I_nested[0])}")
+                                print(f"DEBUG: len(delays)={len(delays)}")
+
                                 # Check if this is a gain sweep (multiple gains matching multiple sublists)
                                 if len(gains_swept) > 1 and len(gains_swept) == len(I_nested):
                                     # Flatten the list of lists
