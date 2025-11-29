@@ -82,7 +82,6 @@ class T2rVsTime:
         return result
 
     def process_h5_data(self, data):
-        # Check if the data is a byte string; decode if necessary.
         if isinstance(data, bytes):
             data_str = data.decode()
         elif isinstance(data, str):
@@ -90,11 +89,17 @@ class T2rVsTime:
         else:
             raise ValueError("Unsupported data type. Data should be bytes or string.")
 
-        # Remove extra whitespace and non-numeric characters.
-        cleaned_data = ''.join(c for c in data_str if c.isdigit() or c in ['-', '.', ' ', 'e'])
-
-        # Split into individual numbers, removing empty strings.
-        numbers = [float(x) for x in cleaned_data.split() if x]
+        # Keep characters for scientific notation
+        cleaned_data = ''.join(c for c in data_str if c.isdigit() or c in ['-', '.', ' ', 'e', '+'])
+        
+        # Split and convert, skipping any invalid tokens
+        numbers = []
+        for x in cleaned_data.split():
+            if x:
+                try:
+                    numbers.append(float(x))
+                except ValueError:
+                    continue
         return numbers
 
     def string_to_float_list(self, input_string):
