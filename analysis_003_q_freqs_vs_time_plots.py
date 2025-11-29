@@ -550,6 +550,21 @@ class QubitFreqsVsTime:
                             delay_times[q_key].append(delays)
                             date_times[q_key].extend([date.strftime("%Y-%m-%d %H:%M:%S")])
 
+                            # CONSISTENCY CHECK
+                            last_amp = amps[q_key][-1]
+                            last_gain = gains[q_key][-1]
+                            last_delay = delay_times[q_key][-1]
+                            
+                            size_amp = len(last_amp)
+                            size_gain = len(last_gain) if isinstance(last_gain, list) else 1
+                            size_delay = len(last_delay) if isinstance(last_delay, list) else 1
+                            
+                            if size_gain > 1 and size_gain != size_amp:
+                                 print(f"WARNING: Mismatch detected! Gain size {size_gain}, Amp size {size_amp}, Delay size {size_delay}")
+                                 print(f"is_sweep: {locals().get('is_sweep', 'N/A')}")
+                                 print(f"gains_swept len: {len(gains_swept)}")
+                                 print(f"I_nested len: {len(I_nested)}")
+
                 del H5_class_instance
 
         if return_calibration_data:
