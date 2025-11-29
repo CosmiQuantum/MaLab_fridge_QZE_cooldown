@@ -2881,11 +2881,14 @@ class T1VsTime:
                         ax_lin.legend()
 
                         fig2.tight_layout()
-                        f_vs = os.path.join(round_dir, f"Gamma_vs_nbar_round{r_id}.png")
+                        # Save to common gamma_vs_nbar folder instead of round-specific folder
+                        gamma_folder = os.path.join(save_path, f"gamma_vs_nbar_q{q}")
+                        self.create_folder_if_not_exists(gamma_folder)
+                        f_vs = os.path.join(gamma_folder, f"Gamma_vs_nbar_round{r_id}.png")
                         fig2.savefig(f_vs, dpi=self.final_figure_quality)
                         plt.close(fig2)
 
-                        print(f"Saved Γ vs n̄ (linear x) for round {r_id} to: {round_dir}")
+                        print(f"Saved Γ vs n̄ (linear x) for round {r_id} to: {gamma_folder}")
 
 
                     else:
