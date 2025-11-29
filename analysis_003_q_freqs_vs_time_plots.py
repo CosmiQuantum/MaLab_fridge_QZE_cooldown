@@ -463,10 +463,23 @@ class QubitFreqsVsTime:
                                 Qe_nested = Qe if _is_list_of_lists(Qe) else [Qe]
                                 Qg_nested = Qg if _is_list_of_lists(Qg) else [Qg]
 
+                                # DEBUG CALIBRATION
+                                print(f"DEBUG: len(I_nested)={len(I_nested)}")
+                                if len(I_nested) > 0: print(f"DEBUG: len(I_nested[0])={len(I_nested[0])}")
+                                print(f"DEBUG: len(Ie_nested)={len(Ie_nested)}")
+                                if len(Ie_nested) > 0: print(f"DEBUG: len(Ie_nested[0])={len(Ie_nested[0])}")
+
                                 # Broadcast calibration data if necessary
                                 num_sublists = len(I_nested)
                                 if num_sublists > 1:
-                                    if len(Ie_nested) == 1: Ie_nested = Ie_nested * num_sublists
+                                    if len(Ie_nested) == 1:
+                                        # Check if it needs splitting instead of broadcasting
+                                        if len(Ie_nested[0]) == num_sublists * len(I_nested[0]):
+                                            print("DEBUG: Splitting flattened calibration data")
+                                            # It's likely flattened. We should split it.
+                                            # But let's just print for now to confirm.
+                                            pass
+                                        Ie_nested = Ie_nested * num_sublists
                                     if len(Ig_nested) == 1: Ig_nested = Ig_nested * num_sublists
                                     if len(Qe_nested) == 1: Qe_nested = Qe_nested * num_sublists
                                     if len(Qg_nested) == 1: Qg_nested = Qg_nested * num_sublists
