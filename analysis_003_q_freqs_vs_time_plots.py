@@ -485,8 +485,28 @@ class QubitFreqsVsTime:
                                     pop_norm = np.abs(((sub_I + 1j * sub_Q) - g) * (e - g) / (np.abs(e - g) ** 2))
                                     calibrated_sublists.append(pop_norm.tolist())
 
-                                amp_avg = _avg_over_sublists(calibrated_sublists)
-                                amps[q_key].append(amp_avg.tolist())
+                                # Check if this is a gain sweep (multiple gains matching multiple sublists)
+                                if len(gains_swept) > 1 and len(gains_swept) == len(I_nested):
+                                    # Flatten the list of lists
+                                    flat_amps = [item for sublist in calibrated_sublists for item in sublist]
+                                    amps[q_key].append(flat_amps)
+
+                                    # Expand gains to match the flattened structure
+                                    # gains_swept is [g1, g2, ...], delays is [d1, d2, ...] (length N)
+                                    # We want g1 repeated N times, then g2 repeated N times...
+                                    expanded_gains = np.repeat(gains_swept, len(delays))
+                                    gains[q_key][-1] = expanded_gains.tolist()
+
+                                    # Expand delays to match
+                                    # We want [d1...dN, d1...dN, ...]
+                                    expanded_delays = np.tile(delays, len(gains_swept))
+                                    # We need to update the LAST appended delay list
+                                    delay_times[q_key][-1] = expanded_delays.tolist()
+
+                                else:
+                                    # Standard averaging over repetitions
+                                    amp_avg = _avg_over_sublists(calibrated_sublists)
+                                    amps[q_key].append(amp_avg.tolist())
 
                                 # keep exactly what we used for calibration (nested)
                                 Ig_calibration[q_key].append(Ig_nested)
