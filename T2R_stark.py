@@ -236,12 +236,9 @@ class starkT2RMeasurement:
     def t2_fit(self, x_data, I, Q, verbose = True, guess=None, plot=False):
         #fitting code adapted from https://github.com/qua-platform/py-qua-tools/blob/37c741ade5a8f91888419c6fd23fd34e14372b06/qualang_tools/plot/fitting.py
 
-        if abs(I[-1] - I[0]) > abs(Q[-1] - Q[0]):
-            y_data = I
-            plot_sig = 'I'
-        else:
-            y_data = Q
-            plot_sig = 'Q'
+        # Calculate amplitude
+        y_data = np.hypot(I, Q)
+        plot_sig = 'Amplitude'
 
         # Normalizing the vectors
         xn = preprocessing.normalize([x_data], return_norm=True)
@@ -581,10 +578,10 @@ class starkT2RMeasurement:
         # Calculate the middle of the plot area
         plot_middle = (ax1.get_position().x0 + ax1.get_position().x1) / 2
         if self.fit_data:
-            if 'I' in plot_sig:
+            if 'Amplitude' in plot_sig:
                 ax1.plot(delay_times, fit, '-', color='red', linewidth=3, label="Fit")
-            if 'Q' in plot_sig:
-                ax2.plot(delay_times, fit, '-', color='red', linewidth=3, label="Fit")
+            # if 'Q' in plot_sig:
+            #     ax2.plot(delay_times, fit, '-', color='red', linewidth=3, label="Fit")
 
             # Add title, centered on the plot area
             if config is not None:
@@ -610,8 +607,8 @@ class starkT2RMeasurement:
                          fontsize=24, ha='center', va='top')
 
         # I subplot
-        ax1.plot(delay_times, I, label="Gain (a.u.)", linewidth=2)
-        ax1.set_ylabel("I Amplitude (a.u.)", fontsize=20)
+        ax1.plot(delay_times, np.hypot(I, Q), label="Amplitude", linewidth=2)
+        ax1.set_ylabel("Amplitude (a.u.)", fontsize=20)
         ax1.tick_params(axis='both', which='major', labelsize=16)
         # ax1.axvline(freq_q, color='orange', linestyle='--', linewidth=2)
 
