@@ -569,7 +569,7 @@ for QubitIndex in Qs_to_look_at:
     t2e_data = create_data_dict(t2e_keys, save_r, list_of_all_qubits)
     ########################################### go through each gain ######################################
 
-    for repeat_round in range(0,20):
+    for repeat_round in range(20,1000):
         data_set = f'qubit_' + str(
             QubitIndex) + f'round{repeat_round}'  # + '_' +datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 

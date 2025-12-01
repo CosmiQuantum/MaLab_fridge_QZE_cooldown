@@ -10,7 +10,7 @@ figure_quality = 100
 final_figure_quality = 200
 FRIDGE = "QUIET"
 qubits = [4]
-path = '2d_updated_data_saving'
+path = '2d_less_reps_more_qspec_steps'
 
 for qubit in qubits:
     run_name = f'bob_run_started_Aug_23/squill/{path}/all_qubits/'
