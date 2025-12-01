@@ -155,7 +155,6 @@ class starkT2RProgram(AveragerProgramV2):
         self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
         self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
 
-        self.add_loop("waitloop", cfg["steps"])
         self.add_readoutconfig(ch=ro_ch, name="myro",
                                freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
@@ -171,39 +170,42 @@ class starkT2RProgram(AveragerProgramV2):
 
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
         self.add_gauss(ch=qubit_ch, name="ramp", sigma=cfg['sigma'], length=cfg['sigma'] * 4, even_length=False)
-        self.add_pulse(ch=qubit_ch, name="qubit_pulse1",
-                       style="arb",
-                       envelope="ramp",
-                       freq=cfg['qubit_freq_ge'] ,
-                       phase=cfg['qubit_phase'],
-                       gain=cfg['pi_amp'] / 2,
-                       )
-
-        #self.add_gauss(ch=qubit_ch, name="stark_ramp", sigma=cfg['stark_sigma'], length = cfg['stark_sigma'] *2, maxv=cfg['stark_gain'])
-        self.add_pulse(ch=res_ch, name="stark_tone",
-                       style="const",
-                       length=5, #5us like archana/thorbeck paper
-                       freq=cfg['res_freq_ge'],
-                       phase=cfg['ro_phase'],
-                       gain=cfg['stark_gain']
-                       )
-        self.add_pulse(ch=qubit_ch, name="qubit_pulse2",
+        self.add_pulse(ch=qubit_ch, name="qubit_pulse1", ro_ch=ro_ch,
                        style="arb",
                        envelope="ramp",
                        freq=cfg['qubit_freq_ge'],
-                       phase=cfg['qubit_phase'] + cfg['wait_time']*360*cfg['ramsey_freq'], # current phase + wait_time * 2pi * ramsey freq (10mhz)
+                       phase=cfg['qubit_phase'],
                        gain=cfg['pi_amp'] / 2,
-                      )
+                       )
+        self.add_pulse(ch=res_ch, name="qze_pulse", ro_ch=ro_ch,
+                       style="const",
+                       length=QickSweep1D("waitloop", cfg['start'], cfg['stop']),  # varying in the loop
+                       freq=cfg['res_freq_qze'],
+                       phase=cfg['res_phase_qze'],
+                       gain=cfg['stark_gain']
+                       )
+
+        self.add_pulse(ch=qubit_ch, name="qubit_pulse2", ro_ch=ro_ch,
+                       style="arb",
+                       envelope="ramp",
+                       freq=cfg['qubit_freq_ge'],
+                       phase=cfg['qubit_phase'] + cfg['wait_time'] * 360 * cfg['ramsey_freq'],
+                       # current phase + time * 2pi * ramsey freq
+                       gain=cfg['pi_amp'] / 2,
+                       )
+
+        self.add_loop("waitloop", cfg["steps"])
 
 
     def _body(self, cfg):
-        self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse1", t=0)  # play probe pulse
+        self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse1", t=0)  # put on equator
+        self.pulse(ch=cfg['res_ch'], name="qze_pulse",
+                   t=0.01)  # play res pulse that has same length as wait_time and let evolve for wait time
         self.delay_auto(0.01, tag='wait')  # wait_time after last pulse
-        self.pulse(ch=cfg["res_ch"], name="stark_tone", t=0) #play for 5 us
-        self.delay_auto(3, tag="wait stark") #now its probably done, wait 3us to readout
-        self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse2", t=0)  # pi/2 before readout
+        self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse2", t=0)  # put on z axis
         self.delay_auto(0.01)  # wait_time after last pulse
-        self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+        self.delay_auto(t=5, tag='wait_for_ring_down')
+        self.pulse(ch=cfg['res_ch'], name="res_pulse")  # play res pulse 5 us after everything
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 class starkT2RMeasurement:
@@ -407,7 +409,7 @@ class starkT2RMeasurement:
             q0 = (iq_list[1])
             I.append(i0)
             Q.append(q0)
-            delay_times = ramsey.get_pulse_param("stark_tone","length", as_array=True)
+            delay_times = ramsey.get_pulse_param(pulsename='qze_pulse', parname='length', as_array=True)
 
             if self.fit_data:
                 fit0, t2r_est0, t2r_err0, f_est0, f_err0, plot_sig0 = self.t2_fit(delay_times, i0, q0)
@@ -429,32 +431,133 @@ class starkT2RMeasurement:
 
         return  t2r_est, t2r_err, f_est, f_err, I, Q, delay_times, fit, self.config
 
+    from scipy.optimize import curve_fit
+    import numpy as np
+    import matplotlib.pyplot as plt
+    import os, datetime
+
     def plot_stark_shift(self, gain_sweep, f_est, f_err):
+        """
+        Plot Ramsey frequency vs Stark tone gain, fit a quadratic Stark shift,
+        convert to nbar, and also plot nbar vs gain.
 
-        fig, ax = plt.subplots(1, 1)
-        ax.errorbar(gain_sweep, f_est, yerr=f_err, fmt='ko')
-        ax.set_xlabel('stark tone gain (a.u.)')
-        ax.set_ylabel('Ramsey frequency (MHz)')
+        Returns
+        -------
+        nbar_per_gain : np.ndarray
+            Array of nbar values corresponding to each point in gain_sweep.
+        """
 
+        gain_sweep = np.asarray(gain_sweep, dtype=float)
+        f_est = np.asarray(f_est, dtype=float)
+        f_err = np.asarray(f_err, dtype=float)
+
+        # --- You need chi here: dispersive shift in same units as f_est (e.g. MHz) ---
+        # Adjust the key to whatever you use for chi in your config.
+        chi = self.config['chi'][self.QubitIndex]  # e.g. chi in MHz
+
+        # Optional: you still have these if you want to use a more detailed model
         alpha = self.config['anharmonicity'][self.QubitIndex]
         ws = self.config['detuning']
         wq = self.config['qubit_freq_ge']
 
-        def q_shift(gain_sweep, freq_shift, const, freq0):
-            delta_wq = const * (alpha * gain_sweep ** 2) / ((2 * (wq - ws) * (alpha + wq - ws))) + freq0
-            return delta_wq
+        # --- Model for fitting: simple quadratic vs gain ---
+        # f(gain) = f0 + A * gain^2
+        def q_shift_model(g, A, f0):
+            return f0 + A * g ** 2
 
-        params, pval = curve_fit(q_shift, gain_sweep, f_est)
-        const = params[1]
-        freq0 = params[2]
-        print(params)
-        gain_pts = np.linspace(self.config['start_gain'], self.config['end_gain'],num=20)
-        ax.plot(gain_pts, q_shift(gain_pts, f_est, const, freq0),'r:',label="Duffing Oscillator")
-        ax.legend()
-        ax.set_title(f"Qubit {self.QubitIndex} Fixed Detuning {self.config['detuning']} MHz, Duffing Constant {np.round(const)}")
+        # Rough initial guess for A and f0
+        # (difference over full range divided by squared gain span)
+        if np.ptp(gain_sweep) > 0:
+            A_guess = (f_est[-1] - f_est[0]) / (
+                    max(gain_sweep) ** 2 - min(gain_sweep) ** 2 + 1e-12
+            )
+        else:
+            A_guess = 0.0
+        f0_guess = f_est[0]
 
-        plt.show()
+        # --- Fit frequency vs gain ---
+        try:
+            popt, pcov = curve_fit(
+                q_shift_model,
+                gain_sweep,
+                f_est,
+                sigma=f_err,
+                p0=[A_guess, f0_guess],
+                absolute_sigma=True
+            )
+            A_fit, f0_fit = popt
+            use_poly_fallback = False
+        except Exception as e:
+            # Fallback: full quadratic polynomial fit f = a2*g^2 + a1*g + a0
+            coeffs = np.polyfit(gain_sweep, f_est, 2)
+            a2, a1, a0 = coeffs
+            # For delta f we just need a baseline at gain=0:
+            f0_fit = a0
+            # Use the polynomial instead of the simple model
+            use_poly_fallback = True
 
+        # --- Generate smooth fit for plotting ---
+        gain_fit = np.linspace(np.min(gain_sweep), np.max(gain_sweep), 200)
+
+        if not use_poly_fallback:
+            f_fit = q_shift_model(gain_fit, A_fit, f0_fit)
+        else:
+            f_fit = np.polyval(coeffs, gain_fit)
+
+        # --- Compute delta f and nbar (pointwise at the measured gains) ---
+        # Stark shift (relative to f0_fit) at each experimental gain
+        delta_f_meas = f_est - f0_fit  # same units as f_est and chi
+
+        # nbar = delta_f / (2 * chi)
+        # If chi is negative, this will carry the sign; you can take abs if desired.
+        nbar_per_gain = delta_f_meas / (2.0 * chi)
+
+        # Uncertainty on nbar from f_err
+        nbar_err = f_err / (2.0 * chi)
+
+        # For the smooth curve: convert fitted delta f to nbar as well
+        delta_f_fit = f_fit - f0_fit
+        nbar_fit = delta_f_fit / (2.0 * chi)
+
+        # --- Plotting: two panels, frequency and nbar ---
+        fig, (ax_f, ax_n) = plt.subplots(2, 1, sharex=True, figsize=(6, 8))
+
+        # Top: Ramsey frequency vs gain
+        ax_f.errorbar(gain_sweep, f_est, yerr=f_err, fmt='ko', label='data')
+        ax_f.plot(gain_fit, f_fit, 'r:', label='fit')
+        ax_f.set_ylabel('Ramsey frequency (MHz)')
+        ax_f.set_title(f"Qubit {self.QubitIndex} Stark shift vs gain")
+        ax_f.legend()
+        ax_f.grid(True, alpha=0.3)
+
+        # Bottom: nbar vs gain
+        ax_n.errorbar(
+            gain_sweep, nbar_per_gain,
+            yerr=nbar_err,
+            fmt='ko',
+            label=r'$\bar{n}$ from data'
+        )
+        ax_n.plot(gain_fit, nbar_fit, 'r:', label=r'$\bar{n}$ from fit')
+        ax_n.set_xlabel('stark tone gain (a.u.)')
+        ax_n.set_ylabel(r'$\bar{n}$ (photons)')
+        ax_n.grid(True, alpha=0.3)
+        ax_n.legend()
+
+        fig.tight_layout()
+
+        # --- Save figure if requested ---
+        if self.save_figs:
+            outerFolder_expt = os.path.join(self.outerFolder, self.expt_name)
+            self.create_folder_if_not_exists(outerFolder_expt)
+            now = datetime.datetime.now()
+            formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
+            file_name = os.path.join(
+                outerFolder_expt,
+                f"stark_shift_Q{self.QubitIndex + 1}_{formatted_datetime}_{self.expt_name}_q{self.QubitIndex + 1}.png"
+            )
+            fig.savefig(file_name, dpi=300, bbox_inches='tight')
+
+        return nbar_per_gain
 
     def set_res_gain_ge(self, QUBIT_INDEX, num_qubits=6):
         """Sets the gain for the selected qubit to 1, others to 0."""

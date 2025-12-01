@@ -357,22 +357,23 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "Ramsey_stark": {
-            "reps": 20,
-            "rounds": 300,
+            "reps": 100,
+            "rounds": 1,
             "start": 0.02,  # [us]
             "stop": 10,  # [us]
             "steps": 100,
             "start_gain": 0.0,
-            "end_gain": 1.0,
-            "gain_steps": 7,
-            "ramsey_freq": 10, # [MHz]
+            "end_gain": 0.1,
+            "gain_steps": 20,
+            "ramsey_freq": 10,#1.2, # [MHz]
             "relax_delay": 500,
             "wait_time": 0.0,  # [us]
             "stark_gain": 0.0,
             "detuning": -20, # [MHz]
             "stark_sigma": 0.01, # [us] 10 ns
             "list_of_all_qubits": list_of_all_qubits,
-            "anharmonicity": [172.34, 176.38, 167.13, 172.57, 172.03, 161.14],
+            "anharmonicity": [150]*6,
+            'chi': [x/2 for x in [-0.264, -0.272, -0.266, -0.274, -0.274, -0.234]],
         },
 
         "FastRelEx":{

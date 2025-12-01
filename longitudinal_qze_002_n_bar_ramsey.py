@@ -41,22 +41,20 @@ thresholding = False                 # use internal QICK threshold for ratio of 
 increase_qubit_reps = False          # if you want to increase the reps for a qubit, set to True
 qubit_to_increase_reps_for = 0       # only has impact if previous line is True
 multiply_qubit_reps_by = 2           # only has impact if the line two above is True
-Qs_to_look_at = [0,1,2,3,4,5]        # only list the qubits you want to do the RR for
+Qs_to_look_at = [4]        # only list the qubits you want to do the RR for
 
 #Data saving info
 run_name = 'bob_run_started_Aug_23'
 device_name = 'squill'
 substudy_txt_notes = ('testing')
 
-study = 'QZE_IBM'
-
+study = 'ramsey_n_bar_calibration'
+sub_study = f'debug'
 ################################################ optimization outputs ##################################################
 # Optimization parameters for resonator spectroscopy
-res_leng_vals = [5.0,5.5,5.5,6.0,6.0,6.0]#[7.0, 5.1, 5.1, 5.6, 5.6, 5.6] # all updated on 7/29/2025
-res_gain = [0.95,0.9,0.95,0.55,0.55,0.95]#[0.8, 0.9, 0.95, 0.51, 0.61, 0.95] # all updated on
-# 7/29/2025 except R5, we need to debug res spec for that resonator
-freq_offsets = [-0.2143, 0, -0.16, -0.16, -0.16, -0.16,]#[0.1190, 0.0238, -0.1190, 0.2143, -0.0714, 0.0238] # # all updated on 7/29/2025 except R5, we need to debug res spec for that resonator
-
+res_leng_vals = [10]*6
+res_gain = [0.15,0.2, 0.2, 0.2, 0.2833, 0.15]
+freq_offsets = [0, -0.15, -0.15,-0.15, -0.08, -0.15]
 ####################################################### RR #############################################################
 
 def create_data_dict(keys, save_r, qs):
@@ -103,7 +101,6 @@ res_data = create_data_dict(res_keys, save_r, list_of_all_qubits)
 qspec_data = create_data_dict(qspec_keys, save_r, list_of_all_qubits)
 rabi_data = create_data_dict(rabi_keys, save_r, list_of_all_qubits)
 
-sub_study = f'testn_bar_calibration'
 data_set = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 # set which of the following you'd like to run to 'True'
@@ -167,9 +164,15 @@ for QubitIndex in Qs_to_look_at:
         experiment.create_folder_if_not_exists(optimizationFolder)
 
         # Mask out all other resonators except this one
+
         experiment.readout_cfg['res_gain_ge'] = res_gain[QubitIndex]
+        experiment.readout_cfg['res_gain_ef'] = res_gain[QubitIndex]
         experiment.readout_cfg['res_length'] = res_leng_vals[QubitIndex]
-        ################################ Do Res spec once per qubit and store the value ####################################
+        experiment.readout_cfg['res_freq_ge'] = experiment.readout_cfg['res_freq_ge'][QubitIndex]
+
+        experiment.qubit_cfg['qubit_freq_ge'] = experiment.qubit_cfg['qubit_freq_ge'][QubitIndex]
+        experiment.qubit_cfg['qubit_gain_ge'] = experiment.qubit_cfg['qubit_gain_ge'][QubitIndex]
+        ############################### Do Res spec once per qubit and store the value ####################################
         if run_flags["res_spec"]:
             try:
                 res_spec = ResonanceSpectroscopy(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j, save_figs,
@@ -178,8 +181,9 @@ for QubitIndex in Qs_to_look_at:
                 res_freqs, freq_pts, freq_center, amps, sys_config_rspec = res_spec.run()
                 offset = freq_offsets[
                     QubitIndex]  # use optimized offset values or whats set at top of script based on pre_optimize flag
-                offset_res_freqs = [r + offset for r in res_freqs]
-                experiment.readout_cfg['res_freq_ge'] = offset_res_freqs[QubitIndex]
+                offset_res_freqs = [r + offset for r in
+                                    res_freqs]  # [experiment.readout_cfg['res_freq_ge']]]#res_freqs]
+                experiment.readout_cfg['res_freq_ge'] = offset_res_freqs[0]
                 del res_spec
 
                 res_data[QubitIndex]['Dates'][0] = (
@@ -213,13 +217,14 @@ for QubitIndex in Qs_to_look_at:
         if run_flags["q_spec"]:
             try:
                 q_spec = QubitSpectroscopy(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j,
-                                               signal, save_figs, plot_fit=True,experiment=experiment,
-                                               live_plot=live_plot, verbose=verbose, logger=rr_logger, unmasking_resgain = unmask)
+                                           signal, save_figs, plot_fit=True, experiment=experiment,
+                                           live_plot=live_plot, verbose=verbose, logger=rr_logger,
+                                           unmasking_resgain=unmask)
+                (qspec_I, qspec_Q, qspec_freqs, qspec_fit, qubit_freq, sys_config_qspec, ss_Q_e_qspec, ss_Q_g_qspec,
+                 ss_I_e_qspec,
+                 ss_I_g_qspec, I_shots_qspec, Q_shots_qspec) = q_spec.run(scaling=True)
 
-                (qspec_I, qspec_Q, qspec_freqs, qspec_I_fit,
-                 qspec_Q_fit, qubit_freq, sys_config_qspec) = q_spec.run()
-
-                if qspec_I_fit is None and qspec_Q_fit is None and qubit_freq is None:
+                if qubit_freq is None:
                     if stored_qspec_list[QubitIndex] is not None:
                         experiment.qubit_cfg['qubit_freq_ge'] = stored_qspec_list[QubitIndex]
                         rr_logger.warning(f"Using previous stored value: {stored_qspec_list[QubitIndex]}")
@@ -246,8 +251,6 @@ for QubitIndex in Qs_to_look_at:
                 qspec_data[QubitIndex]['I'][0] = qspec_I
                 qspec_data[QubitIndex]['Q'][0] = qspec_Q
                 qspec_data[QubitIndex]['Frequencies'][0] = qspec_freqs
-                qspec_data[QubitIndex]['I Fit'][0] = qspec_I_fit
-                qspec_data[QubitIndex]['Q Fit'][0] = qspec_Q_fit
                 qspec_data[QubitIndex]['Round Num'][0] = 0
                 qspec_data[QubitIndex]['Batch Num'][0] = 0
                 qspec_data[QubitIndex]['Recycled QFreq'][0] = False  # no rr so no recycling here
@@ -278,16 +281,19 @@ for QubitIndex in Qs_to_look_at:
         ################################################ amp rabi ################################################
         rabi_data = create_data_dict(rabi_keys, save_r, list_of_all_qubits)
 
-        rabi = AmplitudeRabiExperiment(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, 0, signal, save_figs=True,
-                                       experiment=experiment,
-                                       live_plot=live_plot,
+        rabi = AmplitudeRabiExperiment(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j, signal,
+                                       save_figs=save_figs, save_shots=False,
+                                       experiment=experiment, live_plot=live_plot,
                                        increase_qubit_reps=increase_qubit_reps,
                                        qubit_to_increase_reps_for=qubit_to_increase_reps_for,
                                        multiply_qubit_reps_by=multiply_qubit_reps_by,
-                                       verbose=verbose, logger=logging)
-        (rabi_I, rabi_Q, rabi_gains, rabi_fit, stored_pi_amp, sys_config_rabi) = rabi.run()
-        experiment.qubit_cfg['pi_amp'] = float(stored_pi_amp)
-        logging.info(f"Tune-up: Pi amplitude for qubit {QubitIndex}: {float(stored_pi_amp)}")
+                                       verbose=verbose, logger=rr_logger, unmasking_resgain=unmask)
+        (rabi_I, rabi_Q, rabi_gains, rabi_fit, pi_amp,
+         sys_config_rabi, ss_Q_e, ss_Q_g, ss_I_e, ss_I_g, rabi_I_shots, rabi_Q_shots) = rabi.run(
+            thresholding=thresholding, scaling=True)
+
+        experiment.qubit_cfg['pi_amp'] = float(pi_amp)
+        logging.info(f"Tune-up: Pi amplitude for qubit {QubitIndex}: {float(pi_amp)}")
         rabi_data[QubitIndex]['Dates'][0] = (time.mktime(datetime.datetime.now().timetuple()))
         rabi_data[QubitIndex]['I'][0] = rabi_I
         rabi_data[QubitIndex]['Q'][0] = rabi_Q
@@ -309,6 +315,8 @@ for QubitIndex in Qs_to_look_at:
                             'Exp Config',
                             'Syst Config']
 
+        experiment.readout_cfg['res_freq_qze'] = experiment.readout_cfg['res_freq_ge']
+        experiment.readout_cfg['res_phase_qze'] = experiment.readout_cfg['res_phase']
 
         qubitFolder = os.path.join(studyDocumentationFolder, f'Q{QubitIndex}/starkRamsey')
         starkRamsey_data = create_data_dict(starkRamsey_keys, save_r, list_of_all_qubits)

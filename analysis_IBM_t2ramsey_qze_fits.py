@@ -6,11 +6,13 @@ from analysis_003_q_freqs_vs_time_plots import QubitFreqsVsTime
 # Configuration
 save_figs = True
 save_individual_qspec = True  # Set to False to skip saving individual qspec plots
+nbar_from_ramsey = True
 figure_quality = 100
 final_figure_quality = 200
 FRIDGE = "QUIET"
 qubits = [4]
 path = '2d_less_reps_more_qspec_steps'
+ramsey_nbar_path='M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/ramsey_n_bar_calibration/debug/2025-12-01_13-51-16'
 
 for qubit in qubits:
     run_name = f'bob_run_started_Aug_23/squill/{path}/all_qubits/'
@@ -22,7 +24,12 @@ for qubit in qubits:
     _, _, amps_qspec, gains_qspec, rounds_qspec, freqs_qspec = q_vs_time.run_q_sweep_new(exp_extension='_ge', scaling=True)
 
     # Calculate nbar (no plotting)
-    n_bars = q_vs_time.calculate_nbar(amps_qspec, gains_qspec, rounds_qspec, freqs_qspec, chi_MHz=-0.137)
+    if nbar_from_ramsey:
+        from T2R_stark import starkT2RMeasurement
+        t2r = starkT2RMeasurement(qubit,6, ramsey_nbar_path, j, 'None', save_figs)
+        t2r.plot_stark_shift
+    else:
+        n_bars = q_vs_time.calculate_nbar(amps_qspec, gains_qspec, rounds_qspec, freqs_qspec, chi_MHz=-0.137)
 
     q_vs_time.plot_all_q_heatmaps_new_format(amps_qspec, gains_qspec, rounds_qspec, freqs_qspec,
                                               f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/',
