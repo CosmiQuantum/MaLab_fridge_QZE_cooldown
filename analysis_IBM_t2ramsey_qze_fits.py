@@ -12,7 +12,7 @@ final_figure_quality = 200
 FRIDGE = "QUIET"
 qubits = [4]
 path = '2d_less_reps_more_qspec_steps'
-ramsey_nbar_path='M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/ramsey_n_bar_calibration/debug/2025-12-01_13-51-16'
+ramsey_nbar_path='M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/ramsey_n_bar_calibration/run/2025-12-02_10-34-15'
 
 for qubit in qubits:
     run_name = f'bob_run_started_Aug_23/squill/{path}/all_qubits/'
@@ -161,7 +161,7 @@ for qubit in qubits:
         n_bars = q_vs_time.calculate_nbar(amps_qspec, gains_qspec, rounds_qspec, freqs_qspec, chi_MHz=-0.137)
 
     q_vs_time.plot_all_q_heatmaps_new_format(amps_qspec, gains_qspec, rounds_qspec, freqs_qspec,
-                                              f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/',
+                                              f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis_updated/',
                                               n_bar=n_bars, save_individual_plots=save_individual_qspec)
 
     # T1 analysis
@@ -170,10 +170,10 @@ for qubit in qubits:
     _, _, amps_t1, gains_t1, rounds_t1, delay_times_t1 = t1_vs_time.run_t1_sweep_new(exp_extension='_ge', scaling=True, weighted_mean=True)
 
     t1_vs_time.fit_and_save_t1_slices_new_format(amps_t1, gains_t1, rounds_t1, delay_times_t1,
-                                                  f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/', 
+                                                  f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis_updated/',
                                                   n_bar=n_bars)
     t1_vs_time.plot_all_t1_heatmaps_new_format(amps_t1, gains_t1, rounds_t1, delay_times_t1,
-                                                f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/', 
+                                                f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis_updated/',
                                                 n_bar=n_bars, use_linear_x=False)
 
     # T2R analysis
@@ -182,11 +182,11 @@ for qubit in qubits:
     _, _, amps_t2, gains_t2, rounds_t2, delay_times_t2 = t2_vs_time.run_t2_sweep_new(exp_extension='_ge', scaling=True)
 
     t2_vs_time.plot_all_t2_heatmaps_new_format(amps_t2, gains_t2, rounds_t2, delay_times_t2,
-                                                f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/', 
+                                                f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis_updated/',
                                                 n_bar=n_bars, use_linear_x=False)
 
     t2_vs_time.plot_all_t2_curves(amps_t2, gains_t2, rounds_t2, delay_times_t2,
-                                   f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/', 
+                                   f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis_updated/',
                                    n_bar=n_bars)
 
     # T2E analysis
@@ -195,5 +195,5 @@ for qubit in qubits:
     _, _, amps_t2e, gains_t2e, rounds_t2e, delay_times_t2e = t2e_vs_time.run_t2_sweep_new(exp_extension='_ge', scaling=True)
     
     t2e_vs_time.plot_all_t2_heatmaps_new_format(amps_t2e, gains_t2e, rounds_t2e, delay_times_t2e,
-                                               f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/', 
+                                               f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis_updated/',
                                                n_bar=n_bars, save_individual_plots=save_individual_qspec)
