@@ -72,7 +72,7 @@ for qubit in qubits:
         
         # Initialize T2R measurement for fitting
         # We need a dummy instance to access t2_fit and plot_stark_shift
-        t2r_instance = starkT2RMeasurement(qubit, 6, ramsey_nbar_path, 0, 'None', False)
+        t2r_instance = starkT2RMeasurement(qubit, 6, ramsey_nbar_path, 0, 'None', True)
         
         for h5_file in h5_files:
             try:

@@ -525,6 +525,54 @@ class QubitFreqsVsTime:
         import matplotlib.pyplot as plt
         from collections import defaultdict
         import matplotlib.ticker as mticker
+        from scipy.optimize import least_squares
+        from scipy.signal import savgol_filter
+
+        # ---------- Fitting Helpers (Robust Lorentzian - Flat Baseline) ----------
+        def lorentz_flat(x, f0, gamma, A, c0):
+            return A * (gamma ** 2) / ((x - f0) ** 2 + gamma ** 2) + c0
+
+        def _initial_guesses(x, y):
+            x = np.asarray(x); y = np.asarray(y)
+            # Flat baseline guess: median of the edges
+            n = len(x)
+            edge_ids = np.r_[np.arange(int(0.15 * n), int(0.25 * n)), np.arange(int(0.75 * n), int(0.85 * n))]
+            if len(edge_ids) < 4: edge_ids = np.r_[0, 1, n - 2, n - 1]
+            c0_0 = np.median(y[edge_ids])
+
+            # Peak finding on smoothed data
+            y_s = savgol_filter(y, max(5, (len(y) // 25) * 2 + 1), 2, mode='interp') if len(y) >= 11 else y
+            imax, imin = np.argmax(y_s), np.argmin(y_s)
+            prom_max = y_s[imax] - np.median(np.r_[y_s[:max(1, imax - 20)], y_s[min(len(y_s), imax + 20):]])
+            prom_min = np.median(np.r_[y_s[:max(1, imin - 20)], y_s[min(len(y_s), imin + 20):]]) - y_s[imin]
+            is_peak = prom_max >= prom_min
+            idx0 = imax if is_peak else imin
+            f0_0 = x[idx0]
+
+            # Amplitude and Width
+            A_0 = (y[idx0] - c0_0)
+            if not is_peak and A_0 > 0: A_0 = -abs(A_0)
+            y_half = c0_0 + 0.5 * A_0
+            left, right = idx0, idx0
+            while left > 1 and ((y[left] > y_half) if is_peak else (y[left] < y_half)): left -= 1
+            while right < n - 2 and ((y[right] > y_half) if is_peak else (y[right] < y_half)): right += 1
+            fwhm_0 = max((x[right] - x[left]), (x.max() - x.min()) / 50) if right > left else (x.max() - x.min()) / 20
+            gamma_0 = max(fwhm_0 / 2.0, (x[1] - x[0]) * 1.5)
+            return f0_0, gamma_0, A_0, c0_0
+
+        def fit_slice(x, y):
+            x = np.asarray(x, float); y = np.asarray(y, float)
+            try:
+                f0_0, g0, A0, c0_0 = _initial_guesses(x, y)
+                p0 = np.array([f0_0, g0, A0, c0_0])
+                span = x.max() - x.min()
+                # Bounds: f0 within extended range, gamma positive, A unbounded, c0 unbounded
+                lb = [x.min() - 0.1 * span, (x[1] - x[0]) * 0.2, -np.inf, -np.inf]
+                ub = [x.max() + 0.1 * span, span, np.inf, np.inf]
+                res = least_squares(lambda p: lorentz_flat(x, *p) - y, p0, bounds=(lb, ub), loss='soft_l1', f_scale=1.0)
+                return res.x[0] if res.success else np.nan
+            except:
+                return np.nan
 
         q = self.qubit
         gains_q = gains.get(q, [])
@@ -673,6 +721,19 @@ class QubitFreqsVsTime:
             for (iy, ix), vals in cell_vals.items():
                 C[iy, ix] = float(np.nanmean(vals))
 
+            # ---------- Fit Centers (Robust) ----------
+            centers_L = []
+            x_freqs = np.array(delays_r, float)
+            for ix in range(Nx):
+                y_col = C[:, ix]
+                if np.isfinite(y_col).any() and len(x_freqs) >= 5:
+                    m = np.isfinite(y_col)
+                    c = fit_slice(x_freqs[m], y_col[m])
+                    centers_L.append(c)
+                else:
+                    centers_L.append(np.nan)
+            centers_L = np.array(centers_L)
+
             # Decide X-axis: gains or n̄
             nbar_vec = get_nbar_for_round(r_id, gains_r)
             if nbar_vec is not None:
@@ -698,6 +759,18 @@ class QubitFreqsVsTime:
             )
             cbar = fig.colorbar(mesh, ax=ax, pad=0.02)
             cbar.set_label("Qubit Population")
+
+            # Overlay fits
+            if np.any(np.isfinite(centers_L)):
+                # x_vals_sorted corresponds to C_sorted columns
+                # We need to match centers_L (indexed by original gains_r) to x_vals_sorted
+                # x_vals are aligned with gains_r (by index if nbar list, or identity if gains)
+                # So centers_L[i] corresponds to x_vals[i]
+                # But C_sorted is sorted by x_vals.
+                # We should plot (x_vals, centers_L) directly, no need to sort for scatter
+                ax.plot(x_vals, centers_L, 'o', ms=4, mfc='none', mec='w', mew=1.5, label='Fits')
+                ax.plot(x_vals, centers_L, '.', ms=2, color='k')
+                ax.legend(loc='best')
 
             ax.set_title(f"Qubit {self.qubit + 1} — Round {r_id}")
             ax.set_xlabel(x_label)
