@@ -664,6 +664,12 @@ class T2rVsTime:
         import datetime
 
 
+        # Initialize data containers for plotting
+        amps = {i: [] for i in range(self.number_of_qubits)}
+        gains = {i: [] for i in range(self.number_of_qubits)}
+        rounds_completed = {i: [] for i in range(self.number_of_qubits)}
+        delay_times = {i: [] for i in range(self.number_of_qubits)}
+
         for folder_date in self.top_folder_dates:
             outerFolder = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date+ "/study_data" + "/"
 
@@ -710,23 +716,50 @@ class T2rVsTime:
                                                      num=steps)
                             f_est=[]
                             f_err=[]
-                            for dataset in range(len(I)):
-                                i0 = I[dataset]
-                                q0 = Q[dataset]
+                            
+                            # Collect data for heatmap
+                            amp_sublists = []
+                            
+                            for dataset_idx in range(len(I)):
+                                i0 = I[dataset_idx]
+                                q0 = Q[dataset_idx]
 
                                 fit0, t2r_est0, t2r_err0, f_est0, f_err0, plot_sig0 = t2r.t2_fit(delay_time, i0, q0)
                                 now=datetime.datetime.now()
                                 t2r.plot_results(i0, q0, delay_time, now, fit0, t2r_est0, t2r_err0, f_est0, f_err0, plot_sig0)
                                 f_est.append(f_est0)
                                 f_err.append(f_err0)
-                                # t2_vals[q_key].extend([t2r_est])
-                                # t2_errs[q_key].extend([t2r_err])
-                                # delay_times[q_key].extend([delay_time])
-                                # date_times[q_key].extend([date.strftime("%Y-%m-%d %H:%M:%S")])
+                                
+                                # Calculate amplitude for this gain step
+                                amp_sublists.append(np.hypot(i0, q0).tolist())
 
                             n_bars=t2r.plot_stark_shift(gain_sweep, f_est, f_err, config=exp_config)
+                            
+                            # Store data for heatmap plotting
+                            # Flatten the list of lists (amplitudes)
+                            flat_amps = [item for sublist in amp_sublists for item in sublist]
+                            amps[q_key].append(flat_amps)
+                            
+                            # Expand gains to match flattened structure
+                            # gain_sweep corresponds to each sublist in amp_sublists
+                            expanded_gains = np.repeat(gain_sweep, len(delay_time))
+                            gains[q_key].append(expanded_gains.tolist())
+                            
+                            # Expand delays to match
+                            expanded_delays = np.tile(delay_time, len(gain_sweep))
+                            delay_times[q_key].append(expanded_delays.tolist())
+                            
+                            # Store round number (using dataset index or similar as proxy if needed, 
+                            # but here we seem to process one 'round' per h5 file entry?)
+                            # The loop structure suggests we are inside a specific dataset entry which has a round_num
+                            rounds_completed[q_key].append(round_num)
 
                 del H5_class_instance
+        
+        # Plot the heatmap
+        if save_path:
+            self.plot_all_t2_heatmaps_new_format(amps, gains, rounds_completed, delay_times, save_path, use_linear_x=True)
+
         return n_bars
     def t2_fit(self, x_data, I, Q, verbose = False, guess=None, plot=False,amp=None):
         #fitting code adapted from https://github.com/qua-platform/py-qua-tools/blob/37c741ade5a8f91888419c6fd23fd34e14372b06/qualang_tools/plot/fitting.py
