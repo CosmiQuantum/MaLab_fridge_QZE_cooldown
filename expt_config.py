@@ -55,8 +55,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         "qubit_spec_ge_zeno": {
             "reps": 250,
             "rounds": 5,
-            "start": list(VNA_qubit - 30),  # [MHz] -40
-            "stop": list(VNA_qubit + 15),  # [MHz] +40
+            "start": list(VNA_qubit - 15),  # [MHz] -40
+            "stop": list(VNA_qubit + 10),  # [MHz] +40
             "steps": 500,
             "relax_delay": 200,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
@@ -422,6 +422,19 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "start": 0.0,  # [us]
             "stop": 1,  # [us]
             "steps": 50,
+            "ramsey_freq": 4,  # [MHz]
+            "relax_delay": 500,
+            # [us] the time to wait to let the qubit to relax to gnd again after exciting it (make it way above T1)
+            "wait_time": 0.0,  # [us]
+            "list_of_all_qubits": list_of_all_qubits,
+        },
+
+        "Ramsey_ge_zeno_correction": {
+            "reps": 20,  # 20,  # 300
+            "rounds": 2,  # 10
+            "start": 0.0,  # [us]
+            "stop": 1,  # [us]
+            "steps": 100,
             "ramsey_freq": 4,  # [MHz]
             "relax_delay": 500,
             # [us] the time to wait to let the qubit to relax to gnd again after exciting it (make it way above T1)

@@ -433,7 +433,7 @@ class starkT2RMeasurement:
     import matplotlib.pyplot as plt
     import os, datetime
 
-    def plot_stark_shift(self, gain_sweep, f_est, f_err):
+    def plot_stark_shift(self, gain_sweep, f_est, f_err, config=None):
         """
         Plot Ramsey frequency vs Stark tone gain, fit a quadratic Stark shift,
         convert to nbar, and also plot nbar vs gain.
@@ -450,12 +450,15 @@ class starkT2RMeasurement:
 
         # --- You need chi here: dispersive shift in same units as f_est (e.g. MHz) ---
         # Adjust the key to whatever you use for chi in your config.
-        chi = self.config['chi'][self.QubitIndex]  # e.g. chi in MHz
+        if config is not None:
+            chi =float(config['Ramsey_stark']['chi'][self.QubitIndex])
+        else:
+            chi = self.config['chi'][self.QubitIndex]  # e.g. chi in MHz
 
-        # Optional: you still have these if you want to use a more detailed model
-        alpha = self.config['anharmonicity'][self.QubitIndex]
-        ws = self.config['detuning']
-        wq = self.config['qubit_freq_ge']
+        # # Optional: you still have these if you want to use a more detailed model
+        # alpha = self.config['anharmonicity'][self.QubitIndex]
+        # ws = self.config['detuning']
+        # wq = self.config['qubit_freq_ge']
 
         # --- Model for fitting: simple quadratic vs gain ---
         # f(gain) = f0 + A * gain^2
@@ -589,10 +592,15 @@ class starkT2RMeasurement:
                          f"stark Ramsey Q{self.QubitIndex}: {f_est} +/- {f_err} MHz, gain {config['stark_gain']}, detuning {config['detuning']} MHz",
                          fontsize=24, ha='center', va='top') #, pi gain %.2f" % float(config['pi_amp']) + f", {float(config['sigma']) * 1000} ns sigma
             else:
-                fig.text(plot_middle, 0.98,
-                         f"T2 Q{self.QubitIndex + 1}, T2R %.2f us" % float(
-                             t2r_est) + f", {float(self.config['reps'])}*{float(self.config['rounds'])} avgs,",
-                         fontsize=24, ha='center', va='top')
+                try:
+                    fig.text(plot_middle, 0.98,
+                             f"T2 Q{self.QubitIndex + 1}, T2R %.2f us" % float(
+                                 t2r_est) + f", {float(self.config['reps'])}*{float(self.config['rounds'])} avgs,",
+                             fontsize=24, ha='center', va='top')
+                except:
+                    fig.text(plot_middle, 0.98,
+                             f"T2 Q{self.QubitIndex + 1}, T2R",
+                             fontsize=24, ha='center', va='top')
 
         else:
             # Add title, centered on the plot area

@@ -585,7 +585,7 @@ class T2rVsTime:
             return Is,Qs,amps, gains, rounds_completed, delay_times, Ig_calibration, Ie_calibration, Qe_calibration, Qg_calibration,steps
         else:
             return Is, Qs, amps, gains, rounds_completed, delay_times
-    def run(self,return_errs=False):
+    def run(self,return_errs=False, exp_name='T1_ge'):
         import datetime
         # ----------Load/get data------------------------
         t2_vals = {i: [] for i in range(self.number_of_qubits)}
@@ -601,7 +601,7 @@ class T2rVsTime:
             outerFolder_save_plots = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date+ "/study_data" + "_plots/"
 
             # -------------------------------------------------------Load/Plot/Save T2------------------------------------------
-            outerFolder_expt = outerFolder + "/Data_h5/T2_ge/"
+            outerFolder_expt = outerFolder + f"/Data_h5/{exp_name}/"
             h5_files = glob.glob(os.path.join(outerFolder_expt, "*.h5"))
 
             for h5_file in h5_files:
@@ -660,6 +660,74 @@ class T2rVsTime:
             return date_times, t2_vals, t2_errs
         else:
             return date_times, t2_vals
+    def run_ramsey_nbar(self,return_errs=False, exp_name='T1_ge',save_path=None):
+        import datetime
+
+
+        for folder_date in self.top_folder_dates:
+            outerFolder = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date+ "/study_data" + "/"
+
+            # -------------------------------------------------------Load/Plot/Save T2------------------------------------------
+            outerFolder_expt = outerFolder + f"/Data_h5/{exp_name}/"
+
+            h5_files = glob.glob(os.path.join(outerFolder_expt, "*.h5"))
+
+            for h5_file in h5_files:
+                save_round = h5_file.split('Num_per_batch')[-1].split('.')[0]
+                H5_class_instance = Data_H5(h5_file)
+
+                # sometimes you get '1(1)' when redownloading the h5 files for some reason
+                load_data = H5_class_instance.load_from_h5(data_type='T2', save_r=int(save_round.split('(')[0]))
+
+                for q_key in load_data['T2']:
+                    for dataset in range(len(load_data['T2'][q_key].get('Dates', [])[0])):
+                        if 'nan' in str(load_data['T2'][q_key].get('Dates', [])[0][dataset]):
+                            continue
+                        # T2 = load_data['T2'][q_key].get('T2', [])[0][dataset]
+                        # errors = load_data['T2'][q_key].get('Errors', [])[0][dataset]
+                        date = datetime.datetime.fromtimestamp(load_data['T2'][q_key].get('Dates', [])[0][dataset])
+
+                        I = self.process_string_of_nested_lists(load_data['T2'][q_key].get('I', [])[0][dataset].decode())
+                        Q = self.process_string_of_nested_lists(load_data['T2'][q_key].get('Q', [])[0][dataset].decode())
+                        delay_time = self.process_h5_data(load_data['T2'][q_key].get('Delay Times', [])[0][dataset].decode())
+                        # fit = load_data['T2'][q_key].get('Fit', [])[0][dataset]
+                        round_num = load_data['T2'][q_key].get('Round Num', [])[0][dataset]
+                        batch_num = load_data['T2'][q_key].get('Batch Num', [])[0][dataset]
+                        try:
+                            exp_config = load_data['T2'][q_key].get('Exp Config', [])[0][dataset].decode()
+                            safe_globals = {"np": np, "array": np.array, "__builtins__": {}}
+                            exp_config = eval(exp_config, safe_globals)
+                        except:
+                            exp_config =None
+
+                        if len(I) > 0:
+                            from T2R_stark import starkT2RMeasurement
+                            t2r = starkT2RMeasurement(q_key, 6, save_path, 1, None, True, fit_data=True)
+                            start=exp_config['Ramsey_stark']['start_gain']
+                            stop=exp_config['Ramsey_stark']['end_gain']
+                            steps=exp_config['Ramsey_stark']['gain_steps']
+                            gain_sweep = np.linspace(start, stop,
+                                                     num=steps)
+                            f_est=[]
+                            f_err=[]
+                            for dataset in range(len(I)):
+                                i0 = I[dataset]
+                                q0 = Q[dataset]
+
+                                fit0, t2r_est0, t2r_err0, f_est0, f_err0, plot_sig0 = t2r.t2_fit(delay_time, i0, q0)
+                                now=datetime.datetime.now()
+                                t2r.plot_results(i0, q0, delay_time, now, fit0, t2r_est0, t2r_err0, f_est0, f_err0, plot_sig0)
+                                f_est.append(f_est0)
+                                f_err.append(f_err0)
+                                # t2_vals[q_key].extend([t2r_est])
+                                # t2_errs[q_key].extend([t2r_err])
+                                # delay_times[q_key].extend([delay_time])
+                                # date_times[q_key].extend([date.strftime("%Y-%m-%d %H:%M:%S")])
+
+                            n_bars=t2r.plot_stark_shift(gain_sweep, f_est, f_err, config=exp_config)
+
+                del H5_class_instance
+        return n_bars
     def t2_fit(self, x_data, I, Q, verbose = False, guess=None, plot=False,amp=None):
         #fitting code adapted from https://github.com/qua-platform/py-qua-tools/blob/37c741ade5a8f91888419c6fd23fd34e14372b06/qualang_tools/plot/fitting.py
 

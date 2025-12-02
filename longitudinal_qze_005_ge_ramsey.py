@@ -673,6 +673,8 @@ for QubitIndex in Qs_to_look_at:
             (qspec_I, qspec_Q, qspec_freqs, qspec_fit, qubit_freq, sys_config_qspec, ss_Q_e_qspec, ss_Q_g_qspec,
              ss_I_e_qspec, ss_I_g_qspec, I_shots_qspec, Q_shots_qspec, gains_qspec) = q_spec.run(scaling=True,qze_pulse='const')
 
+            experiment.qubit_cfg['corrected_qspec_freq']=updated_qfreqs
+
             qspec_data[QubitIndex]['Dates'][0] = (
                 time.mktime(datetime.datetime.now().timetuple()))
             qspec_data[QubitIndex]['I'][0] = qspec_I
@@ -713,6 +715,45 @@ for QubitIndex in Qs_to_look_at:
 
         # reinitialize
         qspec_data = create_data_dict(qspec_keys, save_r, list_of_all_qubits)
+        # ############################################# Ramsey freq correction #########################################
+        t2r_data = create_data_dict(t2r_keys, save_r, list_of_all_qubits)
+        try:
+            t2r = T2RMeasurementZeno(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j, signal,
+                                     save_figs,
+                                     experiment=exp, live_plot=live_plot, fit_data=fit_data,
+                                     increase_qubit_reps=increase_qubit_reps,
+                                     qubit_to_increase_reps_for=qubit_to_increase_reps_for,
+                                     multiply_qubit_reps_by=multiply_qubit_reps_by,
+                                     verbose=verbose, logger=rr_logger, unmasking_resgain=unmask, correction=True)
+            t2r_est, t2r_err, t2r_I, t2r_Q, t2r_delay_times, fit_ramsey, sys_config_t2r, ss_Q_e_t2r, ss_Q_g_t2r, \
+                ss_I_e_t2r, ss_I_g_t2r, I_shots_t2r, Q_shots_t2r, gains_t2r,ramsey_corrected_freqsv = t2r.run(
+                thresholding=thresholding, scaling=True, qze_pulse='const')
+            t2r_data[QubitIndex]['T2'][j - batch_num * save_r - 1] = t2r_est
+            t2r_data[QubitIndex]['Errors'][j - batch_num * save_r - 1] = t2r_err
+            t2r_data[QubitIndex]['Dates'][j - batch_num * save_r - 1] = (
+                time.mktime(datetime.datetime.now().timetuple()))
+            t2r_data[QubitIndex]['I'][j - batch_num * save_r - 1] = t2r_I
+            t2r_data[QubitIndex]['Q'][j - batch_num * save_r - 1] = t2r_Q
+            t2r_data[QubitIndex]['Delay Times'][j - batch_num * save_r - 1] = t2r_delay_times
+            t2r_data[QubitIndex]['Fit'][j - batch_num * save_r - 1] = fit_ramsey
+            t2r_data[QubitIndex]['Round Num'][j - batch_num * save_r - 1] = j
+            t2r_data[QubitIndex]['Batch Num'][j - batch_num * save_r - 1] = batch_num
+            t2r_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = expt_cfg
+            t2r_data[QubitIndex]['Syst Config'][j - batch_num * save_r - 1] = sys_config_t2r
+            t2r_data[QubitIndex]['ss_Q_e'][0] = ss_Q_e_t2r
+            t2r_data[QubitIndex]['ss_Q_g'][0] = ss_Q_g_t2r
+            t2r_data[QubitIndex]['ss_I_e'][0] = ss_I_e_t2r
+            t2r_data[QubitIndex]['ss_I_g'][0] = ss_I_g_t2r
+            t2r_data[QubitIndex]['I_shots'][0] = I_shots_t2r
+            t2r_data[QubitIndex]['Q_shots'][0] = Q_shots_t2r
+            t2r_data[QubitIndex]['Gains'][0] = gains_t2r
+
+            saver_t2 = Data_H5(subStudyDataFolder, t2r_data, batch_num, save_r)
+            saver_t2.save_to_h5('T2_ge_zeno_correction')
+            del t2r
+        except:
+            continue
+        t2r_data = create_data_dict(t2r_keys, save_r, list_of_all_qubits)
 
         ###################################################### T1 ######################################################
         try:
