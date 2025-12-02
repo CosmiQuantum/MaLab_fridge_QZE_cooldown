@@ -363,7 +363,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "stop": 10,  # [us]
             "steps": 300,
             "start_gain": 0.0,
-            "end_gain": 0.05,
+            "end_gain": 0.03,
             "gain_steps": 20,
             "ramsey_freq": 1.2, #10 [MHz]
             "relax_delay": 500,
