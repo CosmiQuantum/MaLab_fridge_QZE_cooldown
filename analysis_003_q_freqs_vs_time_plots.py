@@ -405,6 +405,119 @@ class QubitFreqsVsTime:
 
         return None, None, amps, gains, rounds_completed, delay_times
 
+    def run_q_sweep_single_gain(self, exp_extension='', scaling=False, return_calibration_data=False, weighted_mean=True,
+                        gain=''):
+        import datetime
+        import glob, os, re
+        import numpy as np
+
+        # Initialize data containers
+        amps = {i: [] for i in range(self.number_of_qubits)}
+        gains = {i: [] for i in range(self.number_of_qubits)}
+        rounds_completed = {i: [] for i in range(self.number_of_qubits)}
+        delay_times = {i: [] for i in range(self.number_of_qubits)}
+
+        for folder_date in self.top_folder_dates:
+            outerFolder = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "/study_data"
+            outerFolder_expt = outerFolder + f"/Data_h5/QSpec_zeno{gain}/"
+
+            h5_files = glob.glob(os.path.join(outerFolder_expt, "*.h5"))
+            TS = re.compile(r'(\d{4})[-_\.]?(\d{2})[-_\.]?(\d{2})[ Tt_-]?(\d{2})[-_\.]?(\d{2})[-_\.]?(\d{2})')
+
+            def dt_from_name(path):
+                name = os.path.basename(path)
+                m = TS.search(name)
+                if not m:
+                    return datetime.datetime.min
+                y, mo, d, h, mi, s = map(int, m.groups())
+                return datetime.datetime(y, mo, d, h, mi, s)
+
+            h5_files = sorted(h5_files, key=dt_from_name)
+
+            for h5_file in h5_files:
+                save_round = h5_file.split('Num_per_batch')[-1].split('.')[0]
+                H5_class_instance = Data_H5(h5_file)
+                load_data = H5_class_instance.load_from_h5(data_type=f'QSpec_zeno{gain}', save_r=int(save_round),
+                                                           scaling=scaling)
+
+                for q_key in load_data[f'QSpec_zeno{gain}']:
+                    for dataset in range(len(load_data[f'QSpec_zeno{gain}'][q_key].get('Dates', [])[0])):
+
+                        delays = self.process_h5_data(
+                            load_data[f'QSpec_zeno{gain}'][q_key].get('Frequencies', [])[0][dataset].decode())
+
+                        I = self.process_string_of_nested_lists(
+                            load_data[f'QSpec_zeno{gain}'][q_key].get('I', [])[0][dataset].decode())
+                        Q = self.process_string_of_nested_lists(
+                            load_data[f'QSpec_zeno{gain}'][q_key].get('Q', [])[0][dataset].decode())
+
+                        date = datetime.datetime.fromtimestamp(
+                            load_data[f'QSpec{exp_extension}'][q_key].get('Dates', [])[0][dataset])
+
+                        # gains_swept = self.process_h5_data(
+                        #     load_data[f'QSpec_zeno{gain}'][q_key].get('Gains', [])[0][dataset].decode())
+
+                        if scaling:
+                            Ie = self.process_string_of_nested_lists(
+                                load_data[f'QSpec_zeno{gain}'][q_key].get('ss_I_e', [])[0][dataset].decode())
+                            Ig = self.process_string_of_nested_lists(
+                                load_data[f'QSpec_zeno{gain}'][q_key].get('ss_I_g', [])[0][dataset].decode())
+                            Qe = self.process_string_of_nested_lists(
+                                load_data[f'QSpec_zeno{gain}'][q_key].get('ss_Q_e', [])[0][dataset].decode())
+                            Qg = self.process_string_of_nested_lists(
+                                load_data[f'QSpec_zeno{gain}'][q_key].get('ss_Q_g', [])[0][dataset].decode())
+
+                        if len(I) > 0:
+                            round_current = int(folder_date.split('round')[-1])
+                            rounds_completed[q_key].append(round_current)
+                            gains[q_key].append(gains_swept)
+
+                            # Assume I and Q are list-of-lists (one per gain), single calibration per round
+                            if scaling:
+                                # Single calibration for all gains
+                                Ie_cal = np.asarray(Ie[0], dtype=float)
+                                Ig_cal = np.asarray(Ig[0], dtype=float)
+                                Qe_cal = np.asarray(Qe[0], dtype=float)
+                                Qg_cal = np.asarray(Qg[0], dtype=float)
+
+                                e = np.mean(Ie_cal + 1j * Qe_cal)
+                                g = np.mean(Ig_cal + 1j * Qg_cal)
+
+                                # Apply calibration to each gain's data
+                                calibrated_sublists = []
+                                for sub_I, sub_Q in zip(I, Q):
+                                    sub_I = np.asarray(sub_I, dtype=float)
+                                    sub_Q = np.asarray(sub_Q, dtype=float)
+                                    pop_norm = np.abs(((sub_I + 1j * sub_Q) - g) * (e - g) / (np.abs(e - g) ** 2))
+                                    calibrated_sublists.append(pop_norm.tolist())
+
+                                # Flatten for gain sweep
+                                flat_amps = [item for sublist in calibrated_sublists for item in sublist]
+                                amps[q_key].append(flat_amps)
+
+                                # Expand gains and delays to match flattened structure
+                                expanded_gains = np.repeat(gains_swept, len(delays))
+                                gains[q_key][-1] = expanded_gains.tolist()
+
+                                expanded_delays = np.tile(delays, len(gains_swept))
+                                delay_times[q_key].append(expanded_delays.tolist())
+                            else:
+                                # No scaling - just compute amplitude from I/Q
+                                amp_sublists = []
+                                for sub_I, sub_Q in zip(I, Q):
+                                    sub_I = np.asarray(sub_I, dtype=float)
+                                    sub_Q = np.asarray(sub_Q, dtype=float)
+                                    amp_sublists.append(np.hypot(sub_I, sub_Q).tolist())
+
+                                # Average over gains
+                                amp_avg = np.mean(np.array(amp_sublists), axis=0)
+                                amps[q_key].append(amp_avg.tolist())
+                                delay_times[q_key].append(delays)
+
+                    del H5_class_instance
+
+                return None, None, amps, gains, rounds_completed, delay_times
+
     def run(self,exp_extension=''):
         import datetime
 

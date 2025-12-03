@@ -217,6 +217,76 @@ class T2EProgram(AveragerProgramV2):
         self.delay_auto(t=5, tag='wait_for_ring_down')  # wait_time after last pulse
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+class T2EProgramSingleGain(AveragerProgramV2):
+    def _initialize(self, cfg):
+        ro_ch = cfg['ro_ch']
+        res_ch = cfg['res_ch']
+        qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
+        self.add_readoutconfig(ch=ro_ch, name="myro",
+                               freq=cfg['res_freq_ge'],
+                               gen_ch=res_ch,
+                               outsel='product')
+        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
+        self.add_pulse(ch=res_ch, name="res_pulse",ro_ch=ro_ch,
+                       style="const",
+                       length=cfg["res_length"],
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
+                       )
+
+        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
+        self.add_gauss(ch=qubit_ch, name="ramp", sigma=cfg['sigma'], length=cfg['sigma'] * 4, even_length=False)
+        self.add_pulse(ch=qubit_ch, name="qubit_pulse1",
+                       style="arb",
+                       envelope="ramp",
+                       freq=cfg['qubit_freq_ge'] ,
+                       phase=cfg['qubit_phase'],
+                       gain=cfg['pi_amp'] / 2,
+                       )
+
+        self.add_pulse(ch=qubit_ch, name="qubit_pulse_pi",
+                       style="arb",
+                       envelope="ramp",
+                       freq=cfg['qubit_freq_ge'],
+                       phase=cfg['qubit_phase'],
+                       gain=cfg['pi_amp'],
+                       )
+
+        self.add_pulse(ch=qubit_ch, name="qubit_pulse2",
+                       style="arb",
+                       envelope="ramp",
+                       freq=cfg['qubit_freq_ge'],
+                       phase=cfg['qubit_phase'] + cfg['wait_time']*360*cfg['ramsey_freq'], # current phase + time * 2pi * echo freq
+                       gain=cfg['pi_amp'] / 2,
+                      )
+        self.add_pulse(ch=res_ch, name="qze_pulse", ro_ch=ro_ch,
+                       style="const",
+                       length=cfg['wait_time']/2,  # varying in the loop
+                       freq=cfg['res_freq_qze'],
+                       phase=cfg['res_phase_qze'],
+                       gain=cfg['res_gain_qze']
+                       )
+
+        self.add_loop("waitloop", cfg["steps"])
+
+    def _body(self, cfg):
+        self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse1", t=0)  # put qubit on equator
+        self.delay_auto(0.01, tag='wait0') # wait for pulse to finish
+        self.pulse(ch=cfg['res_ch'], name="qze_pulse", t=0.01) # do the resonator qze pulse for delay_time/2
+        self.delay_auto(0.01, tag='wait1') # wait for pulse to finish
+        self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse_pi", t=0)  # echo around equator
+        self.delay_auto(0.01, tag='wait2') # wait for pulse to finish
+        self.pulse(ch=cfg['res_ch'], name="qze_pulse", t=0.01) # do the resonator qze pulse for delay_time/2
+        self.delay_auto(0.01, tag='wait3') # wait for pulse to finish
+        self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse2", t=0)  # put on the z axis
+        self.delay_auto(t=5, tag='wait_for_ring_down')  # wait_time after last pulse
+        self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 class T2EMeasurementZeno:
     def __init__(self, QubitIndex, number_of_qubits, outerFolder, round_num, signal, save_figs, experiment = None,
@@ -481,6 +551,83 @@ class T2EMeasurementZeno:
                                               , Ig=ss_I_g_all, Qe=ss_Q_e_all, Qg=ss_Q_g_all)
             return None, None, Is_all, Qs_all, delay_times, None, self.config, ss_Q_e_all \
                 , ss_Q_g_all, ss_I_e_all, ss_I_g_all, I_shots_all, Q_shots_all,gains
+    def run_single_gain(self, thresholding=False, correction=False, scaling=False):
+        now = datetime.datetime.now()
+        echo = T2EProgramSingleGain(self.experiment.soccfg, reps=self.config['reps'],
+                                final_delay=self.config['relax_delay'],
+                                cfg=self.config)
+        if scaling:
+            q_config = all_qubit_state(self.experiment, self.number_of_qubits)
+            ss_exp_cfg = add_qubit_experiment(expt_cfg, 'Readout_Optimization', self.QubitIndex)
+            ss_config = {**q_config[self.Qubit], **ss_exp_cfg}
+
+            ssp_g = SingleShotProgram_g(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'],
+                                        cfg=ss_config)
+            ssp_e = SingleShotProgram_e(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'],
+                                        cfg=ss_config)
+
+        # for live plotting open http://localhost:8097/ on firefox
+        if self.live_plot:
+            I, Q, delay_times = self.live_plotting(echo, thresholding)
+        else:
+            if thresholding:
+                echo = T2EProgramSingleGain(self.experiment.soccfg, reps=self.config['reps'],
+                                    final_delay=self.config['relax_delay'],
+                                    cfg=self.config)
+                iq_list = echo.acquire(self.experiment.soc, rounds=self.config['rounds'],
+                                         threshold=self.experiment.readout_cfg["threshold"],
+                                         angle=self.experiment.readout_cfg["ro_phase"], progress=self.qick_verbose)
+            else:
+                Is_all = []
+                Qs_all = []
+                ss_I_g_all = []
+                ss_Q_g_all = []
+                ss_I_e_all = []
+                ss_Q_e_all = []
+                I_shots_all = []
+                Q_shots_all = []
+
+                echo = T2EProgramSingleGain(self.experiment.soccfg, reps=self.config['reps'],
+                                  final_delay=self.config['relax_delay'],
+                                  cfg=self.config)
+                iq_list = echo.acquire(self.experiment.soc, rounds=self.config["rounds"], progress=self.qick_verbose)
+                iq_list = iq_list[0][0].T
+                I = iq_list[0]
+                Q = iq_list[1]
+                Is_all.append(I)
+                Qs_all.append(Q)
+
+                raw_0 = echo.get_raw()  # I,Q data without normalizing to readout window, subtracting readout offset, or rotation/thresholding
+                A = np.squeeze(raw_0[0])
+                I_shots = A[:, :,
+                          0]  # if you have 4 steps and 3 shots/reps this is like [[1,2,3,4],[1,2,3,4],[1,2,3,4]]
+                Q_shots = A[:, :, 1]
+
+                I_shots_all.append(I_shots)
+                Q_shots_all.append(Q_shots)
+
+                ssp_g = SingleShotProgram_g(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'],
+                                            cfg=ss_config)
+                ssp_e = SingleShotProgram_e(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'],
+                                            cfg=ss_config)
+                iq_list_g = ssp_g.acquire(self.experiment.soc, rounds=1, progress=True)
+                iq_list_e = ssp_e.acquire(self.experiment.soc, rounds=1, progress=True)
+
+                ss_I_g = iq_list_g[0][0].T[0]
+                ss_Q_g = iq_list_g[0][0].T[1]
+                ss_I_e = iq_list_e[0][0].T[0]
+                ss_Q_e = iq_list_e[0][0].T[1]
+
+                ss_I_g_all.append(ss_I_g)
+                ss_Q_g_all.append(ss_Q_g)
+                ss_I_e_all.append(ss_I_e)
+                ss_Q_e_all.append(ss_Q_e)
+
+            delay_times = echo.get_pulse_param(pulsename='qze_pulse', parname='length', as_array=True) * 2
+
+            self.plot_results_simple(I, Q, delay_times)
+            return None, None, Is_all, Qs_all, delay_times, None, self.config, ss_Q_e_all \
+                , ss_Q_g_all, ss_I_e_all, ss_I_g_all, I_shots_all, Q_shots_all
 
 
     def plot_results_interweaved_cal(self, I, Q, delay_times, gains,
@@ -831,7 +978,52 @@ class T2EMeasurementZeno:
         """Creates a folder at the given path if it doesn't already exist."""
         if not os.path.exists(folder):
             os.makedirs(folder)
+    def plot_results_simple(self, I, Q, delay_times, config = None, fig_quality = 100):
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+        plt.rcParams.update({'font.size': 18})
 
+        # Calculate the middle of the plot area
+        plot_middle = (ax1.get_position().x0 + ax1.get_position().x1) / 2
+
+
+        # Add title, centered on the plot area
+        if config is not None:
+            fig.text(plot_middle, 0.98,
+                     f"T2 Q{self.QubitIndex + 1}, pi gain %.2f" % float(config[
+                         'pi_amp']) + f", {float(config['sigma']) * 1000} ns sigma" + f", {float(config['reps'])}*{float(config['rounds'])} avgs," ,
+                     fontsize=24, ha='center', va='top')
+        else:
+            fig.text(plot_middle, 0.98,
+                     f"T2 Q{self.QubitIndex + 1}, pi gain %.2f" % float(self.config[
+                                                                            'pi_amp']) + f", {float(self.config['sigma']) * 1000} ns sigma" + f", {float(self.config['reps'])}*{float(self.config['rounds'])} avgs,",
+                     fontsize=24, ha='center', va='top')
+
+        # I subplot
+        ax1.plot(delay_times, I, label="Gain (a.u.)", linewidth=2)
+        ax1.set_ylabel("I Amplitude (a.u.)", fontsize=20)
+        ax1.tick_params(axis='both', which='major', labelsize=16)
+        # ax1.axvline(freq_q, color='orange', linestyle='--', linewidth=2)
+
+        # Q subplot
+        ax2.plot(delay_times, Q, label="Q", linewidth=2)
+        ax2.set_xlabel("Delay time (us)", fontsize=20)
+        ax2.set_ylabel("Q Amplitude (a.u.)", fontsize=20)
+        ax2.tick_params(axis='both', which='major', labelsize=16)
+        # ax2.axvline(freq_q, color='orange', linestyle='--', linewidth=2)
+
+        # Adjust spacing
+        plt.tight_layout()
+
+        # Adjust the top margin to make room for the title
+        plt.subplots_adjust(top=0.93)
+        if self.save_figs:
+            outerFolder_expt = os.path.join(self.outerFolder, self.expt_name)
+            self.create_folder_if_not_exists(outerFolder_expt)
+            now = datetime.datetime.now()
+            formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
+            file_name = os.path.join(outerFolder_expt, f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" + f"{formatted_datetime}_" + self.expt_name + f"_q{self.QubitIndex + 1}.png")
+            fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')  # , facecolor='white'
+        plt.close(fig)
     def plot_results(self, I, Q, delay_times, now, fit, t2e_est, t2e_err, plot_sig, config = None, fig_quality = 100):
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
         plt.rcParams.update({'font.size': 18})

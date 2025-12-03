@@ -71,6 +71,74 @@ class QubitSpectroscopyZeno:
             if self.verbose: print(f'Q {self.QubitIndex + 1} Round {self.round_num} Qubit Spec configuration: ', self.config)
             self.logger.info(f'Q {self.QubitIndex + 1} Round {self.round_num} Qubit Spec configuration: {self.config}')
 
+    def run_single_gain(self,return_fwhm=False, scaling=False,qze_pulse='const'):
+
+        if self.increase_reps:
+            self.config['reps'] = self.increase_reps_to
+        if scaling:
+            q_config = all_qubit_state(self.experiment, self.number_of_qubits)
+            ss_exp_cfg = add_qubit_experiment(expt_cfg, 'Readout_Optimization', self.QubitIndex)
+            ss_config = {**q_config[self.Qubit], **ss_exp_cfg}
+
+
+        # iq_lists= []
+        if self.live_plot:
+            I, Q, freqs = self.live_plotting(qspec)
+        else:
+            Is_all=[]
+            Qs_all=[]
+            ss_I_g_all = []
+            ss_Q_g_all = []
+            ss_I_e_all = []
+            ss_Q_e_all = []
+            I_shots_all=[]
+            Q_shots_all=[]
+
+            qspec = PulseProbeSpectroscopyProgramSingleGain(self.experiment.soccfg, reps=self.config['reps'], final_delay=0.5,
+                                                  cfg=self.config)
+
+            iq_list = qspec.acquire(self.experiment.soc, rounds=self.exp_cfg["rounds"], progress=self.qick_verbose)
+            iq_list = iq_list[0][0].T
+            I = iq_list[0] # shape 3, 500 for 3 gains in the sweep and 500 steps (reps already averaged over here)
+            Q = iq_list[1]
+            Is_all.append(I)
+            Qs_all.append(Q)
+
+            raw_0 = qspec.get_raw()  # I,Q data without normalizing to readout window, subtracting readout offset, or rotation/thresholding
+            A = np.squeeze(raw_0[0])
+            I_shots = A[:, :,
+                      0]  # if you have 4 steps and 3 shots/reps this is like [[1,2,3,4],[1,2,3,4],[1,2,3,4]]
+            Q_shots = A[:, :, 1]
+
+            I_shots_all.append(I_shots)
+            Q_shots_all.append(Q_shots)
+
+            if scaling:
+                ssp_g = SingleShotProgram_g(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'],
+                                            cfg=ss_config)
+                ssp_e = SingleShotProgram_e(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'],
+                                            cfg=ss_config)
+                iq_list_g = ssp_g.acquire(self.experiment.soc, rounds=1, progress=True)
+                iq_list_e = ssp_e.acquire(self.experiment.soc, rounds=1, progress=True)
+
+                ss_I_g = iq_list_g[0][0].T[0]
+                ss_Q_g = iq_list_g[0][0].T[1]
+                ss_I_e = iq_list_e[0][0].T[0]
+                ss_Q_e = iq_list_e[0][0].T[1]
+
+                ss_I_g_all.append(ss_I_g)
+                ss_Q_g_all.append(ss_Q_g)
+                ss_I_e_all.append(ss_I_e)
+                ss_Q_e_all.append(ss_Q_e)
+
+            freqs = qspec.get_pulse_param('qubit_pulse', "freq", as_array=True) #only need to get it once
+
+
+            largest_amp_curve_mean, y_data_fit = self.plot_results(I, Q, freqs,
+                                                                     return_fwhm=return_fwhm,scaling=scaling, Ie = ss_I_e,
+                                                                     Ig = ss_I_g, Qe = ss_Q_e, Qg = ss_Q_g)
+            return Is_all, Qs_all, freqs, y_data_fit, largest_amp_curve_mean, self.config, ss_Q_e_all, ss_Q_g_all,ss_I_e_all\
+                , ss_I_g_all, I_shots_all, Q_shots_all
     def run(self,return_fwhm=False, scaling=False,qze_pulse='const'):
 
         if self.increase_reps:
@@ -1014,6 +1082,58 @@ class PulseProbeSpectroscopyProgram(AveragerProgramV2):
 
         self.add_loop("freqloop", cfg["steps"])
         self.add_loop("gain_loop", cfg["gain_steps"])  # inner loop
+
+
+
+
+    def _body(self, cfg):
+        self.pulse(ch=cfg['res_ch'], name="qze_pulse", t=0)
+        self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=3)  # play probe pulse after ring up
+        self.delay_auto(t=5, tag='waiting')  # Wait til qubit pulse is done and resonator rings down before proceeding
+        self.pulse(ch=cfg['res_ch'], name="res_pulse")
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+
+class PulseProbeSpectroscopyProgramSingleGain(AveragerProgramV2):
+    def _initialize(self, cfg):
+        ro_ch = cfg['ro_ch']
+        res_ch = cfg['res_ch']
+        qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
+        self.add_readoutconfig(ch=ro_ch, name="myro",
+                               freq=cfg['res_freq_ge'],
+                               gen_ch=res_ch,
+                               outsel='product')
+        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
+        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
+                       style="const",
+                       length=cfg["res_length"],
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
+                       )
+
+        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
+
+        self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch,
+                       style="const",
+                       length=cfg['qubit_length_ge'],
+                       freq=cfg['qubit_freq_ge'],
+                       phase=0,
+                       gain=cfg['qubit_gain_ge'],
+                       )
+
+        self.add_pulse(ch=res_ch, name="qze_pulse",  ro_ch=ro_ch,
+                       style="const",
+                       length=cfg['qubit_length_ge']+3,#+3us for res ring up time
+                       freq=cfg['res_freq_qze'],
+                       phase=cfg['res_phase_qze'],
+                       gain=cfg['res_gain_qze']
+                       )
+
+        self.add_loop("freqloop", cfg["steps"])
 
 
 

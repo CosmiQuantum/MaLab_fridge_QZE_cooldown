@@ -60,6 +60,57 @@ class T1ProgramIBMZeno(AveragerProgramV2):
         self.delay_auto(t=5, tag='wait_for_ring_down')
         self.pulse(ch=cfg['res_ch'], name="res_pulse")           # play readout pulse after 5 us for ring down
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+
+class T1ProgramIBMZenoSingleGain(AveragerProgramV2):
+    def _initialize(self, cfg):
+
+        ro_ch = cfg['ro_ch']
+        res_ch = cfg['res_ch']
+        qubit_ch = cfg['qubit_ch']
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
+        self.add_readoutconfig(ch=ro_ch, name="myro",
+                               freq=cfg['res_freq_ge'],
+                               gen_ch=res_ch,
+                               outsel='product')
+        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
+        self.add_pulse(ch=res_ch, name="res_pulse",ro_ch=ro_ch,
+                       style="const",
+                       length=cfg["res_length"],
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
+                       )
+
+        self.add_pulse(ch=res_ch, name="qze_pulse", ro_ch=ro_ch,
+                       style="const",
+                       length=QickSweep1D("waitloop", cfg['start'], cfg['stop']),
+                       freq=cfg['res_freq_qze'],
+                       phase=cfg['res_phase_qze'],
+                       gain=cfg['res_gain_qze']
+                       )
+
+        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
+        self.add_gauss(ch=qubit_ch, name="ramp", sigma=cfg['sigma'], length=cfg['sigma'] * 4, even_length=False)
+        self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch,
+                       style="arb",
+                       envelope="ramp",
+                       freq=cfg['qubit_freq_ge'],
+                       phase=cfg['qubit_phase'],
+                       gain=cfg['pi_amp'],
+                       )
+
+        self.add_loop("waitloop", cfg["steps"])
+
+    def _body(self, cfg):
+        self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)  # play probe pulse
+        self.delay_auto(tag='wait_pi_pulse')                          # wait for it to be done, now qubit is in e
+        self.pulse(ch=cfg['res_ch'], name="qze_pulse", t=0.01)           # play res pulse that has same length as wait_time
+        self.delay_auto(tag='wait_qze_pulse')                         # wait for that pulse to finish
+        self.delay_auto(t=5, tag='wait_for_ring_down')
+        self.pulse(ch=cfg['res_ch'], name="res_pulse")           # play readout pulse after 5 us for ring down
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 class T1ProgramIBMZenoFlatTop(AveragerProgramV2):
     def _initialize(self, cfg):
 
@@ -245,6 +296,84 @@ class T1Measurement_with_Zeno_loop:
             q1_fit_exponential, T1_est, T1_err = None, None, None
             return T1_est, T1_err, Is_all, Qs_all, delay_times, q1_fit_exponential, self.config, ss_Q_e_all\
                 , ss_Q_g_all,ss_I_e_all, ss_I_g_all, I_shots_all, Q_shots_all, gains
+
+    def run_single_gain(self, thresholding=False, scaling=False, qze_pulse='const'):
+        now = datetime.datetime.now()
+
+        if scaling:
+            q_config = all_qubit_state(self.experiment, self.number_of_qubits)
+            ss_exp_cfg = add_qubit_experiment(expt_cfg, 'Readout_Optimization', self.QubitIndex)
+            ss_config = {**q_config[self.Qubit], **ss_exp_cfg}
+
+        if self.live_plot:
+            t1 = T1ProgramIBMZenoSingleGain(self.experiment.soccfg, reps=self.config['reps'],
+                                  final_delay=self.config['relax_delay'], cfg=self.config)
+            I, Q, delay_times = self.live_plotting(t1, thresholding)
+        else:
+            if thresholding:
+                t1 = T1ProgramIBMZenoSingleGain(self.experiment.soccfg, reps=self.config['reps'],
+                                      final_delay=self.config['relax_delay'], cfg=self.config)
+
+                iq_list = t1.acquire(self.experiment.soc, rounds=self.config['rounds'],
+                                           threshold=self.experiment.readout_cfg["threshold"],
+                                           angle=self.experiment.readout_cfg["ro_phase"], progress=True)
+            else:
+                Is_all = []
+                Qs_all = []
+                ss_I_g_all = []
+                ss_Q_g_all = []
+                ss_I_e_all = []
+                ss_Q_e_all = []
+                I_shots_all = []
+                Q_shots_all = []
+
+                t1 = T1ProgramIBMZenoSingleGain(self.experiment.soccfg, reps=self.config['reps'],
+                                      final_delay=self.config['relax_delay'], cfg=self.config)
+
+                iq_list = t1.acquire(self.experiment.soc, rounds=self.config["rounds"], progress=True)
+                iq_list = iq_list[0][0].T
+                I = iq_list[0]
+                Q = iq_list[1]
+                Is_all.append(I)
+                Qs_all.append(Q)
+
+                raw_0 = t1.get_raw()  # I,Q data without normalizing to readout window, subtracting readout offset, or rotation/thresholding
+                A = np.squeeze(raw_0[0])
+                I_shots = A[:, :,
+                          0]  # if you have 4 steps and 3 shots/reps this is like [[1,2,3,4],[1,2,3,4],[1,2,3,4]]
+                Q_shots = A[:, :, 1]
+
+                I_shots_all.append(I_shots)
+                Q_shots_all.append(Q_shots)
+
+                if scaling:
+                    ssp_g = SingleShotProgram_g(self.experiment.soccfg, reps=1,
+                                                final_delay=ss_config['relax_delay'],
+                                                cfg=ss_config)
+                    ssp_e = SingleShotProgram_e(self.experiment.soccfg, reps=1,
+                                                final_delay=ss_config['relax_delay'],
+                                                cfg=ss_config)
+                    iq_list_g = ssp_g.acquire(self.experiment.soc, rounds=1, progress=True)
+                    iq_list_e = ssp_e.acquire(self.experiment.soc, rounds=1, progress=True)
+
+                    ss_I_g = iq_list_g[0][0].T[0]
+                    ss_Q_g = iq_list_g[0][0].T[1]
+                    ss_I_e = iq_list_e[0][0].T[0]
+                    ss_Q_e = iq_list_e[0][0].T[1]
+
+                    ss_I_g_all.append(ss_I_g)
+                    ss_Q_g_all.append(ss_Q_g)
+                    ss_I_e_all.append(ss_I_e)
+                    ss_Q_e_all.append(ss_Q_e)
+
+            delay_times = t1.get_pulse_param(pulsename='qze_pulse', parname='length', as_array=True)
+
+            if self.plot_results:
+                self.plot_results(I, Q, delay_times,now,  scaling=scaling, Ie = ss_I_e
+                                  , Ig = ss_I_g, Qe = ss_Q_e, Qg = ss_Q_g)
+            q1_fit_exponential, T1_est, T1_err = None, None, None
+            return T1_est, T1_err, Is_all, Qs_all, delay_times, q1_fit_exponential, self.config, ss_Q_e_all\
+                , ss_Q_g_all,ss_I_e_all, ss_I_g_all, I_shots_all, Q_shots_all
 
 
     def live_plotting(self, t1, thresholding):

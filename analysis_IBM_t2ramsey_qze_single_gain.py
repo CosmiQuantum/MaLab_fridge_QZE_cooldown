@@ -2,6 +2,7 @@ from analysis_006_T1_vs_time_plots import T1VsTime
 from analysis_007_T2R_vs_time_plots import T2rVsTime
 from analysis_008_T2E_vs_time_plots import T2eVsTime
 from analysis_003_q_freqs_vs_time_plots import QubitFreqsVsTime
+from pathlib import Path
 
 # Configuration
 save_figs = True
@@ -14,20 +15,17 @@ path = '2d_less_reps_more_qspec_steps'
 
 for qubit in qubits:
     run_name = f'bob_run_started_Aug_23/squill/{path}/all_qubits/'
-    top_folder_dates = [f'qubit_{qubit}round{round}' for round in range(10)]
-
+    p = Path('M:/_Data/20250822 - Olivia/'+run_name)
+    top_folder_dates = [item.name for item in p.iterdir() if item.is_dir() and "qubit" in item.name]
     # QSpec Analysis
     q_vs_time = QubitFreqsVsTime(figure_quality, final_figure_quality, 6, top_folder_dates, save_figs,
                                          False, 'None', run_name, fridge=FRIDGE, exp_name='ge', qubit=qubit)
-    _, _, amps_qspec, gains_qspec, rounds_qspec, freqs_qspec = q_vs_time.run_q_sweep_new(
+    _, _, amps_qspec_hg, gains_qspec_hg, rounds_qspec_hg, freqs_qspec_hg = q_vs_time.run_q_sweep_single_gain(
         exp_extension='_ge', scaling=True)
 
-    # Calculate nbar
-    n_bars = q_vs_time.calculate_nbar(amps_qspec, gains_qspec, rounds_qspec, freqs_qspec, chi_MHz=-0.137)
-
-    q_vs_time.plot_all_q_heatmaps_new_format(amps_qspec, gains_qspec, rounds_qspec, freqs_qspec,
+    q_vs_time.plot_all_q_heatmaps_new_format(amps_qspec_hg, gains_qspec_hg, rounds_qspec_hg, freqs_qspec_hg,
                                                       f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/high_gain/',
-                                                      n_bar=n_bars, save_individual_plots=save_individual_qspec)
+                                                    save_individual_plots=save_individual_qspec)
 
     # T2E Analysis
     t2e_vs_time = T2eVsTime(figure_quality, final_figure_quality, 6, top_folder_dates, save_figs,
