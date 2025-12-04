@@ -433,6 +433,200 @@ class starkT2RMeasurement:
     import matplotlib.pyplot as plt
     import os, datetime
 
+    def plot_stark_shift_with_t_phi(self,
+                         gain_sweep,
+                         f_est,
+                         f_err,
+                         t2r_est,
+                         t2r_err,
+                         config=None):
+        """
+        Plot Ramsey frequency vs Stark tone gain, fit a quadratic Stark shift,
+        convert to nbar, plot nbar vs gain, and finally plot dephasing rate
+        vs nbar using T2* data.
+
+        Parameters
+        ----------
+        gain_sweep : array_like
+            Stark tone gains (one per Ramsey experiment).
+        f_est, f_err : array_like
+            Fitted Ramsey frequencies and their errors (same length as gain_sweep).
+        t2r_est, t2r_err : array_like
+            Fitted Ramsey decay times T2* and their errors (same length as gain_sweep).
+        config : dict, optional
+            Config dict containing chi, etc.
+
+        Returns
+        -------
+        nbar_per_gain : np.ndarray
+            Array of nbar values corresponding to each point in gain_sweep.
+        """
+
+        gain_sweep = np.asarray(gain_sweep, dtype=float)
+        f_est = np.asarray(f_est, dtype=float)
+        f_err = np.asarray(f_err, dtype=float)
+        t2r_est = np.asarray(t2r_est, dtype=float)
+        t2r_err = np.asarray(t2r_err, dtype=float)
+
+        if not (len(gain_sweep) == len(f_est) == len(t2r_est)):
+            raise ValueError("gain_sweep, f_est, and t2r_est must have the same length.")
+
+        # --- Dispersive shift chi (same units as f_est, e.g. MHz) ---
+        if config is not None:
+            chi = float(config['Ramsey_stark']['chi'][self.QubitIndex])
+        else:
+            chi = float(self.config['chi'][self.QubitIndex])
+
+        # --- Model for fitting: simple quadratic vs gain ---
+        # f(gain) = f0 + A * gain^2
+        def q_shift_model(g, A, f0):
+            return f0 + A * g ** 2
+
+        # Rough initial guess for A and f0
+        if np.ptp(gain_sweep) > 0:
+            A_guess = (f_est[-1] - f_est[0]) / (
+                    max(gain_sweep) ** 2 - min(gain_sweep) ** 2 + 1e-12
+            )
+        else:
+            A_guess = 0.0
+        f0_guess = f_est[0]
+
+        # --- Fit frequency vs gain ---
+        use_poly_fallback = False
+        try:
+            popt, pcov = curve_fit(
+                q_shift_model,
+                gain_sweep,
+                f_est,
+                sigma=f_err,
+                p0=[A_guess, f0_guess],
+                absolute_sigma=True
+            )
+            A_fit, f0_fit = popt
+        except Exception:
+            # Fallback: full quadratic polynomial fit f = a2*g^2 + a1*g + a0
+            coeffs = np.polyfit(gain_sweep, f_est, 2)
+            a2, a1, a0 = coeffs
+            f0_fit = a0
+            use_poly_fallback = True
+
+        # --- Generate smooth fit for plotting ---
+        gain_fit = np.linspace(np.min(gain_sweep), np.max(gain_sweep), 200)
+
+        if not use_poly_fallback:
+            f_fit = q_shift_model(gain_fit, A_fit, f0_fit)
+        else:
+            f_fit = np.polyval(coeffs, gain_fit)
+
+        # --- Compute delta f and nbar (pointwise at the measured gains) ---
+        delta_f_meas = f_est - f0_fit  # same units as f_est and chi
+
+        # nbar = delta_f / (2 * chi)
+        nbar_per_gain = delta_f_meas / (2.0 * chi)
+        nbar_err = f_err / (2.0 * chi)
+
+        # For the smooth curve: convert fitted delta f to nbar as well
+        delta_f_fit = f_fit - f0_fit
+        nbar_fit = delta_f_fit / (2.0 * chi)
+
+        # --- Dephasing rate from T2* ---
+        # Gamma_phi = 1 / T2*
+        # (Add tiny offset in denominator to avoid division by zero)
+        gamma_phi = 1.0 / (t2r_est + 1e-30)
+        gamma_phi_err = t2r_err / (t2r_est ** 2 + 1e-30)
+
+        # Simple linear model Gamma_phi(nbar) = Gamma0 + B * nbar
+        def gamma_model(nbar, Gamma0, B):
+            return Gamma0 + B * nbar
+
+        # Initial guesses
+        if np.ptp(nbar_per_gain) > 0:
+            B_guess = (gamma_phi[-1] - gamma_phi[0]) / (
+                    nbar_per_gain[-1] - nbar_per_gain[0] + 1e-12
+            )
+        else:
+            B_guess = 0.0
+        Gamma0_guess = gamma_phi[0]
+
+        try:
+            popt_g, pcov_g = curve_fit(
+                gamma_model,
+                nbar_per_gain,
+                gamma_phi,
+                sigma=gamma_phi_err,
+                p0=[Gamma0_guess, B_guess],
+                absolute_sigma=True
+            )
+            Gamma0_fit, B_fit = popt_g
+            use_gamma_fit = True
+        except Exception:
+            use_gamma_fit = False
+
+        # Smooth nbar axis for the dephasing plot
+        nbar_fit_gamma = np.linspace(np.min(nbar_per_gain),
+                                     np.max(nbar_per_gain), 200)
+        if use_gamma_fit:
+            gamma_fit = gamma_model(nbar_fit_gamma, Gamma0_fit, B_fit)
+
+        # --- Plotting: three panels ---
+        fig, (ax_f, ax_n, ax_g) = plt.subplots(3, 1, figsize=(6, 10))
+        # Make frequency and nbar panels share the same gain x-axis
+        ax_n.sharex(ax_f)
+
+        # Top: Ramsey frequency vs gain
+        ax_f.errorbar(gain_sweep, f_est, yerr=f_err, fmt='ko', label='data')
+        ax_f.plot(gain_fit, f_fit, 'r:', label='fit')
+        ax_f.set_ylabel('Ramsey frequency (MHz)')
+        ax_f.set_title(f"Qubit {self.QubitIndex} Stark shift vs gain")
+        ax_f.legend()
+        ax_f.grid(True, alpha=0.3)
+
+        # Middle: nbar vs gain
+        ax_n.errorbar(
+            gain_sweep, nbar_per_gain,
+            yerr=nbar_err,
+            fmt='ko',
+            label=r'$\bar{n}$ from data'
+        )
+        ax_n.plot(gain_fit, nbar_fit, 'r:', label=r'$\bar{n}$ from fit')
+        ax_n.set_xlabel('stark tone gain (a.u.)')
+        ax_n.set_ylabel(r'$\bar{n}$ (photons)')
+        ax_n.grid(True, alpha=0.3)
+        ax_n.legend()
+
+        # Bottom: dephasing rate vs nbar
+        ax_g.errorbar(
+            nbar_per_gain,
+            gamma_phi,
+            yerr=gamma_phi_err,
+            fmt='ko',
+            label='data'
+        )
+        if use_gamma_fit:
+            ax_g.plot(nbar_fit_gamma, gamma_fit, 'r:', label='linear fit')
+
+        ax_g.set_xlabel(r'$\bar{n}$ (photons)')
+        ax_g.set_ylabel(r'$\Gamma_\phi$ (1 / \mu s$)')
+        ax_g.grid(True, alpha=0.3)
+        ax_g.legend()
+
+        fig.tight_layout()
+
+        # --- Save figure if requested ---
+        if self.save_figs:
+            outerFolder_expt = os.path.join(self.outerFolder, self.expt_name)
+            self.create_folder_if_not_exists(outerFolder_expt)
+            now = datetime.datetime.now()
+            formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
+            file_name = os.path.join(
+                outerFolder_expt,
+                f"stark_shift_Q{self.QubitIndex + 1}_{formatted_datetime}_"
+                f"{self.expt_name}_q{self.QubitIndex + 1}.png"
+            )
+            fig.savefig(file_name, dpi=300, bbox_inches='tight')
+
+        return nbar_per_gain
+
     def plot_stark_shift(self, gain_sweep, f_est, f_err, config=None):
         """
         Plot Ramsey frequency vs Stark tone gain, fit a quadratic Stark shift,

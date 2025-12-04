@@ -716,7 +716,8 @@ class T2rVsTime:
                                                      num=steps)
                             f_est=[]
                             f_err=[]
-                            
+                            t2r_est=[]
+                            t2r_err=[]
                             # Collect data for heatmap
                             amp_sublists = []
                             
@@ -729,11 +730,12 @@ class T2rVsTime:
                                 t2r.plot_results(i0, q0, delay_time, now, fit0, t2r_est0, t2r_err0, f_est0, f_err0, plot_sig0)
                                 f_est.append(f_est0)
                                 f_err.append(f_err0)
-                                
+                                t2r_est.append(t2r_est0)
+                                t2r_err.append(t2r_err0)
                                 # Calculate amplitude for this gain step
                                 amp_sublists.append(np.hypot(i0, q0).tolist())
 
-                            n_bars=t2r.plot_stark_shift(gain_sweep, f_est, f_err, config=exp_config)
+                            n_bars=t2r.plot_stark_shift_with_t_phi(gain_sweep, f_est, f_err,t2r_est,t2r_err, config=exp_config)
                             
                             # Store data for heatmap plotting
                             # Flatten the list of lists (amplitudes)
