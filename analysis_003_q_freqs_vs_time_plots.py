@@ -1061,17 +1061,24 @@ class QubitFreqsVsTime:
                 continue
 
             # Date handling
-            d_str = dates_q[i]
-            if isinstance(d_str, (list, tuple, np.ndarray)):
-                 d_str = d_str[0]
+            d_raw = dates_q[i]
 
-            try:
-                dt_obj = datetime.strptime(str(d_str), "%Y-%m-%d %H:%M:%S")
-                dt_num = mdates.date2num(dt_obj)
-            except Exception as e:
-                continue
+            def to_num(d):
+                if isinstance(d, datetime):
+                    return mdates.date2num(d)
+                try:
+                    return mdates.date2num(datetime.strptime(str(d), "%Y-%m-%d %H:%M:%S"))
+                except:
+                    return np.nan
 
-            dt_arr = np.full(a_samples.shape, dt_num, dtype=float)
+            is_seq = isinstance(d_raw, (list, tuple, np.ndarray))
+            # If d_raw is a sequence of the same length as a_samples, we assume 1-to-1 mapping
+            if is_seq and len(d_raw) == len(a_samples):
+                dt_arr = np.array([to_num(d) for d in d_raw], dtype=float)
+            else:
+                # Otherwise, broadcast the single date (or first element)
+                d_single = d_raw[0] if is_seq else d_raw
+                dt_arr = np.full(a_samples.shape, to_num(d_single), dtype=float)
 
             # delay can be scalar or per-sample
             d_i = delay_q[i]
