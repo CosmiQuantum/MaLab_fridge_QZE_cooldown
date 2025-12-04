@@ -966,33 +966,28 @@ class QubitFreqsVsTime:
     def plot_all_q_heatmaps_single_gain(
             self,
             amps,
-            gains,
+            date_times,
             rounds,
             delay_times,
             save_path,
             max_ylabels=6,
             individual_subfolder="individual_specs",
-            # NEW:
-            n_bar=None,  # list/np.array OR dict[str]->(list or {"lorentzian"/"gaussian"})
-            save_individual_plots=True,  # Set to False to skip saving individual spec plots
+            save_individual_plots=True,
     ):
         """
-        NEW FORMAT ONLY + per-gain individual spec plots
+        Updated to plot Heatmap with Time (Date) on X-axis and Frequency on Y-axis.
 
-        - Keeps your heatmaps exactly as before (fixed global z-scale).
-        - ALSO saves, for each round & gain, a 1D "calibrated spec" plot:
-            x = delay (MHz), y = averaged amplitude at that delay for this gain.
-          Files go to: {save_path}/{individual_subfolder}/
-          Filenames include the gain value.
-
-        If n_bar is provided, the heatmap x-axis shows n̄ instead of gain:
-          - n_bar can be a single list/array aligned to the sorted gains for that round,
-          - or a dict mapping round_id -> list, or -> {"gains":..., "lorentzian":..., "gaussian":...}
-            (prefers 'lorentzian' if present, else 'gaussian').
+        Data model (per qubit q):
+          - amps[q]         : list of lists; amps[q][i] is a list of amplitude samples for dataset i
+          - date_times[q]   : list; date_times[q][i] is the datetime string for dataset i
+          - rounds[q]       : list; rounds[q][i] is the round label for dataset i
+          - delay_times[q]  : list; delay_times[q][i] is the delay/frequency (scalar) for dataset i
         """
         import os
         import numpy as np
         import matplotlib.pyplot as plt
+        import matplotlib.dates as mdates
+        from datetime import datetime
         from collections import defaultdict
         import matplotlib.ticker as mticker
         from scipy.optimize import least_squares
@@ -1045,18 +1040,18 @@ class QubitFreqsVsTime:
                 return np.nan
 
         q = self.qubit
-        gains_q = gains.get(q, [])
+        dates_q = date_times.get(q, [])
         amps_q = amps.get(q, [])
         rounds_q = rounds.get(q, [])
         delay_q = delay_times.get(q, [])
 
         # Basic presence & length checks
-        n = min(len(amps_q), len(gains_q), len(rounds_q), len(delay_q))
-        if n == 0 or not (len(amps_q) == len(gains_q) == len(rounds_q) == len(delay_q)):
+        n = min(len(amps_q), len(dates_q), len(rounds_q), len(delay_q))
+        if n == 0 or not (len(amps_q) == len(dates_q) == len(rounds_q) == len(delay_q)):
             print(f"No usable data for qubit {q} (missing lists or length mismatch). Skipping.")
             return
 
-        # ---------- Flatten to points: (round_id, gain, delay, amp) ----------
+        # ---------- Flatten to points: (round_id, date_num, delay, amp) ----------
         all_points = []
         for i in range(n):
             r_id = str(rounds_q[i])
@@ -1065,17 +1060,18 @@ class QubitFreqsVsTime:
             if a_samples.size == 0:
                 continue
 
-            # gain can be scalar or per-sample
-            g_i = gains_q[i]
-            g_arr = np.asarray(g_i, dtype=float).ravel() if isinstance(g_i, (list, tuple, np.ndarray)) else None
-            if g_arr is None or g_arr.size == 1:
-                try:
-                    g_scalar = float(g_i)
-                except Exception:
-                    continue
-                g_arr = np.full(a_samples.shape, g_scalar, dtype=float)
-            elif g_arr.size != a_samples.size:
+            # Date handling
+            d_str = dates_q[i]
+            if isinstance(d_str, (list, tuple, np.ndarray)):
+                 d_str = d_str[0]
+
+            try:
+                dt_obj = datetime.strptime(str(d_str), "%Y-%m-%d %H:%M:%S")
+                dt_num = mdates.date2num(dt_obj)
+            except Exception as e:
                 continue
+
+            dt_arr = np.full(a_samples.shape, dt_num, dtype=float)
 
             # delay can be scalar or per-sample
             d_i = delay_q[i]
@@ -1090,12 +1086,12 @@ class QubitFreqsVsTime:
                 continue
 
             # keep only finite triples
-            mask = np.isfinite(a_samples) & np.isfinite(g_arr) & np.isfinite(d_arr)
+            mask = np.isfinite(a_samples) & np.isfinite(dt_arr) & np.isfinite(d_arr)
             if not np.any(mask):
                 continue
 
-            for g, d, a in zip(g_arr[mask], d_arr[mask], a_samples[mask]):
-                all_points.append((r_id, float(g), float(d), float(a)))
+            for dt, d, a in zip(dt_arr[mask], d_arr[mask], a_samples[mask]):
+                all_points.append((r_id, float(dt), float(d), float(a)))
 
         if not all_points:
             print(f"No numeric points for qubit {q}. Skipping.")
@@ -1114,7 +1110,7 @@ class QubitFreqsVsTime:
         def centers_to_edges(centers):
             centers = np.asarray(sorted(np.unique(centers)), dtype=float)
             if centers.size == 1:
-                d = 1.0
+                d = 1.0/24.0 # 1 hour default width
                 return np.array([centers[0] - d / 2, centers[0] + d / 2])
             mids = (centers[:-1] + centers[1:]) / 2.0
             first = centers[0] - (centers[1] - centers[0]) / 2.0
@@ -1126,65 +1122,29 @@ class QubitFreqsVsTime:
         global_vmin = float(np.nanmin(all_amps))
         global_vmax = float(np.nanmax(all_amps))
 
-        # ---------------------------------------------------
-
-        # --- helper to pull the n̄ vector for a given round (if provided) ---
-        def get_nbar_for_round(r_id_str, gains_sorted):
-            if n_bar is None:
-                return None
-
-            # direct list/array: assume aligned to sorted gains for this round
-            if isinstance(n_bar, (list, tuple, np.ndarray)):
-                nb = np.asarray(n_bar, float).ravel()
-                return nb if nb.size == len(gains_sorted) else None
-
-            # dict-like
-            if isinstance(n_bar, dict):
-                # keys might be strings or numbers; normalize to string
-                key = r_id_str if r_id_str in n_bar else str(r_id_str)
-                entry = n_bar.get(key, None)
-                if entry is None:
-                    return None
-                # earlier return format: {"gains":[...], "lorentzian":[...], "gaussian":[...]}
-                if isinstance(entry, dict):
-                    candidate = entry.get("lorentzian") or entry.get("gaussian") or entry.get("nbar") or entry.get(
-                        "values")
-                    if candidate is None:
-                        return None
-                    nb = np.asarray(candidate, float).ravel()
-                    # if "gains" present and mismatched order, we could align, but we assume ascending/aligned per spec
-                    return nb if nb.size == len(gains_sorted) else None
-                # maybe it's already the list
-                nb = np.asarray(entry, float).ravel()
-                return nb if nb.size == len(gains_sorted) else None
-
-            return None
-
-        # ---------------------------------------------------
-
         # For each round, build a 2D heatmap
         for r_id in unique_rounds:
-            pts = [(gv, dv, av) for (rr, gv, dv, av) in all_points if rr == r_id]
+            pts = [(dt, dv, av) for (rr, dt, dv, av) in all_points if rr == r_id]
             if not pts:
                 continue
 
-            # Sort gains; build 2D grid
-            gains_r = sorted(set(g for (g, _, __) in pts))
+            # Sort dates; build 2D grid
+            dates_r = sorted(set(dt for (dt, _, __) in pts))
             delays_r = sorted(set(d for (_, d, __) in pts))
             Ny = len(delays_r)
-            Nx = len(gains_r)
+            Nx = len(dates_r)
             if Ny == 0 or Nx == 0:
                 continue
 
             # delay -> index
             d_map = {d: i for i, d in enumerate(delays_r)}
-            # gain -> index
-            gi_map = {g: i for i, g in enumerate(gains_r)}
+            # date -> index
+            dt_map = {dt: i for i, dt in enumerate(dates_r)}
 
-            # Build C: shape (Ny, Nx), each cell avg of data from (gain, delay)
+            # Build C: shape (Ny, Nx), each cell avg of data from (date, delay)
             cell_vals = defaultdict(list)
-            for (gg, dd, aa) in pts:
-                ix = gi_map[gg]
+            for (dt, dd, aa) in pts:
+                ix = dt_map[dt]
                 iy = d_map[dd]
                 cell_vals[(iy, ix)].append(aa)
             C = np.full((Ny, Nx), np.nan, dtype=float)
@@ -1204,14 +1164,8 @@ class QubitFreqsVsTime:
                     centers_L.append(np.nan)
             centers_L = np.array(centers_L)
 
-            # Decide X-axis: gains or n̄
-            nbar_vec = get_nbar_for_round(r_id, gains_r)
-            if nbar_vec is not None:
-                x_vals = nbar_vec
-                x_label = "Photon Number n̄"
-            else:
-                x_vals = gains_r
-                x_label = "Gain (a.u.)"
+            x_vals = dates_r
+            x_label = "Time"
 
             idx_sorted = np.argsort(x_vals)
             x_vals_sorted = np.array(x_vals, dtype=float)[idx_sorted]
@@ -1222,7 +1176,7 @@ class QubitFreqsVsTime:
             y_edges = centers_to_edges(delays_r)
 
             # ---------- Heatmap ----------
-            fig, ax = plt.subplots(figsize=(6.5, 4.5))
+            fig, ax = plt.subplots(figsize=(10, 6))
             mesh = ax.pcolormesh(
                 x_edges, y_edges, C_sorted, shading='flat',
                 vmin=global_vmin, vmax=global_vmax
@@ -1232,21 +1186,17 @@ class QubitFreqsVsTime:
 
             # Overlay fits
             if np.any(np.isfinite(centers_L)):
-                # x_vals_sorted corresponds to C_sorted columns
-                # We need to match centers_L (indexed by original gains_r) to x_vals_sorted
-                # x_vals are aligned with gains_r (by index if nbar list, or identity if gains)
-                # So centers_L[i] corresponds to x_vals[i]
-                # But C_sorted is sorted by x_vals.
-                # We should plot (x_vals, centers_L) directly, no need to sort for scatter
-                ax.plot(x_vals, centers_L, 'o', ms=4, mfc='none', mec='w', mew=1.5, label='Fits')
-                ax.plot(x_vals, centers_L, '.', ms=2, color='k')
+                ax.plot(x_vals_sorted, centers_L, 'o', ms=4, mfc='none', mec='w', mew=1.5, label='Fits')
+                ax.plot(x_vals_sorted, centers_L, '.', ms=2, color='k')
                 ax.legend(loc='best')
 
             ax.set_title(f"Qubit {self.qubit + 1} — Round {r_id}")
             ax.set_xlabel(x_label)
             ax.set_ylabel("Frequency (MHz)")
 
-            ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=7, prune=None))
+            # Format X-axis as dates
+            ax.xaxis.set_major_locator(mdates.AutoDateLocator())
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
             plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
 
             # Label a subset of delay times on Y
@@ -1261,26 +1211,22 @@ class QubitFreqsVsTime:
                 ax.set_yticklabels([f"{v:.2f}" for v in yticks_vals])
 
             fig.tight_layout()
-            if n_bar is not None:
-                outfile = (save_path + f"qspec_heatmap_q{self.qubit}_round{r_id}_nbar.png")
-            else:
-                outfile = (save_path + f"qspec_heatmap_q{self.qubit}_round{r_id}.png")
-
+            outfile = (save_path + f"qspec_heatmap_q{self.qubit}_round{r_id}.png")
 
             fig.savefig(outfile, transparent=False, dpi=self.final_figure_quality)
             plt.close(fig)
             print(f"Saved heatmap for round {r_id} to: {outfile}")
 
-            # ---------- Per-gain individual calibrated spec plots ----------
+            # ---------- Per-date individual calibrated spec plots ----------
             if save_individual_plots:
                 round_folder = os.path.join(indiv_root, f"round_{r_id}")
                 self.create_folder_if_not_exists(round_folder)
 
-                for g in gains_r:
-                    # Collect amplitudes grouped by delay for this gain
+                for dt in dates_r:
+                    # Collect amplitudes grouped by delay for this date
                     d_to_vals = defaultdict(list)
-                    for (gg, dd, aa) in pts:
-                        if gg == g and np.isfinite(dd) and np.isfinite(aa):
+                    for (ddt, dd, aa) in pts:
+                        if ddt == dt and np.isfinite(dd) and np.isfinite(aa):
                             d_to_vals[dd].append(aa)
 
                     if not d_to_vals:
@@ -1292,30 +1238,29 @@ class QubitFreqsVsTime:
 
                     fig2, ax2 = plt.subplots(figsize=(6.5, 4.0))
                     ax2.plot(delays_sorted, amps_avg, marker='o', linewidth=1.5)
-                    # If n̄ is provided, add it in the title for clarity
-                    title_suffix = ""
-                    if nbar_vec is not None:
-                        # n̄ value corresponding to this gain index
-                        idx = gi_map[g]
-                        try:
-                            nbar_val = float(nbar_vec[idx])
-                            title_suffix = f" — n̄ {nbar_val:g}"
-                        except Exception:
-                            title_suffix = ""
-                    ax2.set_title(f"Qubit {self.qubit + 1} — Round {r_id} — Gain {g:g}{title_suffix}")
-                    ax2.set_xlabel("Frequency (MHz)")
-                    ax2.set_ylabel("Qubit Population")
-                    ax2.grid(True, alpha=0.3)
-                    fig2.tight_layout()
 
-                    gain_str = f"{g:.6g}".replace("/", "_")
-                    out_indiv = os.path.join(
-                        round_folder,
-                        f"qspec_q{self.qubit}_round{r_id}_gain{gain_str}.png"
-                    )
+                    # Convert dt back to string for title/filename
+                    dt_obj = mdates.num2date(dt)
+                    dt_str = dt_obj.strftime("%Y-%m-%d %H:%M:%S")
+                    dt_file_str = dt_obj.strftime("%Y%m%d_%H%M%S")
+
+                    ax2.set_title(f"Qubit {self.qubit + 1} | Round {r_id} | {dt_str}")
+                    ax2.set_xlabel("Frequency (MHz)")
+                    ax2.set_ylabel("Population")
+                    ax2.set_ylim(-0.05, 1.05)
+                    ax2.grid(True, alpha=0.3)
+
+                    # Fit overlay
+                    center = fit_slice(delays_sorted, amps_avg)
+                    if np.isfinite(center):
+                        ax2.axvline(center, color='r', linestyle='--', alpha=0.7, label=f"Fit: {center:.4f} MHz")
+                        ax2.legend()
+
+                    fig2.tight_layout()
+                    out_indiv = os.path.join(round_folder, f"spec_q{self.qubit}_{dt_file_str}.png")
                     fig2.savefig(out_indiv, transparent=False, dpi=self.final_figure_quality)
                     plt.close(fig2)
-                    print(f"Saved individual spec for round {r_id}, gain {g:g} to: {out_indiv}")
+                    print(f"Saved individual spec for round {r_id}, date {dt_str} to: {out_indiv}")
 
     def calculate_nbar(self, amps, gains, rounds, delay_times, chi_MHz=0.25, fit_gaussian=True, fit_lorentzian=True):
         """
