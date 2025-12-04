@@ -20,10 +20,10 @@ for qubit in qubits:
     # QSpec Analysis
     q_vs_time = QubitFreqsVsTime(figure_quality, final_figure_quality, 6, top_folder_dates, save_figs,
                                          False, 'None', run_name, fridge=FRIDGE, exp_name='ge', qubit=qubit)
-    _, _, amps_qspec_hg, gains_qspec_hg, rounds_qspec_hg, freqs_qspec_hg = q_vs_time.run_q_sweep_single_gain(
+    _, _, amps_qspec_hg, dates_qspec_hg, rounds_qspec_hg, freqs_qspec_hg = q_vs_time.run_q_sweep_single_gain(
         exp_extension='_ge', scaling=True)
 
-    q_vs_time.plot_all_q_heatmaps_new_format(amps_qspec_hg, gains_qspec_hg, rounds_qspec_hg, freqs_qspec_hg,
+    q_vs_time.plot_all_q_heatmaps_single_gain(amps_qspec_hg, dates_qspec_hg, rounds_qspec_hg, freqs_qspec_hg,
                                                       f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/high_gain/',
                                                     save_individual_plots=save_individual_qspec)
 
