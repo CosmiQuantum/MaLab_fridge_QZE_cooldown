@@ -31,19 +31,28 @@ for qubit in qubits:
     # T1 Analysis
     t1_vs_time = T1VsTime(figure_quality, final_figure_quality, 6, top_folder_dates, save_figs, False,
                          'None', run_name, FRIDGE, exp_name='ge', qubit=qubit, t1_slice='10us')
-    _, _, amps_t1, gains_t1, rounds_t1, delay_times_t1 = t1_vs_time.run_t1_sweep_new(exp_extension='_ge', scaling=True, weighted_mean=True)
+    _, _, amps_t1, dates_t1, rounds_t1, delay_times_t1 = t1_vs_time.run_t1_sweep_single_gain(exp_extension='_ge', scaling=True)
 
-    t1_vs_time.plot_all_t1_heatmaps_new_format(amps_t1, gains_t1, rounds_t1, delay_times_t1,
+    t1_vs_time.plot_all_t1_heatmaps_single_gain(amps_t1, dates_t1, rounds_t1, delay_times_t1,
                                               f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/',
-                                              n_bar=n_bars, use_linear_x=False)
+                                              save_individual_plots=save_individual_qspec)
 
     # T2R Analysis
     t2_vs_time = T2rVsTime(figure_quality, final_figure_quality, 6, top_folder_dates, save_figs, False,
                            'None', run_name, fridge=FRIDGE, exp_name='ge', qubit=qubit)
-    _, _, amps_t2, gains_t2, rounds_t2, delay_times_t2 = t2_vs_time.run_t2_sweep_new(exp_extension='_ge', scaling=True)
+    _, _, amps_t2, dates_t2, rounds_t2, delay_times_t2 = t2_vs_time.run_t2_sweep_single_gain(exp_extension='_ge', scaling=True)
 
-    t2_vs_time.plot_all_t2_heatmaps_new_format(amps_t2, gains_t2, rounds_t2, delay_times_t2,
+    t2_vs_time.plot_all_t2_heatmaps_single_gain(amps_t2, dates_t2, rounds_t2, delay_times_t2,
                                               f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/',
-                                              n_bar=n_bars, use_linear_x=False)
+                                              save_individual_plots=save_individual_qspec)
+
+    # T2E Analysis
+    t2e_vs_time = T2eVsTime(figure_quality, final_figure_quality, 6, top_folder_dates, save_figs, False,
+                           'None', run_name, fridge=FRIDGE, exp_name='ge', qubit=qubit)
+    _, _, amps_t2e, dates_t2e, rounds_t2e, delay_times_t2e = t2e_vs_time.run_t2_sweep_single_gain(exp_extension='_ge', scaling=True)
+
+    t2e_vs_time.plot_all_t2_heatmaps_single_gain(amps_t2e, dates_t2e, rounds_t2e, delay_times_t2e,
+                                              f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/',
+                                              save_individual_plots=save_individual_qspec)
 
    

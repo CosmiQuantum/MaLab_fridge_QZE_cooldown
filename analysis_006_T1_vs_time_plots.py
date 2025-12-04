@@ -581,6 +581,351 @@ class T1VsTime:
         y0 = 0.5 * (yedges[iy] + yedges[iy + 1])
         return x0 + 1j * y0
 
+    def run_t1_sweep_single_gain(self, exp_extension='', scaling=False, return_calibration_data=False, weighted_mean=True,
+                        gain=''):
+        import datetime
+        import glob, os, re
+        import numpy as np
+
+        # Initialize data containers
+        # We will first aggregate data into temporary lists per qubit
+        agg_amps = {i: [] for i in range(self.number_of_qubits)}
+        agg_dates = {i: [] for i in range(self.number_of_qubits)}
+        agg_delays = {i: [] for i in range(self.number_of_qubits)}
+        
+        # Final containers to return
+        amps = {i: [] for i in range(self.number_of_qubits)}
+        dates = {i: [] for i in range(self.number_of_qubits)}
+        rounds_completed = {i: [] for i in range(self.number_of_qubits)}
+        delay_times = {i: [] for i in range(self.number_of_qubits)}
+
+        for folder_date in self.top_folder_dates:
+            outerFolder = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "/study_data"
+            # Assuming T1 data structure similar to run_t1_sweep_new
+            outerFolder_expt = outerFolder + f"/Data_h5/T1{exp_extension}_zeno/"
+
+            h5_files = glob.glob(os.path.join(outerFolder_expt, "*.h5"))
+            if not h5_files:
+                continue
+
+            TS = re.compile(r'(\d{4})[-_\.]?(\d{2})[-_\.]?(\d{2})[ Tt_-]?(\d{2})[-_\.]?(\d{2})[-_\.]?(\d{2})')
+
+            def dt_from_name(path):
+                name = os.path.basename(path)
+                m = TS.search(name)
+                if not m:
+                    return datetime.datetime.min
+                y, mo, d, h, mi, s = map(int, m.groups())
+                return datetime.datetime(y, mo, d, h, mi, s)
+
+            h5_files = sorted(h5_files, key=dt_from_name)
+
+            for h5_file in h5_files:
+                save_round = h5_file.split('Num_per_batch')[-1].split('.')[0]
+                H5_class_instance = Data_H5(h5_file)
+                # Load T1 data
+                load_data = H5_class_instance.load_from_h5(data_type=f'T1{exp_extension}', save_r=int(save_round),
+                                                           scaling=scaling)
+                
+                for q_key in load_data[f'T1{exp_extension}']:
+                    for dataset in range(len(load_data[f'T1{exp_extension}'][q_key].get('Dates', [])[0])):
+
+                        try:
+                            # Load I, Q, Delays
+                            I = self.process_h5_data(
+                                load_data[f'T1{exp_extension}'][q_key].get('I', [])[0][dataset].decode())
+                            Q = self.process_h5_data(
+                                load_data[f'T1{exp_extension}'][q_key].get('Q', [])[0][dataset].decode())
+                            delays = self.process_h5_data(
+                                load_data[f'T1{exp_extension}'][q_key].get('Delay Times', [])[0][dataset].decode())
+                            
+                            date = datetime.datetime.fromtimestamp(
+                                load_data[f'T1{exp_extension}'][q_key].get('Dates', [])[0][dataset])
+                        except:
+                            continue
+
+                        if scaling:
+                            try:
+                                Ie = self.process_h5_data(
+                                    load_data[f'T1{exp_extension}'][q_key].get('ss_I_e', [])[0][dataset].decode())
+                                Ig = self.process_h5_data(
+                                    load_data[f'T1{exp_extension}'][q_key].get('ss_I_g', [])[0][dataset].decode())
+                                Qe = self.process_h5_data(
+                                    load_data[f'T1{exp_extension}'][q_key].get('ss_Q_e', [])[0][dataset].decode())
+                                Qg = self.process_h5_data(
+                                    load_data[f'T1{exp_extension}'][q_key].get('ss_Q_g', [])[0][dataset].decode())
+                            except:
+                                # Fallback if scaling requested but data missing
+                                scaling = False
+
+                        if len(I) > 0:
+                            # Calibration
+                            if scaling:
+                                I = np.asarray(I, dtype=float)
+                                Q = np.asarray(Q, dtype=float)
+                                Ie = np.asarray(Ie, dtype=float)
+                                Qe = np.asarray(Qe, dtype=float)
+                                Ig = np.asarray(Ig, dtype=float)
+                                Qg = np.asarray(Qg, dtype=float)
+                                
+                                e = np.mean(Ie + 1j * Qe)
+                                g = np.mean(Ig + 1j * Qg)
+                                
+                                pop_norm = np.abs(((I + 1j * Q) - g) * (e - g) / (np.abs(e - g) ** 2))
+                                amp_data = pop_norm.tolist()
+                            else:
+                                I = np.asarray(I, dtype=float)
+                                Q = np.asarray(Q, dtype=float)
+                                amp_data = np.hypot(I, Q).tolist()
+
+                            # Append to aggregation lists
+                            agg_amps[q_key].extend(amp_data)
+                            
+                            # Expand date to match the number of delay points
+                            expanded_date = [date] * len(amp_data)
+                            agg_dates[q_key].extend(expanded_date)
+                            
+                            agg_delays[q_key].extend(delays)
+
+                del H5_class_instance
+
+        # After processing all dates, package the aggregated data as a single "round"
+        for q_key in range(self.number_of_qubits):
+            if agg_amps[q_key]:
+                amps[q_key].append(agg_amps[q_key])
+                dates[q_key].append(agg_dates[q_key])
+                delay_times[q_key].append(agg_delays[q_key])
+                # Use a placeholder for the round name
+                rounds_completed[q_key].append("combined_sweep")
+
+        return None, None, amps, dates, rounds_completed, delay_times
+
+    def plot_all_t1_heatmaps_single_gain(
+            self,
+            amps,
+            date_times,
+            rounds,
+            delay_times,
+            save_path,
+            max_ylabels=6,
+            individual_subfolder="individual_specs",
+            save_individual_plots=True,
+    ):
+        """
+        Updated to plot Heatmap with Time (Date) on X-axis and Delay Time on Y-axis.
+        """
+        import os
+        import numpy as np
+        import matplotlib.pyplot as plt
+        import matplotlib.dates as mdates
+        from datetime import datetime
+        from collections import defaultdict
+        import matplotlib.ticker as mticker
+        from scipy.optimize import curve_fit
+        from scipy.signal import savgol_filter
+
+        # ---------- Fitting Helpers (Exponential Decay) ----------
+        def exponential_decay(x, a, b, c):
+            return a * np.exp(-x / b) + c
+
+        def fit_slice(x, y):
+            x = np.asarray(x, float); y = np.asarray(y, float)
+            try:
+                # Initial guesses
+                c_guess = np.min(y)
+                a_guess = np.max(y) - c_guess
+                b_guess = np.mean(x) if np.mean(x) > 0 else 10.0 # simple guess for decay constant
+                
+                p0 = [a_guess, b_guess, c_guess]
+                # Bounds: a>0, b>0, c unbounded
+                lb = [0, 0, -np.inf]
+                ub = [np.inf, np.inf, np.inf]
+                
+                popt, pcov = curve_fit(exponential_decay, x, y, p0=p0, bounds=(lb, ub), maxfev=1000)
+                return popt[1] # Return decay constant T1
+            except:
+                return np.nan
+
+        q = self.qubit
+        dates_q = date_times.get(q, [])
+        amps_q = amps.get(q, [])
+        rounds_q = rounds.get(q, [])
+        delay_q = delay_times.get(q, [])
+
+        # Basic presence & length checks
+        n = min(len(amps_q), len(dates_q), len(rounds_q), len(delay_q))
+        if n == 0 or not (len(amps_q) == len(dates_q) == len(rounds_q) == len(delay_q)):
+            print(f"No usable data for qubit {q} (missing lists or length mismatch). Skipping.")
+            return
+
+        # ---------- Flatten to points: (round_id, date_num, delay, amp) ----------
+        all_points = []
+        for i in range(n):
+            r_id = str(rounds_q[i])
+
+            a_samples = np.asarray(amps_q[i], dtype=float).ravel()
+            if a_samples.size == 0:
+                continue
+
+            # Date handling
+            d_raw = dates_q[i]
+
+            def to_num(d):
+                if isinstance(d, datetime):
+                    return mdates.date2num(d)
+                try:
+                    return mdates.date2num(datetime.strptime(str(d), "%Y-%m-%d %H:%M:%S"))
+                except:
+                    return np.nan
+
+            is_seq = isinstance(d_raw, (list, tuple, np.ndarray))
+            # If d_raw is a sequence of the same length as a_samples, we assume 1-to-1 mapping
+            if is_seq and len(d_raw) == len(a_samples):
+                dt_arr = np.array([to_num(d) for d in d_raw], dtype=float)
+            else:
+                # Otherwise, broadcast the single date (or first element)
+                d_single = d_raw[0] if is_seq else d_raw
+                dt_arr = np.full(a_samples.shape, to_num(d_single), dtype=float)
+
+            # delay can be scalar or per-sample
+            d_i = delay_q[i]
+            d_arr = np.asarray(d_i, dtype=float).ravel() if isinstance(d_i, (list, tuple, np.ndarray)) else None
+            if d_arr is None or d_arr.size == 1:
+                try:
+                    d_scalar = float(d_i)
+                except Exception:
+                    continue
+                d_arr = np.full(a_samples.shape, d_scalar, dtype=float)
+            elif d_arr.size != a_samples.size:
+                continue
+
+            # keep only finite triples
+            mask = np.isfinite(a_samples) & np.isfinite(dt_arr) & np.isfinite(d_arr)
+            if not np.any(mask):
+                continue
+
+            for dt, d, a in zip(dt_arr[mask], d_arr[mask], a_samples[mask]):
+                all_points.append((r_id, float(dt), float(d), float(a)))
+
+        if not all_points:
+            print(f"No numeric points for qubit {q}. Skipping.")
+            return
+
+        # Unique rounds present
+        unique_rounds = sorted({r for (r, _, __, ___) in all_points})
+
+        # Ensure save folder(s) exist
+        self.create_folder_if_not_exists(save_path)
+        if save_individual_plots:
+            indiv_root = os.path.join(save_path, individual_subfolder)
+            self.create_folder_if_not_exists(indiv_root)
+
+        # Helper: centers -> bin edges for pcolormesh
+        def centers_to_edges(centers):
+            centers = np.asarray(sorted(np.unique(centers)), dtype=float)
+            if centers.size == 1:
+                d = 1.0/24.0 # 1 hour default width
+                return np.array([centers[0] - d / 2, centers[0] + d / 2])
+            mids = (centers[:-1] + centers[1:]) / 2.0
+            first = centers[0] - (centers[1] - centers[0]) / 2.0
+            last = centers[-1] + (centers[-1] - centers[-2]) / 2.0
+            return np.concatenate([[first], mids, [last]])
+
+        # ---------- Global color scale limits (z) ----------
+        all_amps = np.array([a for (_, _, _, a) in all_points], dtype=float)
+        global_vmin = float(np.nanmin(all_amps))
+        global_vmax = float(np.nanmax(all_amps))
+
+        # For each round, build a 2D heatmap
+        for r_id in unique_rounds:
+            pts = [(dt, dv, av) for (rr, dt, dv, av) in all_points if rr == r_id]
+            if not pts:
+                continue
+
+            # Sort dates; build 2D grid
+            dates_r = sorted(set(dt for (dt, _, __) in pts))
+            delays_r = sorted(set(d for (_, d, __) in pts))
+            Ny = len(delays_r)
+            Nx = len(dates_r)
+            if Ny == 0 or Nx == 0:
+                continue
+
+            # delay -> index
+            d_map = {d: i for i, d in enumerate(delays_r)}
+            # date -> index
+            dt_map = {dt: i for i, dt in enumerate(dates_r)}
+
+            # Build C: shape (Ny, Nx), each cell avg of data from (date, delay)
+            cell_vals = defaultdict(list)
+            for (dt, dd, aa) in pts:
+                ix = dt_map[dt]
+                iy = d_map[dd]
+                cell_vals[(iy, ix)].append(aa)
+            C = np.full((Ny, Nx), np.nan, dtype=float)
+            for (iy, ix), vals in cell_vals.items():
+                C[iy, ix] = float(np.nanmean(vals))
+
+            # ---------- Fit Centers (T1 Decay) ----------
+            # Note: For T1, we don't plot "centers" like freq shift, but maybe T1 value itself?
+            # The previous code plotted "centers_L" which was the Lorentzian center.
+            # Here we fit T1 for each time slice (column).
+            t1_values = []
+            x_delays = np.array(delays_r, float)
+            for ix in range(Nx):
+                y_col = C[:, ix]
+                if np.isfinite(y_col).any() and len(x_delays) >= 5:
+                    m = np.isfinite(y_col)
+                    t1 = fit_slice(x_delays[m], y_col[m])
+                    t1_values.append(t1)
+                else:
+                    t1_values.append(np.nan)
+            t1_values = np.array(t1_values)
+
+            x_vals = dates_r
+            x_label = "Time"
+
+            idx_sorted = np.argsort(x_vals)
+            x_vals_sorted = np.array(x_vals, dtype=float)[idx_sorted]
+            C_sorted = C[:, idx_sorted]
+
+            # Bin edges for pcolormesh
+            x_edges = centers_to_edges(x_vals_sorted)
+            y_edges = centers_to_edges(delays_r)
+
+            # ---------- Heatmap ----------
+            fig, ax = plt.subplots(figsize=(10, 6))
+            mesh = ax.pcolormesh(
+                x_edges, y_edges, C_sorted, shading='flat',
+                vmin=global_vmin, vmax=global_vmax
+            )
+            cbar = fig.colorbar(mesh, ax=ax, pad=0.02)
+            cbar.set_label("Qubit Population")
+
+            # Overlay fits (T1 values) - T1 values are in time units (us), same as Y axis? 
+            # Wait, Y axis is Delay Time. T1 is a time constant. 
+            # If we plot T1 on this graph, it might be on the same scale, or might not.
+            # Typically T1 is within the delay range. So plotting it might make sense.
+            if np.any(np.isfinite(t1_values)):
+                ax.plot(x_vals_sorted, t1_values, 'o', ms=4, mfc='none', mec='w', mew=1.5, label='T1 Fit')
+                ax.plot(x_vals_sorted, t1_values, '.', ms=2, color='k')
+                ax.legend(loc='best')
+
+            ax.set_title(f"Qubit {self.qubit + 1} — Round {r_id}")
+            ax.set_xlabel(x_label)
+            ax.set_ylabel("Delay Time (us)")
+
+            # Format X-axis as dates
+            ax.xaxis.set_major_locator(mdates.AutoDateLocator())
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
+            plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
+
+            fig.tight_layout()
+            outfile = (save_path + f"t1_heatmap_q{self.qubit}_round{r_id}.png")
+
+            fig.savefig(outfile, transparent=False, dpi=self.final_figure_quality)
+            plt.close(fig)
+            print(f"Saved heatmap for round {r_id} to: {outfile}")
+
     def run_t1_sweep_new(self, exp_extension='', scaling=False, return_calibration_data=False, weighted_mean=True):
         import datetime
         import glob, os, re
