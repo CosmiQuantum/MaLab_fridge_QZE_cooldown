@@ -572,23 +572,39 @@ class T2rVsTime:
         from scipy.optimize import curve_fit
         from scipy.signal import savgol_filter
 
-        # ---------- Fitting Helpers (Exponential Decay) ----------
-        def exponential_decay(x, a, b, c):
-            return a * np.exp(-x / b) + c
+        # ---------- Fitting Helpers (Damped Sinusoid) ----------
+        def damped_sine(x, a, b, c, f, phi):
+            return a * np.exp(-x / b) * np.cos(2 * np.pi * f * x + phi) + c
 
         def fit_slice(x, y):
             x = np.asarray(x, float); y = np.asarray(y, float)
+            if len(x) < 5: return np.nan
             try:
-                c_guess = np.min(y)
-                a_guess = np.max(y) - c_guess
-                b_guess = np.mean(x) if np.mean(x) > 0 else 10.0
+                # Guesses
+                c_guess = np.mean(y)
+                a_guess = (np.max(y) - np.min(y)) / 2.0
+                b_guess = (x.max() - x.min()) / 3.0
                 
-                p0 = [a_guess, b_guess, c_guess]
-                lb = [0, 0, -np.inf]
-                ub = [np.inf, np.inf, np.inf]
+                # FFT for frequency guess
+                dt = np.mean(np.diff(x))
+                if dt <= 0: return np.nan
+                fft_vals = np.fft.rfft(y - c_guess)
+                fft_freqs = np.fft.rfftfreq(len(y), d=dt)
+                # Ignore DC component for peak finding
+                if len(fft_vals) > 1:
+                    peak_idx = np.argmax(np.abs(fft_vals[1:])) + 1
+                    f_guess = fft_freqs[peak_idx]
+                else:
+                    f_guess = 1.0 / (x.max() - x.min())
+
+                p0 = [a_guess, b_guess, c_guess, f_guess, 0]
                 
-                popt, pcov = curve_fit(exponential_decay, x, y, p0=p0, bounds=(lb, ub), maxfev=1000)
-                return popt[1] 
+                # Bounds: a>0, b>0, f>0
+                lb = [0, 0, -np.inf, 0, -np.inf]
+                ub = [np.inf, np.inf, np.inf, np.inf, np.inf]
+                
+                popt, pcov = curve_fit(damped_sine, x, y, p0=p0, bounds=(lb, ub), maxfev=2000)
+                return popt[1] # T2
             except:
                 return np.nan
 
