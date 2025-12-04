@@ -507,15 +507,7 @@ class QubitFreqsVsTime:
                             expanded_date = [date] * len(amp_data)
                             agg_dates[q_key].extend(expanded_date)
                             
-                            if len(delays) > 0:
-                                num_repeats = len(amp_data) // len(delays)
-                                remainder = len(amp_data) % len(delays)
-                                tiled_delays = list(delays) * num_repeats
-                                if remainder > 0:
-                                    tiled_delays.extend(delays[:remainder])
-                                agg_delays[q_key].extend(tiled_delays)
-                            else:
-                                agg_delays[q_key].extend(delays)
+                            agg_delays[q_key].extend(delays)
 
                 del H5_class_instance
 
