@@ -27,14 +27,6 @@ for qubit in qubits:
                                                       f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/',
                                                     save_individual_plots=save_individual_qspec)
 
-    # T2E Analysis
-    t2e_vs_time = T2eVsTime(figure_quality, final_figure_quality, 6, top_folder_dates, save_figs,
-                           False, 'None', run_name, fridge=FRIDGE, exp_name='ge', qubit=qubit)
-    _, _, amps_t2e, gains_t2e, rounds_t2e, delay_times_t2e = t2e_vs_time.run_t2_sweep_new(exp_extension='_ge', scaling=True)
-
-    t2e_vs_time.plot_all_t2_heatmaps_new_format(amps_t2e, gains_t2e, rounds_t2e, delay_times_t2e,
-                                               f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/',
-                                               n_bar=n_bars, save_individual_plots=save_individual_qspec)
 
     # T1 Analysis
     t1_vs_time = T1VsTime(figure_quality, final_figure_quality, 6, top_folder_dates, save_figs, False,
@@ -54,11 +46,4 @@ for qubit in qubits:
                                               f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/',
                                               n_bar=n_bars, use_linear_x=False)
 
-    # Standard QSpec Analysis (if needed, as per original script)
-    q_vs_time = QubitFreqsVsTime(figure_quality, final_figure_quality, 6, top_folder_dates, save_figs,
-                                 False, 'None', run_name, fridge=FRIDGE, exp_name='ge', qubit=qubit)
-    _, _, amps_qspec, gains_qspec, rounds_qspec, freqs_qspec = q_vs_time.run_q_sweep_new(exp_extension='_ge', scaling=True)
-
-    q_vs_time.plot_all_q_heatmaps_new_format(amps_qspec, gains_qspec, rounds_qspec, freqs_qspec,
-                                              f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/',
-                                              n_bar=n_bars, save_individual_plots=save_individual_qspec)
+   
