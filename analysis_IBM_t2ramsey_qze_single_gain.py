@@ -11,7 +11,7 @@ figure_quality = 100
 final_figure_quality = 200
 FRIDGE = "QUIET"
 qubits = [4]
-path = '2d_less_reps_more_qspec_steps'
+path = 'single_gain_debug'
 
 for qubit in qubits:
     run_name = f'bob_run_started_Aug_23/squill/{path}/all_qubits/'
@@ -23,8 +23,8 @@ for qubit in qubits:
     _, _, amps_qspec_hg, dates_qspec_hg, rounds_qspec_hg, freqs_qspec_hg = q_vs_time.run_q_sweep_single_gain(
         exp_extension='_ge', scaling=True)
 
-    q_vs_time.plot_all_q_heatmaps_single_gain(amps_qspec_hg, dates_qspec_hg, rounds_qspec_hg, freqs_qspec_hg,
-                                                      f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/high_gain/',
+    q_vs_time.plot_all_q_heatmaps_new_format(amps_qspec_hg, dates_qspec_hg, rounds_qspec_hg, freqs_qspec_hg,
+                                                      f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis/',
                                                     save_individual_plots=save_individual_qspec)
 
     # T2E Analysis
