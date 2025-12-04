@@ -1045,11 +1045,33 @@ class QubitFreqsVsTime:
         rounds_q = rounds.get(q, [])
         delay_q = delay_times.get(q, [])
 
+        # Detect shared delay axis
+        is_shared_delay = False
+        if len(amps_q) > 0 and len(delay_q) > 0:
+             # Check if delay_q is likely a 1D array of frequencies (shared)
+             # If elements are numbers, it's a single array -> shared
+             # If elements are iterables, it's a list of arrays -> per-dataset
+             first_elem = delay_q[0]
+             if isinstance(first_elem, (int, float, np.number)):
+                 is_shared_delay = True
+             # If it is a numpy array of numbers, it's shared
+             elif isinstance(delay_q, np.ndarray) and delay_q.ndim == 1:
+                 is_shared_delay = True
+
         # Basic presence & length checks
-        n = min(len(amps_q), len(dates_q), len(rounds_q), len(delay_q))
-        if n == 0 or not (len(amps_q) == len(dates_q) == len(rounds_q) == len(delay_q)):
-            print(f"No usable data for qubit {q} (missing lists or length mismatch). Skipping.")
-            return
+        n = min(len(amps_q), len(dates_q), len(rounds_q))
+        if n == 0:
+             print(f"No usable data for qubit {q}. Skipping.")
+             return
+             
+        if not (len(amps_q) == len(dates_q) == len(rounds_q)):
+             print(f"Length mismatch for qubit {q}: amps={len(amps_q)}, dates={len(dates_q)}, rounds={len(rounds_q)}")
+             return
+
+        if not is_shared_delay:
+             if len(delay_q) != n:
+                 print(f"Length mismatch for qubit {q}: delay_times={len(delay_q)} vs n={n}")
+                 return
 
         # ---------- Flatten to points: (round_id, date_num, delay, amp) ----------
         all_points = []
@@ -1074,7 +1096,11 @@ class QubitFreqsVsTime:
             dt_arr = np.full(a_samples.shape, dt_num, dtype=float)
 
             # delay can be scalar or per-sample
-            d_i = delay_q[i]
+            if is_shared_delay:
+                d_i = delay_q
+            else:
+                d_i = delay_q[i]
+
             d_arr = np.asarray(d_i, dtype=float).ravel() if isinstance(d_i, (list, tuple, np.ndarray)) else None
             if d_arr is None or d_arr.size == 1:
                 try:
