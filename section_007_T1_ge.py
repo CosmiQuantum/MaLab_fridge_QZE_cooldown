@@ -103,7 +103,7 @@ class T1Measurement:
                                            threshold=self.experiment.readout_cfg["threshold"],
                                            angle=self.experiment.readout_cfg["ro_phase"], progress=True)
             else:
-                iq_list = t1.acquire(self.experiment.soc, rounds=self.config['rounds'], progress=True)
+                iq_list = t1.acquire(self.experiment.soc,  progress=True)
 
             iq_list = iq_list[0][0].T
             I = (iq_list[0])

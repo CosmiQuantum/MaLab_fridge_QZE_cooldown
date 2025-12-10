@@ -174,11 +174,11 @@ class SingleShot:
         # Run the single shot programs (g and e)
         ssp_g = SingleShotProgram_g(soccfg,  reps=1, final_delay=self.config['relax_delay'],
                                     cfg=self.config)
-        iq_list_g = ssp_g.acquire(soc, rounds=1, progress=False)
+        iq_list_g = ssp_g.acquire(soc,  progress=False)
 
         ssp_e = SingleShotProgram_e(soccfg,  reps=1, final_delay=self.config['relax_delay'],
                                     cfg=self.config)
-        iq_list_e = ssp_e.acquire(soc, rounds=1, progress=False)
+        iq_list_e = ssp_e.acquire(soc, progress=False)
 
         # Use the fidelity calculation from SingleShotGE
         fidelity, _, _, _,_ = self.hist_ssf(
@@ -190,11 +190,11 @@ class SingleShot:
 
     def run(self):
         ssp_g = SingleShotProgram_g(self.experiment.soccfg, reps=1, final_delay=self.config['relax_delay'], cfg=self.config)
-        iq_list_g = ssp_g.acquire(self.experiment.soc, rounds=1, progress=True)
+        iq_list_g = ssp_g.acquire(self.experiment.soc,  progress=True)
         g_shots= ssp_g.get_raw()
 
         ssp_e = SingleShotProgram_e(self.experiment.soccfg, reps=1, final_delay=self.config['relax_delay'], cfg=self.config)
-        iq_list_e = ssp_e.acquire(self.experiment.soc, rounds=1, progress=True)
+        iq_list_e = ssp_e.acquire(self.experiment.soc,  progress=True)
         e_shots= ssp_e.get_raw()
         # print('e_shots[0]',e_shots[0])
 

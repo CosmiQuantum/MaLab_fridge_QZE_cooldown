@@ -1,7 +1,7 @@
 import Pyro4
 from qick import QickConfig
 
-def makeProxy(ns_host='192.168.1.139', ns_port=8888, proxy_name="myqick"): #'192.168.1.199'
+def makeProxy(ns_host='rfsoc4x2-loud0.dhcp.fnal.gov', ns_port=8888, proxy_name="myqick"): #'192.168.1.199'
     Pyro4.config.SERIALIZER = "pickle"
     Pyro4.config.PICKLE_PROTOCOL_VERSION = 4
 

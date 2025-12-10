@@ -60,7 +60,7 @@ class AmplitudeRabiExperiment:
                         self.logger.info(f"Increasing reps for {self.Qubit} by {multiply_qubit_reps_by} times")
                         self.config["reps"] *= multiply_qubit_reps_by
             self.logger.info(f'Q {self.QubitIndex + 1} Round {self.round_num} Rabi configuration: {self.config}')
-            if self.verbose: print(f'Q {self.QubitIndex + 1} Round {self.round_num} Rabi configuration: ', self.config)
+           # if self.verbose: print(f'Q {self.QubitIndex + 1} Round {self.round_num} Rabi configuration: ', self.config)
 
 
     def run(self, thresholding=False, scaling=False):
@@ -94,7 +94,7 @@ class AmplitudeRabiExperiment:
                                                threshold=self.experiment.readout_cfg["threshold"],
                                                angle=self.experiment.readout_cfg["ro_phase"], progress=self.qick_verbose)
                 else:
-                    iq_list = amp_rabi.acquire(self.experiment.soc, rounds=self.config["rounds"], progress=self.qick_verbose)
+                    iq_list = amp_rabi.acquire(self.experiment.soc, progress=self.qick_verbose)
 
             iq_list = iq_list[0][0].T
             I = (iq_list[0])
@@ -264,6 +264,8 @@ class AmplitudeRabiExperiment:
                 q1_d_guess_Q = np.mean(Q)
                 q1_b_guess = 1 / gains[-1]
                 q1_c_guess = 0
+
+                
 
                 q1_guess_I = [q1_a_guess_I, q1_b_guess, q1_c_guess, q1_d_guess_I]
                 q1_popt_I, q1_pcov_I = curve_fit(self.cosine, gains, I, maxfev=100000, p0=q1_guess_I)

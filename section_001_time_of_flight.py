@@ -58,7 +58,7 @@ class TOFExperiment:
                 self.trigger(ros=[cfg['ro_ch']], pins=[0], t=0, ddr4=True)
 
         prog = MuxProgram(self.experiment.soccfg, reps=1, final_delay=0.5, cfg=self.config)
-        iq_list = prog.acquire_decimated(self.experiment.soc, rounds=self.config['soft_avgs'])
+        iq_list = prog.acquire_decimated(self.experiment.soc, soft_avgs=self.config['soft_avgs'])
         t = prog.get_time_axis(ro_index=0)
         if self.save_figs:
             (average_y_mag_values_last, average_y_mag_values_mid, average_y_mag_values_oct, DAC_attenuator1, DAC_attenuator2, ADC_attenuator) = self.plot_results(prog, iq_list)

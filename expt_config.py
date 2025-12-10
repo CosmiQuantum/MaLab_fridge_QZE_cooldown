@@ -1,10 +1,10 @@
 import numpy as np
 
-FRIDGE = "BOB"
+FRIDGE = "LOUD"
 
-if FRIDGE == "QUIET" or FRIDGE == "BOB":
-    VNA_res = np.array([7149,7171,7204,7228.9, 7264.31,7287.5])#[7148.588, 7170.546, 7203.351, 7228.059, 7263.744 ,7286.719])#*1000  # run 5
-    VNA_qubit = np.array([2780, 2980, 2885, 3096, 3043.32, 3093]) #[2766, 2980, 2873, 3096, 3043, 3093] # Freqs of Qubit g/e Transition
+if FRIDGE == "QUIET" or FRIDGE == "BOB" or FRIDGE == "LOUD":
+    VNA_res = np.array([6223.016, 6284.544, 6343.861, 6177.7, 6414.893, 6546.9])#[7148.588, 7170.546, 7203.351, 7228.059, 7263.744 ,7286.719])#*1000  # run 5
+    VNA_qubit = np.array([4169.5, 3457.08, 5061.05, 5188.48, 4675.52, 3502]) #[2766, 2980, 2873, 3096, 3043, 3093] # Freqs of Qubit g/e Transition
     ef_freqs = np.array([2616, 2830, 2723, 2946, 2893, 2943]) # Freqs of Qubit e/f Transition, updated for run 7
     fh_freqs = np.array([2466, 2680, 2573, 2796, 2743, 2793])
     # Set this for your experiment
@@ -15,17 +15,18 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
     expt_cfg = {
         "tof": {
             "reps": 1, #reps doesnt make a difference here, leave it at 1
-            "soft_avgs": 400,
+            'rounds':100,
+            "soft_avgs": 1000,
             "relax_delay": 0,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
 
         "res_spec": {
-            "reps": 1, #shots at one freq
-            "rounds": 200, #sweeps through each freq and average
-            "start": -0.7, #[MHz]
-            "step_size": 0.01,  # [MHz]
-            "steps": 150,#,200,#70
+            "reps": 100, #shots at one freq
+            "rounds": 1, #sweeps through each freq and average
+            "start": -2, #[MHz]
+            "step_size": 0.02,  # [MHz]
+            "steps": 200,#,200,#70
             "relax_delay": 5,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
@@ -40,11 +41,11 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "qubit_spec_ge": {
-            "reps":100,#10000,
-            "rounds": 200,
-            "start": list(VNA_qubit-30), # [MHz] -40
-            "stop": list(VNA_qubit+15), # [MHz] +40
-            "steps": 500,#200,
+            "reps":2000,#10000
+            "rounds": 1,
+            "start": list(VNA_qubit-10), # [MHz] -40
+            "stop": list(VNA_qubit+10), # [MHz] +40
+            "steps": 200,#200,
             "relax_delay": 10, # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
@@ -92,8 +93,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "qubit_spec_ef": {
-            "reps": 100,  # 300
-            "rounds": 1000,  # 10
+            "reps": 300,  # 300
+            "rounds": 1,  # 10
             "start": list(ef_freqs - 0.2),# 0.2),  # [MHz] #-300 #-6
             "stop":  list(ef_freqs + 0.2),#0.2),  # [MHz] #6
             "steps": 220,  # 1000 #450
@@ -101,8 +102,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "list_of_all_qubits": list_of_all_qubits,
         },
         "qubit_spec_fh": {
-            "reps": 10,  # 300
-            "rounds": 5000,  # 10
+            "reps":  300,
+            "rounds": 1,  # 10
             "start": list(fh_freqs - 0.3), # [MHz] #-300 #-6
             "stop": list(fh_freqs +  0.2),  # [MHz] #6
             "steps": 180,#450,  # 1000 #450
@@ -130,11 +131,11 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "power_rabi_ge": {
-            "reps": 20,
-            "rounds": 5,
+            "reps": 500,
+            "rounds": 1,
             "start": 0, # [DAC units]
-            "stop": 0.085,  # [DAC units]
-            "steps": 70,
+            "stop": 1,#0.085,  # [DAC units]
+            "steps": 300,
             "relax_delay": 500,# [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
@@ -191,7 +192,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "power_rabi_ef": {
-            "reps": 20,
+            "reps": 200,
             "reps2": 850, #this is only used for the experiment that uses e-f rabi to calculate qubit temperatures.
             "rounds": 400,
             "start": 0.0,  # [DAC units]
@@ -199,21 +200,30 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "steps": 155,
             "relax_delay": 500,  # [us]
         },
+        "power_rabi_ef_no_temp": {
+            "reps": 200,
+           # "reps2": 850, #this is only used for the experiment that uses e-f rabi to calculate qubit temperatures.
+            "rounds": 1,
+            "start": 0.0,  # [DAC units]
+            "stop": 1.0,  # [DAC units]
+            "steps": 155,
+            "relax_delay": 500,  # [us]
+        },
         "power_rabi_fh": {
-            "reps": 20,
-            "reps2": 850,  # this is only used for the experiment that uses e-f rabi to calculate qubit temperatures.
-            "rounds": 400,
+            "reps": 200,
+           # "reps2": 1,  # this is only used for the experiment that uses e-f rabi to calculate qubit temperatures.
+            "rounds": 1,
             "start": 0.0,  # [DAC units]
             "stop": 1.0,  # [DAC units]
             "steps": 155,
             "relax_delay": 500,  # [us]
         },
         "T1_ge": {
-            "reps": 200,#,50, #300
-            "rounds": 20, #1
+            "reps": 1000,#,50, #300
+            "rounds": 1, #1
             "start":  0,  # [us]
-            "stop": 500,  # [us] ### Should be ~10x T1! Should change this per qubit.
-            "steps": 80,
+            "stop": 80,  # [us] ### Should be ~10x T1! Should change this per qubit.
+            "steps": 50,
             "relax_delay": 500,  # [us] ### Should be >10x T1!
             "wait_time": 0.0,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
@@ -376,7 +386,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
 
         "Ramsey_ge": {
             "reps": 200,
-            "rounds": 20,
+            "rounds": 1,
             "start": 0.0, # [us]
             "stop":  100, # [us]
             "steps": 200,
@@ -491,7 +501,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
     # #
 
         "Readout_Optimization":{
-            "steps": 1000, # shots
+            "steps": 3000, # shots
             "py_avg": 1,
             "gain_start" : [0, 0, 0, 0],
             "gain_stop" : [1, 0, 0, 0],

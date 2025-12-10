@@ -70,7 +70,7 @@ class EF_AmplitudeRabiExperiment:
             # else:
             #     iq_list = amp_rabi.acquire(self.experiment.soc, rounds=self.config["rounds"],
             #                                progress=self.qick_verbose)
-            iq_list = amp_rabi.acquire(self.experiment.soc, rounds=self.config["rounds"], progress=self.qick_verbose)
+            iq_list = amp_rabi.acquire(self.experiment.soc,  progress=self.qick_verbose)
             iq_list = iq_list[0][0].T
             I = (iq_list[0])
             Q = (iq_list[1])

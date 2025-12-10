@@ -12,7 +12,7 @@ import logging
 import visdom
 import gc, copy
 import time
-sys.path.append(os.path.abspath("/home/qubituser/Documents/GitHub/tprocv2_demos/qick_tprocv2_experiments_mux/"))
+sys.path.append(os.path.abspath("/home/kanyang/Github/4x2Loud_tprocV2"))
 from section_001_time_of_flight import TOFExperiment
 from section_002_res_spec_ge_mux import ResonanceSpectroscopy
 from section_002_res_spec_ef import ResonanceSpectroscopyEF
@@ -36,7 +36,7 @@ from expt_config import expt_cfg, list_of_all_qubits, tot_num_of_qubits, FRIDGE
 ################################################ Run Configurations ####################################################
 st = time.time()
 #
-n= 1000000
+n= 1# 1000000
 pre_optimize = False
 freq_offset_steps = 10
 ssf_avgs_per_opt_pt = 5
@@ -46,8 +46,8 @@ save_figs = True                     # save plots for everything as you go along
 live_plot = False                    # for live plotting do "visdom" in comand line and then open http://localhost:8097/ on firefox
 fit_data = True                      # fit the data here and save or plot the fits?
 save_data_h5 = True                  # save all of the data to h5 files?
-verbose = True                       # print everything to the console in real time, good for debugging, bad for memory
-qick_verbose = True                  # qick verbose prints the progress bar for each qick experiment as it is happening (the red bar that fills out as more experiment rounds/reps are being done)
+verbose = False                       # print everything to the console in real time, good for debugging, bad for memory
+qick_verbose = False                  # qick verbose prints the progress bar for each qick experiment as it is happening (the red bar that fills out as more experiment rounds/reps are being done)
 debug_mode = True                    # if True, it disables the continuing function of RR if an error pops up in a class -- errors now stop the RR script
 thresholding = False                 # use internal QICK threshold for ratio of Binary values on y for rabi/t1/t2r/t2e, or analog avg when false
 increase_qubit_reps = False          # if you want to increase the reps for a qubit, set to True
@@ -55,24 +55,21 @@ unmask = True                        # Do you want to use the unmasking feature 
 qubit_to_increase_reps_for = 0       # only has impact if previous line is True
 multiply_qubit_reps_by = 2           # only has impact if the line two above is True
 
-Qs_to_look_at = [1]     # only list the qubits you want to do the RR for
+Qs_to_look_at = [2]# [0,1,2,3,4,5]     # only list the qubits you want to do the RR for
 
 #Data saving info
-run_name = 'bob_run_started_Aug_23'
-device_name = 'squill'
-substudy_txt_notes = ('getting coherence  working')
-study ='increase_sigma_q2_optimizatioin'
-sub_study = 'rr'
+
 
 # set which of the following you'd like to run to 'True'
-run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss":  True, "rabi":  True, "ss_gef": False, "test_act": False, "fh_rabi": False,
-             "t1":  True, "t2r": True, "t2r_correction":True, "t2e":  True, "ef_res_spec": True, "ef_q_spec": False, "fh_q_spec": False, "rabi_pop_meas": False, "ef_Rabi": False, "ef_ss": False}
+run_flags = {"tof": False, "res_spec": False, "q_spec":False, "ss":  False, "rabi": False, "ss_gef": False, "test_act": False, "fh_rabi": False,
+             "t1":  True, "t2r": False, "t2r_correction":False, "t2e":  False, "ef_res_spec": False, "ef_q_spec": False, "fh_q_spec": False, "rabi_pop_meas": False, "ef_Rabi": False, "ef_ss": False}
 
+print('run_flags["rabi"]', run_flags["rabi"])
 
 # optimization outputs from qick board, unmasking set to true
-res_leng_vals = [10]*6#[5,4.2,8.3,7.9,7.5,15]
-res_gain = [0.15,0.15, 0.2, 0.2, 0.15, 0.15]
-freq_offsets = [0, -0.15, -0.15,-0.15, -0.15, -0.15]
+res_leng_vals = [5]*6#[5, 4.2, 1.5, 7.9, 7.5, 15]
+res_gain =  [0.05, 0.03, 0.038, 0.01, 0.01, 0.01]
+freq_offsets = [0, 0, 0,0.0333, -0.15, -0.15]
 
 qubit_freqs_ef = [None]*6
 increase_steps_to_ef = 600
@@ -84,11 +81,22 @@ figure_quality = 200
 
 data_set = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
-if not os.path.exists(f"M:/_Data/20250822 - Olivia/{run_name}/"):
-    os.makedirs(f"M:/_Data/20250822 - Olivia/{run_name}/")
-if not os.path.exists(f"M:/_Data/20250822 - Olivia/{run_name}/{device_name}/"):
-    os.makedirs(f"M:/_Data/20250822 - Olivia/{run_name}/{device_name}/")
-studyFolder = os.path.join(f"M:/_Data/20250822 - Olivia/{run_name}/{device_name}/", study)
+run_name = 'run5'
+device_name = 'rfsoc-4x2-loopback'  # 'saph-6transmon'#  'sil-6transmon'
+substudy_txt_notes = ('Test-Loopback')# ('This data was taken after reverting back to only 1 channel on the qick box. T1 shots saved as well as averaged IQ data.\n') # Initial qubit checkouts quiet run 8
+
+################################################ Data Saving Setup ##################################################
+# Folders
+study = 'tests-round_robin' #qubit_checkouts
+sub_study ='tests'# 'source_on_25dBDAC' #pre_AB_paper_data_still_optimizing, two_photon_peak_search, AB_Paper_Data_24hrs, ABpaperdata3rdbatch_21dB_DACatten_Q1to5_t1shots_optional
+#ABpaperdata3rdbatch_21dB_DACatten_Q1to6_t1shots_optional, ABpaperdata_21dB_DACatten_Q1to6_t1shots_optional_newopt, 18dB_DAC_testdata_allQs_exceptQ4, cooldown_run8b_19dB_DAC_allQs
+data_set = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+if not os.path.exists(f"/data/QICK_data/{run_name}/"):
+    os.makedirs(f"/data/QICK_data/{run_name}/")
+if not os.path.exists(f"/data/QICK_data/{run_name}/{device_name}/"):
+    os.makedirs(f"/data/QICK_data/{run_name}/{device_name}/")
+studyFolder = os.path.join(f"/data/QICK_data/{run_name}/{device_name}/", study)
 if not os.path.exists(studyFolder):
     os.makedirs(studyFolder)
 subStudyFolder = os.path.join(studyFolder, sub_study)
@@ -266,45 +274,45 @@ if pre_optimize:
         return optimal_offset, ssf_dict
     ################################################## Simple Optimization ###############################################
     for Q in Qs_to_look_at:
-        try:
-            experiment = QICK_experiment(
-                optimizationFolder,
-                DAC_attenuator1=15,
-                DAC_attenuator2=10,
-                ADC_attenuator=17,
-                fridge=FRIDGE
-            )
-            # Set resonator configuration for this qubit
-            experiment.readout_cfg['res_gain_ge'] = res_gain[Q]
-            experiment.readout_cfg['res_length'] = res_leng_vals[Q]
+       # try:
+        experiment = QICK_experiment(
+            optimizationFolder,
+            DAC_attenuator1=15,
+            DAC_attenuator2=10,
+            ADC_attenuator=17,
+            fridge=FRIDGE
+        )
+        # Set resonator configuration for this qubit
+        experiment.readout_cfg['res_gain_ge'] = res_gain[Q]
+        experiment.readout_cfg['res_length'] = res_leng_vals[Q]
 
-            res_data = create_data_dict(res_keys, save_r, list_of_all_qubits)
-            res_spec = ResonanceSpectroscopy(Q, tot_num_of_qubits, optimizationFolder, 0,
-                                             save_figs=True, experiment=experiment, verbose=verbose,
-                                             logger=rr_logger, qick_verbose=True)
-            res_freqs, freq_pts, freq_center, amps, sys_config_rspec = res_spec.run()
-            experiment.readout_cfg['res_freq_ge'] = res_freqs[Q]
-            rr_logger.info(f"g-e ResSpec for qubit {Q}: {res_freqs}")
+        res_data = create_data_dict(res_keys, save_r, list_of_all_qubits)
+        res_spec = ResonanceSpectroscopy(Q, tot_num_of_qubits, optimizationFolder, 0,
+                                         save_figs=True, experiment=experiment, verbose=verbose,
+                                         logger=rr_logger, qick_verbose=True)
+        res_freqs, freq_pts, freq_center, amps, sys_config_rspec = res_spec.run()
+        experiment.readout_cfg['res_freq_ge'] = res_freqs[Q]
+        rr_logger.info(f"g-e ResSpec for qubit {Q}: {res_freqs}")
 
-            res_data[Q]['Dates'][0] = (
-                time.mktime(datetime.datetime.now().timetuple()))
-            res_data[Q]['freq_pts'][0] = freq_pts
-            res_data[Q]['freq_center'][0] = freq_center
-            res_data[Q]['Amps'][0] = amps
-            res_data[Q]['Found Freqs'][0] = res_freqs
-            res_data[Q]['Batch Num'][0] = 0
-            res_data[Q]['Exp Config'][0] = expt_cfg
-            res_data[Q]['Syst Config'][0] = sys_config_rspec
+        res_data[Q]['Dates'][0] = (
+            time.mktime(datetime.datetime.now().timetuple()))
+        res_data[Q]['freq_pts'][0] = freq_pts
+        res_data[Q]['freq_center'][0] = freq_center
+        res_data[Q]['Amps'][0] = amps
+        res_data[Q]['Found Freqs'][0] = res_freqs
+        res_data[Q]['Batch Num'][0] = 0
+        res_data[Q]['Exp Config'][0] = expt_cfg
+        res_data[Q]['Syst Config'][0] = sys_config_rspec
 
-            saver_res = Data_H5(optimizationFolder, res_data, 0, save_r)  # save
-            saver_res.save_to_h5('res_ge')
-            del saver_res
-            del res_data
-            res_data = create_data_dict(res_keys, save_r, list_of_all_qubits)  # initialize again to a blank for saftey
-            del res_spec
-        except Exception as e:
-            rr_logger.exception(f"g-e ResSpec error on qubit {Q} : {e}")
-            continue
+        saver_res = Data_H5(optimizationFolder, res_data, 0, save_r)  # save
+        saver_res.save_to_h5('res_ge')
+        del saver_res
+        del res_data
+        res_data = create_data_dict(res_keys, save_r, list_of_all_qubits)  # initialize again to a blank for saftey
+        del res_spec
+       # except Exception as e:
+       #     rr_logger.exception(f"g-e ResSpec error on qubit {Q} : {e}")
+       #     continue
         ############ g-e Qubit Spec ##############
         qspec_data = create_data_dict(qspec_keys, save_r, list_of_all_qubits)
         try:
@@ -516,6 +524,7 @@ while j < n:
         ###################################################### g-e Rabi ####################################################
         if run_flags["rabi"]:
             # try:
+            print('run_flags["rabi"]', run_flags["rabi"])
             rabi = AmplitudeRabiExperiment(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j, signal, save_figs=save_figs,save_shots=False,
                                            experiment = experiment, live_plot = live_plot,
                                            increase_qubit_reps = increase_qubit_reps,

@@ -1,7 +1,7 @@
 from qick import *
 import sys
 import os
-sys.path.append(os.path.abspath("/home/qubituser/Documents/GitHub/tprocv2_demos/qick_tprocv2_experiments_mux/"))
+sys.path.append(os.path.abspath("/home/kanyang/GitHub/4x2Loud_tprocV2"))
 from socProxy import makeProxy
 import os
 import datetime
@@ -13,7 +13,7 @@ import numpy as np
 class QICK_experiment:
     def __init__(self, folder, DAC_attenuator1 = 10, DAC_attenuator2 = 15, qubit_DAC_attenuator1 = 5,
                                      qubit_DAC_attenuator2 = 4, ADC_attenuator = 17, fridge = None):
-        if fridge == "QUIET" or fridge == "BOB":
+        if fridge == "QUIET" or fridge == "BOB" or  fridge == "LOUD":
             # Where do you want to save data
             self.outerFolder = folder
             self.create_folder_if_not_exists(self.outerFolder)
@@ -67,14 +67,14 @@ class QICK_experiment:
 
             # Readout Configuration
             self.readout_cfg = {
-                "trig_time": 0.4,  # [Clock ticks] - get this value from TOF experiment (updated by Sara July 22 2025 QICK box)
+                "trig_time": 0.375,  # [Clock ticks] - get this value from TOF experiment (updated by Sara July 22 2025 QICK box)
 
                 # Changes related to the resonator output channel
                 "mixer_freq": 6000,  # [MHz]
                 #"res_freq_ge": [6217, 6276, 6335, 6407, 6476, 6538],  # MHz, run 5
                 #'res_freq_ge': [6217.011, 6275.7973, 6335.1068, 6407.052, 6476.1091, 6538], # Arianna 3/27/
                 #'res_freq_ge': [6216.811, 6275.9373, 6335, 6407.0338, 6475.8835, 6538], #Joyce 3/11
-                'res_freq_ge': [7149,7171,7204,7228.9, 7264.31,7287.5],#[7148.588, 7170.546, 7203.351, 7228.059, 7263.744 ,7286.719], #updated by Kester for run 7, Qick board, 6418.4 R5
+                'res_freq_ge': [5660.75, 5774.8, 5865.06, 6177.78, 6251.09, 6329.14],#[7148.588, 7170.546, 7203.351, 7228.059, 7263.744 ,7286.719], #updated by Kester for run 7, Qick board, 6418.4 R5
                 #'res_freq_ge': [6219.097, 6284.55, 6343.95, 6414.934, 6418.4, 6547.25],  # updated by Kester for run 7, QICK box
 
                 # "res_freq_ge": [6191.419, 6216.1, 6292.361, 6405.77, 6432.759, 6468.481],  # MHz, run 4a
@@ -85,7 +85,7 @@ class QICK_experiment:
                 # "res_gain_ge": [1,1,0.7,0.7,0.7,1], #[0.4287450656184295, 0.4903077560386716, 0.4903077560386716, 0.3941941738241592, 0.3941941738241592, 0.4903077560386716],  # DAC units
                 # "res_freq_ef": [7149.44, 0, 0, 0, 0, 0], # [MHz]
                 # "res_gain_ef": [0.6, 0, 0, 0, 0, 0], # [DAC units]
-                "res_freq_ef": [6223.016, 6284.544, 6343.861, 6414.893, 6414.893, 6546.754],  # [MHz] updated by arianna for run 7
+                "res_freq_ef": [6223.016, 6284.544, 6343.861, 6414.893, 6414.893, 6546.9],  # [MHz] updated by arianna for run 7
                 "res_gain_ef": [0.95,0.9,0.95,0.55,0.55,0.95],  # [DAC units]
                 "res_freq_fh": [6223.016, 6284.544, 6343.861, 6414.893, 6414.893, 6546.754],  # [MHz]
                 "res_gain_fh": [0.95,0.9,0.95,0.55,0.55,0.95],  # [DAC units]
@@ -107,17 +107,17 @@ class QICK_experiment:
 
             # Qubit Configuration
             self.qubit_cfg = {
-                "qubit_freq_ge": [2780, 2980, 2885, 3096,3043.32, 3093],#[2766, 2980, 2873, 3096, 3043, 3093],  # Joyce 3/11
+                "qubit_freq_ge":[4169.72, 3457.08, 5060.7, 4643.19, 5188.13, 3502] , # [2780, 2980, 2885, 3096,3043.32, 3093],#[2766, 2980, 2873, 3096, 3043, 3093],  # Joyce 3/11
                 "qubit_freq_chevron_detuned_ge": [4189.7582, 3820.4723, 4161.3726, 4463.15226, 4471.43854, 4997.86], # Olivia May 17
                 "qubit_freq_ge_starked": [4189.737678, 3820.4723, 4161.3726, 4463.15226, 4471.4469, 4997.86], # Olivia 4/04 for zeno/stark tone
                 "fwhm_w01_starked": None, #for err bars
                 "fwhm_w01": None, #for err bars
 
-                "qubit_gain_ge": [0.003,0.002,0.002,0.0005,0.001, 0.001],# [0.007]*6, #[1] * 6,
+                "qubit_gain_ge": [0.05, 0.05,0.05, 0.025, 0.05,  0.03],# [0.003,0.002,0.002,0.0005,0.001, 0.001],# [0.007]*6, #[1] * 6,
                 "qubit_ampl_gain_ge": 0.025,
                 "qubit_pi_len": 0.11, # Olivia May 17th
                 # [0.4287450656184295, 0.4287450656184295, 0.4903077560386716, 0.6, 0.4903077560386716, 0.4287450656184295], # For spec pulse
-                "qubit_length_ge": 5,  # 15 [us] for spec Pulse
+                "qubit_length_ge": 0.5,  # 15 [us] for spec Pulse
                 "qubit_freq_ef": [4009.81, 3645.58, 3988.21, 4292.73, 4292.73, 4838.86], #Q4 not fixed, looks like it shifted quite a lot
                 # [MHz] Freqs of Qubit e/f Transition
                 "qubit_freq_fh": [4016.3, 3450.8, 3988.44, 4292.73, 4292.73, 4833.17],
@@ -131,12 +131,12 @@ class QICK_experiment:
                 "qubit_phase": 0,  # [deg]
                 #"sigma": [0.15]*6,  # [us] for Gaussian Pulse (5+10 DAC atten for qubit)
                 "sigma_ampl": [0.03, 0.03, 0.05, 0.04, 0.05, 0.05], #DAC 0 04/07
-                "sigma": [0.28, 0.25, 0.22, 0.25, 0.15, 0.07],  # DAC 2 04/07 [us] for Gaussian Pulse (5+10 DAC atten for qubit). Updated on 7/17 by Arianna
+                "sigma": [0.05, 0.03, 0.05, 0.05,0.05, 0.05],  # DAC 2 04/07 [us] for Gaussian Pulse (5+10 DAC atten for qubit). Updated on 7/17 by Arianna
                 #"sigma": [0.05, 0.09, 0.07, 0.065, 0.09, 0.3],  # Goal: cut sigma in half [us] for Gaussian Pulse (5+4 DAC atten for qubit)
                 # "pi_amp": [0.92, 0.87, 0.75, 0.73, 0.77, 0.78], # old RR values
                 "sigma_ef": [0.15, 0.2, 0.25, 0.29, 0.28, 0.5],  # [us] for Gaussian Pulse, #Arianna 3/27
                 "sigma_fh": [0.15, 0.21, 0.25, 0.29, 0.28, 0.5],  # [us] for Gaussian Pulse, #Arianna 3/27
-                "pi_amp": [0.067,0.067,0.067, 0.067, 0.067, 0.067], #Joyce 3/11
+                "pi_amp": [0.15,0.745,0.628, 0.602, 0.067, 0.067], #Joyce 3/11
                 "pi_amp_ampl": [0.5942, 0.634499, 0.76542, 0.7754, 0.55393, 0.9], # Joyce 04/07 DAC 0
                 #"pi_amp": [1.0, 0.93, 0.77, 0.8, 0.81, 0.9], # Eyeballed by Sara today (5+10 DAC atten for qubit)
                 #"pi_amp": [0.7, 0.95, 0.75, 0.78, 0.77, 0.8],  # With shorter sigma (5+4 DAC instead of 5+5 DAC atten for qubit)

@@ -48,7 +48,7 @@ class FHQubitSpectroscopy:
         if self.live_plot:
             efI, efQ, effreqs = self.live_plotting(efqspec, self.experiment.soc)
         else:
-            efiq_list = efqspec.acquire(self.experiment.soc, rounds=self.exp_cfg["rounds"], progress=True)
+            efiq_list = efqspec.acquire(self.experiment.soc,  progress=True)
             efiq_list = efiq_list[0][0].T
             efI = (efiq_list[0])
             efQ = (efiq_list[1])

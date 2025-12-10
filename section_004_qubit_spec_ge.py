@@ -13,7 +13,7 @@ class QubitSpectroscopy:
     def __init__(self, QubitIndex, number_of_qubits,  outerFolder,  round_num, signal, save_figs, experiment = None,
                  live_plot = None, verbose = False, logger = None, qick_verbose=True, increase_reps = False,
                  increase_reps_to = 500, plot_fit=True, zeno_stark=False, zeno_stark_pulse_gain=None,
-                 ext_q_spec=False, high_gain_q_spec=False, fit_data=True, unmasking_resgain = False):
+                 ext_q_spec=False, high_gain_q_spec=False, fit_data=False, unmasking_resgain = False):
 
         self.qick_verbose = qick_verbose
         self.QubitIndex = QubitIndex
@@ -74,16 +74,17 @@ class QubitSpectroscopy:
             self.logger.info(f'Q {self.QubitIndex + 1} Round {self.round_num} Qubit Spec configuration: {self.config}')
 
     def run(self,return_fwhm=False, scaling=False):
+        print(' self.expt_name', self.expt_name)
 
         if self.increase_reps:
             self.config['reps'] = self.increase_reps_to
-        qspec = PulseProbeSpectroscopyProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay=0.5, cfg=self.config)
+        qspec = PulseProbeSpectroscopyProgram(self.experiment.soccfg, reps=self.config['reps'],  final_delay=0.5, cfg=self.config)
 
         # iq_lists= []
         if self.live_plot:
             I, Q, freqs = self.live_plotting(qspec)
         else:
-            iq_list = qspec.acquire(self.experiment.soc, rounds=self.exp_cfg["rounds"], progress=self.qick_verbose)
+            iq_list = qspec.acquire(self.experiment.soc,  soft_avgs=self.config['rounds'],  progress=self.qick_verbose)
             iq_list = iq_list[0][0].T
             I = (iq_list[0])
             Q = (iq_list[1])
@@ -194,10 +195,13 @@ class QubitSpectroscopy:
 
             freqs = np.array(freqs)
             freq_q = freqs[np.argmax(I)]
+            mean_y_data,y_data_fit, largest_amp_curve_mean, largest_amp_curve_fwhm, fit_err = None,  None,  None,  None,  None
 
-            mean_y_data,y_data_fit, largest_amp_curve_mean, largest_amp_curve_fwhm, fit_err = self.fit_lorenzian_scaled(
-                ydata, freqs,
-                freq_q, sigma_guess)
+            if self.plot_fit:
+                mean_y_data,y_data_fit, largest_amp_curve_mean, largest_amp_curve_fwhm, fit_err = self.fit_lorenzian_scaled(
+                ydata, freqs, freq_q, sigma_guess)
+
+            
 
             # Check if the returned values are all None
             if (mean_y_data is None and y_data_fit is None
