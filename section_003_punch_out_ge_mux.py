@@ -1,4 +1,4 @@
-import matplotlib.pyplot as plt
+import matplotlicb.pyplot as plt
 from qick.asm_v2 import AveragerProgramV2
 from tqdm import tqdm
 from build_state import *
@@ -71,8 +71,8 @@ class PunchOut:
             return float(np.abs(arr).mean())
 
     def sweep_power(self, soccfg, soc, fpts, fcenter, start_gain, stop_gain, num_points):
-        power_sweep = np.linspace(0.005, 0.065, 5)         #np.linspace(start_gain, stop_gain, num_points)
-        N = 5# int(self.number_of_qubits)
+        power_sweep = np.linspace(0.03 0.05, 5)         #np.linspace(start_gain, stop_gain, num_points)
+        N = 6# int(self.number_of_qubits)
         start_q=0
         F = len(fpts)
         P = len(power_sweep)

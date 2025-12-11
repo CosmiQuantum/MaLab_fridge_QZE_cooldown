@@ -36,7 +36,7 @@ from expt_config import expt_cfg, list_of_all_qubits, tot_num_of_qubits, FRIDGE
 ################################################ Run Configurations ####################################################
 st = time.time()
 #
-n= 1# 1000000
+n= 5# 1000000
 pre_optimize = False
 freq_offset_steps = 10
 ssf_avgs_per_opt_pt = 5
@@ -55,20 +55,20 @@ unmask = True                        # Do you want to use the unmasking feature 
 qubit_to_increase_reps_for = 0       # only has impact if previous line is True
 multiply_qubit_reps_by = 2           # only has impact if the line two above is True
 
-Qs_to_look_at = [2]# [0,1,2,3,4,5]     # only list the qubits you want to do the RR for
+Qs_to_look_at =  [2] # [0,1,2,3,4,5]     # only list the qubits you want to do the RR for
 
 #Data saving info
 
 
 # set which of the following you'd like to run to 'True'
-run_flags = {"tof": False, "res_spec": False, "q_spec":False, "ss":  False, "rabi": False, "ss_gef": False, "test_act": False, "fh_rabi": False,
-             "t1":  True, "t2r": False, "t2r_correction":False, "t2e":  False, "ef_res_spec": False, "ef_q_spec": False, "fh_q_spec": False, "rabi_pop_meas": False, "ef_Rabi": False, "ef_ss": False}
+run_flags = {"tof": False, "res_spec": False, "q_spec":False, "ss":  True, "rabi": False, "ss_gef": False, "test_act": False, "fh_rabi": False,
+             "t1":  False, "t2r": False, "t2r_correction":False, "t2e":  False, "ef_res_spec": False, "ef_q_spec": False, "fh_q_spec": False, "rabi_pop_meas": False, "ef_Rabi": False, "ef_ss": False}
 
 print('run_flags["rabi"]', run_flags["rabi"])
 
 # optimization outputs from qick board, unmasking set to true
 res_leng_vals = [5]*6#[5, 4.2, 1.5, 7.9, 7.5, 15]
-res_gain =  [0.05, 0.03, 0.038, 0.01, 0.01, 0.01]
+res_gain =  [0.05, 0.53, 0.035, 0.05, 0.05, 0.05]
 freq_offsets = [0, 0, 0,0.0333, -0.15, -0.15]
 
 qubit_freqs_ef = [None]*6
@@ -82,8 +82,8 @@ figure_quality = 200
 data_set = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 run_name = 'run5'
-device_name = 'rfsoc-4x2-loopback'  # 'saph-6transmon'#  'sil-6transmon'
-substudy_txt_notes = ('Test-Loopback')# ('This data was taken after reverting back to only 1 channel on the qick box. T1 shots saved as well as averaged IQ data.\n') # Initial qubit checkouts quiet run 8
+device_name = 'Silicon'  # 'saph-6transmon'#  'sil-6transmon'
+substudy_txt_notes = ('5btuneup')# ('This data was taken after reverting back to only 1 channel on the qick box. T1 shots saved as well as averaged IQ data.\n') # Initial qubit checkouts quiet run 8
 
 ################################################ Data Saving Setup ##################################################
 # Folders
