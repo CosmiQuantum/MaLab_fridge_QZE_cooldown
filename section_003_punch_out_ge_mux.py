@@ -1,4 +1,4 @@
-import matplotlicb.pyplot as plt
+import matplotlib.pyplot as plt
 from qick.asm_v2 import AveragerProgramV2
 from tqdm import tqdm
 from build_state import *
@@ -12,7 +12,7 @@ from section_002_res_spec_ge_mux import SingleToneSpectroscopyProgram
 
 
 class PunchOut:
-    def __init__(self, QubitIndex, number_of_qubits, outerFolder, experiment, unmasking_resgain=False):
+    def __init__(self, QubitIndex, number_of_qubits, outerFolder, experiment, Q_list, unmasking_resgain=False):
         self.outerFolder = outerFolder
         self.expt_name = "res_spec"
         self.number_of_qubits = number_of_qubits
@@ -21,6 +21,7 @@ class PunchOut:
         self.QubitIndex = QubitIndex
         self.experiment = experiment
         self.exp_cfg = expt_cfg[self.expt_name]
+        self.Q_list = Q_list
 
         if unmasking_resgain:
             self.exp_cfg["list_of_all_qubits"] = [self.QubitIndex]
@@ -38,7 +39,7 @@ class PunchOut:
 
        
 
-        resonance_vals, power_sweep, frequency_sweeps,  start_q, N = self.sweep_power(
+        resonance_vals, power_sweep, frequency_sweeps,  start_q, N, qlist = self.sweep_power(
             soccfg, soc, fpts, fcenter, start_gain, stop_gain, num_points
         )
 
@@ -49,10 +50,10 @@ class PunchOut:
 
         if plot_Center_shift:
 
-            self.plot_center_shift(resonance_vals, power_sweep, DAC_att, ADC_att ,  start_q, N)
+            self.plot_center_shift(resonance_vals, power_sweep, DAC_att, ADC_att ,  start_q, N, self.Q_list)
 
         if plot_res_sweeps:
-            self.plot_res_sweeps( start_q, fpts, fcenter, frequency_sweeps, power_sweep, DAC_att, ADC_att)
+            self.plot_res_sweeps( start_q, fpts, fcenter, frequency_sweeps, power_sweep, DAC_att, ADC_att, self.Q_list)
 
         return
 
@@ -71,8 +72,9 @@ class PunchOut:
             return float(np.abs(arr).mean())
 
     def sweep_power(self, soccfg, soc, fpts, fcenter, start_gain, stop_gain, num_points):
-        power_sweep = np.linspace(0.03 0.05, 5)         #np.linspace(start_gain, stop_gain, num_points)
-        N = 6# int(self.number_of_qubits)
+        power_sweep = np.linspace(start_gain, stop_gain, num_points)
+        qlist = self.Q_list
+        N = 5# int(self.number_of_qubits)
         start_q=0
         F = len(fpts)
         P = len(power_sweep)
@@ -92,7 +94,7 @@ class PunchOut:
 
             freq_res_for_power = []
 
-            for qi in range(start_q,start_q+N):
+            for i, qi in enumerate(qlist):
                 self.QubitIndex = qi
 
                 fpts = self.exp_cfg["start"] + self.exp_cfg["step_size"] * np.arange(self.exp_cfg["steps"])
@@ -127,7 +129,7 @@ class PunchOut:
 
 
 
-                frequency_sweeps[pi, qi, :] = amps
+                frequency_sweeps[pi, i, :] = amps
 
                 min_idx = int(np.argmin(amps))
                 freq_res_for_power.append(round(float(fpts[min_idx] + fcenter), 3))
@@ -142,9 +144,9 @@ class PunchOut:
         print('2')
         print('2')
 
-        return resonance_vals, power_sweep, frequency_sweeps,  start_q,  N
+        return resonance_vals, power_sweep, frequency_sweeps,  start_q,  N, qlist
 
-    def plot_res_sweeps(self, start_q, fpts, fcenter, frequency_sweeps, power_sweep, DAC_att, ADC_att):
+    def plot_res_sweeps(self, start_q, fpts, fcenter, frequency_sweeps, power_sweep, DAC_att, ADC_att,qlist):
         P, N, F = frequency_sweeps.shape
 
         plt.figure(figsize=(12, 8))
@@ -157,11 +159,11 @@ class PunchOut:
             'legend.fontsize': 10,
         })
 
-        for qi in range( start_q,  start_q+N):
-            plt.subplot(2, 3, qi + 1)
+        for i, qi in enumerate(qlist):
+            plt.subplot(2, 3, i + 1)
             x = fpts + float(fcenter[qi])
             for pi in range(P):
-                plt.plot(x, frequency_sweeps[pi, qi, :], '-', linewidth=1.5,
+                plt.plot(x, frequency_sweeps[pi, i, :], '-', linewidth=1.5,
                          label=str(round(power_sweep[pi], 3)))
             plt.xlabel("Frequency (MHz)", fontweight='normal')
             plt.ylabel("Amplitude (a.u)", fontweight='normal')
@@ -227,7 +229,7 @@ class PunchOut:
         del punchout_data
         plt.close()
         return
-    def plot_center_shift(self, resonance_vals, power_sweep,DAC_att, ADC_att,  start_q, N ):
+    def plot_center_shift(self, resonance_vals, power_sweep,DAC_att, ADC_att,  start_q, N , qlist):
         plt.figure(figsize=(12, 8))
 
         plt.rcParams.update({
@@ -239,13 +241,13 @@ class PunchOut:
             'legend.fontsize': 14,
         })
 
-        for i in range( start_q,  start_q+N):
+        for i, qi in enumerate(qlist):
             plt.subplot(2, 3, i + 1)
             plt.plot(power_sweep, [six_resonance_vals[i] for six_resonance_vals in resonance_vals], '-', linewidth=1.5)
 
             plt.xlabel("Probe Gain", fontweight='normal')
             plt.ylabel("Freq (MHz)", fontweight='normal')
-            plt.title(f"Resonator {i + 1}", pad=10)
+            plt.title(f"Resonator {qi + 1}", pad=10)
 
         plt.suptitle(f"Frequency vs Probe Gain, _DAC_Att_{DAC_att}, ADC_ATT_{ADC_att}", fontsize=24, y=0.95)
 

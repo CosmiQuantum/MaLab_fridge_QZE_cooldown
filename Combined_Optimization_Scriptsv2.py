@@ -20,6 +20,7 @@ import h5py
 import time
 import matplotlib.pyplot as plt
 import copy
+from tqdm import tqdm
 
 
 signal = 'None'        #'I', or 'Q' depending on where the signal is (after optimization). Put 'None' if no optimization has happened
@@ -104,8 +105,8 @@ Qs = [1]
 
 #Change for NEXUS vs QUIET
 res_leng_vals = [1.5]*6
-res_gain = [0.15,0.03, 0.042, 0.066, 0.2833, 0.15]
-freq_offsets = [0, 0, 0.1, 0.233, -0.08, -0.15]
+res_gain = [0.15,0.1157, 0.042, 0.066, 0.2833, 0.15]
+freq_offsets = [0, -0.25, 0.1, 0.233, -0.08, -0.15]
 punch_out_vals = [0.075] *6
 
 optimal_lengths = [None] * 6 # creates list where the script will be storing the optimal readout lengths for each qubit. We currently have 6 qubits in total.
@@ -115,7 +116,7 @@ j=0 #round number, from RR code. Not really used here since we just run it once 
 
 lengs = np.arange(0.5, 15, 0.5)
 start=time.time()
-for QubitIndex in Qs:
+for QubitIndex in tqdm(Qs):
     # Get the config for this qubit
     experiment = QICK_experiment(outerFolder, DAC_attenuator1 = 10, DAC_attenuator2 = 15, qubit_DAC_attenuator1 = 5,
                                      qubit_DAC_attenuator2 = 4, ADC_attenuator = 17,
@@ -275,7 +276,7 @@ for QubitIndex in Qs:
                 except:
                     continue
 
-                print(ss_config)
+                #print(ss_config)
                 fids.append(fid)
 
                 # Append IQ data for each loop
@@ -292,6 +293,7 @@ for QubitIndex in Qs:
 
             # Calculate average and RMS for fidelities across loops
             avg_fid = np.mean(fids)
+            print(avg_fid)
             rms_fid = np.std(fids)
             avg_fids.append(avg_fid)
             rms_fids.append(rms_fid)
@@ -337,7 +339,7 @@ for QubitIndex in Qs:
     del avg_fids, rms_fids, avg_ground_iq, avg_excited_iq, loop_group, length_group
 
     #---------------------Res Gain and Res Freq Sweeps------------------------
-    # optimal_lengths = [1.5]*6#[5,4.2,8.3,7.9,7.5,6.4]
+    # optimal_lengths = [5]*6#[5,4.2,8.3,7.9,7.5,6.4]
     # date_str = str(datetime.date.today())
     # output_folder = outerFolder + "/study_data/Data_h5/2D_Gain_Freq_Sweeps/"
     # # Ensure the output folder exists
@@ -348,15 +350,15 @@ for QubitIndex in Qs:
     # #     gain_range = [0.8, 1.0]
     # # elif QubitIndex == 3 or QubitIndex == 4:
     # #     gain_range = [0.46,0.66]  # Gain range in a.u.
-    # gain_range=[0.01,0.07]#res_gain[QubitIndex]]
-    # freq_steps = 15
-    # gain_steps =15
+    # gain_range=[0.09,0.12]#res_gain[QubitIndex]]
+    # freq_steps = 7
+    # gain_steps =7
 
     # print(f'Starting Qubit {QubitIndex + 1} res gain and res freq measurements.')
     # # Select the reference frequency for the current resonator
     # reference_frequency = experiment.readout_cfg['res_freq_ge']#base_res_freq
 
-    # freq_range = [reference_frequency -0.5, reference_frequency + 0.5]# Frequency range in MHz
+    # freq_range = [reference_frequency -0.25, reference_frequency + 0.25]# Frequency range in MHz
     # #freq_range = [reference_frequency -0.2, (reference_frequency + 0.2) + 1]  # Frequency range in MHz
 
     # experiment = copy.deepcopy(tuned_experiment)

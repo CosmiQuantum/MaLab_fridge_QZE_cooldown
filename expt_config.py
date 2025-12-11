@@ -3,8 +3,8 @@ import numpy as np
 FRIDGE = "LOUD"
 
 if FRIDGE == "QUIET" or FRIDGE == "BOB" or FRIDGE == "LOUD":
-    VNA_res = np.array([6223.016, 6284.544, 5866.50, 6177.7, 6414.893, 6546.9])#[7148.588, 7170.546, 7203.351, 7228.059, 7263.744 ,7286.719])#*1000  # run 5
-    VNA_qubit = np.array([4169.5, 3457.08, 5054.57, 5188.48, 4675.52, 3502]) #[2766, 2980, 2873, 3096, 3043, 3093] # Freqs of Qubit g/e Transition
+    VNA_res = np.array([6223.016, 6284.544, 6343.861, 6177.7, 6414.893, 6546.9])#[7148.588, 7170.546, 7203.351, 7228.059, 7263.744 ,7286.719])#*1000  # run 5
+    VNA_qubit = np.array([4169.5, 3462.7, 5054.87, 5188.48, 4675.52, 3502]) #[2766, 2980, 2873, 3096, 3043, 3093] # Freqs of Qubit g/e Transition
     ef_freqs = np.array([2616, 2830, 2723, 2946, 2893, 2943]) # Freqs of Qubit e/f Transition, updated for run 7
     fh_freqs = np.array([2466, 2680, 2573, 2796, 2743, 2793])
     # Set this for your experiment
@@ -22,11 +22,11 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB" or FRIDGE == "LOUD":
         },
 
         "res_spec": {
-            "reps": 100, #shots at one freq
+            "reps": 200, #shots at one freq
             "rounds": 1, #sweeps through each freq and average
-            "start": -2, #[MHz]
+            "start": -1, #[MHz]
             "step_size": 0.02,  # [MHz]
-            "steps": 200,#,200,#70
+            "steps": 100,#,200,#70
             "relax_delay": 5,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
@@ -41,7 +41,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB" or FRIDGE == "LOUD":
         },
 
         "qubit_spec_ge": {
-            "reps":2000,#10000
+            "reps":10000,#10000
             "rounds": 1,
             "start": list(VNA_qubit-5), # [MHz] -40
             "stop": list(VNA_qubit+5), # [MHz] +40
@@ -131,11 +131,11 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB" or FRIDGE == "LOUD":
         },
 
         "power_rabi_ge": {
-            "reps": 500,
+            "reps": 800,
             "rounds": 1,
             "start": 0, # [DAC units]
             "stop": 1,#0.085,  # [DAC units]
-            "steps": 300,
+            "steps": 100,
             "relax_delay": 500,# [us]
             "list_of_all_qubits": list_of_all_qubits,
         },

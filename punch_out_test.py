@@ -19,8 +19,8 @@ number_of_qubits = 6  #currently 4 for NEXUS, 6 for QUIET
 data_set = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 run_name = 'run5'
-device_name = 'Silicon'  # 'saph-6transmon'#  'sil-6transmon'
-substudy_txt_notes = ('Punch_Out_Test')# ('This data was taken after reverting back to only 1 channel on the qick box. T1 shots saved as well as averaged IQ data.\n') # Initial qubit checkouts quiet run 8
+device_name = 'rfsoc-4x2-loopback'  # 'saph-6transmon'#  'sil-6transmon'
+substudy_txt_notes = ('Test-Loopback')# ('This data was taken after reverting back to only 1 channel on the qick box. T1 shots saved as well as averaged IQ data.\n') # Initial qubit checkouts quiet run 8
 
 study = 'tests-round_robin' #qubit_checkouts
 sub_study ='tests'# 'source_on_25dBDAC' #pre_AB_paper_data_still_optimizing, two_photon_peak_search, AB_Paper_Data_24hrs, ABpaperdata3rdbatch_21dB_DACatten_Q1to5_t1shots_optional
@@ -81,11 +81,12 @@ DAC_att=DAC_att_1+DAC_att_2
 ADC_att=17
 from expt_config import FRIDGE
 experiment = QICK_experiment(outerfolder_plots, DAC_attenuator1 = DAC_att_1, DAC_attenuator2 = DAC_att_2, qubit_DAC_attenuator1 = 5 , qubit_DAC_attenuator2 = 4 ,ADC_attenuator = ADC_att, fridge=FRIDGE)
-Qubit_index= 0 #starts at 0
+Qubit_index= 3 #starts at 0
 Unmask = True
-punch_out   = PunchOut(Qubit_index, number_of_qubits, outerfolder_plots, experiment, Unmask)
+Q_list=[2]
+punch_out   = PunchOut(Qubit_index, number_of_qubits, outerfolder_plots, experiment, Q_list,  Unmask)
 
-start_gain, stop_gain, num_points =  0.01, 1.0, 4 # for QUIET 0.55, 0.775, 5 #
+start_gain, stop_gain, num_points =  0.04, 0.05, 5 # for QUIET 0.55, 0.775, 5 #
 #start_gain, stop_gain, num_points = 0.0, 0.8, 10 # for NEXUS
 
 punch_out.run(experiment.soccfg, experiment.soc, start_gain, stop_gain, num_points, DAC_att, ADC_att, plot_Center_shift = True, plot_res_sweeps = True)
