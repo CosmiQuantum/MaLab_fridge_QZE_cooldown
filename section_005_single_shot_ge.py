@@ -14,6 +14,7 @@ from expt_config import *
 from system_config import QICK_experiment
 import copy
 import os
+from tqdm import tqdm
 
 # Both g and e during the same experiment.
 class SingleShotProgram(AveragerProgramV2):
@@ -124,10 +125,10 @@ class SingleShotProgram_e(AveragerProgramV2):
                        phase=cfg['qubit_phase'],
                        gain=cfg['pi_amp'],
                        )
-        print('cfg[pi_amp]',cfg['pi_amp'])
-        print('cfg[qubit_freq_ge]', cfg['qubit_freq_ge'])
-        print('cfg[res_freq_ge]', cfg['res_freq_ge'])
-        print('cfg[res_gain_ge]', cfg['res_gain_ge'])
+        # print('cfg[pi_amp]',cfg['pi_amp'])
+        # print('cfg[qubit_freq_ge]', cfg['qubit_freq_ge'])
+        # print('cfg[res_freq_ge]', cfg['res_freq_ge'])
+        # print('cfg[res_gain_ge]', cfg['res_gain_ge'])
         self.add_loop("shotloop", cfg["steps"])  # number of total shots
 
     def _body(self, cfg):
@@ -1107,7 +1108,7 @@ class GainFrequencySweep:
 
         # Use the optimal readout length for the current qubit
         readout_length = self.optimal_lengths[self.qubit_index]
-        for freq_step in range(freq_steps):
+        for freq_step in tqdm(range(freq_steps)):
             freq = freq_range[0] + freq_step * freq_step_size
             #print('Running for res_freq: ', freq, '...')
             fid_results = []
@@ -1129,19 +1130,27 @@ class GainFrequencySweep:
                 save_figs = True
                 import time
 
-                while True:
-                    try:
-                        single_shot = SingleShot(
-                            self.qubit_index, self.number_of_qubits, self.output_folder,
-                            round_num, save_figs, fresh_experiment,
-                            unmasking_resgain=self.unmasking_resgain
-                        )
-                        fidelity = single_shot.fidelity_test(fresh_experiment.soccfg, fresh_experiment.soc)
-                        break  #it worked
-                    except Exception as e:
-                        print(f"[retry] SingleShot failed: {e}. Trying again in 2s…")
-                        time.sleep(2)
-                fid_results.append(fidelity)
+                fidlist=[]
+
+                for i in range(3):
+
+                    while True:
+                        try:
+                            single_shot = SingleShot(
+                                self.qubit_index, self.number_of_qubits, self.output_folder,
+                                round_num, save_figs, fresh_experiment,
+                                unmasking_resgain=self.unmasking_resgain
+                            )
+                            fidelity = single_shot.fidelity_test(fresh_experiment.soccfg, fresh_experiment.soc)
+                            break  #it worked
+                        except Exception as e:
+                            print(f"[retry] SingleShot failed: {e}. Trying again in 2s…")
+                    fidlist.append(fidelity)
+                fidlist=np.array(fidlist)
+                fid=np.mean(fidlist)
+                print('fid=',fid)
+                time.sleep(2)
+                fid_results.append(fid)
                 del fresh_experiment
                 del single_shot
 

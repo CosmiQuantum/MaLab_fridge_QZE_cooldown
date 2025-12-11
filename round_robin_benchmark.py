@@ -61,15 +61,15 @@ Qs_to_look_at = [2]# [0,1,2,3,4,5]     # only list the qubits you want to do the
 
 
 # set which of the following you'd like to run to 'True'
-run_flags = {"tof": False, "res_spec": False, "q_spec":False, "ss":  False, "rabi": False, "ss_gef": False, "test_act": False, "fh_rabi": False,
-             "t1":  True, "t2r": False, "t2r_correction":False, "t2e":  False, "ef_res_spec": False, "ef_q_spec": False, "fh_q_spec": False, "rabi_pop_meas": False, "ef_Rabi": False, "ef_ss": False}
+run_flags = {"tof": False, "res_spec": True, "q_spec":True, "ss":  False, "rabi": False, "ss_gef": False, "test_act": False, "fh_rabi": False,
+             "t1":  False, "t2r": False, "t2r_correction":False, "t2e":  False, "ef_res_spec": False, "ef_q_spec": False, "fh_q_spec": False, "rabi_pop_meas": False, "ef_Rabi": False, "ef_ss": False}
 
 print('run_flags["rabi"]', run_flags["rabi"])
 
 # optimization outputs from qick board, unmasking set to true
-res_leng_vals = [5]*6#[5, 4.2, 1.5, 7.9, 7.5, 15]
-res_gain =  [0.05, 0.03, 0.038, 0.01, 0.01, 0.01]
-freq_offsets = [0, 0, 0,0.0333, -0.15, -0.15]
+res_leng_vals = [7]*6#[5, 4.2, 1.5, 7.9, 7.5, 15]
+res_gain =  [0.05, 0.06, 0.038, 0.01, 0.01, 0.01]
+freq_offsets = [0, 0.1, 0,0.0333, -0.15, -0.15]
 
 qubit_freqs_ef = [None]*6
 increase_steps_to_ef = 600
