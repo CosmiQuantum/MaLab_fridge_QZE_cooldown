@@ -482,6 +482,11 @@ class starkT2RMeasurement:
         def q_shift_model(g, A, f0):
             return f0 + A * g ** 2
 
+        kappa = float([0.127, 0.109, 0.139, 0.183, 0.178, 0.174][self.QubitIndex])
+        f_q = np.asarray([2780, 2980, 2885, 3096, 3043.32, 3093][self.QubitIndex], dtype=float)
+        f_r = np.asarray([7149,7171,7204,7228.9, 7264.31,7287.5][self.QubitIndex], dtype=float)
+        Delta_r = 0#f_r - f_q
+
         # Rough initial guess for A and f0
         if np.ptp(gain_sweep) > 0:
             A_guess = (f_est[-1] - f_est[0]) / (
@@ -520,7 +525,7 @@ class starkT2RMeasurement:
 
         # --- Compute delta f and nbar (pointwise at the measured gains) ---
         delta_f_meas = f_est - f0_fit  # same units as f_est and chi
-
+        chi = np.abs(chi)
         # nbar = delta_f / (2 * chi)
         nbar_per_gain = delta_f_meas / (2.0 * chi)
         nbar_err = f_err / (2.0 * chi)
@@ -535,17 +540,15 @@ class starkT2RMeasurement:
         gamma_phi = 1.0 / (t2r_est + 1e-30)
         gamma_phi_err = t2r_err / (t2r_est ** 2 + 1e-30)
 
-        # Simple linear model Gamma_phi(nbar) = Gamma0 + B * nbar
-        def gamma_model(nbar, Gamma0, B):
-            return Gamma0 + B * nbar
+        # Measurement-induced dephasing model:
+        #   Gamma_phi(nbar) = Gamma0
+        #                   + (2 * nbar * kappa * chi^2) / (kappa^2/4 + chi^2 + Delta_r^2)
+        def gamma_model(nbar, Gamma0):
+            denom = (kappa**2) / 4.0 + chi**2 + Delta_r**2
+            Gamma_m = (2.0 * nbar * kappa * chi**2) / denom
+            return Gamma0 + Gamma_m
 
-        # Initial guesses
-        if np.ptp(nbar_per_gain) > 0:
-            B_guess = (gamma_phi[-1] - gamma_phi[0]) / (
-                    nbar_per_gain[-1] - nbar_per_gain[0] + 1e-12
-            )
-        else:
-            B_guess = 0.0
+        # Initial guess for background dephasing Gamma0
         Gamma0_guess = gamma_phi[0]
 
         try:
@@ -554,10 +557,10 @@ class starkT2RMeasurement:
                 nbar_per_gain,
                 gamma_phi,
                 sigma=gamma_phi_err,
-                p0=[Gamma0_guess, B_guess],
+                p0=[Gamma0_guess],
                 absolute_sigma=True
             )
-            Gamma0_fit, B_fit = popt_g
+            Gamma0_fit, = popt_g
             use_gamma_fit = True
         except Exception:
             use_gamma_fit = False
@@ -565,8 +568,9 @@ class starkT2RMeasurement:
         # Smooth nbar axis for the dephasing plot
         nbar_fit_gamma = np.linspace(np.min(nbar_per_gain),
                                      np.max(nbar_per_gain), 200)
+
         if use_gamma_fit:
-            gamma_fit = gamma_model(nbar_fit_gamma, Gamma0_fit, B_fit)
+            gamma_fit = gamma_model(nbar_fit_gamma, Gamma0_fit)
 
         # --- Plotting: three panels ---
         fig, (ax_f, ax_n, ax_g) = plt.subplots(3, 1, figsize=(6, 10))
@@ -603,10 +607,11 @@ class starkT2RMeasurement:
             label='data'
         )
         if use_gamma_fit:
-            ax_g.plot(nbar_fit_gamma, gamma_fit, 'r:', label='linear fit')
+            ax_g.plot(nbar_fit_gamma, gamma_fit, 'r:',
+                      label='shot-noise dephasing fit')
 
         ax_g.set_xlabel(r'$\bar{n}$ (photons)')
-        ax_g.set_ylabel(r'$\Gamma_\phi$ (1 / \mu s$)')
+        ax_g.set_ylabel(r'$\Gamma_\phi$ (1 / $\mu$ s)')
         ax_g.grid(True, alpha=0.3)
         ax_g.legend()
 
@@ -649,10 +654,7 @@ class starkT2RMeasurement:
         else:
             chi = self.config['chi'][self.QubitIndex]  # e.g. chi in MHz
 
-        # # Optional: you still have these if you want to use a more detailed model
-        # alpha = self.config['anharmonicity'][self.QubitIndex]
-        # ws = self.config['detuning']
-        # wq = self.config['qubit_freq_ge']
+
 
         # --- Model for fitting: simple quadratic vs gain ---
         # f(gain) = f0 + A * gain^2
@@ -701,6 +703,7 @@ class starkT2RMeasurement:
         # --- Compute delta f and nbar (pointwise at the measured gains) ---
         # Stark shift (relative to f0_fit) at each experimental gain
         delta_f_meas = f_est - f0_fit  # same units as f_est and chi
+        chi = np.abs(chi)
 
         # nbar = delta_f / (2 * chi)
         # If chi is negative, this will carry the sign; you can take abs if desired.

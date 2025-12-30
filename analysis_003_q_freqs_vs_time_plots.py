@@ -1269,7 +1269,7 @@ class QubitFreqsVsTime:
                     plt.close(fig2)
                     print(f"Saved individual spec for round {r_id}, date {dt_str} to: {out_indiv}")
 
-    def calculate_nbar(self, amps, gains, rounds, delay_times, chi_MHz=0.25, fit_gaussian=True, fit_lorentzian=True):
+    def calculate_nbar(self, amps, gains, rounds, delay_times, chi_MHz=0.274, fit_gaussian=True, fit_lorentzian=True):
         """
         Calculate nbar values without plotting.
         

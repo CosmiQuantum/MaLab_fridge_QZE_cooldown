@@ -3,15 +3,15 @@ import numpy as np
 FRIDGE = "BOB"
 
 if FRIDGE == "QUIET" or FRIDGE == "BOB":
-    VNA_res = np.array([7149,7171,7204,7228.9, 7264.31,7287.5])#[7148.588, 7170.546, 7203.351, 7228.059, 7263.744 ,7286.719])#*1000  # run 5
+    VNA_res = np.array([7149,7171,7204,7228.9, 7264.22,7287.5])#[7148.588, 7170.546, 7203.351, 7228.059, 7263.744 ,7286.719])#*1000  # run 5
     VNA_qubit = np.array([2780, 2980, 2885, 3096, 3043.32, 3093]) #[2766, 2980, 2873, 3096, 3043, 3093] # Freqs of Qubit g/e Transition
     ef_freqs = np.array([2616, 2830, 2723, 2946, 2893, 2943]) # Freqs of Qubit e/f Transition, updated for run 7
     fh_freqs = np.array([2466, 2680, 2573, 2796, 2743, 2793])
     # Set this for your experiment
     tot_num_of_qubits = 6
 
-    gain_start = 0.0001
-    gain_stop = 0.1#07
+    gain_start = 0.000001
+    gain_stop = 0.01
     gain_steps= 50
 
     list_of_all_qubits = list(range(tot_num_of_qubits))
@@ -357,16 +357,16 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "Ramsey_stark": {
-            "reps": 100,
-            "rounds": 1,
+            "reps": 300,
+            "rounds": 3,
             "start": 0.02,  # [us]
-            "stop": 10,  # [us]
-            "steps": 300,
+            "stop": 60,  # [us]
+            "steps": 1500,
             "start_gain": 0.0,
-            "end_gain": 0.03,
-            "gain_steps": 20,
-            "ramsey_freq": 1.2, #10 [MHz]
-            "relax_delay": 500,
+            "end_gain": 0.012,
+            "gain_steps": 100,
+            "ramsey_freq": 1.5, #1.5 [MHz]
+            "relax_delay": 2000,
             "wait_time": 0.0,  # [us]
             "stark_gain": 0.0,
             "detuning": -20, # [MHz]

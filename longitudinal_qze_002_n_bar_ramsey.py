@@ -48,7 +48,7 @@ run_name = 'bob_run_started_Aug_23'
 device_name = 'squill'
 substudy_txt_notes = ('testing')
 
-study = 'ramsey_n_bar_calibration'
+study = 'ramsey_n_bar_calibration_more_fringes'
 sub_study = f'run'
 ################################################ optimization outputs ##################################################
 # Optimization parameters for resonator spectroscopy
@@ -420,11 +420,16 @@ for QubitIndex in Qs_to_look_at:
 
         qubitFolder = os.path.join(studyDocumentationFolder, f'Q{QubitIndex}/starkRamsey')
         starkRamsey_data = create_data_dict(starkRamsey_keys, save_r, list_of_all_qubits)
-
-        t2r = starkT2RMeasurement(QubitIndex, tot_num_of_qubits, qubitFolder, j, signal, save_figs,
-                                  experiment=experiment, fit_data=True, verbose=verbose, logger=logging)
-        t2r_est, t2r_err, f_est, f_err, t2r_I, t2r_Q, t2r_delay_times, fit_ramsey, sys_config_t2r = t2r.run(
-            thresholding=False)
+        try:
+            t2r = starkT2RMeasurement(QubitIndex, tot_num_of_qubits, qubitFolder, j, signal, save_figs,
+                                      experiment=experiment, fit_data=True, verbose=verbose, logger=logging)
+            t2r_est, t2r_err, f_est, f_err, t2r_I, t2r_Q, t2r_delay_times, fit_ramsey, sys_config_t2r = t2r.run(
+                thresholding=False)
+        except:
+            t2r = starkT2RMeasurement(QubitIndex, tot_num_of_qubits, qubitFolder, j, signal, save_figs,
+                                      experiment=experiment, fit_data=True, verbose=verbose, logger=logging)
+            t2r_est, t2r_err, f_est, f_err, t2r_I, t2r_Q, t2r_delay_times, fit_ramsey, sys_config_t2r = t2r.run(
+                thresholding=False)
 
         starkRamsey_data[QubitIndex]['Ramsey Freq'][j - batch_num * save_r - 1] = f_est
         starkRamsey_data[QubitIndex]['Errors'][j - batch_num * save_r - 1] = f_err

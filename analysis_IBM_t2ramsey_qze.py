@@ -10,11 +10,11 @@ figure_quality = 100
 final_figure_quality = 200
 FRIDGE = "QUIET"
 qubits = [4]
-path = '2d_less_reps_more_qspec_steps'
+path = '2d_overnight_more_tracking'
 
 for qubit in qubits:
     run_name = f'bob_run_started_Aug_23/squill/{path}/all_qubits/'
-    top_folder_dates = [f'qubit_{qubit}round{round}' for round in range(10)]
+    top_folder_dates = [f'qubit_{qubit}round{round}' for round in range(113)]
 
     # QSpec Analysis
     q_vs_time = QubitFreqsVsTime(figure_quality, final_figure_quality, 6, top_folder_dates, save_figs,
