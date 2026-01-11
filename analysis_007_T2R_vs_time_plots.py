@@ -1029,6 +1029,7 @@ class T2rVsTime:
                         # fit = load_data['T2'][q_key].get('Fit', [])[0][dataset]
                         round_num = load_data['T2'][q_key].get('Round Num', [])[0][dataset]
                         batch_num = load_data['T2'][q_key].get('Batch Num', [])[0][dataset]
+
                         try:
                             exp_config = load_data['T2'][q_key].get('Exp Config', [])[0][dataset].decode()
                             safe_globals = {"np": np, "array": np.array, "__builtins__": {}}

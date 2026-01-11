@@ -156,6 +156,19 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "list_of_all_qubits": list_of_all_qubits,
         },
 
+        "power_rabi_vs_gain": {
+            "start_gain": 0.00001,
+            "end_gain": 0.1,
+            "gain_steps": 3,
+            "reps": 50,
+            "rounds": 5,
+            "start": 0,  # [DAC units]
+            "stop": 0.085*6,  # [DAC units] get many fringes, 6/2
+            "steps": 70,
+            "relax_delay": 500,  # [us]
+            "list_of_all_qubits": list_of_all_qubits,
+        },
+
         "length_rabi_ge": {
             "reps": 20,#500,
             "rounds": 5,

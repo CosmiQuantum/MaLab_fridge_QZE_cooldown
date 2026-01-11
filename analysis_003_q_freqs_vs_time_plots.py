@@ -326,6 +326,7 @@ class QubitFreqsVsTime:
             h5_files = sorted(h5_files, key=dt_from_name)
 
             for h5_file in h5_files:
+
                 save_round = h5_file.split('Num_per_batch')[-1].split('.')[0]
                 H5_class_instance = Data_H5(h5_file)
                 load_data = H5_class_instance.load_from_h5(data_type=f'QSpec_zeno{gain}', save_r=int(save_round), scaling=scaling)
@@ -1575,6 +1576,10 @@ class QubitFreqsVsTime:
             rms = float(np.sqrt(np.mean((yfit - y) ** 2)))
             return dict(f0=float(f0), FWHM=float(fwhm), params=res.x, yfit=yfit, rms=rms, success=bool(res.success))
 
+        kappa_MHz = float([0.127, 0.109, 0.139, 0.183, 0.178, 0.174][self.qubit])
+        chi_MHz = -0.25
+        baseline_npoints = 3
+        overlay_gamma_phi = True
         two_chi_MHz = 2.0 * float(chi_MHz)
 
         # ---------- flatten inputs ----------
@@ -1791,42 +1796,96 @@ class QubitFreqsVsTime:
             # Will return the nbar array (aligned with gains_used) or None.
             def do_regress_and_plot(label, centers, widths):
                 centers = np.array(centers, float)
+                widths = np.array(widths, float)
+
                 ok = np.isfinite(centers) & np.isfinite(pwr)
                 if ok.sum() < 2:
-                    # Not enough points to fit; still return an array of NaNs aligned to gains_used
-                    nbar_series = np.full_like(gains_used, np.nan, dtype=float)
-                    return nbar_series
+                    return np.full_like(gains_used, np.nan, dtype=float)
 
+                # ---- Stark shift fit -> nbar (you already do this) ----
                 slope, intercept, r, pval, stderr = linregress(pwr[ok], centers[ok])
                 wq = slope * pwr + intercept
-                nbar = (wq - intercept) / (2.0 * chi_MHz)  # sign convention unchanged
+
+                # nbar from fitted Stark shift: Δf = 2χ nbar  => nbar = (f - f0)/(2χ)
+                nbar = (wq - intercept) / (2.0 * chi_MHz)
 
                 fig3, ax3 = plt.subplots(1, 3, figsize=(15, 4.2))
+
+                # (0) centers vs gain^2
                 ax3[0].plot(pwr, centers, 'o', ms=4, label=f'{label} centers')
                 ax3[0].plot(pwr, wq, '-', label=f'fit (r={r:.3f})')
-                ax3[0].legend();
+                ax3[0].legend()
                 ax3[0].grid(alpha=0.3)
-                ax3[0].set_xlabel('Gain^2 (a.u.)');
+                ax3[0].set_xlabel('Gain^2 (a.u.)')
                 ax3[0].set_ylabel('Center freq (MHz)')
 
+                # (1) nbar vs gain
                 ax3[1].plot(gains_used, nbar, '-', label=f'{label} n̄')
-                ax3[1].legend();
+                ax3[1].legend()
                 ax3[1].grid(alpha=0.3)
-                ax3[1].set_xlabel('Gain (a.u.)');
+                ax3[1].set_xlabel('Gain (a.u.)')
                 ax3[1].set_ylabel('n̄')
 
+                # (2) FWHM vs gain (+ overlay predicted from added gamma_phi)
                 if np.isfinite(widths).any():
-                    ax3[2].plot(gains_used, widths, '-', label=f'{label} FWHM')
-                    ax3[2].legend();
+                    ax3[2].plot(gains_used, widths, '-', label=f'{label} FWHM (meas)')
                     ax3[2].grid(alpha=0.3)
-                    ax3[2].set_xlabel('Gain (a.u.)');
+                    ax3[2].set_xlabel('Gain (a.u.)')
                     ax3[2].set_ylabel('FWHM (MHz)')
 
+                    if overlay_gamma_phi:
+                        # --- baseline linewidth FWHM0 from smallest gains ---
+                        # use the first baseline_npoints finite widths in gain-sorted order
+                        order = np.argsort(gains_used)
+                        w_sorted = widths[order]
+                        g_sorted = gains_used[order]
+                        finite_ids = np.where(np.isfinite(w_sorted))[0]
+                        if finite_ids.size >= 1:
+                            take = finite_ids[:max(1, baseline_npoints)]
+                            FWHM0 = float(np.nanmedian(w_sorted[take]))
+                        else:
+                            FWHM0 = float(np.nanmedian(widths))
+
+                        # measured added broadening
+                        dFWHM_meas = widths - FWHM0  # MHz
+
+                        # fit / predict scaling: added gamma_phi ∝ nbar
+                        # Use the common (non-angular) convention:
+                        #   gamma_phi_pred [MHz] = (8 * chi^2 / kappa) * nbar
+                        #   dFWHM_pred [MHz] = gamma_phi_pred / pi
+                        ok_b = np.isfinite(dFWHM_meas) & np.isfinite(nbar)
+                        if ok_b.sum() >= 2:
+                            if kappa_MHz is None:
+                                # estimate effective kappa from your data:
+                                # dFWHM ≈ (8*chi^2/(pi*kappa)) * nbar  => slope = 8*chi^2/(pi*kappa)
+                                x = nbar[ok_b]
+                                y = dFWHM_meas[ok_b]
+                                # least-squares slope through origin
+                                denom = float(np.dot(x, x))
+                                if denom > 0:
+                                    slope_dfwhm_per_nbar = float(np.dot(x, y) / denom)
+                                    kappa_eff = (8.0 * chi_MHz ** 2) / (
+                                                np.pi * slope_dfwhm_per_nbar) if slope_dfwhm_per_nbar != 0 else np.inf
+                                else:
+                                    kappa_eff = np.inf
+                            else:
+                                kappa_eff = float(kappa_MHz)
+
+                            # predicted added gamma_phi and FWHM
+                            gamma_phi_pred = (8.0 * chi_MHz ** 2 / kappa_eff) * nbar  # MHz
+                            dFWHM_pred = gamma_phi_pred / np.pi  # MHz
+                            FWHM_pred = FWHM0 + dFWHM_pred
+
+                            ax3[2].plot(gains_used, FWHM_pred, '--', lw=2,
+                                        label=f'pred from γφ(n̄) (κ={kappa_eff:.3g} MHz)')
+                            ax3[2].legend(loc='best')
+
                 fig3.suptitle(
-                    f"Q{self.qubit + 1} Round {r_id} — {label}: slope={slope:.4g} MHz/a.u.^2, q0={intercept:.4g} MHz")
+                    f"Q{self.qubit + 1} Round {r_id} — {label}: slope={slope:.4g} MHz/a.u.^2, q0={intercept:.4g} MHz"
+                )
                 fig3.tight_layout()
                 out_sum = os.path.join(save_path, f"q{self.qubit}_round{r_id}_{label}_centers_nbar.png")
-                fig3.savefig(out_sum, dpi=self.final_figure_quality);
+                fig3.savefig(out_sum, dpi=self.final_figure_quality)
                 plt.close(fig3)
 
                 return nbar
