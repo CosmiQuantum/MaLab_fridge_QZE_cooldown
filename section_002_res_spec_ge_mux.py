@@ -108,9 +108,9 @@ class ResonanceSpectroscopy:
         plt.ylim(plt.ylim()[0] - 0.05 * (plt.ylim()[1] - plt.ylim()[0]), plt.ylim()[1])
 
         if self.experiment is not None:
-            plt.suptitle(f"MUXed resonator spectroscopy {self.config['reps']}*{self.config['rounds']} avgs", fontsize=24, y=0.95)
+            plt.suptitle(f"G resonator spectroscopy {self.config['reps']}*{self.config['rounds']} avgs", fontsize=24, y=0.95)
         else:
-            plt.suptitle(f"MUXed resonator spectroscopy {reloaded_config ['reps']}*{reloaded_config ['rounds']} avgs",
+            plt.suptitle(f"G resonator spectroscopy {reloaded_config ['reps']}*{reloaded_config ['rounds']} avgs",
                          fontsize=24, y=0.95)
         plt.tight_layout(pad=2.0)
 

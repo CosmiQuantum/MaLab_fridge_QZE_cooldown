@@ -106,6 +106,9 @@ class ResonanceSpectroscopyEF:
         # plt.plot(fpts + fcenter[i], amps[i], '-', linewidth=1.5)
         plt.plot([f + fcenter for f in fpts], amps, '-', linewidth=1.5)
         freq_r = fpts[np.argmin(amps)] + fcenter
+
+        print(freq_r)
+
         res_freqs.append(freq_r)
 
         plt.axvline(freq_r, linestyle='--', color='orange', linewidth=1.5)
@@ -117,22 +120,22 @@ class ResonanceSpectroscopyEF:
         plt.ylim(plt.ylim()[0] - 0.05 * (plt.ylim()[1] - plt.ylim()[0]), plt.ylim()[1])
 
         if self.experiment is not None:
-            plt.suptitle(f"MUXed resonator spectroscopy {self.config['reps']}*{self.config['rounds']} avgs",
+            plt.suptitle(f"Resonator spectroscopy E {self.config['reps']}*{self.config['rounds']} avgs",
                          fontsize=24, y=0.95)
         else:
-            plt.suptitle(f"MUXed resonator spectroscopy {reloaded_config['reps']}*{reloaded_config['rounds']} avgs",
+            plt.suptitle(f"Resonator spectroscopy E {reloaded_config['reps']}*{reloaded_config['rounds']} avgs",
                          fontsize=24, y=0.95)
         plt.tight_layout(pad=2.0)
 
         if self.save_figs:
-            # outerFolder_expt = os.path.join(self.outerFolder, self.expt_name)
-            outerFolder_expt = os.path.join(self.outerFolder, self.expt_name + "_plots")
+            outerFolder_expt = os.path.join(self.outerFolder, self.expt_name + "_ge_plots")
             self.create_folder_if_not_exists(outerFolder_expt)
             now = datetime.datetime.now()
             formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
             file_name = os.path.join(outerFolder_expt,
-                                     f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" + f"{formatted_datetime}_" + self.expt_name + "_EF.png")
-            plt.savefig(file_name, dpi=fig_quality)
+                                     f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" + f"{formatted_datetime}_" + self.expt_name)
+            plt.savefig(file_name + ".png", dpi=fig_quality)
+            plt.savefig(file_name + ".pdf", dpi=fig_quality)
         plt.close()
 
         res_freqs = [round(x, 5) for x in res_freqs]

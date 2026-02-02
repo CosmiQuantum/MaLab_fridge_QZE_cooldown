@@ -3268,7 +3268,77 @@ class T1VsTime:
         import matplotlib.pyplot as plt
         from collections import defaultdict
         import matplotlib.ticker as mticker
+        from scipy.optimize import least_squares
 
+        # -------------------- T1 fit helper --------------------
+        def exp_decay(t, A, T1, c):
+            return A * np.exp(-t / T1) + c
+
+        def fit_t1_slice(t_us, y):
+            """
+            Fit y(t) = A*exp(-t/T1) + c.
+            t_us in microseconds. Returns T1_us (float) or np.nan.
+            """
+            t_us = np.asarray(t_us, float)
+            y = np.asarray(y, float)
+            m = np.isfinite(t_us) & np.isfinite(y)
+            if np.sum(m) < 6:
+                return np.nan
+
+            t = t_us[m]
+            yy = y[m]
+
+            # sort by t
+            o = np.argsort(t)
+            t = t[o]
+            yy = yy[o]
+
+            # shift time so t[0]=0 for numerical stability
+            t0 = t[0]
+            t = t - t0
+
+            tmax = float(np.max(t))
+            if not np.isfinite(tmax) or tmax <= 0:
+                return np.nan
+
+            # robust baseline guess from last 20% of points
+            n = len(t)
+            k = max(1, int(0.2 * n))
+            c0 = float(np.nanmedian(yy[-k:]))
+
+            # amplitude guess from early points
+            A0 = float(np.nanmedian(yy[:k]) - c0)
+
+            # crude T1 guess: 1/3 of total span (works okay for most traces)
+            T10 = max(tmax / 3.0, 0.05)  # in us
+
+            p0 = np.array([A0, T10, c0], float)
+
+            # bounds: T1 positive; A and c fairly free
+            dt_min = float(np.min(np.diff(t))) if len(t) >= 2 else (tmax / max(1, len(t) - 1))
+            dt_min = dt_min if np.isfinite(dt_min) and dt_min > 0 else 1e-3
+
+            lb = np.array([-np.inf, 0.2 * dt_min, -np.inf], float)
+            ub = np.array([np.inf, 10.0 * tmax, np.inf], float)
+
+            def resid(p):
+                A, T1, c = p
+                return exp_decay(t, A, T1, c) - yy
+
+            try:
+                res = least_squares(
+                    resid, p0, bounds=(lb, ub),
+                    loss="soft_l1",
+                    f_scale=(np.nanstd(yy) if np.isfinite(np.nanstd(yy)) and np.nanstd(yy) > 0 else 1.0),
+                    max_nfev=3000
+                )
+                if not res.success:
+                    return np.nan
+                return float(res.x[1])  # T1 in us
+            except Exception:
+                return np.nan
+
+        # -------------------- original code below --------------------
         q = self.qubit
         gains_q = gains.get(q, [])
         amps_q = amps.get(q, [])
@@ -3278,7 +3348,7 @@ class T1VsTime:
         n = min(len(amps_q), len(gains_q), len(rounds_q), len(delay_q))
         if n == 0 or not (len(amps_q) == len(gains_q) == len(rounds_q) == len(delay_q)):
             print(f"No usable data for qubit {q} (missing lists or length mismatch). Skipping.")
-            return
+            return {}
 
         all_points = []
         for i in range(n):
@@ -3319,7 +3389,7 @@ class T1VsTime:
 
         if not all_points:
             print(f"No numeric points for qubit {q}. Skipping.")
-            return
+            return {}
 
         unique_rounds = sorted({r for (r, _, __, ___) in all_points})
 
@@ -3366,6 +3436,9 @@ class T1VsTime:
                     return nb if nb.size == len(gains_sorted) else None
             return None
 
+        # NEW: return object collecting T1 vs gain per round
+        t1_by_round = {}
+
         for r_id in unique_rounds:
             pts = [(g, d, a) for (r, g, d, a) in all_points if r == r_id]
             if not pts:
@@ -3385,6 +3458,22 @@ class T1VsTime:
             for (iy, ix), vals in bucket.items():
                 C[iy, ix] = float(np.nanmean(vals))
 
+            # ---------- NEW: extract T1 per gain ----------
+            delays_us = np.asarray(delays_r, float)  # assumed already in us (matches your axis label)
+            t1_us_list = []
+            for ix in range(Nx):
+                y_col = C[:, ix]
+                t1_us_list.append(fit_t1_slice(delays_us, y_col))
+            t1_us_arr = np.asarray(t1_us_list, float)
+
+            # Store for return (aligned with gains_r)
+            t1_by_round[str(r_id)] = {
+                "gains": np.asarray(gains_r, float),
+                "T1_us": t1_us_arr,
+                "T1_s": t1_us_arr * 1e-6,
+            }
+
+            # ---------- plotting (unchanged) ----------
             nbar_vec = get_nbar_for_round(str(r_id), gains_r)
             if nbar_vec is not None:
                 x_vals = np.asarray(nbar_vec, float)
@@ -3401,12 +3490,10 @@ class T1VsTime:
             if use_linear_x:
                 x_centers = x_vals_sorted.astype(float)
             else:
-                # Equal column spacing
                 x_centers = np.arange(len(x_vals_sorted), dtype=float)
 
             x_edges = centers_to_edges(x_centers)
             y_edges = centers_to_edges(delays_r)
-            # ------------------------------
 
             fig, ax = plt.subplots(figsize=(6.5, 4.5))
             mesh = ax.pcolormesh(
@@ -3422,15 +3509,13 @@ class T1VsTime:
 
             ax.set_title(f"Qubit {self.qubit + 1} — Round {r_id}")
             ax.set_xlabel(x_label)
-            # NEW: add units to y-axis label
             ax.set_ylabel(r"Delay time ($\mu$s)")
 
             if use_linear_x:
                 ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=7, prune=None))
                 plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
             else:
-                # NEW: only label a subset of (rounded) bars
-                max_xticks = 10  # you can tweak this
+                max_xticks = 10
                 if Nx <= max_xticks:
                     xticks_idx = list(range(Nx))
                 else:
@@ -3439,9 +3524,7 @@ class T1VsTime:
 
                 xtick_positions = [x_centers[i] for i in xticks_idx]
                 xtick_values = [x_vals_sorted[i] for i in xticks_idx]
-
                 ax.set_xticks(xtick_positions)
-                # round n̄ / gain values for readability
                 ax.set_xticklabels([f"{v:.3f}" for v in xtick_values], rotation=45, ha='right')
 
             if Ny > 0:
@@ -3463,6 +3546,8 @@ class T1VsTime:
             fig.savefig(outfile, transparent=False, dpi=self.final_figure_quality)
             plt.close(fig)
             print(f"Saved heatmap for round {r_id} to: {outfile}")
+
+        return t1_by_round
 
     def plot_all_t1_heatmaps_single_calibration(self, Is,Qs,Ig_calibration1, \
         Ie_calibration1, Qe_calibration1, Qg_calibration1, gains, rounds, delay_times, save_path, max_ylabels=6):

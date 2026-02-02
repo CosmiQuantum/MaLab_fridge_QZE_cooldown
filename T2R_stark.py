@@ -433,37 +433,26 @@ class starkT2RMeasurement:
     import matplotlib.pyplot as plt
     import os, datetime
 
-    def plot_stark_shift_with_t_phi(self,
-                                    gain_sweep,
-                                    f_est,
-                                    f_err,
-                                    t2r_est,
-                                    t2r_err,
-                                    config=None,
-                                    bottom_vs_nbar=True):
-
+    def plot_stark_shift_with_t_phi(
+            self,
+            gain_sweep,
+            f_est,
+            f_err,
+            t2r_est,
+            t2r_err,
+            config=None,
+            bottom_vs_nbar=True,
+            scale_nbar_with_eta=False,  # <-- NEW FLAG (default False)
+    ):
         """
-        Plot Ramsey frequency vs Stark tone gain, fit a quadratic Stark shift,
-        convert to nbar, plot nbar vs gain, and finally plot dephasing rate
-        vs nbar using T2* data.
-
-        Parameters
-        ----------
-        gain_sweep : array_like
-            Stark tone gains (one per Ramsey experiment).
-        f_est, f_err : array_like
-            Fitted Ramsey frequencies and their errors (same length as gain_sweep).
-        t2r_est, t2r_err : array_like
-            Fitted Ramsey decay times T2* and their errors (same length as gain_sweep).
-        config : dict, optional
-            Config dict containing chi, etc.
-
-        Returns
-        -------
-        nbar_per_gain : np.ndarray
-            Array of nbar values corresponding to each point in gain_sweep.
+        Same as your original.
+        If bottom_vs_nbar=True and scale_nbar_with_eta=True, fit an extra scale factor eta:
+            nbar_theory = eta * nbar_from_Stark
         """
 
+        # -----------------------
+        # 0) Convert inputs
+        # -----------------------
         gain_sweep = np.asarray(gain_sweep, dtype=float)
         f_est = np.asarray(f_est, dtype=float)
         f_err = np.asarray(f_err, dtype=float)
@@ -473,23 +462,30 @@ class starkT2RMeasurement:
         if not (len(gain_sweep) == len(f_est) == len(t2r_est)):
             raise ValueError("gain_sweep, f_est, and t2r_est must have the same length.")
 
-        # --- Dispersive shift chi (same units as f_est, e.g. MHz) ---
+        # -----------------------
+        # 1) Pull parameters
+        # -----------------------
         if config is not None:
-            chi = float(config['Ramsey_stark']['chi'][self.QubitIndex])
+            chi = float(config["Ramsey_stark"]["chi"][self.QubitIndex]) * 2
         else:
-            chi = float(self.config['chi'][self.QubitIndex])
-
-        # --- Model for fitting: simple quadratic vs gain ---
-        # f(gain) = f0 + A * gain^2
-        def q_shift_model(g, A, f0):
-            return f0 + A * g ** 2
+            chi = float(self.config["chi"][self.QubitIndex]) * 2
+        chi = np.abs(chi)
 
         kappa = float([0.127, 0.109, 0.139, 0.183, 0.178, 0.174][self.QubitIndex])
         f_q = np.asarray([2780, 2980, 2885, 3096, 3043.32, 3093][self.QubitIndex], dtype=float)
-        f_r = np.asarray([7149,7171,7204,7228.9, 7264.31,7287.5][self.QubitIndex], dtype=float)
-        Delta_r = 0#f_r - f_q
+        f_r = np.asarray([7149, 7171, 7204, 7228.9, 7264.31, 7287.5][self.QubitIndex], dtype=float)
+        Delta_r = 0
 
-        # Rough initial guess for A and f0
+        # Bottom-panel model parameters
+        Delta = chi  # -0.274
+        kappa_m = kappa
+
+        # -----------------------
+        # 2) Fit frequency vs gain (quadratic)
+        # -----------------------
+        def f_model(g, A, f0):
+            return f0 + A * g ** 2
+
         if np.ptp(gain_sweep) > 0:
             A_guess = (f_est[-1] - f_est[0]) / (
                     max(gain_sweep) ** 2 - min(gain_sweep) ** 2 + 1e-12
@@ -498,99 +494,112 @@ class starkT2RMeasurement:
             A_guess = 0.0
         f0_guess = f_est[0]
 
-        # --- Fit frequency vs gain ---
         use_poly_fallback = False
         try:
             popt, pcov = curve_fit(
-                q_shift_model,
+                f_model,
                 gain_sweep,
                 f_est,
                 sigma=f_err,
                 p0=[A_guess, f0_guess],
-                absolute_sigma=True
+                absolute_sigma=True,
             )
             A_fit, f0_fit = popt
         except Exception:
-            # Fallback: full quadratic polynomial fit f = a2*g^2 + a1*g + a0
-            coeffs = np.polyfit(gain_sweep, f_est, 2)
-            a2, a1, a0 = coeffs
-            f0_fit = a0
             use_poly_fallback = True
+            coeffs = np.polyfit(gain_sweep, f_est, 2)
+            f0_fit = coeffs[2]
 
-        # --- Generate smooth fit for plotting ---
         gain_fit = np.linspace(np.min(gain_sweep), np.max(gain_sweep), 200)
-
         if not use_poly_fallback:
-            f_fit = q_shift_model(gain_fit, A_fit, f0_fit)
+            f_fit = f_model(gain_fit, A_fit, f0_fit)
         else:
             f_fit = np.polyval(coeffs, gain_fit)
 
-        # --- Compute delta f and nbar (pointwise at the measured gains) ---
-        delta_f_meas = f_est - f0_fit  # same units as f_est and chi
-        chi = np.abs(chi)
-        # nbar = delta_f / (2 * chi)
+        # -----------------------
+        # 3) Convert Stark shift -> nbar
+        # -----------------------
+        delta_f_meas = f_est - f0_fit
         nbar_per_gain = delta_f_meas / (2.0 * chi)
         nbar_err = f_err / (2.0 * chi)
 
-        # For the smooth curve: convert fitted delta f to nbar as well
         delta_f_fit = f_fit - f0_fit
         nbar_fit = delta_f_fit / (2.0 * chi)
 
-        # --- Dephasing rate from T2* ---
-        # Gamma_phi = 1 / T2*
-        # (Add tiny offset in denominator to avoid division by zero)
+        # -----------------------
+        # 4) Convert T2* -> pure dephasing rate gamma_phi
+        # -----------------------
+        T1_const = 110.0  # us
 
-        # Measurement-induced dephasing model:
-        #   Gamma_phi(nbar) = Gamma0
-        #                   + (2 * nbar * kappa * chi^2) / (kappa^2/4 + chi^2 + Delta_r^2)
-        # --- Dephasing rate from T2* corrected to pure dephasing using constant T1 ---
-        T1_const = 110.0  # same time units as t2r_est (e.g. microseconds)
-
-        gamma_ramsey = 1.0 / (t2r_est + 1e-30)  # = 1/T2*
-        gamma_phi = gamma_ramsey - 1.0 / (2.0 * T1_const)  # = 1/T2* - 1/(2T1)
-        gamma_phi_err = t2r_err / (t2r_est ** 2 + 1e-30)  # T1 treated exact
-
-        # Optional: avoid tiny negative values due to noise
+        gamma_ramsey = 1.0 / (t2r_est + 1e-30)
+        gamma_phi = gamma_ramsey - 1.0 / (2.0 * T1_const)
+        gamma_phi_err = t2r_err / (t2r_est ** 2 + 1e-30)
         gamma_phi = np.maximum(gamma_phi, 0.0)
 
-        # --- parameters for the formula ---
-        Delta = -0.08  # detuning from bare cavity resonance (same units as chi, kappa_m)
-        kappa_m = kappa  # bare resonator linewidth
-        chi = np.abs(chi)
-
-        # --- Choose bottom axis + fitting model ---
+        # -----------------------
+        # 5) Fit gamma_phi to the equation (two possible x-axes)
+        # -----------------------
         use_gamma_fit = True
 
         if bottom_vs_nbar:
-            # Use: Omega_d^2 = nbar*(Delta^2 + (kappa/2)^2)  -> Gamma_phi(nbar) is linear in nbar
-            def gamma_model_nbar(nbar, Gamma0):
-                halfk = kappa_m / 2.0
-                denom = ((Delta + chi) ** 2 + halfk ** 2) * ((Delta - chi) ** 2 + halfk ** 2)
-                Omega_d_sq = nbar * (Delta ** 2 + halfk ** 2)
-                Gamma_m = (2.0 * chi ** 2 * kappa_m * Omega_d_sq) / denom
-                return Gamma0 + Gamma_m
-
             x_data = nbar_per_gain
             x_fit = np.linspace(np.min(nbar_per_gain), np.max(nbar_per_gain), 400)
             Gamma0_guess = gamma_phi[0]
 
-            try:
-                popt_g, pcov_g = curve_fit(
-                    gamma_model_nbar,
-                    x_data,
-                    gamma_phi,
-                    sigma=gamma_phi_err,
-                    p0=[Gamma0_guess],
-                    absolute_sigma=True,
-                    maxfev=20000
-                )
-                (Gamma0_fit,) = popt_g
-                y_fit = gamma_model_nbar(x_fit, Gamma0_fit)
-            except Exception:
-                use_gamma_fit = False
+            if scale_nbar_with_eta:
+                # Fit Gamma0 AND eta, where nbar_theory = eta * nbar_data
+                def gamma_model_nbar(nbar, Gamma0, eta):
+                    halfk = kappa_m / 2.0
+                    denom = ((Delta + chi) ** 2 + halfk ** 2) * ((Delta - chi) ** 2 + halfk ** 2)
+                    Omega_d_sq = (eta * nbar) * (Delta ** 2 + halfk ** 2)
+                    Gamma_m = (2.0 * chi ** 2 * kappa_m * Omega_d_sq) / denom
+                    return Gamma0 + Gamma_m
+
+                eta_guess = 1.0
+
+                try:
+                    popt_g, pcov_g = curve_fit(
+                        gamma_model_nbar,
+                        x_data,
+                        gamma_phi,
+                        sigma=gamma_phi_err,
+                        p0=[Gamma0_guess, eta_guess],
+                        bounds=([0.0, 0.0], [np.inf, np.inf]),  # eta >= 0
+                        absolute_sigma=True,
+                        maxfev=20000,
+                    )
+                    Gamma0_fit, eta_fit = popt_g
+                    y_fit = gamma_model_nbar(x_fit, Gamma0_fit, eta_fit)
+                except Exception:
+                    use_gamma_fit = False
+
+            else:
+                # No eta scaling: fit Gamma0 only (eta implicitly = 1)
+                def gamma_model_nbar(nbar, Gamma0):
+                    halfk = kappa_m / 2.0
+                    denom = ((Delta + chi) ** 2 + halfk ** 2) * ((Delta - chi) ** 2 + halfk ** 2)
+                    Omega_d_sq = nbar * (Delta ** 2 + halfk ** 2)
+                    Gamma_m = (2.0 * chi ** 2 * kappa_m * Omega_d_sq) / denom
+                    return Gamma0 + Gamma_m
+
+                try:
+                    popt_g, pcov_g = curve_fit(
+                        gamma_model_nbar,
+                        x_data,
+                        gamma_phi,
+                        sigma=gamma_phi_err,
+                        p0=[Gamma0_guess],
+                        bounds=([0.0], [np.inf]),
+                        absolute_sigma=True,
+                        maxfev=20000,
+                    )
+                    (Gamma0_fit,) = popt_g
+                    y_fit = gamma_model_nbar(x_fit, Gamma0_fit)
+                except Exception:
+                    use_gamma_fit = False
 
         else:
-            # Original equation with Omega_d = s*gain (fit Gamma0 and s)
+            # unchanged: vs gain fit Gamma0 and s
             def gamma_model_gain(gain, Gamma0, s):
                 halfk = kappa_m / 2.0
                 denom = ((Delta + chi) ** 2 + halfk ** 2) * ((Delta - chi) ** 2 + halfk ** 2)
@@ -611,76 +620,61 @@ class starkT2RMeasurement:
                     sigma=gamma_phi_err,
                     p0=[Gamma0_guess, s_guess],
                     absolute_sigma=True,
-                    maxfev=20000
+                    maxfev=20000,
                 )
                 Gamma0_fit, s_fit = popt_g
                 y_fit = gamma_model_gain(x_fit, Gamma0_fit, s_fit)
             except Exception:
                 use_gamma_fit = False
 
-
-
-
-        # --- Plotting: three panels ---
+        # -----------------------
+        # 6) Plot: three panels
+        # -----------------------
         fig, (ax_f, ax_n, ax_g) = plt.subplots(3, 1, figsize=(6, 10))
-        # Make frequency and nbar panels share the same gain x-axis
         ax_n.sharex(ax_f)
 
-        # Top: Ramsey frequency vs gain
-        ax_f.errorbar(gain_sweep, f_est, yerr=f_err, fmt='ko', label='data')
-        ax_f.plot(gain_fit, f_fit, 'r:', label='fit')
-        ax_f.set_ylabel('Ramsey frequency (MHz)')
+        ax_f.errorbar(gain_sweep, f_est, yerr=f_err, fmt="ko", label="data")
+        ax_f.plot(gain_fit, f_fit, "r:", label="fit")
+        ax_f.set_ylabel("Ramsey frequency (MHz)")
         ax_f.set_title(f"Qubit {self.QubitIndex} Stark shift vs gain")
         ax_f.legend()
         ax_f.grid(True, alpha=0.3)
 
-        # Middle: nbar vs gain
-        ax_n.errorbar(
-            gain_sweep, nbar_per_gain,
-            yerr=nbar_err,
-            fmt='ko',
-            label=r'$\bar{n}$ from data'
-        )
-        ax_n.plot(gain_fit, nbar_fit, 'r:', label=r'$\bar{n}$ from fit')
-        ax_n.set_xlabel('stark tone gain (a.u.)')
-        ax_n.set_ylabel(r'$\bar{n}$ (photons)')
+        ax_n.errorbar(gain_sweep, nbar_per_gain, yerr=nbar_err, fmt="ko", label=r"$\bar{n}$ from data")
+        ax_n.plot(gain_fit, nbar_fit, "r:", label=r"$\bar{n}$ from fit")
+        ax_n.set_xlabel("stark tone gain (a.u.)")
+        ax_n.set_ylabel(r"$\bar{n}$ (photons)")
         ax_n.grid(True, alpha=0.3)
         ax_n.legend()
 
-        # --- Bottom plot: dephasing rate vs chosen x-axis ---
-        ax_g.errorbar(
-            x_data,
-            gamma_phi,
-            yerr=gamma_phi_err,
-            fmt='ko',
-            label='data'
-        )
+        ax_g.errorbar(x_data, gamma_phi, yerr=gamma_phi_err, fmt="ko", label="data")
 
         if use_gamma_fit:
-            if bottom_vs_nbar:
-                ax_g.plot(x_fit, y_fit, 'r:', label=r'Eq. fit (via $\bar{n}$ mapping)')
-            else:
-                ax_g.plot(x_fit, y_fit, 'r:', label=r'Eq. fit ($\Omega_d=s\cdot$gain)')
+            ax_g.plot(x_fit, y_fit, "r:", label=r"Eq. fit (via $\bar{n}$ mapping)" if bottom_vs_nbar
+            else r"Eq. fit ($\Omega_d=s\cdot$gain)")
 
-        ax_g.set_xlabel(r'$\bar{n}$ (photons)' if bottom_vs_nbar else 'stark tone gain (a.u.)')
-        ax_g.set_ylabel(r'$\Gamma_\phi$ (1 / $\mu$s)')
+        ax_g.set_xlabel(r"$\bar{n}$ (photons)" if bottom_vs_nbar else "stark tone gain (a.u.)")
+        ax_g.set_ylabel(r"$\Gamma_\phi$ (1 / $\mu$s)")
         ax_g.grid(True, alpha=0.3)
         ax_g.legend(fontsize=10)
 
         fig.tight_layout()
 
-        # --- Save figure if requested ---
+        # -----------------------
+        # 7) Save
+        # -----------------------
         if self.save_figs:
             outerFolder_expt = os.path.join(self.outerFolder, self.expt_name)
             self.create_folder_if_not_exists(outerFolder_expt)
+
             now = datetime.datetime.now()
             formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
             file_name = os.path.join(
                 outerFolder_expt,
                 f"stark_shift_Q{self.QubitIndex + 1}_{formatted_datetime}_"
-                f"{self.expt_name}_q{self.QubitIndex + 1}.png"
+                f"{self.expt_name}_q{self.QubitIndex + 1}.png",
             )
-            fig.savefig(file_name, dpi=300, bbox_inches='tight')
+            fig.savefig(file_name, dpi=300, bbox_inches="tight")
 
         return nbar_per_gain
 

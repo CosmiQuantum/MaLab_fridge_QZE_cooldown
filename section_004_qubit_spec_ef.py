@@ -99,77 +99,179 @@ class EFQubitSpectroscopy:
             viz.line(X=freqs, Y=Q, opts=dict(height=400, width=700, title='Qubit Spectroscopy Q', showlegend=True, xlabel='expt_pts'),win='QSpec_Q')
         return I, Q, freqs
 
-    def plot_results(self, I, Q, freqs, config=None, fig_quality=100):
-        freqs = np.array(freqs)
-        freq_q = freqs[np.argmax(I)]
+    def plot_results(self, I, Q, freqs, config=None, fig_quality=100, sigma_guess=1, return_fwhm=False, scaling=False,
+                     Ie=None, Ig=None, Qe=None, Qg=None):
+        if scaling:
+            e = np.mean((Ie + 1j * Qe))
+            g = np.mean((Ig + 1j * Qg))
+            ### Normalization ###
+            pop_norm = abs(((I + 1j * Q) - g) * (e - g) / abs(e - g) ** 2)
+            ydata = pop_norm
 
-        mean_I, mean_Q, I_fit, Q_fit, largest_amp_curve_mean, largest_amp_curve_fwhm, fit_err = self.fit_lorenzian(I, Q, freqs,
-                                                                                                          freq_q)
+            freqs = np.array(freqs)
+            freq_q = freqs[np.argmax(I)]
 
-        # Check if the returned values are all None
-        if (mean_I is None and mean_Q is None and I_fit is None and Q_fit is None
-                and largest_amp_curve_mean is None and largest_amp_curve_fwhm is None):
-            # If so, return None for the values in this definition as well
-            return None, None, None
+            mean_y_data, y_data_fit, largest_amp_curve_mean, largest_amp_curve_fwhm, fit_err = self.fit_lorenzian_scaled(
+                ydata, freqs,
+                freq_q, sigma_guess)
 
-        # If we get here, the fit was successful and we can proceed with plotting
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
-        plt.rcParams.update({'font.size': 18})
+            # Check if the returned values are all None
+            if (mean_y_data is None and y_data_fit is None
+                    and largest_amp_curve_mean is None and largest_amp_curve_fwhm is None):
+                # If so, return None for the values in this definition as well
+                return None, None, None
 
-        # I subplot
-        ax1.plot(freqs, I, label='I', linewidth=2)
-        ax1.set_ylabel("I Amplitude (a.u.)", fontsize=20)
-        ax1.tick_params(axis='both', which='major', labelsize=16)
-        ax1.legend()
+            # If we get here, the fit was successful and we can proceed with plotting
+            fig, (ax1) = plt.subplots(1, 1, figsize=(10, 5))
+            plt.rcParams.update({'font.size': 18})
 
-        # Q subplot
-        ax2.plot(freqs, Q, label='Q', linewidth=2)
-        ax2.set_xlabel("Qubit Frequency (MHz)", fontsize=20)
-        ax2.set_ylabel("Q Amplitude (a.u.)", fontsize=20)
-        ax2.tick_params(axis='both', which='major', labelsize=16)
-        ax2.legend()
+            # I subplot
+            ax1.plot(freqs, ydata, label='Qubit Population', linewidth=2)
+            ax1.set_ylabel("I Amplitude (a.u.)", fontsize=20)
+            ax1.tick_params(axis='both', which='major', labelsize=16)
+            ax1.legend()
 
-        # Plot the fits
-        ax1.plot(freqs, I_fit, 'r--', label='Lorentzian Fit')
-        ax1.axvline(largest_amp_curve_mean, color='orange', linestyle='--', linewidth=2)
+            # Plot the fits
+            if self.plot_fit:
+                ax1.plot(freqs, y_data_fit, 'r--', label='Lorentzian Fit')
+                ax1.axvline(largest_amp_curve_mean, color='orange', linestyle='--', linewidth=2)
 
-        ax2.plot(freqs, Q_fit, 'r--', label='Lorentzian Fit')
-        ax2.axvline(largest_amp_curve_mean, color='orange', linestyle='--', linewidth=2)
+            # Calculate the middle of the plot area
+            plot_middle = (ax1.get_position().x0 + ax1.get_position().x1) / 2
 
-        # Calculate the middle of the plot area
-        plot_middle = (ax1.get_position().x0 + ax1.get_position().x1) / 2
+            if self.plot_fit:
+                # Add title, centered on the plot area
+                if config is not None:  # then its been passed to this definition, so use that
+                    fig.text(plot_middle, 0.98,
+                             f"Qubit Spectroscopy Q{self.QubitIndex + 1}, %.2f MHz" % largest_amp_curve_mean +
+                             f" FWHM: {round(largest_amp_curve_fwhm, 1)}" +
+                             f", {config['reps']}*{config['rounds']} avgs",
+                             fontsize=24, ha='center', va='top')
+                else:
+                    fig.text(plot_middle, 0.98,
+                             f"Qubit Spectroscopy Q{self.QubitIndex + 1}, %.2f MHz" % largest_amp_curve_mean +
+                             f" FWHM: {round(largest_amp_curve_fwhm, 1)}" +
+                             f", {self.config['reps']}*{self.config['rounds']} avgs",
+                             fontsize=24, ha='center', va='top')
+            else:
+                # Add title, centered on the plot area
+                if config is not None:  # then its been passed to this definition, so use that
+                    fig.text(plot_middle, 0.98,
+                             f"Qubit Spectroscopy Q{self.QubitIndex + 1}" +
+                             f", {config['reps']}*{config['rounds']} avgs",
+                             fontsize=24, ha='center', va='top')
+                else:
+                    fig.text(plot_middle, 0.98,
+                             f"Qubit Spectroscopy Q{self.QubitIndex + 1}",
+                             fontsize=24, ha='center', va='top')
 
-        # Add title, centered on the plot area
-        if config is not None:  # then its been passed to this definition, so use that
-            fig.text(plot_middle, 0.98,
-                     f"EF Qubit Spectroscopy Q{self.QubitIndex + 1}, %.2f MHz" % largest_amp_curve_mean +
-                     f" FWHM: {round(largest_amp_curve_fwhm, 1)}" +
-                     f", {config['reps']}*{config['rounds']} avgs",
-                     fontsize=24, ha='center', va='top')
+                    # Adjust spacing
+            plt.tight_layout()
+
+            # Adjust the top margin to make room for the title
+            plt.subplots_adjust(top=0.93)
+
+            ### Save figure
+            if self.save_figs:
+                outerFolder_expt = os.path.join(self.outerFolder, self.expt_name + "_plots")
+                self.create_folder_if_not_exists(outerFolder_expt)
+                now = datetime.datetime.now()
+                formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
+                file_name = os.path.join(outerFolder_expt, f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" +
+                                         f"{formatted_datetime}_" + self.expt_name + f"_q{self.QubitIndex + 1}.png")
+                fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')
+            plt.close(fig)
+            if return_fwhm:
+                return largest_amp_curve_mean, y_data_fit, largest_amp_curve_fwhm
+            else:
+                return largest_amp_curve_mean, y_data_fit
         else:
-            fig.text(plot_middle, 0.98,
-                     f"EF Qubit Spectroscopy Q{self.QubitIndex + 1}, %.2f MHz" % largest_amp_curve_mean +
-                     f" FWHM: {round(largest_amp_curve_fwhm, 1)}" +
-                     f", {self.config['reps']}*{self.config['rounds']} avgs",
-                     fontsize=24, ha='center', va='top')
+            freqs = np.array(freqs)
+            freq_q = freqs[np.argmax(I)]
 
-        # Adjust spacing
-        plt.tight_layout()
+            mean_I, mean_Q, I_fit, Q_fit, largest_amp_curve_mean, largest_amp_curve_fwhm, fit_err = self.fit_lorenzian(
+                I, Q, freqs,
+                freq_q, sigma_guess)
 
-        # Adjust the top margin to make room for the title
-        plt.subplots_adjust(top=0.93)
+            # Check if the returned values are all None
+            if (mean_I is None and mean_Q is None and I_fit is None and Q_fit is None
+                    and largest_amp_curve_mean is None and largest_amp_curve_fwhm is None):
+                # If so, return None for the values in this definition as well
+                return None, None, None
 
-        ### Save figure
-        if self.save_figs:
-            outerFolder_expt = os.path.join(self.outerFolder, self.expt_name + "_plots")
-            self.create_folder_if_not_exists(outerFolder_expt)
-            now = datetime.datetime.now()
-            formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
-            file_name = os.path.join(outerFolder_expt, f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" +
-                                     f"{formatted_datetime}_" + self.expt_name + f"_q{self.QubitIndex + 1}.png")
-            fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')
-        plt.close(fig)
-        # return largest_amp_curve_mean, I_fit, Q_fit
+            # If we get here, the fit was successful and we can proceed with plotting
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+            plt.rcParams.update({'font.size': 18})
+
+            # I subplot
+            ax1.plot(freqs, I, label='I', linewidth=2)
+            ax1.set_ylabel("I Amplitude (a.u.)", fontsize=20)
+            ax1.tick_params(axis='both', which='major', labelsize=16)
+            ax1.legend()
+
+            # Q subplot
+            ax2.plot(freqs, Q, label='Q', linewidth=2)
+            ax2.set_xlabel("Qubit Frequency (MHz)", fontsize=20)
+            ax2.set_ylabel("Q Amplitude (a.u.)", fontsize=20)
+            ax2.tick_params(axis='both', which='major', labelsize=16)
+            ax2.legend()
+            # Plot the fits
+            if self.plot_fit:
+                ax1.plot(freqs, I_fit, 'r--', label='Lorentzian Fit')
+                ax1.axvline(largest_amp_curve_mean, color='orange', linestyle='--', linewidth=2)
+
+                ax2.plot(freqs, Q_fit, 'r--', label='Lorentzian Fit')
+                ax2.axvline(largest_amp_curve_mean, color='orange', linestyle='--', linewidth=2)
+
+            # Calculate the middle of the plot area
+            plot_middle = (ax1.get_position().x0 + ax1.get_position().x1) / 2
+
+            if self.plot_fit:
+                # Add title, centered on the plot area
+                if config is not None:  # then its been passed to this definition, so use that
+                    fig.text(plot_middle, 0.98,
+                             f"EF Qubit Spectroscopy Q{self.QubitIndex + 1}, %.2f MHz" % largest_amp_curve_mean +
+                             f" FWHM: {round(largest_amp_curve_fwhm, 1)}" +
+                             f", {config['reps']}*{config['rounds']} avgs",
+                             fontsize=24, ha='center', va='top')
+                else:
+                    fig.text(plot_middle, 0.98,
+                             f"EF Qubit Spectroscopy Q{self.QubitIndex + 1}, %.2f MHz" % largest_amp_curve_mean +
+                             f" FWHM: {round(largest_amp_curve_fwhm, 1)}" +
+                             f", {self.config['reps']}*{self.config['rounds']} avgs",
+                             fontsize=24, ha='center', va='top')
+            else:
+                # Add title, centered on the plot area
+                if config is not None:  # then its been passed to this definition, so use that
+                    fig.text(plot_middle, 0.98,
+                             f"EF Qubit Spectroscopy Q{self.QubitIndex + 1}" +
+                             f", {config['reps']}*{config['rounds']} avgs",
+                             fontsize=24, ha='center', va='top')
+                else:
+                    fig.text(plot_middle, 0.98,
+                             f"EF Qubit Spectroscopy Q{self.QubitIndex + 1}",
+                             fontsize=24, ha='center', va='top')
+
+                    # Adjust spacing
+            plt.tight_layout()
+
+            # Adjust the top margin to make room for the title
+            plt.subplots_adjust(top=0.93)
+
+            ### Save figure
+            if self.save_figs:
+                outerFolder_expt = os.path.join(self.outerFolder, self.expt_name + "_plots")
+                self.create_folder_if_not_exists(outerFolder_expt)
+                now = datetime.datetime.now()
+                formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
+                file_name = os.path.join(outerFolder_expt, f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" +
+                                         f"{formatted_datetime}_" + self.expt_name + f"_q{self.QubitIndex + 1}.png")
+                fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')
+            plt.close(fig)
+            if return_fwhm:
+                return largest_amp_curve_mean, I_fit, Q_fit, largest_amp_curve_fwhm
+            else:
+                return largest_amp_curve_mean, I_fit, Q_fit
 
     def get_results(self, I, Q, freqs):
         freqs = np.array(freqs)

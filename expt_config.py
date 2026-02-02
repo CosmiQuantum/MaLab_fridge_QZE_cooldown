@@ -6,12 +6,12 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
     VNA_res = np.array([7149,7171,7204,7228.9, 7264.22,7287.5])#[7148.588, 7170.546, 7203.351, 7228.059, 7263.744 ,7286.719])#*1000  # run 5
     VNA_qubit = np.array([2780, 2980, 2885, 3096, 3043.32, 3093]) #[2766, 2980, 2873, 3096, 3043, 3093] # Freqs of Qubit g/e Transition
     ef_freqs = np.array([2616, 2830, 2723, 2946, 2893, 2943]) # Freqs of Qubit e/f Transition, updated for run 7
-    fh_freqs = np.array([2466, 2680, 2573, 2796, 2743, 2793])
+    fh_freqs = np.array([2466, 2680, 2573, 2796, 2900, 2793])
     # Set this for your experiment
     tot_num_of_qubits = 6
 
     gain_start = 0.000001
-    gain_stop = 0.01
+    gain_stop = 0.1
     gain_steps= 50
 
     list_of_all_qubits = list(range(tot_num_of_qubits))
@@ -28,18 +28,18 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "reps": 1, #shots at one freq
             "rounds": 200, #sweeps through each freq and average
             "start": -0.7, #[MHz]
-            "step_size": 0.01,  # [MHz]
-            "steps": 150,#,200,#70
+            "step_size": 0.005,  # [MHz]
+            "steps": 300,#,200,#70
             "relax_delay": 5,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
 
         "res_spec_ef": {
             "reps": 1,#shots at one freq
-            "rounds": 100, #sweeps through each freq and average
+            "rounds": 200, #sweeps through each freq and average
             "start": -0.7, #[MHz]
-            "step_size": 0.01,  # [MHz]
-            "steps": 150,#,200,#70
+            "step_size": 0.005,  # [MHz]
+            "steps": 300,#,200,#70
             "relax_delay": 5,  # [us]
         },
 
@@ -49,7 +49,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "start": list(VNA_qubit-30), # [MHz] -30
             "stop": list(VNA_qubit+15), # [MHz] +15
             "steps": 500,
-            "relax_delay": 10, # [us]
+            "relax_delay": 60, # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
         "qubit_spec_ge_zeno": {
@@ -99,12 +99,12 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "qubit_spec_ef": {
-            "reps": 100,  # 300
-            "rounds": 1000,  # 10
-            "start": list(ef_freqs - 0.2),# 0.2),  # [MHz] #-300 #-6
-            "stop":  list(ef_freqs + 0.2),#0.2),  # [MHz] #6
-            "steps": 220,  # 1000 #450
-            "relax_delay": 500, #1000,  # [us]
+             "reps": 500,
+            "rounds": 5,
+            "start": list(ef_freqs-30), # [MHz] -30
+            "stop": list(ef_freqs+15), # [MHz] +15
+            "steps": 500,
+            "relax_delay": 100, # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
         "qubit_spec_fh": {
@@ -170,8 +170,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "length_rabi_ge": {
-            "reps": 20,#500,
-            "rounds": 5,
+            "reps": 500,
+            "rounds": 10,
             "start": 0.01,  # [us]
             "stop": 15,#[0.7] * 6,  # [us]
             "steps": 500,
