@@ -599,6 +599,7 @@ class T1VsTime:
         rounds_completed = {i: [] for i in range(self.number_of_qubits)}
         delay_times = {i: [] for i in range(self.number_of_qubits)}
 
+
         for folder_date in self.top_folder_dates:
             outerFolder = f"M:/_Data/20250822 - Olivia/{self.run_name}/" + folder_date + "/study_data"
             # Assuming T1 data structure similar to run_t1_sweep_new
@@ -641,6 +642,8 @@ class T1VsTime:
                             
                             date = datetime.datetime.fromtimestamp(
                                 load_data[f'T1{exp_extension}'][q_key].get('Dates', [])[0][dataset])
+                            t1_times = self.process_h5_data(
+                                load_data[f'T1{exp_extension}'][q_key].get('Q', [])[0][dataset].decode())
                         except:
                             continue
 
@@ -680,7 +683,7 @@ class T1VsTime:
 
                             # Append to aggregation lists
                             agg_amps[q_key].extend(amp_data)
-                            
+
                             # Expand date to match the number of delay points
                             expanded_date = [date] * len(amp_data)
                             agg_dates[q_key].extend(expanded_date)
@@ -700,231 +703,1061 @@ class T1VsTime:
 
         return None, None, amps, dates, rounds_completed, delay_times
 
-    def plot_all_t1_heatmaps_single_gain(
+    def plot_t1_scatter_multi_gain_by_dataset_index(
             self,
-            amps,
-            date_times,
-            rounds,
-            delay_times,
+            amps_t1_gains,
+            delay_times_t1_gains,
+            gains,
             save_path,
-            max_ylabels=6,
-            individual_subfolder="individual_specs",
-            save_individual_plots=True,
+            q_key=0,
+            ax=None,
+            title=None,
+            min_points=6,
+            maxfev=20000,
+            reject_nonpositive=True,
+            show_errorbars=False,
+            per_dataset_folder_name="per_dataset_fits_by_gain",
+            save_npz=True,
+            save_csv=True,
+            fig_dpi=150,
+            max_T1_us=500.0,
     ):
         """
-        Updated to plot Heatmap with Time (Date) on X-axis and Delay Time on Y-axis.
+        Fit T1 and plot Gamma = 1/T1 vs dataset index.
+
+        Also saves boxplots (with overlaid points, NO jitter) for:
+          - Gamma by gain
+          - T1 by gain
+        """
+        import os
+        import csv
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from matplotlib.lines import Line2D
+        from scipy.optimize import curve_fit
+
+        # -------------------- normalize inputs to "multi-gain" lists --------------------
+        def _is_qubit_dict(x):
+            return isinstance(x, dict)
+
+        # If user passed single-gain dicts, wrap them into lists
+        if _is_qubit_dict(amps_t1_gains) and _is_qubit_dict(delay_times_t1_gains):
+            amps_t1_gains = [amps_t1_gains]
+            delay_times_t1_gains = [delay_times_t1_gains]
+            # normalize gains to length-1 list for labeling
+            if isinstance(gains, (list, tuple, np.ndarray)):
+                if len(gains) == 0:
+                    gains = ["gain"]
+                else:
+                    gains = [gains[0]]
+            else:
+                gains = [gains]
+
+        # Now we require list-of-gains structure
+        if not (isinstance(amps_t1_gains, (list, tuple)) and isinstance(delay_times_t1_gains, (list, tuple))):
+            raise TypeError(
+                "amps_t1_gains and delay_times_t1_gains must be dicts (single-gain) or lists of dicts (multi-gain)."
+            )
+
+        if not (len(amps_t1_gains) == len(delay_times_t1_gains) == len(gains)):
+            raise ValueError(
+                "amps_t1_gains, delay_times_t1_gains, and gains must have the same length (after normalization)."
+            )
+
+        # -------------------- folders --------------------
+        self.create_folder_if_not_exists(save_path)
+        per_folder = os.path.join(save_path, per_dataset_folder_name)
+        self.create_folder_if_not_exists(per_folder)
+
+        # -------------------- initial guess + bounds --------------------
+        def _initial_guess(x, y):
+            y = np.asarray(y, dtype=float)
+            x = np.asarray(x, dtype=float)
+            a_guess = float(np.nanmax(y) - np.nanmin(y)) if y.size else 1.0
+            b_guess = 0.0
+            c_guess = float((x[-1] - x[0]) / 5.0) if len(x) > 1 else 1.0
+            d_guess = float(np.nanmin(y)) if y.size else 0.0
+            return [a_guess, b_guess, max(c_guess, 1e-6), d_guess]
+
+        lower_bounds = [-np.inf, -np.inf, 0.0, -np.inf]
+        upper_bounds = [np.inf, np.inf, np.inf, np.inf]
+
+        # -------------------- plotting setup --------------------
+        created_fig = False
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(10, 5))
+            created_fig = True
+        else:
+            fig = ax.figure
+
+        # Colors per gain (tab10 cycling)
+        cmap = plt.get_cmap("tab10")
+        gain_labels = [str(g) for g in gains]
+        gain_to_color = {gl: cmap(i % 10) for i, gl in enumerate(gain_labels)}
+
+        summary_rows = []
+        gamma_by_gain = {gl: [] for gl in gain_labels}
+        t1_by_gain = {gl: [] for gl in gain_labels}
+
+        # -------------------- main loop over gains --------------------
+        for gi, gain_label in enumerate(gains):
+            gain_label_str = str(gain_label)
+            color = gain_to_color[gain_label_str]
+
+            amps_dict = amps_t1_gains[gi]
+            delay_dict = delay_times_t1_gains[gi]
+
+            if q_key not in amps_dict or q_key not in delay_dict:
+                continue
+
+            amps_list = amps_dict[q_key]
+            delay_list = delay_dict[q_key]
+
+            n_datasets = min(len(amps_list), len(delay_list))
+            if n_datasets == 0:
+                continue
+
+            safe_gain = gain_label_str.replace("/", "_").replace("\\", "_").replace(" ", "")
+            gain_folder = os.path.join(per_folder, safe_gain)
+            self.create_folder_if_not_exists(gain_folder)
+
+            x_for_plot = []
+            gamma_for_plot = []
+            gamma_err_for_plot = []
+
+            for di in range(n_datasets):
+                x = np.asarray(delay_list[di], dtype=float).ravel()
+                y = np.asarray(amps_list[di], dtype=float).ravel()
+
+                if x.size == 0 or y.size == 0:
+                    continue
+                if x.size != y.size:
+                    continue
+
+                good = np.isfinite(x) & np.isfinite(y)
+                x = x[good]
+                y = y[good]
+                if x.size < min_points:
+                    continue
+
+                order = np.argsort(x)
+                x = x[order]
+                y = y[order]
+
+                try:
+                    p0 = _initial_guess(x, y)
+                    popt, pcov = curve_fit(
+                        self.exponential,
+                        x, y,
+                        p0=p0,
+                        bounds=(lower_bounds, upper_bounds),
+                        method="trf",
+                        maxfev=maxfev
+                    )
+
+                    T1_est = float(popt[2])
+                    if not np.isfinite(T1_est):
+                        continue
+                    if reject_nonpositive and T1_est <= 0:
+                        continue
+                    if max_T1_us is not None and T1_est > float(max_T1_us):
+                        continue
+
+                    T1_err = (
+                        float(np.sqrt(pcov[2, 2]))
+                        if (pcov is not None and pcov.shape == (4, 4)
+                            and np.isfinite(pcov[2, 2]) and pcov[2, 2] >= 0)
+                        else np.nan
+                    )
+
+                    gamma_est = 1.0 / T1_est
+                    gamma_err = (T1_err / (T1_est ** 2)) if (np.isfinite(T1_err) and T1_est > 0) else np.nan
+
+                    yfit = self.exponential(x, *popt)
+                    x_smooth = np.linspace(float(np.min(x)), float(np.max(x)), 400) if x.size >= 2 else x
+                    yfit_smooth = self.exponential(x_smooth, *popt)
+
+                    dataset_idx = di + 1  # 1-based for plotting
+
+                    x_for_plot.append(dataset_idx)
+                    gamma_for_plot.append(gamma_est)
+                    gamma_err_for_plot.append(gamma_err)
+
+                    gamma_by_gain[gain_label_str].append(gamma_est)
+                    t1_by_gain[gain_label_str].append(T1_est)
+
+                    base = f"Q{q_key}__dataset_{dataset_idx:03d}__{safe_gain}__T1_{T1_est:.2f}us"
+
+                    # per-dataset fit plot
+                    fig_ds, ax_ds = plt.subplots(figsize=(8, 5))
+                    ax_ds.plot(x, y, "o", label="data")
+                    ax_ds.plot(x_smooth, yfit_smooth, "-", linewidth=2, label="fit")
+                    ax_ds.set_xlabel("Delay time (us)")
+                    ax_ds.set_ylabel("Qubit population (scaled)")
+                    ax_ds.set_title(f"Q{q_key}  {gain_label}  dataset {dataset_idx}  T1={T1_est:.2f} us")
+                    ax_ds.legend()
+                    fig_ds.tight_layout()
+                    fig_ds.savefig(os.path.join(gain_folder, base + ".png"), dpi=fig_dpi, bbox_inches="tight")
+                    plt.close(fig_ds)
+
+                    if save_npz:
+                        np.savez(
+                            os.path.join(gain_folder, base + ".npz"),
+                            gain=gain_label_str,
+                            q_key=int(q_key),
+                            dataset_index=int(dataset_idx),
+                            delay_us=x,
+                            amp=y,
+                            popt=popt,
+                            pcov=pcov,
+                            yfit=yfit,
+                            xfit_smooth=x_smooth,
+                            yfit_smooth=yfit_smooth,
+                            T1_us=T1_est,
+                            T1_err_us=T1_err,
+                            Gamma_1_per_us=gamma_est,
+                            Gamma_err_1_per_us=gamma_err,
+                        )
+
+                    if save_csv:
+                        with open(os.path.join(gain_folder, base + ".csv"), "w", newline="") as f:
+                            w = csv.writer(f)
+                            w.writerow(["delay_us", "amp", "fit_on_delay_grid"])
+                            for xi, yi, yfi in zip(x, y, yfit):
+                                w.writerow([xi, yi, yfi])
+
+                    summary_rows.append(
+                        [gain_label_str, int(q_key), int(dataset_idx), T1_est, T1_err, gamma_est, gamma_err]
+                    )
+
+                except Exception:
+                    continue
+
+            # gamma vs dataset index (colored per gain)
+            if len(gamma_for_plot) > 0:
+                if show_errorbars:
+                    ax.errorbar(
+                        x_for_plot, gamma_for_plot, yerr=gamma_err_for_plot,
+                        fmt='o', capsize=2, color=color, label=gain_label_str
+                    )
+                else:
+                    ax.plot(
+                        x_for_plot, gamma_for_plot,
+                        linestyle='None', marker='o', markersize=4,
+                        markerfacecolor=color, markeredgecolor=color,
+                        label=gain_label_str
+                    )
+
+        # -------------------- finish combined plot --------------------
+        ax.set_xlabel("Dataset index")
+        ax.set_ylabel(r"$\Gamma$ (1/us)")
+        ax.set_title(title if title is not None else fr"$\Gamma$ vs dataset index (Q{q_key})")
+        ax.legend()
+
+        if created_fig:
+            fig.tight_layout()
+
+        out_file = os.path.join(save_path, "gamma_vs_dataset_index_multi_gain.png")
+        fig.savefig(out_file, dpi=fig_dpi, bbox_inches="tight")
+
+        # -------------------- boxplots with overlaid points (NO jitter) --------------------
+        def _box_with_points(
+                data_by_gain: dict,
+                ylabel: str,
+                title_str: str,
+                fname_with: str,
+                fname_no: str,
+                point_size: float = 3.0,
+                alpha: float = 0.7,
+        ):
+            gls = gain_labels
+            box_data = [data_by_gain[gl] for gl in gls]
+
+            if not any(len(v) > 0 for v in box_data):
+                return
+
+            # legend handles (gain -> color)
+            handles = [
+                Line2D([0], [0], marker='o', linestyle='None',
+                       markerfacecolor=gain_to_color[gl],
+                       markeredgecolor=gain_to_color[gl],
+                       markersize=6, label=gl)
+                for gl in gls
+            ]
+
+            def _save(show_fliers: bool, fname: str):
+                fig_b, ax_b = plt.subplots(figsize=(max(6, 1.2 * len(gls)), 5))
+
+                positions = np.arange(1, len(gls) + 1)
+                ax_b.boxplot(
+                    box_data,
+                    positions=positions,
+                    labels=gls,
+                    showfliers=show_fliers
+                )
+
+                # overlay ALL points centered exactly at each box position
+                for pos, gl in zip(positions, gls):
+                    vals = np.asarray(data_by_gain[gl], dtype=float)
+                    vals = vals[np.isfinite(vals)]
+                    if vals.size == 0:
+                        continue
+
+                    x_center = np.full(vals.size, float(pos), dtype=float)  # <-- NO jitter
+                    ax_b.plot(
+                        x_center, vals,
+                        linestyle='None',
+                        marker='o',
+                        markersize=point_size,
+                        markerfacecolor=gain_to_color[gl],
+                        markeredgecolor=gain_to_color[gl],
+                        alpha=alpha,
+                    )
+
+                ax_b.set_ylabel(ylabel)
+                ax_b.set_xlabel("Gain")
+                ax_b.set_title(title_str)
+                ax_b.legend(handles=handles, title="Gain", loc="best", frameon=True)
+
+                fig_b.tight_layout()
+                fig_b.savefig(os.path.join(save_path, fname), dpi=fig_dpi, bbox_inches="tight")
+                plt.close(fig_b)
+
+            _save(True, fname_with)
+            _save(False, fname_no)
+
+        # Gamma boxplots (with points)
+        _box_with_points(
+            gamma_by_gain,
+            ylabel=r"$\Gamma$ (1/$\mu$s)",
+            title_str=fr"$\Gamma$ distribution by gain (Q{q_key})",
+            fname_with="gamma_boxplot_multi_gain_with_outliers.png",
+            fname_no="gamma_boxplot_multi_gain_no_outliers.png",
+            point_size=3.0,
+            alpha=0.7
+        )
+
+        # T1 boxplots (with points)
+        _box_with_points(
+            t1_by_gain,
+            ylabel=r"$T_1$ ($\mu$s)",
+            title_str=fr"$T_1$ distribution by gain (Q{q_key})",
+            fname_with="t1_boxplot_multi_gain_with_outliers.png",
+            fname_no="t1_boxplot_multi_gain_no_outliers.png",
+            point_size=3.0,
+            alpha=0.7
+        )
+
+        # -------------------- summary outputs --------------------
+        summary_csv = os.path.join(save_path, "gamma_vs_dataset_index_multi_gain_summary.csv")
+        with open(summary_csv, "w", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(["gain", "q_key", "dataset_index", "T1_us", "T1_err_us", "Gamma_1_per_us", "Gamma_err_1_per_us"])
+            w.writerows(summary_rows)
+
+        summary_npz = os.path.join(save_path, "gamma_vs_dataset_index_multi_gain_summary.npz")
+        np.savez(
+            summary_npz,
+            gain=np.array([r[0] for r in summary_rows], dtype=object),
+            q_key=np.array([r[1] for r in summary_rows], dtype=int),
+            dataset_index=np.array([r[2] for r in summary_rows], dtype=int),
+            T1_us=np.array([r[3] for r in summary_rows], dtype=float),
+            T1_err_us=np.array([r[4] for r in summary_rows], dtype=float),
+            Gamma_1_per_us=np.array([r[5] for r in summary_rows], dtype=float),
+            Gamma_err_1_per_us=np.array([r[6] for r in summary_rows], dtype=float),
+        )
+
+        return fig, ax
+
+    def plot_t1_scatter_multi_gain_by_round(self,
+                                            amps_t1_gains, dates_t1_gains, delay_times_t1_gains,
+                                            gains,
+                                            save_path,
+                                            q_key=0, round_idx=0,
+                                            ax=None, title=None,
+                                            min_points=6, maxfev=20000,
+                                            reject_nonpositive=True,
+                                            show_errorbars=False,
+                                            per_dataset_folder_name="per_dataset_fits_by_gain",
+                                            per_dataset_fmt="%Y-%m-%d_%H-%M-%S",
+                                            save_npz=True, save_csv=True,
+                                            fig_dpi=150,
+                                            max_T1_us=500.0):
+        """
+        Fit T1 for multiple gains and plot Gamma = 1/T1 vs *round number*.
+
+        Also saves boxplots (with overlaid points, NO jitter) for:
+          - Gamma by gain (with outliers and without)
+          - T1 by gain (with outliers and without)
+        """
+        import os
+        import csv
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from matplotlib.lines import Line2D
+        from scipy.optimize import curve_fit
+
+        # --- basic validation ---
+        if not (len(amps_t1_gains) == len(dates_t1_gains) == len(delay_times_t1_gains) == len(gains)):
+            raise ValueError(
+                "amps_t1_gains, dates_t1_gains, delay_times_t1_gains, and gains must have the same length."
+            )
+
+        # Ensure folders exist
+        self.create_folder_if_not_exists(save_path)
+        per_folder = os.path.join(save_path, per_dataset_folder_name)
+        self.create_folder_if_not_exists(per_folder)
+
+        # Helper: initial guess consistent with your t1_fit()
+        def _initial_guess(x, y):
+            y = np.asarray(y, dtype=float)
+            x = np.asarray(x, dtype=float)
+            a_guess = np.nanmax(y) - np.nanmin(y)
+            b_guess = 0.0
+            c_guess = (x[-1] - x[0]) / 5.0 if len(x) > 1 else 1.0
+            d_guess = np.nanmin(y)
+            return [a_guess, b_guess, max(c_guess, 1e-6), d_guess]
+
+        lower_bounds = [-np.inf, -np.inf, 0.0, -np.inf]
+        upper_bounds = [np.inf, np.inf, np.inf, np.inf]
+
+        # --- plotting setup ---
+        created_fig = False
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(10, 5))
+            created_fig = True
+        else:
+            fig = ax.figure
+
+        # Colors per gain (tab10 cycling)
+        gain_labels = [str(g) for g in gains]
+        cmap = plt.get_cmap("tab10")
+        gain_to_color = {gl: cmap(i % 10) for i, gl in enumerate(gain_labels)}
+
+        summary_rows = []
+
+        # Collect fitted values for boxplots
+        gamma_by_gain = {gl: [] for gl in gain_labels}
+        t1_by_gain = {gl: [] for gl in gain_labels}
+
+        # --- loop over gains; fit; plot ---
+        for gi, gain_label in enumerate(gains):
+            gain_label_str = str(gain_label)
+            color = gain_to_color[gain_label_str]
+
+            amps = amps_t1_gains[gi]
+            dates = dates_t1_gains[gi]
+            delay_times = delay_times_t1_gains[gi]
+
+            # Pull flat arrays for this gain/qubit/round
+            a = np.asarray(amps[q_key][round_idx], dtype=float)
+            t = np.asarray(dates[q_key][round_idx], dtype=object)  # datetimes
+            d = np.asarray(delay_times[q_key][round_idx], dtype=float)
+
+            if not (len(a) == len(t) == len(d)):
+                raise ValueError(f"[{gain_label}] Length mismatch: amps={len(a)}, dates={len(t)}, delays={len(d)}")
+            if len(a) == 0:
+                continue
+
+            # Group points by datetime (each datetime = one curve)
+            by_time = {}
+            for amp_val, tt, dd in zip(a, t, d):
+                if tt not in by_time:
+                    by_time[tt] = {"delay": [], "amp": []}
+                if np.isfinite(amp_val) and np.isfinite(dd):
+                    by_time[tt]["delay"].append(float(dd))
+                    by_time[tt]["amp"].append(float(amp_val))
+
+            # Define "round number" as chronological order of datetimes *within this gain*
+            times_sorted = sorted(by_time.keys())
+            time_to_round = {tt: (idx + 1) for idx, tt in enumerate(times_sorted)}  # 1-based
+
+            # Per-gain output folder
+            safe_gain = gain_label_str.replace("/", "_").replace("\\", "_").replace(" ", "")
+            gain_folder = os.path.join(per_folder, safe_gain)
+            self.create_folder_if_not_exists(gain_folder)
+
+            rounds_for_plot = []
+            gamma_for_plot = []
+            gamma_err_for_plot = []
+
+            # Fit each dataset
+            for tt in times_sorted:
+                x = np.asarray(by_time[tt]["delay"], dtype=float)
+                y = np.asarray(by_time[tt]["amp"], dtype=float)
+
+                if x.size < min_points:
+                    continue
+
+                order = np.argsort(x)
+                x = x[order]
+                y = y[order]
+
+                good = np.isfinite(x) & np.isfinite(y)
+                x = x[good]
+                y = y[good]
+                if x.size < min_points:
+                    continue
+
+                try:
+                    p0 = _initial_guess(x, y)
+                    popt, pcov = curve_fit(
+                        self.exponential, x, y,
+                        p0=p0, bounds=(lower_bounds, upper_bounds),
+                        method="trf", maxfev=maxfev
+                    )
+
+                    T1_est = float(popt[2])
+                    if not np.isfinite(T1_est):
+                        continue
+                    if reject_nonpositive and T1_est <= 0:
+                        continue
+                    if max_T1_us is not None and T1_est > float(max_T1_us):
+                        continue
+
+                    T1_err = (
+                        float(np.sqrt(pcov[2, 2]))
+                        if (pcov is not None and pcov.shape == (4, 4)
+                            and np.isfinite(pcov[2, 2]) and pcov[2, 2] >= 0)
+                        else np.nan
+                    )
+
+                    gamma_est = 1.0 / T1_est
+                    gamma_err = (T1_err / (T1_est ** 2)) if (np.isfinite(T1_err) and T1_est > 0) else np.nan
+
+                    # Compute fitted curve (for saving)
+                    yfit = self.exponential(x, *popt)
+                    x_smooth = np.linspace(float(np.min(x)), float(np.max(x)), 400) if x.size >= 2 else x
+                    yfit_smooth = self.exponential(x_smooth, *popt)
+
+                    rnum = time_to_round[tt]
+                    rounds_for_plot.append(rnum)
+                    gamma_for_plot.append(gamma_est)
+                    gamma_err_for_plot.append(gamma_err)
+
+                    # store for boxplots
+                    gamma_by_gain[gain_label_str].append(gamma_est)
+                    t1_by_gain[gain_label_str].append(T1_est)
+
+                    # Save per-dataset plot + data (still labels T1 in filename/title)
+                    ts = tt.strftime(per_dataset_fmt) if hasattr(tt, "strftime") else str(tt)
+                    base = f"Q{q_key}__round_{rnum:03d}__{ts}__{safe_gain}__T1_{T1_est:.2f}us"
+
+                    fig_ds, ax_ds = plt.subplots(figsize=(8, 5))
+                    ax_ds.plot(x, y, "o", label="data")
+                    ax_ds.plot(x_smooth, yfit_smooth, "-", linewidth=2, label="fit")
+                    ax_ds.set_xlabel("Delay time (us)")
+                    ax_ds.set_ylabel("Qubit population (scaled)")
+                    ax_ds.set_title(f"Q{q_key}  {gain_label}  round {rnum}  T1={T1_est:.2f} us")
+                    ax_ds.legend()
+                    fig_ds.tight_layout()
+                    fig_ds.savefig(os.path.join(gain_folder, base + ".png"), dpi=fig_dpi, bbox_inches="tight")
+                    plt.close(fig_ds)
+
+                    if save_npz:
+                        np.savez(
+                            os.path.join(gain_folder, base + ".npz"),
+                            datetime_str=ts,
+                            gain=gain_label_str,
+                            q_key=int(q_key),
+                            round_number=int(rnum),
+                            delay_us=x,
+                            amp=y,
+                            popt=popt,
+                            pcov=pcov,
+                            yfit=yfit,
+                            xfit_smooth=x_smooth,
+                            yfit_smooth=yfit_smooth,
+                            T1_us=T1_est,
+                            T1_err_us=T1_err,
+                            Gamma_1_per_us=gamma_est,
+                            Gamma_err_1_per_us=gamma_err,
+                        )
+
+                    if save_csv:
+                        with open(os.path.join(gain_folder, base + ".csv"), "w", newline="") as f:
+                            w = csv.writer(f)
+                            w.writerow(["delay_us", "amp", "fit_on_delay_grid"])
+                            for xi, yi, yfi in zip(x, y, yfit):
+                                w.writerow([xi, yi, yfi])
+
+                    summary_rows.append(
+                        [gain_label_str, int(q_key), int(rnum), ts, T1_est, T1_err, gamma_est, gamma_err]
+                    )
+
+                except Exception:
+                    continue
+
+            # Plot this gain with explicit per-gain color (small filled circles)
+            if len(gamma_for_plot) > 0:
+                if show_errorbars:
+                    ax.errorbar(
+                        rounds_for_plot, gamma_for_plot, yerr=gamma_err_for_plot,
+                        fmt='o', capsize=2, color=color, label=gain_label_str
+                    )
+                else:
+                    ax.plot(
+                        rounds_for_plot, gamma_for_plot,
+                        linestyle='None', marker='o', markersize=4,
+                        markerfacecolor=color, markeredgecolor=color,
+                        label=gain_label_str
+                    )
+
+        # --- finish combined scatter plot ---
+        ax.set_xlabel("Round number")
+        ax.set_ylabel(r"Gamma = 1/T1 (1/us)")
+        ax.set_title(title if title is not None else fr"Gamma (1/T1) vs round (Q{q_key})")
+        ax.legend()
+
+        if created_fig:
+            fig.tight_layout()
+
+        out_file = os.path.join(save_path, "gamma_vs_round_multi_gain.png")
+        fig.savefig(out_file, dpi=fig_dpi, bbox_inches="tight")
+
+        # --- boxplots with overlaid points (NO jitter) ---
+        # Preserve your original reverse ordering + numeric-ish gain labels
+        gain_labels_x = [float(str(g).replace('p', '.').replace('gain', '')) for g in gains]
+
+        def _box_with_points(
+                data_by_gain: dict,
+                ylabel: str,
+                plot_title: str,
+                fname_with: str,
+                fname_no: str,
+                point_size: float = 3.0,
+                alpha: float = 0.7,
+        ):
+            gls = gain_labels
+            box_data = [data_by_gain[gl] for gl in gls]
+
+            if not any(len(v) > 0 for v in box_data):
+                return
+
+            # reverse convention (as in your original code)
+            box_data_plot = box_data[::-1]
+            labels_plot = gain_labels_x[::-1]
+            gls_plot = gls[::-1]
+
+            handles = [
+                Line2D([0], [0], marker='o', linestyle='None',
+                       markerfacecolor=gain_to_color[gl],
+                       markeredgecolor=gain_to_color[gl],
+                       markersize=6, label=gl)
+                for gl in gls_plot
+            ]
+
+            def _save(show_fliers: bool, fname: str):
+                fig_b, ax_b = plt.subplots(figsize=(max(6, 1.2 * len(labels_plot)), 5))
+
+                positions = np.arange(1, len(gls_plot) + 1)
+                ax_b.boxplot(box_data_plot, positions=positions, labels=labels_plot, showfliers=show_fliers)
+
+                # overlay ALL points centered exactly at each box position (NO jitter)
+                for pos, gl in zip(positions, gls_plot):
+                    vals = np.asarray(data_by_gain[gl], dtype=float)
+                    vals = vals[np.isfinite(vals)]
+                    if vals.size == 0:
+                        continue
+
+                    x_center = np.full(vals.size, float(pos), dtype=float)
+                    ax_b.plot(
+                        x_center, vals,
+                        linestyle='None', marker='o',
+                        markersize=point_size,
+                        markerfacecolor=gain_to_color[gl],
+                        markeredgecolor=gain_to_color[gl],
+                        alpha=alpha,
+                    )
+
+                ax_b.set_ylabel(ylabel)
+                ax_b.set_xlabel("Gain")
+                ax_b.set_title(plot_title)
+                ax_b.legend(handles=handles, title="Gain", loc="best", frameon=True)
+
+                fig_b.tight_layout()
+                fig_b.savefig(os.path.join(save_path, fname), dpi=fig_dpi, bbox_inches="tight")
+                plt.close(fig_b)
+
+            _save(True, fname_with)
+            _save(False, fname_no)
+
+        # Gamma boxplots (with points)
+        _box_with_points(
+            gamma_by_gain,
+            ylabel=r"$\Gamma$ ($\mu s^{-1}$)",
+            plot_title=fr"Gamma (1/T1) distribution by gain (Q{q_key})",
+            fname_with="gamma_boxplot_multi_gain_with_outliers.png",
+            fname_no="gamma_boxplot_multi_gain_no_outliers.png",
+            point_size=3.0,
+            alpha=0.7
+        )
+
+        # T1 boxplots (with points)
+        _box_with_points(
+            t1_by_gain,
+            ylabel=r"$T_1$ ($\mu s$)",
+            plot_title=fr"$T_1$ distribution by gain (Q{q_key})",
+            fname_with="t1_boxplot_multi_gain_with_outliers.png",
+            fname_no="t1_boxplot_multi_gain_no_outliers.png",
+            point_size=3.0,
+            alpha=0.7
+        )
+
+        # --- save combined summary ---
+        summary_csv = os.path.join(save_path, "gamma_vs_round_multi_gain_summary.csv")
+        with open(summary_csv, "w", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(["gain", "q_key", "round_number", "datetime", "T1_us", "T1_err_us",
+                        "Gamma_1_per_us", "Gamma_err_1_per_us"])
+            w.writerows(summary_rows)
+
+        summary_npz = os.path.join(save_path, "gamma_vs_round_multi_gain_summary.npz")
+        np.savez(
+            summary_npz,
+            gain=np.array([r[0] for r in summary_rows], dtype=object),
+            q_key=np.array([r[1] for r in summary_rows], dtype=int),
+            round_number=np.array([r[2] for r in summary_rows], dtype=int),
+            datetime_str=np.array([r[3] for r in summary_rows], dtype=object),
+            T1_us=np.array([r[4] for r in summary_rows], dtype=float),
+            T1_err_us=np.array([r[5] for r in summary_rows], dtype=float),
+            Gamma_1_per_us=np.array([r[6] for r in summary_rows], dtype=float),
+            Gamma_err_1_per_us=np.array([r[7] for r in summary_rows], dtype=float),
+        )
+
+        return fig, ax
+
+    def plot_t1_scatter_single_gain(self, amps, dates, delay_times, save_path, q_key=0, round_idx=0,
+                                    ax=None, title=None, gain='',
+                                    min_points=6, maxfev=20000,
+                                    reject_nonpositive=True,
+                                    show_errorbars=False,
+                                    per_dataset_folder_name="per_dataset_fits",
+                                    per_dataset_fmt="%Y-%m-%d_%H-%M-%S",
+                                    save_npz=True,
+                                    save_csv=True,
+                                    fig_dpi=150):
+        """
+        Fit a T1 to each repeated-measurement dataset (grouped by datetime) and plot T1 vs datetime,
+        AND save per-dataset data + fit curve plots into a separate folder.
+
+        Inputs are the same as plot_t1_heatmap_single_gain:
+            amps[q_key][round_idx]        -> flat list of scaled populations (already normalized)
+            dates[q_key][round_idx]       -> flat list of datetimes (repeated per curve)
+            delay_times[q_key][round_idx] -> flat list of delays (same length as amps)
+
+        Saves:
+          1) Scatter: save_path/t1_vs_datetime_scatter.png
+          2) Per-dataset folder: save_path/per_dataset_folder_name/
+               - <timestamp>__T1_<T1>us.png  (data + fit overlay)
+               - <timestamp>__T1_<T1>us.npz  (x, y, popt, pcov, yfit)  [optional]
+               - <timestamp>__T1_<T1>us.csv  (delay, amp, fit)        [optional]
+          3) Summary table:
+               - save_path/t1_vs_datetime_summary.csv
+               - save_path/t1_vs_datetime_summary.npz
+
+        Returns
+        -------
+        fig, ax, (fit_datetimes, T1_vals, T1_errs)
+        """
+        import os
+        import csv
+        import numpy as np
+        import matplotlib.pyplot as plt
+        import matplotlib.dates as mdates
+        from scipy.optimize import curve_fit
+
+        # --- Pull flat arrays ---
+        a = np.asarray(amps[q_key][round_idx], dtype=float)
+        t = np.asarray(dates[q_key][round_idx], dtype=object)  # datetimes
+        d = np.asarray(delay_times[q_key][round_idx], dtype=float)
+
+        if not (len(a) == len(t) == len(d)):
+            raise ValueError(f"Length mismatch: amps={len(a)}, dates={len(t)}, delays={len(d)}")
+        if len(a) == 0:
+            raise ValueError("No data to plot for this qubit/round.")
+
+        # Ensure base folders exist
+        self.create_folder_if_not_exists(save_path)
+        per_folder = os.path.join(save_path, per_dataset_folder_name)
+        self.create_folder_if_not_exists(per_folder)
+
+        # --- Group points by datetime (each datetime corresponds to one T1 curve) ---
+        by_time = {}
+        for amp_val, tt, dd in zip(a, t, d):
+            if tt not in by_time:
+                by_time[tt] = {"delay": [], "amp": []}
+            if np.isfinite(amp_val) and np.isfinite(dd):
+                by_time[tt]["delay"].append(float(dd))
+                by_time[tt]["amp"].append(float(amp_val))
+
+        # Helper: initial guess consistent with your t1_fit()
+        def _initial_guess(x, y):
+            y = np.asarray(y, dtype=float)
+            x = np.asarray(x, dtype=float)
+            a_guess = np.nanmax(y) - np.nanmin(y)
+            b_guess = 0.0
+            c_guess = (x[-1] - x[0]) / 5.0 if len(x) > 1 else 1.0
+            d_guess = np.nanmin(y)
+            return [a_guess, b_guess, max(c_guess, 1e-6), d_guess]
+
+        # Bounds like your t1_fit: only constrain T1=c >= 0
+        lower_bounds = [-np.inf, -np.inf, 0.0, -np.inf]
+        upper_bounds = [np.inf, np.inf, np.inf, np.inf]
+
+        # Collect successful fits
+        fit_datetimes = []
+        T1_vals = []
+        T1_errs = []
+        summary_rows = []  # for csv saving
+
+        # --- Fit each dataset and save per-dataset plot + data ---
+        for tt in sorted(by_time.keys()):
+            x = np.asarray(by_time[tt]["delay"], dtype=float)
+            y = np.asarray(by_time[tt]["amp"], dtype=float)
+
+            # Need enough points
+            if x.size < min_points:
+                continue
+
+            # Sort by delay
+            order = np.argsort(x)
+            x = x[order]
+            y = y[order]
+
+            # Drop NaNs/Infs
+            good = np.isfinite(x) & np.isfinite(y)
+            x = x[good]
+            y = y[good]
+            if x.size < min_points:
+                continue
+
+            try:
+                p0 = _initial_guess(x, y)
+                popt, pcov = curve_fit(
+                    self.exponential, x, y,
+                    p0=p0, bounds=(lower_bounds, upper_bounds),
+                    method="trf", maxfev=maxfev
+                )
+
+                T1_est = float(popt[2])
+                if not np.isfinite(T1_est):
+                    continue
+                if reject_nonpositive and (T1_est <= 0):
+                    continue
+                # keep your outlier cut
+                if T1_est > 500:
+                    continue
+
+                T1_err = float(np.sqrt(pcov[2, 2])) if pcov is not None and pcov.shape == (4, 4) and pcov[
+                    2, 2] >= 0 else np.nan
+
+                # Compute fitted curve on same x grid (and also a smooth grid for plotting)
+                yfit = self.exponential(x, *popt)
+                x_smooth = np.linspace(float(np.min(x)), float(np.max(x)), 400) if x.size >= 2 else x
+                yfit_smooth = self.exponential(x_smooth, *popt)
+
+                # Record for scatter
+                fit_datetimes.append(tt)
+                T1_vals.append(T1_est)
+                T1_errs.append(T1_err)
+
+                # ---- Save per-dataset plot ----
+                ts = tt.strftime(per_dataset_fmt) if hasattr(tt, "strftime") else str(tt)
+                safe_gain = str(gain).replace("/", "_").replace("\\", "_").replace(" ", "")
+                base = f"Q{q_key}__{ts}__gain_{safe_gain}__T1_{T1_est:.2f}us"
+                png_path = os.path.join(per_folder, base + ".png")
+
+                fig_ds, ax_ds = plt.subplots(figsize=(8, 5))
+                ax_ds.plot(x, y, "o", label="data")
+                ax_ds.plot(x_smooth, yfit_smooth, "-", linewidth=2, label="fit")
+                ax_ds.set_xlabel("Delay time (us)")
+                ax_ds.set_ylabel("Qubit population (scaled)")
+                ax_ds.set_title(f"Q{q_key}  {ts}  gain {gain}  T1={T1_est:.2f} us")
+                ax_ds.legend()
+                fig_ds.tight_layout()
+                fig_ds.savefig(png_path, dpi=fig_dpi, bbox_inches="tight")
+                plt.close(fig_ds)
+
+                # ---- Save per-dataset arrays/fit params ----
+                if save_npz:
+                    npz_path = os.path.join(per_folder, base + ".npz")
+                    # Store both raw and smooth fit for convenience
+                    np.savez(
+                        npz_path,
+                        datetime_str=ts,
+                        gain=str(gain),
+                        q_key=int(q_key),
+                        delay_us=x,
+                        amp=y,
+                        popt=popt,
+                        pcov=pcov,
+                        yfit=yfit,
+                        xfit_smooth=x_smooth,
+                        yfit_smooth=yfit_smooth,
+                        T1_us=T1_est,
+                        T1_err_us=T1_err,
+                    )
+
+                if save_csv:
+                    csv_path = os.path.join(per_folder, base + ".csv")
+                    with open(csv_path, "w", newline="") as f:
+                        w = csv.writer(f)
+                        w.writerow(["delay_us", "amp", "fit_on_delay_grid"])
+                        for xi, yi, yfi in zip(x, y, yfit):
+                            w.writerow([xi, yi, yfi])
+
+                # Summary row
+                summary_rows.append([ts, str(gain), int(q_key), T1_est, T1_err])
+
+            except Exception:
+                continue
+
+        if len(T1_vals) == 0:
+            raise ValueError("No successful T1 fits were produced. Try lowering min_points or inspecting data quality.")
+
+        # --- Scatter plot: T1 vs datetime ---
+        created_fig = False
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(10, 5))
+            created_fig = True
+        else:
+            fig = ax.figure
+
+        xnum = mdates.date2num(fit_datetimes)
+
+        if show_errorbars:
+            ax.errorbar(xnum, T1_vals, yerr=T1_errs, fmt='o', capsize=2)
+        else:
+            ax.plot(xnum, T1_vals, 'o')
+
+        locator = mdates.AutoDateLocator(minticks=3, maxticks=8)
+        ax.xaxis.set_major_locator(locator)
+        ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(locator))
+
+        ax.set_xlabel("Datetime")
+        ax.set_ylabel("Fitted T1 (us)")
+        ax.set_title(title if title is not None else f"T1 vs time (Q{q_key}) {gain}")
+
+        fig.autofmt_xdate()
+        if created_fig:
+            fig.tight_layout()
+
+        out_file = os.path.join(save_path, "t1_vs_datetime_scatter.png")
+        fig.savefig(out_file, dpi=fig_dpi, bbox_inches="tight")
+
+        # --- Save summary table ---
+        summary_csv = os.path.join(save_path, "t1_vs_datetime_summary.csv")
+        with open(summary_csv, "w", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(["datetime", "gain", "q_key", "T1_us", "T1_err_us"])
+            w.writerows(summary_rows)
+
+        summary_npz = os.path.join(save_path, "t1_vs_datetime_summary.npz")
+        np.savez(
+            summary_npz,
+            datetime_str=np.array([r[0] for r in summary_rows], dtype=object),
+            gain=np.array([r[1] for r in summary_rows], dtype=object),
+            q_key=np.array([r[2] for r in summary_rows], dtype=int),
+            T1_us=np.array([r[3] for r in summary_rows], dtype=float),
+            T1_err_us=np.array([r[4] for r in summary_rows], dtype=float),
+        )
+
+        return fig, ax, (fit_datetimes, np.asarray(T1_vals), np.asarray(T1_errs))
+
+    def plot_t1_heatmap_single_gain(self, amps, dates, delay_times, save_path, q_key=0, round_idx=0,
+                                    ax=None, cmap="viridis", vmin=None, vmax=None,
+                                    sort_delays=True, title=None, show_colorbar=True,
+                                    interpolation="bilinear", gain=''):
+        """
+        Make a 2D heatmap from the returned structures of run_t1_sweep_single_gain,
+        but rendered smoothly using imshow (same method as plot_results_interweaved_cal_t1).
+
+        x-axis: datetime (not every point labeled)
+        y-axis: delay time
+        color: qubit population (amps)
         """
         import os
         import numpy as np
         import matplotlib.pyplot as plt
         import matplotlib.dates as mdates
-        from datetime import datetime
-        from collections import defaultdict
-        import matplotlib.ticker as mticker
-        from scipy.optimize import curve_fit
-        from scipy.signal import savgol_filter
 
-        # ---------- Fitting Helpers (Exponential Decay) ----------
-        def exponential_decay(x, a, b, c):
-            return a * np.exp(-x / b) + c
+        # --- Pull flat arrays ---
+        a = np.asarray(amps[q_key][round_idx], dtype=float)
+        t = np.asarray(dates[q_key][round_idx], dtype=object)  # datetimes
+        d = np.asarray(delay_times[q_key][round_idx], dtype=float)
 
-        def fit_slice(x, y):
-            x = np.asarray(x, float); y = np.asarray(y, float)
-            try:
-                # Initial guesses
-                c_guess = np.min(y)
-                a_guess = np.max(y) - c_guess
-                b_guess = np.mean(x) if np.mean(x) > 0 else 10.0 # simple guess for decay constant
-                
-                p0 = [a_guess, b_guess, c_guess]
-                # Bounds: a>0, b>0, c unbounded
-                lb = [0, 0, -np.inf]
-                ub = [np.inf, np.inf, np.inf]
-                
-                popt, pcov = curve_fit(exponential_decay, x, y, p0=p0, bounds=(lb, ub), maxfev=1000)
-                return popt[1] # Return decay constant T1
-            except:
-                return np.nan
+        if not (len(a) == len(t) == len(d)):
+            raise ValueError(f"Length mismatch: amps={len(a)}, dates={len(t)}, delays={len(d)}")
+        if len(a) == 0:
+            raise ValueError("No data to plot for this qubit/round.")
 
-        q = self.qubit
-        dates_q = date_times.get(q, [])
-        amps_q = amps.get(q, [])
-        rounds_q = rounds.get(q, [])
-        delay_q = delay_times.get(q, [])
+        # --- Build unique axes ---
+        t_unique = np.array(sorted(set(t.tolist())), dtype=object)
+        d_unique = np.array(sorted(set(d.tolist())) if sort_delays else list(set(d.tolist())), dtype=float)
 
-        # Basic presence & length checks
-        n = min(len(amps_q), len(dates_q), len(rounds_q), len(delay_q))
-        if n == 0 or not (len(amps_q) == len(dates_q) == len(rounds_q) == len(delay_q)):
-            print(f"No usable data for qubit {q} (missing lists or length mismatch). Skipping.")
-            return
+        # --- Pivot into Z[delay_index, time_index] ---
+        Z = np.full((len(d_unique), len(t_unique)), np.nan, dtype=float)
+        t_to_j = {tt: j for j, tt in enumerate(t_unique)}
+        d_to_i = {dd: i for i, dd in enumerate(d_unique)}
 
-        # ---------- Flatten to points: (round_id, date_num, delay, amp) ----------
-        all_points = []
-        for i in range(n):
-            r_id = str(rounds_q[i])
+        for amp_val, tt, dd in zip(a, t, d):
+            i = d_to_i.get(float(dd), None)
+            j = t_to_j.get(tt, None)
+            if i is not None and j is not None:
+                Z[i, j] = amp_val
 
-            a_samples = np.asarray(amps_q[i], dtype=float).ravel()
-            if a_samples.size == 0:
-                continue
+        # Mask NaNs so missing points don't render as ugly blocks
+        Zm = np.ma.array(Z, mask=np.isnan(Z))
 
-            # Date handling
-            d_raw = dates_q[i]
-
-            def to_num(d):
-                if isinstance(d, datetime):
-                    return mdates.date2num(d)
-                try:
-                    return mdates.date2num(datetime.strptime(str(d), "%Y-%m-%d %H:%M:%S"))
-                except:
-                    return np.nan
-
-            is_seq = isinstance(d_raw, (list, tuple, np.ndarray))
-            # If d_raw is a sequence of the same length as a_samples, we assume 1-to-1 mapping
-            if is_seq and len(d_raw) == len(a_samples):
-                dt_arr = np.array([to_num(d) for d in d_raw], dtype=float)
-            else:
-                # Otherwise, broadcast the single date (or first element)
-                d_single = d_raw[0] if is_seq else d_raw
-                dt_arr = np.full(a_samples.shape, to_num(d_single), dtype=float)
-
-            # delay can be scalar or per-sample
-            d_i = delay_q[i]
-            d_arr = np.asarray(d_i, dtype=float).ravel() if isinstance(d_i, (list, tuple, np.ndarray)) else None
-            if d_arr is None or d_arr.size == 1:
-                try:
-                    d_scalar = float(d_i)
-                except Exception:
-                    continue
-                d_arr = np.full(a_samples.shape, d_scalar, dtype=float)
-            elif d_arr.size != a_samples.size:
-                continue
-
-            # keep only finite triples
-            mask = np.isfinite(a_samples) & np.isfinite(dt_arr) & np.isfinite(d_arr)
-            if not np.any(mask):
-                continue
-
-            for dt, d, a in zip(dt_arr[mask], d_arr[mask], a_samples[mask]):
-                all_points.append((r_id, float(dt), float(d), float(a)))
-
-        if not all_points:
-            print(f"No numeric points for qubit {q}. Skipping.")
-            return
-
-        # Unique rounds present
-        unique_rounds = sorted({r for (r, _, __, ___) in all_points})
-
-        # Ensure save folder(s) exist
-        self.create_folder_if_not_exists(save_path)
-        if save_individual_plots:
-            indiv_root = os.path.join(save_path, individual_subfolder)
-            self.create_folder_if_not_exists(indiv_root)
-
-        # Helper: centers -> bin edges for pcolormesh
-        def centers_to_edges(centers):
-            centers = np.asarray(sorted(np.unique(centers)), dtype=float)
-            if centers.size == 1:
-                d = 1.0/24.0 # 1 hour default width
-                return np.array([centers[0] - d / 2, centers[0] + d / 2])
-            mids = (centers[:-1] + centers[1:]) / 2.0
-            first = centers[0] - (centers[1] - centers[0]) / 2.0
-            last = centers[-1] + (centers[-1] - centers[-2]) / 2.0
-            return np.concatenate([[first], mids, [last]])
-
-        # ---------- Global color scale limits (z) ----------
-        all_amps = np.array([a for (_, _, _, a) in all_points], dtype=float)
-        global_vmin = float(np.nanmin(all_amps))
-        global_vmax = float(np.nanmax(all_amps))
-
-        # For each round, build a 2D heatmap
-        for r_id in unique_rounds:
-            pts = [(dt, dv, av) for (rr, dt, dv, av) in all_points if rr == r_id]
-            if not pts:
-                continue
-
-            # Sort dates; build 2D grid
-            dates_r = sorted(set(dt for (dt, _, __) in pts))
-            delays_r = sorted(set(d for (_, d, __) in pts))
-            Ny = len(delays_r)
-            Nx = len(dates_r)
-            if Ny == 0 or Nx == 0:
-                continue
-
-            # delay -> index
-            d_map = {d: i for i, d in enumerate(delays_r)}
-            # date -> index
-            dt_map = {dt: i for i, dt in enumerate(dates_r)}
-
-            # Build C: shape (Ny, Nx), each cell avg of data from (date, delay)
-            cell_vals = defaultdict(list)
-            for (dt, dd, aa) in pts:
-                ix = dt_map[dt]
-                iy = d_map[dd]
-                cell_vals[(iy, ix)].append(aa)
-            C = np.full((Ny, Nx), np.nan, dtype=float)
-            for (iy, ix), vals in cell_vals.items():
-                C[iy, ix] = float(np.nanmean(vals))
-
-            # ---------- Fit Centers (T1 Decay) ----------
-            # Note: For T1, we don't plot "centers" like freq shift, but maybe T1 value itself?
-            # The previous code plotted "centers_L" which was the Lorentzian center.
-            # Here we fit T1 for each time slice (column).
-            t1_values = []
-            x_delays = np.array(delays_r, float)
-            for ix in range(Nx):
-                y_col = C[:, ix]
-                if np.isfinite(y_col).any() and len(x_delays) >= 5:
-                    m = np.isfinite(y_col)
-                    t1 = fit_slice(x_delays[m], y_col[m])
-                    t1_values.append(t1)
-                else:
-                    t1_values.append(np.nan)
-            t1_values = np.array(t1_values)
-
-            x_vals = dates_r
-            x_label = "Time"
-
-            idx_sorted = np.argsort(x_vals)
-            x_vals_sorted = np.array(x_vals, dtype=float)[idx_sorted]
-            C_sorted = C[:, idx_sorted]
-
-            # Bin edges for pcolormesh
-            x_edges = centers_to_edges(x_vals_sorted)
-            y_edges = centers_to_edges(delays_r)
-
-            # ---------- Heatmap ----------
+        # --- Plot ---
+        created_fig = False
+        if ax is None:
             fig, ax = plt.subplots(figsize=(10, 6))
-            mesh = ax.pcolormesh(
-                x_edges, y_edges, C_sorted, shading='flat',
-                vmin=global_vmin, vmax=global_vmax
-            )
-            cbar = fig.colorbar(mesh, ax=ax, pad=0.02)
-            cbar.set_label("Qubit Population")
+            created_fig = True
+        else:
+            fig = ax.figure
 
-            # Overlay fits (T1 values) - T1 values are in time units (us), same as Y axis? 
-            # Wait, Y axis is Delay Time. T1 is a time constant. 
-            # If we plot T1 on this graph, it might be on the same scale, or might not.
-            # Typically T1 is within the delay range. So plotting it might make sense.
-            if np.any(np.isfinite(t1_values)):
-                ax.plot(x_vals_sorted, t1_values, 'o', ms=4, mfc='none', mec='w', mew=1.5, label='T1 Fit')
-                ax.plot(x_vals_sorted, t1_values, '.', ms=2, color='k')
-                ax.legend(loc='best')
+        # Convert datetime -> matplotlib date numbers for extent
+        x = mdates.date2num(t_unique.tolist())
 
-            ax.set_title(f"Qubit {self.qubit + 1} — Round {r_id}")
-            ax.set_xlabel(x_label)
-            ax.set_ylabel("Delay Time (us)")
+        # Use extent like your first function:
+        # NOTE: imshow treats pixels as spanning the extent continuously.
+        # This is what gives the “smooth” look (plus interpolation).
+        im = ax.imshow(
+            Zm,
+            origin="lower",
+            aspect="auto",
+            cmap=cmap,
+            vmin=vmin,
+            vmax=vmax,
+            interpolation=interpolation,
+            extent=(x[0], x[-1], d_unique[0], d_unique[-1]),
+        )
 
-            # Format X-axis as dates
-            ax.xaxis.set_major_locator(mdates.AutoDateLocator())
-            ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
-            plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
+        # Axis formatting: don’t label every point
+        locator = mdates.AutoDateLocator(minticks=3, maxticks=8)
+        ax.xaxis.set_major_locator(locator)
+        ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(locator))
 
+        ax.set_xlabel("Datetime")
+        ax.set_ylabel("Delay time")
+        ax.set_title(title if title is not None else f"T1 heatmap (Q{q_key}) {gain}")
+
+        if show_colorbar:
+            cbar = fig.colorbar(im, ax=ax)
+            cbar.set_label("Qubit population")
+
+        fig.autofmt_xdate()
+        if created_fig:
             fig.tight_layout()
-            outfile = (save_path + f"t1_heatmap_q{self.qubit}_round{r_id}.png")
 
-            fig.savefig(outfile, transparent=False, dpi=self.final_figure_quality)
-            plt.close(fig)
-            print(f"Saved heatmap for round {r_id} to: {outfile}")
+        # Save
+        self.create_folder_if_not_exists(save_path)
+        out_file = os.path.join(save_path, "heatmap_t1_repeat_measurements.png")
+        fig.savefig(out_file, dpi=150, bbox_inches="tight")
+
+        return fig, ax, im, (t_unique, d_unique, Z)
 
     def run_t1_sweep_new(self, exp_extension='', scaling=False, return_calibration_data=False, weighted_mean=True):
         import datetime
@@ -3252,6 +4085,139 @@ class T1VsTime:
                         print(f"Saved Γ vs Gain (with error bars) for round {r_id} to: {round_dir}")
                 else:
                     print(f"[q{q} round {r_id}] No successful T1 fits to plot.")
+
+    def filter_by_gains_same_format(
+            self,
+            amps: dict,
+            gains: dict,
+            rounds: dict,
+            delay_times: dict,
+            gains_keep,
+            *,
+            atol: float = 0.0,
+            rtol: float = 1e-6,
+    ):
+        """
+        Return dictionaries in the same format as input (dict keyed by qubit -> list per 'date'/round),
+        but only keeping amp/delay samples whose gain is in gains_keep.
+
+        Behavior:
+          - If a given entry's gain is scalar (or length-1), we keep/drop the WHOLE entry.
+          - If gain is vector, we keep only the elements matching gains_keep (and align amps/delays).
+          - Any entry that ends up with zero samples is dropped (and its round/date dropped too).
+        """
+        import numpy as np
+
+        def _as_1d_float_array(x):
+            return np.asarray(x, dtype=float).ravel()
+
+        gains_keep = _as_1d_float_array(gains_keep)
+        if gains_keep.size == 0:
+            return {}, {}, {}, {}
+
+        def _in_keep(g_arr):
+            # returns boolean mask for g_arr (vector) membership in gains_keep with tolerance
+            # works for scalar or vector g_arr
+            g_arr = np.asarray(g_arr, dtype=float).ravel()
+            # shape (len(g_arr), len(gains_keep)) -> any over keep-set
+            return np.any(np.isclose(g_arr[:, None], gains_keep[None, :], atol=atol, rtol=rtol), axis=1)
+
+        amps_f = {}
+        gains_f = {}
+        rounds_f = {}
+        delay_f = {}
+
+        # iterate over qubits present in amps (you can union keys if you prefer)
+        for q in amps.keys():
+            amps_q = amps.get(q, [])
+            gains_q = gains.get(q, [])
+            rounds_q = rounds.get(q, [])
+            delay_q = delay_times.get(q, [])
+
+            # basic sanity
+            n = min(len(amps_q), len(gains_q), len(rounds_q), len(delay_q))
+            if n == 0 or not (len(amps_q) == len(gains_q) == len(rounds_q) == len(delay_q)):
+                continue
+
+            amps_out = []
+            gains_out = []
+            rounds_out = []
+            delay_out = []
+
+            for i in range(n):
+                a_samples = _as_1d_float_array(amps_q[i])
+                if a_samples.size == 0:
+                    continue
+
+                g_i = gains_q[i]
+                d_i = delay_q[i]
+
+                # Build gain array aligned to amps
+                g_arr = None
+                if isinstance(g_i, (list, tuple, np.ndarray)):
+                    g_arr = _as_1d_float_array(g_i)
+                if g_arr is None or g_arr.size == 1:
+                    try:
+                        g_scalar = float(g_arr[0] if (g_arr is not None and g_arr.size == 1) else g_i)
+                    except Exception:
+                        continue
+                    g_arr = np.full(a_samples.shape, g_scalar, dtype=float)
+                    scalar_gain_entry = True
+                else:
+                    scalar_gain_entry = False
+                    if g_arr.size != a_samples.size:
+                        continue
+
+                # Build delay array aligned to amps
+                d_arr = None
+                if isinstance(d_i, (list, tuple, np.ndarray)):
+                    d_arr = _as_1d_float_array(d_i)
+                if d_arr is None or d_arr.size == 1:
+                    try:
+                        d_scalar = float(d_arr[0] if (d_arr is not None and d_arr.size == 1) else d_i)
+                    except Exception:
+                        continue
+                    d_arr = np.full(a_samples.shape, d_scalar, dtype=float)
+                else:
+                    if d_arr.size != a_samples.size:
+                        continue
+
+                # finite mask first
+                finite = np.isfinite(a_samples) & np.isfinite(g_arr) & np.isfinite(d_arr)
+                if not np.any(finite):
+                    continue
+
+                if scalar_gain_entry:
+                    # keep or drop entire entry based on scalar gain value
+                    keep_entire = bool(np.any(np.isclose(g_arr[finite][0], gains_keep, atol=atol, rtol=rtol)))
+                    if not keep_entire:
+                        continue
+                    a_keep = a_samples[finite]
+                    g_keep = g_arr[finite]
+                    d_keep = d_arr[finite]
+                else:
+                    # vector case: keep only matching gain elements
+                    in_keep = _in_keep(g_arr)
+                    m = finite & in_keep
+                    if not np.any(m):
+                        continue
+                    a_keep = a_samples[m]
+                    g_keep = g_arr[m]
+                    d_keep = d_arr[m]
+
+                # store filtered entry
+                amps_out.append(a_keep)
+                gains_out.append(g_keep)
+                delay_out.append(d_keep)
+                rounds_out.append(rounds_q[i])  # your "date"/round id
+
+            if amps_out:
+                amps_f[q] = amps_out
+                gains_f[q] = gains_out
+                delay_f[q] = delay_out
+                rounds_f[q] = rounds_out
+
+        return amps_f, gains_f, rounds_f, delay_f
 
     def plot_all_t1_heatmaps_new_format(
             self,

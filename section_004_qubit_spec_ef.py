@@ -305,11 +305,11 @@ class EFQubitSpectroscopy:
 
         return corresponding_x, max_average_difference
 
-    def fit_lorenzian(self, I, Q, freqs, freq_q):
+    def fit_lorenzian(self, I, Q, freqs, freq_q, sigma_guess=1):
         try:
             # Initial guesses for I and Q
-            initial_guess_I = [freq_q, 1, np.max(I), np.min(I)]
-            initial_guess_Q = [freq_q, 1, np.max(Q), np.min(Q)]
+            initial_guess_I = [freq_q, sigma_guess, np.max(I), np.min(I)]
+            initial_guess_Q = [freq_q, sigma_guess, np.max(Q), np.min(Q)]
 
             # First round of fits (to get rough estimates)
             params_I, _ = curve_fit(self.lorentzian, freqs, I, p0=initial_guess_I)
@@ -318,8 +318,8 @@ class EFQubitSpectroscopy:
             # Use these fits to refine guesses
             x_max_diff_I, max_diff_I = self.max_offset_difference_with_x(freqs, I, params_I[3])
             x_max_diff_Q, max_diff_Q = self.max_offset_difference_with_x(freqs, Q, params_Q[3])
-            initial_guess_I = [x_max_diff_I, 1, np.max(I), np.min(I)]
-            initial_guess_Q = [x_max_diff_Q, 1, np.max(Q), np.min(Q)]
+            initial_guess_I = [x_max_diff_I, sigma_guess, np.max(I), np.min(I)]
+            initial_guess_Q = [x_max_diff_Q, sigma_guess, np.max(Q), np.min(Q)]
 
             # Second (refined) round of fits, this time capturing the covariance matrices
             params_I, cov_I = curve_fit(self.lorentzian, freqs, I, p0=initial_guess_I)
@@ -344,7 +344,7 @@ class EFQubitSpectroscopy:
             amp_Q_fit = abs(np.max(Q_fit) - np.min(Q_fit))
 
             # Choose which curve to use based on the input signal indicator
-            if 'None' in self.signal:
+            if 'None' in self.signal or self.signal is None:
                 if amp_I_fit > amp_Q_fit:
                     largest_amp_curve_mean = mean_I
                     largest_amp_curve_fwhm = fwhm_I
@@ -366,12 +366,12 @@ class EFQubitSpectroscopy:
                 print('Invalid signal passed, please choose "I", "Q", or "None".')
                 return None
 
-            # Return all desired results including the error on the Q fit
-            return mean_I, mean_Q, I_fit, Q_fit, largest_amp_curve_mean, largest_amp_curve_fwhm, qspec_fit_err
-
         except Exception as e:
-            print("Error during Lorentzian fit:", e)
-            return None, None,None,None,None,None,None
+            if self.verbose: print("Error during Lorentzian fit:", e)
+            self.logger.info(f'Error during Lorentzian fit: {e}')
+            # Return all desired results including the error on the Q fit
+            mean_I, mean_Q, I_fit, Q_fit, largest_amp_curve_mean, largest_amp_curve_fwhm, qspec_fit_err = None, None, None, None, None, None, None
+        return mean_I, mean_Q, I_fit, Q_fit, largest_amp_curve_mean, largest_amp_curve_fwhm, qspec_fit_err
 
     def create_folder_if_not_exists(self, folder_path):
         import os
@@ -389,12 +389,20 @@ class EFPulseProbeSpectroscopyProgram(AveragerProgramV2):
         self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
 
         self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['res_freq_ge'],
+                               freq=cfg['res_freq_ef'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
+        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
+                       style="const",
+                       length=cfg["res_length"],
+                       freq=cfg['res_freq_ef'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ef']
+                       )
 
+
+        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
         self.add_gauss(ch=qubit_ch, name="ramp", sigma=cfg['sigma'], length=cfg['sigma'] * 4, even_length=False)
         self.add_pulse(ch=qubit_ch, name="pi_ge",
                        style="arb",
@@ -404,27 +412,16 @@ class EFPulseProbeSpectroscopyProgram(AveragerProgramV2):
                        gain=cfg['pi_amp'],
                        )
 
-        #self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
-        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
-                       style="const",
-                       length=cfg["res_length"],
-                       freq=cfg['res_freq_ge'],
-                       phase=cfg['ro_phase'],
-                       gain=cfg['res_gain_ge']
-                       )
-
-        # print('FH',cfg['qubit_length_ge'], cfg['qubit_freq_ef'],cfg['qubit_gain_ef'])
         self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch,
                        style="const",
                        length=cfg['qubit_length_ge'],
                        freq=cfg['qubit_freq_ef'],
                        phase=0,
-                       gain=cfg['qubit_gain_ef'],
+                       gain=cfg['qubit_gain_ge'],
                        )
 
 
         self.add_loop("freqloop", cfg["steps"])
-        print(cfg["list_of_all_qubits"])
 
     def _body(self, cfg):
         self.pulse(ch=self.cfg["qubit_ch"], name="pi_ge", t=0)  # play ge pi pulse

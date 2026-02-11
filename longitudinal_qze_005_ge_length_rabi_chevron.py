@@ -17,12 +17,14 @@ from section_006p5_length_rabi_ge import LengthRabiExperiment
 from section_005_single_shot_ge import SingleShot
 from section_007_T1_ge import T1Measurement
 from section_009_T2R_ge import T2RMeasurement
+from section_010_T2E_ge import T2EMeasurement
 from section_008_save_data_to_h5 import Data_H5
 from system_config import QICK_experiment
 from expt_config import expt_cfg, list_of_all_qubits, tot_num_of_qubits, FRIDGE
 from section_007_T1_ge_IBM_zeno import T1Measurement_with_Zeno
 from section_007_T1_ge_zeno_loop import T1Measurement_with_Zeno_loop
 from section_009_T2R_ge_zeno import T2RMeasurementZeno
+from section_010_T2E_ge_zeno import T2EMeasurementZeno
 from section_004_qubit_spec_ge_zeno import QubitSpectroscopyZeno
 ################################################ Run Configurations ####################################################
 zero_qubit_drive_gain = False
@@ -30,7 +32,6 @@ constant_zeno_pulse = True
 adapt_starked_qubit_freq = False
 wait_for_res_ring_up = True
 n= 1
-meas_num=1500
 unmask = True
 save_r = 1                           # how many rounds to save after
 signal = 'None'                      # 'I', or 'Q' depending on where the signal is (after optimization). Put 'None' if no optimization
@@ -39,25 +40,25 @@ live_plot = False                    # for live plotting do "visdom" in comand l
 fit_data = False                     # fit the data here and save or plot the fits?
 save_data_h5 = True                  # save all of the data to h5 files?
 verbose = True                       # print everything to the console in real time, good for debugging, bad for memory
-debug_mode = False                  # if True, it disables the continuing function of RR if an error pops up in a class -- errors now stop the RR script
+debug_mode = True                  # if True, it disables the continuing function of RR if an error pops up in a class -- errors now stop the RR script
 thresholding = False                 # use internal QICK threshold for ratio of Binary values on y for rabi/t1/t2r/t2e, or analog avg when false
 increase_qubit_reps = False          # if you want to increase the reps for a qubit, set to True
 qubit_to_increase_reps_for = 0       # only has impact if previous line is True
 multiply_qubit_reps_by = 2           # only has impact if the line two above is True
-Qs_to_look_at = [4,1,2,3,5,0]        # only list the qubits you want to do the RR for
+Qs_to_look_at = [4]        # only list the qubits you want to do the RR for
 
 #Data saving info
 run_name = 'bob_run_started_Feb_11'
 device_name = 'squill'
-substudy_txt_notes = ('')
+substudy_txt_notes = ('script longitudinal_qze_005_ge_ramsey.py')
 
-study = 'QZE_IBM_ssf_tracking_q4'
+study = 'length_rabi_chevron'
 
 ################################################ optimization outputs ##################################################
 # Optimization parameters for resonator spectroscopy
-res_leng_vals = [11]*6#[5,4.2,8.3,7.9,7.5,15]
-res_gain = [0.15,0.15, 0.2, 0.2, 0.24, 0.15]
-freq_offsets = [0, -0.15, -0.15,-0.15, -0.06, -0.15]
+res_leng_vals = [10]*6
+res_gain = [0.15,0.2, 0.2, 0.2, 0.2833, 0.15]
+freq_offsets = [0, -0.15, -0.15,-0.15, -0.08, -0.15]
 ####################################################### RR #############################################################
 
 def create_data_dict(keys, save_r, qs):
@@ -65,25 +66,25 @@ def create_data_dict(keys, save_r, qs):
 
 # Define what to save to h5 files
 t2r_correction_keys = ['T2', 'Errors', 'Dates', 'I', 'Q', 'Correction Freq', 'Delay Times', 'Fit', 'Round Num', 'Batch Num', 'Exp Config',
-            'Syst Config']
+            'Syst Config', 'I_shots', 'Q_shots']
 res_keys = ['Dates', 'freq_pts', 'freq_center', 'Amps', 'Found Freqs', 'Round Num', 'Batch Num', 'Exp Config',
             'Syst Config']
 qspec_keys = ['Dates', 'I', 'Q', 'Frequencies', 'I Fit', 'Q Fit', 'Round Num', 'Batch Num','Recycled QFreq',
-              'Exp Config', 'Syst Config','ss_Q_e', 'ss_Q_g','ss_I_e', 'ss_I_g']
-rabi_keys = ['Dates', 'I', 'Q', 'Gains', 'Fit', 'Round Num', 'Batch Num', 'Exp Config', 'Syst Config',  'ss_Q_e', 'ss_Q_g','ss_I_e', 'ss_I_g']
+              'Exp Config', 'Syst Config','ss_Q_e', 'ss_Q_g','ss_I_e', 'ss_I_g', 'I_shots', 'Q_shots', 'Gains']
+rabi_keys = ['Dates', 'I', 'Q', 'Gains', 'Fit', 'Round Num', 'Batch Num', 'Exp Config', 'Syst Config',  'ss_Q_e', 'ss_Q_g','ss_I_e', 'ss_I_g', 'I_shots', 'Q_shots']
 ss_keys = ['Fidelity', 'Angle', 'Dates', 'I_g', 'Q_g', 'I_e', 'Q_e', 'Round Num', 'Batch Num', 'Exp Config',
-           'Syst Config']
+           'Syst Config', 'I_shots', 'Q_shots']
 ss_ef_keys = ['Fidelity', 'Angle', 'Dates', 'I_e', 'Q_e', 'I_f', 'Q_f', 'Round Num', 'Batch Num', 'Exp Config',
-           'Syst Config']
+           'Syst Config', 'I_shots', 'Q_shots']
 t1_keys = ['T1', 'Errors', 'Dates', 'I', 'Q', 'Delay Times', 'Fit', 'Round Num', 'Batch Num', 'Exp Config',
-           'Syst Config','ss_Q_e', 'ss_Q_g','ss_I_e', 'ss_I_g']
+           'Syst Config','ss_Q_e', 'ss_Q_g','ss_I_e', 'ss_I_g', 'I_shots', 'Q_shots', 'Gains']
 t2r_keys = ['T2', 'Errors', 'Dates', 'I', 'Q', 'Delay Times', 'Fit', 'Round Num', 'Batch Num', 'Exp Config',
-            'Syst Config', 'ss_Q_e', 'ss_Q_g','ss_I_e', 'ss_I_g']
+            'Syst Config', 'ss_Q_e', 'ss_Q_g','ss_I_e', 'ss_I_g', 'I_shots', 'Q_shots', 'Gains']
 t2e_keys = ['T2E', 'Errors', 'Dates', 'I', 'Q', 'Delay Times', 'Fit', 'Round Num', 'Batch Num', 'Exp Config',
-            'Syst Config', 'ss_Q_e', 'ss_Q_g','ss_I_e', 'ss_I_g']
-rabi_keys_ef_Qtemps = ['Dates', 'Qfreq_ge', 'I1', 'Q1', 'Gains1', 'Fit1', 'I2', 'Q2', 'Gains2', 'Fit2', 'Round Num', 'Batch Num', 'Exp Config', 'Syst Config']
+            'Syst Config', 'ss_Q_e', 'ss_Q_g','ss_I_e', 'ss_I_g', 'I_shots', 'Q_shots', 'Gains']
+rabi_keys_ef_Qtemps = ['Dates', 'Qfreq_ge', 'I1', 'Q1', 'Gains1', 'Fit1', 'I2', 'Q2', 'Gains2', 'Fit2', 'Round Num', 'Batch Num', 'Exp Config', 'Syst Config', 'I_shots', 'Q_shots']
 ss_keys_gef = ['Fidelity', 'Angle_ef', 'Dates', 'I_g', 'Q_g', 'I_e', 'Q_e', 'I_f', 'Q_f', 'Round Num', 'Batch Num', 'Exp Config',
-           'Syst Config']
+           'Syst Config', 'I_shots', 'Q_shots']
 
 #initialize a simple list to store the qspec values in incase a fit fails
 stored_qspec_list = [None] * tot_num_of_qubits
@@ -184,7 +185,7 @@ for QubitIndex in Qs_to_look_at:
     res_freqs, freq_pts, freq_center, amps, sys_config_rspec = res_spec.run()
     offset = freq_offsets[
         QubitIndex]  # use optimized offset values or whats set at top of script based on pre_optimize flag
-    offset_res_freqs = [r + offset for r in res_freqs]
+    offset_res_freqs = [r + offset for r in res_freqs]  # [experiment.readout_cfg['res_freq_ge']]]#res_freqs]
     experiment.readout_cfg['res_freq_ge'] = offset_res_freqs[0]
     del res_spec
 
@@ -211,7 +212,9 @@ for QubitIndex in Qs_to_look_at:
         q_spec = QubitSpectroscopy(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j,
                                    signal, save_figs, plot_fit=True, experiment=experiment,
                                    live_plot=live_plot, verbose=verbose, logger=rr_logger, unmasking_resgain=unmask)
-        (qspec_I, qspec_Q, qspec_freqs, qspec_fit, qubit_freq, sys_config_qspec, ss_Q_e_qspec, ss_Q_g_qspec,ss_I_e_qspec, ss_I_g_qspec) = q_spec.run(scaling=True)
+        (qspec_I, qspec_Q, qspec_freqs, qspec_fit, qubit_freq, sys_config_qspec, ss_Q_e_qspec, ss_Q_g_qspec,
+         ss_I_e_qspec,
+         ss_I_g_qspec, I_shots_qspec, Q_shots_qspec) = q_spec.run(scaling=True)
 
         if qubit_freq is None:
             if stored_qspec_list[QubitIndex] is not None:
@@ -250,6 +253,8 @@ for QubitIndex in Qs_to_look_at:
         qspec_data[QubitIndex]['ss_Q_g'][0] = ss_Q_g_qspec
         qspec_data[QubitIndex]['ss_I_e'][0] = ss_I_e_qspec
         qspec_data[QubitIndex]['ss_I_g'][0] = ss_I_g_qspec
+        qspec_data[QubitIndex]['I_shots'][0] = I_shots_qspec
+        qspec_data[QubitIndex]['Q_shots'][0] = Q_shots_qspec
 
         saver_qspec = Data_H5(optimizationFolder, qspec_data, 0, save_r)
         saver_qspec.save_to_h5('QSpec')
@@ -285,7 +290,8 @@ for QubitIndex in Qs_to_look_at:
                                        multiply_qubit_reps_by=multiply_qubit_reps_by,
                                        verbose=verbose, logger=rr_logger, unmasking_resgain=unmask)
         (rabi_I, rabi_Q, rabi_gains, rabi_fit, pi_amp,
-         sys_config_rabi,  ss_Q_e, ss_Q_g,ss_I_e, ss_I_g) = rabi.run(thresholding=thresholding, scaling=True)
+         sys_config_rabi, ss_Q_e, ss_Q_g, ss_I_e, ss_I_g, rabi_I_shots, rabi_Q_shots) = rabi.run(
+            thresholding=thresholding, scaling=True)
 
         # if these are None, fit didnt work
         if (rabi_fit is None and pi_amp is None):
@@ -312,6 +318,9 @@ for QubitIndex in Qs_to_look_at:
         rabi_data[QubitIndex]['ss_Q_g'][0] = ss_Q_g
         rabi_data[QubitIndex]['ss_I_e'][0] = ss_I_e
         rabi_data[QubitIndex]['ss_I_g'][0] = ss_I_g
+        rabi_data[QubitIndex]['I_shots'][0] = rabi_I_shots
+        rabi_data[QubitIndex]['Q_shots'][0] = rabi_Q_shots
+
         saver_rabi = Data_H5(optimizationFolder, rabi_data, 0, save_r)
         saver_rabi.save_to_h5('Rabi')
         del saver_rabi
@@ -336,26 +345,10 @@ for QubitIndex in Qs_to_look_at:
                              verbose=verbose, logger=rr_logger, unmasking_resgain=unmask, correction=True,
                              correction_round=1)
         t2r_est_1, t2r_err_1, t2r_I_1, t2r_Q_1, t2r_delay_times_1, fit_ramsey_1, sys_config_t2r_1, \
-            ramsey_found_q_freq = t2r.adjust_qspec(
+            ramsey_found_q_freq, t2r_I_shots_1, t2r_Q_shots_1 = t2r.adjust_qspec(
             thresholding=thresholding, correction=True)
 
         experiment.qubit_cfg['qubit_freq_ge'] = experiment.qubit_cfg['qubit_freq_ge'] - ramsey_found_q_freq + \
-                                                expt_cfg['Ramsey_ge_correction']['ramsey_freq']
-        del t2r
-
-        # correct again
-        t2r = T2RMeasurement(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j, signal, save_figs,
-                             experiment=experiment, live_plot=live_plot, fit_data=True,
-                             increase_qubit_reps=increase_qubit_reps,
-                             qubit_to_increase_reps_for=qubit_to_increase_reps_for,
-                             multiply_qubit_reps_by=multiply_qubit_reps_by,
-                             verbose=verbose, logger=rr_logger, unmasking_resgain=unmask, correction=True,
-                             correction_round=2)
-        t2r_est_2, t2r_err_2, t2r_I_2, t2r_Q_2, t2r_delay_times_2, fit_ramsey_2, sys_config_t2r_2, ramsey_found_q_freq = t2r.adjust_qspec(
-            thresholding=thresholding, correction=True)
-        print(ramsey_found_q_freq)
-        experiment.qubit_cfg['qubit_freq_ge'] = experiment.qubit_cfg[
-                                                    'qubit_freq_ge'] - ramsey_found_q_freq + \
                                                 expt_cfg['Ramsey_ge_correction']['ramsey_freq']
         del t2r
 
@@ -369,16 +362,17 @@ for QubitIndex in Qs_to_look_at:
                                        verbose=verbose, logger=rr_logger, unmasking_resgain=unmask,
                                        correction=True)
         (rabi_I_corrected, rabi_Q_corrected, rabi_gains_corrected, rabi_fit_corrected, pi_amp_corrected,
-         sys_config_rabi_corrected, ss_Q_e2, ss_Q_g2, ss_I_e2, ss_I_g2) = rabi.run(thresholding=thresholding, scaling=True)
+         sys_config_rabi_corrected, ss_Q_e2, ss_Q_g2, ss_I_e2, ss_I_g2, I_shots_rabi_corr,
+         Q_shots_rabi_corr) = rabi.run(thresholding=thresholding, scaling=True)
 
         # if these are None, fit didnt work
-        if (rabi_fit is None and pi_amp is None):
+        if (rabi_fit_corrected is None and pi_amp_corrected is None):
             rr_logger.info('g-e Rabi fit didnt work, skipping the rest of this qubit')
             if verbose: print('g-e Rabi fit didnt work, skipping the rest of this qubit')
             continue  # skip the rest of this qubit
 
         experiment.qubit_cfg['pi_amp'] = float(pi_amp_corrected)
-        rr_logger.info(f'corrected g-e Pi amplitude for qubit {QubitIndex + 1} is: {float(pi_amp)}')
+        rr_logger.info(f'corrected g-e Pi amplitude for qubit {QubitIndex + 1} is: {float(pi_amp_corrected)}')
 
         t2r_correction_1_data[QubitIndex]['T2'][j - batch_num * save_r - 1] = t2r_est_1
         t2r_correction_1_data[QubitIndex]['Errors'][j - batch_num * save_r - 1] = t2r_err_1
@@ -393,20 +387,8 @@ for QubitIndex in Qs_to_look_at:
         t2r_correction_1_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = expt_cfg
         t2r_correction_1_data[QubitIndex]['Syst Config'][j - batch_num * save_r - 1] = sys_config_t2r_1
         t2r_correction_1_data[QubitIndex]['Correction Freq'][j - batch_num * save_r - 1] = ramsey_found_q_freq
-
-        t2r_correction_2_data[QubitIndex]['T2'][j - batch_num * save_r - 1] = t2r_est_2
-        t2r_correction_2_data[QubitIndex]['Errors'][j - batch_num * save_r - 1] = t2r_err_2
-        t2r_correction_2_data[QubitIndex]['Dates'][j - batch_num * save_r - 1] = (
-            time.mktime(datetime.datetime.now().timetuple()))
-        t2r_correction_2_data[QubitIndex]['I'][j - batch_num * save_r - 1] = t2r_I_2
-        t2r_correction_2_data[QubitIndex]['Q'][j - batch_num * save_r - 1] = t2r_Q_2
-        t2r_correction_2_data[QubitIndex]['Delay Times'][j - batch_num * save_r - 1] = t2r_delay_times_2
-        t2r_correction_2_data[QubitIndex]['Fit'][j - batch_num * save_r - 1] = fit_ramsey_2
-        t2r_correction_2_data[QubitIndex]['Round Num'][j - batch_num * save_r - 1] = j
-        t2r_correction_2_data[QubitIndex]['Batch Num'][j - batch_num * save_r - 1] = batch_num
-        t2r_correction_2_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = expt_cfg
-        t2r_correction_2_data[QubitIndex]['Syst Config'][j - batch_num * save_r - 1] = sys_config_t2r_2
-        t2r_correction_2_data[QubitIndex]['Correction Freq'][j - batch_num * save_r - 1] = ramsey_found_q_freq
+        t2r_correction_1_data[QubitIndex]['I_shots'][0] = t2r_I_shots_1
+        t2r_correction_1_data[QubitIndex]['Q_shots'][0] = t2r_Q_shots_1
 
         rabi_corrected_data[QubitIndex]['Dates'][j - batch_num * save_r - 1] = (
             time.mktime(datetime.datetime.now().timetuple()))
@@ -422,6 +404,8 @@ for QubitIndex in Qs_to_look_at:
         rabi_corrected_data[QubitIndex]['ss_Q_g'][0] = ss_Q_g2
         rabi_corrected_data[QubitIndex]['ss_I_e'][0] = ss_I_e2
         rabi_corrected_data[QubitIndex]['ss_I_g'][0] = ss_I_g2
+        rabi_corrected_data[QubitIndex]['I_shots'][0] = I_shots_rabi_corr
+        rabi_corrected_data[QubitIndex]['Q_shots'][0] = Q_shots_rabi_corr
 
         saver_t2r = Data_H5(subStudyDataFolder, t2r_correction_1_data, batch_num, save_r)
         saver_t2r.save_to_h5('t2_ge_correction_1')
@@ -438,7 +422,7 @@ for QubitIndex in Qs_to_look_at:
         del saver_rabi
         del rabi_corrected_data
 
-        if verbose: print('corrected g-e Pi amplitude for qubit ', QubitIndex + 1, ' is: ', float(pi_amp))
+        # if verbose: print('corrected g-e Pi amplitude for qubit ', QubitIndex + 1, ' is: ', float(pi_amp))
         del rabi
 
     except Exception as e:
@@ -446,41 +430,40 @@ for QubitIndex in Qs_to_look_at:
             raise e
         rr_logger.exception(f"Rabi error on qubit {QubitIndex}: {e}")
         continue
-    ########################################## g-e Single Shot Measurements ############################################
-    for meas in range(meas_num):
-        ss_data = create_data_dict(ss_keys, save_r, list_of_all_qubits)
-        ss = SingleShot(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j, save_figs, experiment=experiment,
-                        verbose=verbose, logger=rr_logger, unmasking_resgain=unmask)
-        fid, angle, iq_list_g, iq_list_e, sys_config_ss = ss.run()
-        I_g = iq_list_g[0][0].T[0]
-        Q_g = iq_list_g[0][0].T[1]
-        I_e = iq_list_e[0][0].T[0]
-        Q_e = iq_list_e[0][0].T[1]
+    ################### len rabi ################
+    rabi_data = create_data_dict(rabi_keys, save_r, list_of_all_qubits)
+    from section_006p5_length_rabi_ge import LengthRabiExperiment
+    rabi = LengthRabiExperiment(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j, signal,
+                                   save_figs=save_figs,
+                                   experiment=experiment, live_plot=live_plot,
+                                   increase_qubit_reps=increase_qubit_reps,
+                                   qubit_to_increase_reps_for=qubit_to_increase_reps_for,
+                                   multiply_qubit_reps_by=multiply_qubit_reps_by,
+                                   verbose=verbose, logger=rr_logger,chevron=True)
+    (rabi_I, rabi_Q, rabi_gains, rabi_fit, pi_amp,
+     sys_config_rabi, ss_Q_e, ss_Q_g, ss_I_e, ss_I_g, rabi_I_shots, rabi_Q_shots) = rabi.run(thresholding=thresholding)
 
-        ss_data[QubitIndex]['Fidelity'][j - batch_num * save_r - 1] = fid
-        ss_data[QubitIndex]['Angle'][j - batch_num * save_r - 1] = angle
-        ss_data[QubitIndex]['Dates'][j - batch_num * save_r - 1] = (
-            time.mktime(datetime.datetime.now().timetuple()))
-        ss_data[QubitIndex]['I_g'][j - batch_num * save_r - 1] = I_g
-        ss_data[QubitIndex]['Q_g'][j - batch_num * save_r - 1] = Q_g
-        ss_data[QubitIndex]['I_e'][j - batch_num * save_r - 1] = I_e
-        ss_data[QubitIndex]['Q_e'][j - batch_num * save_r - 1] = Q_e
-        ss_data[QubitIndex]['Round Num'][j - batch_num * save_r - 1] = j
-        ss_data[QubitIndex]['Batch Num'][j - batch_num * save_r - 1] = batch_num
-        ss_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = expt_cfg
-        ss_data[QubitIndex]['Syst Config'][j - batch_num * save_r - 1] = sys_config_ss
+    # if these are None, fit didnt work
+    del rabi
 
-        saver_ss = Data_H5(subStudyDataFolder, ss_data, batch_num, save_r)
-        saver_ss.save_to_h5('ss_ge')
-        del saver_ss
-        del ss_data
+    rabi_data[QubitIndex]['Dates'][0] = (
+        time.mktime(datetime.datetime.now().timetuple()))
+    rabi_data[QubitIndex]['I'][0] = rabi_I
+    rabi_data[QubitIndex]['Q'][0] = rabi_Q
+    rabi_data[QubitIndex]['Gains'][0] = rabi_gains
+    rabi_data[QubitIndex]['Fit'][0] = rabi_fit
+    rabi_data[QubitIndex]['Round Num'][0] = 0
+    rabi_data[QubitIndex]['Batch Num'][0] = 0
+    rabi_data[QubitIndex]['Exp Config'][0] = expt_cfg
+    rabi_data[QubitIndex]['Syst Config'][0] = sys_config_rabi
+    rabi_data[QubitIndex]['ss_Q_e'][0] = ss_Q_e
+    rabi_data[QubitIndex]['ss_Q_g'][0] = ss_Q_g
+    rabi_data[QubitIndex]['ss_I_e'][0] = ss_I_e
+    rabi_data[QubitIndex]['ss_I_g'][0] = ss_I_g
+    rabi_data[QubitIndex]['I_shots'][0] = rabi_I_shots
+    rabi_data[QubitIndex]['Q_shots'][0] = rabi_Q_shots
 
-        del ss
-
-    del experiment
-
-
-
-
-
-
+    saver_rabi = Data_H5(optimizationFolder, rabi_data, 0, save_r)
+    saver_rabi.save_to_h5('Rabi_chevron')
+    del saver_rabi
+    del rabi_data

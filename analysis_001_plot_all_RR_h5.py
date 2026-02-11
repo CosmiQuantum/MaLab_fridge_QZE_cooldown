@@ -89,12 +89,16 @@ class PlotAllRR:
             print("Error: Invalid input string format.  It should be a string representation of a list of numbers.")
             return None
     
-    def run(self, plot_res_spec = True, plot_q_spec = True, plot_rabi = True, rabi_rolling_avg=False, plot_ss = True,
+    def run(self, plot_res_spec = True,plot_res_spec_ef = True,load_plot_save_res_spec_overlay_ge_ef=True, plot_q_spec = True, plot_rabi = True, rabi_rolling_avg=False, plot_ss = True,
             plot_ss_hist_only=False,ss_plot_title = None, ss_plot_gef = True, plot_t1 = True,
             plot_t2r = True, plot_t2e = True, plot_rabis_Qtemps = False):
 
         if plot_res_spec:
             self.load_plot_save_res_spec()
+        if plot_res_spec_ef:
+            self.load_plot_save_res_spec(exp_extension='_ef')
+        if load_plot_save_res_spec_overlay_ge_ef:
+            self.load_plot_save_res_spec_overlay_ge_ef()
         if plot_q_spec:
             self.load_plot_save_q_spec()
         if plot_rabis_Qtemps:
@@ -117,71 +121,211 @@ class PlotAllRR:
             self.load_plot_save_t2e()
         
 
-    def load_plot_save_res_spec(self):
+    def load_plot_save_res_spec(self, exp_extension='_ge'):
         # ------------------------------------------Load/Plot/Save Res Spec------------------------------------
         outerFolder_expt = os.path.join(self.outerFolder, "Data_h5")
-        h5_files = glob.glob(os.path.join(outerFolder_expt, "Res_ge", "*.h5"))
+        h5_files = glob.glob(os.path.join(outerFolder_expt, f"Res{exp_extension}", "*.h5"))
         h5_files += glob.glob(os.path.join(outerFolder_expt, "Res", "*.h5"))
         print(outerFolder_expt)
         for h5_file in h5_files:
             save_round = h5_file.split('Num_per_batch')[-1].split('.')[0]
             H5_class_instance = Data_H5(h5_file)
-            #H5_class_instance.print_h5_contents(h5_file)
-            load_data = H5_class_instance.load_from_h5(data_type=  'Res', save_r = int(save_round))
-        
-            #just look at this resonator data, should have batch_num of arrays in each one
-            #right now the data writes the same thing batch_num of times, so it will do the same 5 datasets 5 times, until you fix this just grab the first one (All 5)
-        
-            populated_keys = []
-            for q_key in load_data['Res']:
-                # Access 'Dates' for the current q_key
-                dates_list = load_data['Res'][q_key].get('Dates', [[]])
-        
-                # Check if any entry in 'Dates' is not NaN
-                if any(
-                        not np.isnan(date)
-                        for date in dates_list[0]  # Iterate over the first batch of dates
-                ):
-                    populated_keys.append(q_key)
-        
-            for q_key in populated_keys:
-                #go through each dataset in the batch and plot
-                for dataset in range(len(load_data['Res'][q_key].get('Dates', [])[0])):
-                    date = datetime.datetime.fromtimestamp(load_data['Res'][q_key].get('Dates', [])[0][dataset])   #single date per dataset
-                    freq_pts = self.process_h5_data(load_data['Res'][q_key].get('freq_pts', [])[0][dataset].decode())   # comes in as an array but put into a byte string, need to convert to list
+            H5_class_instance.print_h5_contents(h5_file)
+            load_data = H5_class_instance.load_from_h5(data_type=  f'Res{exp_extension}', save_r = int(save_round))
 
-                    freq_center = self.process_h5_data(load_data['Res'][q_key].get('freq_center', [])[0][dataset].decode()) # comes in as an array but put into a string, need to convert to list
-                    freqs_found = self.string_to_float_list(load_data['Res'][q_key].get('Found Freqs', [])[0][dataset].decode()) #comes in as a list of floats in string format, need to convert
-                    amps =  self.process_string_of_nested_lists(load_data['Res'][q_key].get('Amps', [])[0][dataset].decode())  #list of lists
-                    syst_config = load_data['Res'][q_key].get('Syst Config', [])[0][dataset].decode()
-                    exp_config = load_data['Res'][q_key].get('Exp Config', [])[0][dataset].decode()
-                    safe_globals = {"np": np, "array": np.array, "__builtins__": {}}
-                    syst_config = eval(syst_config, safe_globals)
-                    exp_config = eval(exp_config, safe_globals)
+            for q_key in load_data[f'Res{exp_extension}']:
+                # print("all batch_num datasets------------------------", load_data['Res'][q_key].get('Amps', [])[0])
+                # print("one dataset------------------------",load_data['Res'][q_key].get('Amps', [])[0][0].decode())
+                # go through each dataset in the batch and plot
+                for dataset in range(len(load_data[f'Res{exp_extension}'][q_key].get('Dates', [])[0])):
+                    if 'nan' in str(load_data[f'Res{exp_extension}'][q_key].get('Dates', [])[0][dataset]):
+                        continue
 
-                    round_num = load_data['Res'][q_key].get('Round Num', [])[0][dataset] #already a float
-                    batch_num = load_data['Res'][q_key].get('Batch Num', [])[0][dataset]
-                    freq_pts_data = load_data['Res'][q_key].get('freq_pts', [])[0][dataset].decode()
-        
-                    # Replace whitespace between numbers with commas to make it a valid list
-                    formatted_str = freq_pts_data.replace('  ', ',').replace('\n', '')
-                    formatted_str = formatted_str.replace(' ', ',').replace('\n', '')
-                    formatted_str = formatted_str.replace(',]', ']').replace('\n', '')
-                    formatted_str = formatted_str.replace('],[', '],[')
-                    formatted_str = re.sub(r",,", ",", formatted_str)
-                    formatted_str = re.sub(r",\s*([\]])", r"\1", formatted_str)
-                    formatted_str = re.sub(r"(\d+)\.,", r"\1.0,",
-                                           formatted_str)  # Fix malformed floating-point numbers (e.g., '5829.,' -> '5829.0')
-                    # Convert to NumPy array
-                    freq_points = np.array(eval(formatted_str))
-                    #print('here: ', freq_points)
+                    date = datetime.datetime.fromtimestamp(
+                        load_data[f'Res{exp_extension}'][q_key].get('Dates', [])[0][dataset])  # single date per dataset
+
+                    freq_pts = self.process_h5_data(
+                        load_data[f'Res{exp_extension}'][q_key].get('freq_pts', [])[0][0].decode())
+
+                    freq_center = self.process_h5_data(
+                        str(load_data[f'Res{exp_extension}'][q_key].get('freq_center', [])[0][0]))
+                    freqs_found = self.string_to_float_list(
+                        load_data[f'Res{exp_extension}'][q_key].get('Found Freqs', [])[0][
+                            dataset].decode())  # comes in as a list of floats in string format, need to convert
+                    amps = self.process_string_of_nested_lists(
+                        load_data[f'Res{exp_extension}'][q_key].get('Amps', [])[0][0].decode())  # list of lists
+                    round_num = load_data[f'Res{exp_extension}'][q_key].get('Round Num', [])[0][
+                        dataset]  # already a float
+                    batch_num = load_data[f'Res{exp_extension}'][q_key].get('Batch Num', [])[0][dataset]
+
+                    try:
+                        exp_config = load_data[f'Res{exp_extension}'][q_key].get('Exp Config', [])[0][dataset].decode()
+                        safe_globals = {"np": np, "array": np.array, "__builtins__": {}}
+                        exp_config = eval(exp_config, safe_globals)
+                    except:
+                        exp_config = None
                     if len(freq_pts) > 0:
                         res_class_instance = ResonanceSpectroscopy(q_key, self.number_of_qubits, self.outerFolder_save_plots, round_num, self.save_figs)
                         res_spec_cfg = exp_config['res_spec']
-                        res_class_instance.plot_results(freq_points, freq_center, amps, res_spec_cfg, self.figure_quality)
+                        res_class_instance.plot_results_reloaded(freq_pts, freq_center, amps, res_spec_cfg, self.figure_quality)
                         del res_class_instance
         
             del H5_class_instance
+
+    import os, glob, datetime
+    import numpy as np
+
+    def load_plot_save_res_spec_overlay_ge_ef(self, ge_ext="_ge", ef_ext="_ef"):
+        # ----------------------------------- Load/Pair/Overlay Plot/Save Res Spec -----------------------------------
+        outerFolder_expt = os.path.join(self.outerFolder, "Data_h5")
+        print(outerFolder_expt)
+
+        def _collect_entries(exp_extension):
+            """
+            This uses the SAME loading flow as your working load_plot_save_res_spec:
+              - same glob patterns
+              - same save_round parsing
+              - same Data_H5 usage
+              - same exact order of checks (skip nan Dates BEFORE parsing freq_pts, etc.)
+            """
+            entries = {}
+
+            h5_files = glob.glob(os.path.join(outerFolder_expt, f"Res{exp_extension}", "*.h5"))
+            h5_files += glob.glob(os.path.join(outerFolder_expt, "Res", "*.h5"))
+
+            for h5_file in h5_files:
+                save_round = h5_file.split("Num_per_batch")[-1].split(".")[0]
+
+                H5_class_instance = Data_H5(h5_file)
+                H5_class_instance.print_h5_contents(h5_file)
+
+                load_data = H5_class_instance.load_from_h5(
+                    data_type=f"Res{exp_extension}",
+                    save_r=int(save_round),
+                )
+
+                res_key = f"Res{exp_extension}"
+                if res_key not in load_data:
+                    del H5_class_instance
+                    continue
+
+                for q_key in load_data[res_key]:
+                    # go through each dataset in the batch and plot (same as your code)
+                    dates_arr = load_data[res_key][q_key].get("Dates", [])[0]
+                    if dates_arr is None:
+                        continue
+
+                    for dataset in range(len(dates_arr)):
+                        # IMPORTANT: this is the key fix — identical ordering to your working code
+                        if "nan" in str(load_data[res_key][q_key].get("Dates", [])[0][dataset]):
+                            continue
+
+                        ts = load_data[res_key][q_key].get("Dates", [])[0][dataset]
+                        date = datetime.datetime.fromtimestamp(ts)
+
+                        freq_pts = self.process_h5_data(
+                            load_data[res_key][q_key].get("freq_pts", [])[0][0].decode()
+                        )
+
+                        freq_center = self.process_h5_data(
+                            str(load_data[res_key][q_key].get("freq_center", [])[0][0])
+                        )
+
+                        amps = self.process_string_of_nested_lists(
+                            load_data[res_key][q_key].get("Amps", [])[0][0].decode()
+                        )
+
+                        round_num = load_data[res_key][q_key].get("Round Num", [])[0][dataset]
+                        batch_num = load_data[res_key][q_key].get("Batch Num", [])[0][dataset]
+
+                        try:
+                            exp_config = load_data[res_key][q_key].get("Exp Config", [])[0][dataset].decode()
+                            safe_globals = {"np": np, "array": np.array, "__builtins__": {}}
+                            exp_config = eval(exp_config, safe_globals)
+                        except Exception:
+                            exp_config = None
+
+                        if len(freq_pts) > 0:
+                            entries.setdefault(q_key, []).append({
+                                "ts": float(ts),
+                                "date": date,
+                                "freq_pts": freq_pts,
+                                "freq_center": freq_center,
+                                "amps": amps,
+                                "round_num": round_num,
+                                "batch_num": batch_num,
+                                "exp_config": exp_config,
+                            })
+
+                del H5_class_instance
+
+            # sort per q_key
+            for q_key in entries:
+                entries[q_key].sort(key=lambda d: d["ts"])
+            return entries
+
+        # Load GE and EF using the exact same loader logic as your original function
+        ge_entries = _collect_entries(ge_ext)
+        ef_entries = _collect_entries(ef_ext)
+
+        all_q_keys = sorted(set(ge_entries.keys()) | set(ef_entries.keys()))
+        print("q_keys found:", all_q_keys)
+
+        # ------------------------------- Pairing + plotting -------------------------------
+        for q_key in all_q_keys:
+            ge_list = ge_entries.get(q_key, [])
+            ef_list = ef_entries.get(q_key, [])
+            if not ge_list or not ef_list:
+                continue
+
+            ef_used = [False] * len(ef_list)
+
+            for ge_item in ge_list:
+                ge_ts = ge_item["ts"]
+
+                # pair each GE with the first EF strictly AFTER it (unused)
+                match_idx = None
+                for j, ef_item in enumerate(ef_list):
+                    if (not ef_used[j]) and (ef_item["ts"] > ge_ts):
+                        match_idx = j
+                        break
+
+                # straggler GE (no later EF) -> skip plot
+                if match_idx is None:
+                    continue
+
+                ef_used[match_idx] = True
+                ef_item = ef_list[match_idx]
+
+                # configs if available
+                try:
+                    ge_cfg = ge_item["exp_config"]["res_spec"] if ge_item["exp_config"] else None
+                except Exception:
+                    ge_cfg = None
+                try:
+                    ef_cfg = ef_item["exp_config"]["res_spec"] if ef_item["exp_config"] else None
+                except Exception:
+                    ef_cfg = None
+
+                # One plot per pair, overlayed
+                res_class_instance = ResonanceSpectroscopy(
+                    q_key,
+                    self.number_of_qubits,
+                    self.outerFolder_save_plots,
+                    ge_item["round_num"],  # name with GE round like before
+                    self.save_figs
+                )
+
+                res_class_instance.plot_results_overlay(
+                    ge_item["freq_pts"], ge_item["freq_center"], ge_item["amps"], ge_cfg,
+                    ef_item["freq_pts"], ef_item["freq_center"], ef_item["amps"], ef_cfg,
+                    self.figure_quality,
+                    label_ge="Qubit in g",
+                    label_ef="Qubit in e",
+                    ge_date=ge_item["date"],
+                    ef_date=ef_item["date"],
+                )
+                del res_class_instance
 
     def load_plot_save_q_spec(self):
         # ----------------------------------------------Load/Plot/Save QSpec------------------------------------

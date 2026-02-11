@@ -33,18 +33,18 @@ signal = 'None'
 run_number = 3 #starting from first run with qubits. Run 1 = run4a at quiet, run 2 = run5a at quiet, etc
 figure_quality = 100 #ramp this up to like 500 for presentation plots
 final_figure_quality = 200
-run_name = 'bob_run_started_Aug_23/squill/testing_qfreq_correction/rr'
+run_name = 'bob_run_started_Feb_11/squill/track_res_spec_lower_gain0p05_len_4us/qubit_4'
 #run_name = 'run6/6transmon/QZE/QZE_measurement/Optimization/'
 FRIDGE = "QUIET"
 run_notes = ('Added IR shielding, better cryo terminators, thermalizing with 0dB attenuator ') #please make it brief for the plot
-top_folder_dates = ['2025-09-15_22-48-52']
+top_folder_dates = ['2026-02-04_21-13-00']
 
 #
 #top_folder_dates = ['2025-04-02']
 
 #
-date = '2025-09-15_22-48-52'
-outerFolder = "M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/testing_qfreq_correction/rr/2025-09-15_22-48-52/study_data/"
+date = '2026-02-04_21-13-00'
+outerFolder = "M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/track_res_spec_lower_gain0p05_len_4us/qubit_4/2026-02-04_21-13-00/study_data/"
 #f"M:/_Data/20250822 - Olivia/{run_name}/" + date + "/study_data/"
 # ################################################ 01: Get all data ######################################################
 res_spec_vs_time_ge = ResonatorFreqVsTime(figure_quality, final_figure_quality, tot_num_of_qubits, top_folder_dates,
@@ -78,10 +78,10 @@ date_times_t2e, t2e_vals, t2e_fit_err = t2e_vs_time.run(return_errs=True)
 # # # ####################################### 02: Plot All Individual Data Plots ###########################################
 #date = '2025-04-02'  #only plot all of the data for one date at a time because there is a lot
 #outerFolder = f"M:/_Data/20250822 - Olivia/{run_name}/" + date + "/"
-# outerFolder_save_plots = f"M:/_Data/20250822 - Olivia/{run_name}/" + date + "_plots/"
+outerFolder_save_plots = f"M:/_Data/20250822 - Olivia/{run_name}/" + date + "_plots/"
 plotter = PlotAllRR(date, figure_quality, save_figs, fit_saved, signal, run_name, tot_num_of_qubits, outerFolder,
-                  outerFolder_save_plots)
-plotter.run(plot_res_spec = False, plot_q_spec = False, plot_rabi = False, plot_ss = True, plot_t1 = False,
+                  outerFolder_save_plots, outerFolder_save_plots)
+plotter.run(plot_res_spec = False,plot_res_spec_ef=False,load_plot_save_res_spec_overlay_ge_ef=True, plot_q_spec = False, plot_rabi = False, plot_ss = True, plot_t1 = False,
             plot_t2r = True, plot_t2e = True)
 
 ########################################## 03: Resonator Freqs vs Time Plots ###########################################

@@ -91,9 +91,9 @@ class ResonanceSpectroscopy:
 
 
         plt.subplot(2, 3, 1)
-        #plt.plot(fpts + fcenter[i], amps[i], '-', linewidth=1.5)
-        plt.plot([f + fcenter for f in fpts], amps, '-', linewidth=1.5)
-        freq_r = fpts[np.argmin(amps)] + fcenter
+        # plt.plot(fpts + fcenter[i], amps[i], '-', linewidth=1.5)
+        plt.plot([f + fcenter[0] for f in fpts], amps[0], '-', linewidth=1.5)
+        freq_r = fpts[np.argmin(amps)] + fcenter[0]
 
         print(freq_r)
 
@@ -126,6 +126,181 @@ class ResonanceSpectroscopy:
 
         res_freqs = [round(x, 5) for x in res_freqs]
         return res_freqs
+
+    def plot_results(self, fpts, fcenter, amps, reloaded_config=None, fig_quality=100):
+        res_freqs = []
+        plt.figure(figsize=(12, 8))
+        plt.rcParams.update({
+            'font.size': 14,
+            'axes.titlesize': 18,
+            'axes.labelsize': 16,
+            'xtick.labelsize': 14,
+            'ytick.labelsize': 14,
+            'legend.fontsize': 14,
+        })
+
+        plt.subplot(2, 3, 1)
+        # plt.plot(fpts + fcenter[i], amps[i], '-', linewidth=1.5)
+        plt.plot([f + fcenter for f in fpts], amps, '-', linewidth=1.5)
+        freq_r = fpts[np.argmin(amps)] + fcenter
+
+        print(freq_r)
+
+        res_freqs.append(freq_r)
+
+        plt.axvline(freq_r, linestyle='--', color='orange', linewidth=1.5)
+        plt.title(f"Resonator {self.QubitIndex + 1} {freq_r:.3f} MHz", pad=10)
+
+        plt.xlabel("Frequency (MHz)")
+        plt.ylabel("Amplitude (a.u.)")
+
+        plt.ylim(plt.ylim()[0] - 0.05 * (plt.ylim()[1] - plt.ylim()[0]), plt.ylim()[1])
+
+        if self.experiment is not None:
+            plt.suptitle(f"G resonator spectroscopy {self.config['reps']}*{self.config['rounds']} avgs", fontsize=24,
+                         y=0.95)
+        else:
+            plt.suptitle(f"G resonator spectroscopy {reloaded_config['reps']}*{reloaded_config['rounds']} avgs",
+                         fontsize=24, y=0.95)
+        plt.tight_layout(pad=2.0)
+
+        if self.save_figs:
+            outerFolder_expt = os.path.join(self.outerFolder, self.expt_name + "_ge_plots")
+            self.create_folder_if_not_exists(outerFolder_expt)
+            now = datetime.datetime.now()
+            formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
+            file_name = os.path.join(outerFolder_expt,
+                                     f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" + f"{formatted_datetime}_" + self.expt_name)
+            plt.savefig(file_name + ".png", dpi=fig_quality)
+            plt.savefig(file_name + ".pdf", dpi=fig_quality)
+        plt.close()
+
+        res_freqs = [round(x, 5) for x in res_freqs]
+        return res_freqs
+
+    def plot_results_reloaded(self, fpts, fcenter, amps, reloaded_config = None, fig_quality = 100):
+        res_freqs = []
+        plt.figure(figsize=(12, 8))
+        plt.rcParams.update({
+            'font.size': 14,
+            'axes.titlesize': 18,
+            'axes.labelsize': 16,
+            'xtick.labelsize': 14,
+            'ytick.labelsize': 14,
+            'legend.fontsize': 14,
+        })
+
+
+        plt.subplot(2, 3, 1)
+        # plt.plot(fpts + fcenter[i], amps[i], '-', linewidth=1.5)
+        plt.plot([f + fcenter[0] for f in fpts], amps[0], '-', linewidth=1.5)
+        freq_r = fpts[np.argmin(amps)] + fcenter[0]
+
+        print(freq_r)
+
+        res_freqs.append(freq_r)
+
+        plt.axvline(freq_r, linestyle='--', color='orange', linewidth=1.5)
+        plt.title(f"Resonator {self.QubitIndex + 1} {freq_r:.3f} MHz", pad=10)
+
+        plt.xlabel("Frequency (MHz)")
+        plt.ylabel("Amplitude (a.u.)")
+
+        plt.ylim(plt.ylim()[0] - 0.05 * (plt.ylim()[1] - plt.ylim()[0]), plt.ylim()[1])
+
+        if self.experiment is not None:
+            plt.suptitle(f"G resonator spectroscopy {self.config['reps']}*{self.config['rounds']} avgs", fontsize=24, y=0.95)
+        else:
+            plt.suptitle(f"G resonator spectroscopy {reloaded_config ['reps']}*{reloaded_config ['rounds']} avgs",
+                         fontsize=24, y=0.95)
+        plt.tight_layout(pad=2.0)
+
+        if self.save_figs:
+            outerFolder_expt = os.path.join(self.outerFolder, self.expt_name + "_ge_plots")
+            self.create_folder_if_not_exists(outerFolder_expt)
+            now = datetime.datetime.now()
+            formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
+            file_name = os.path.join(outerFolder_expt, f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" + f"{formatted_datetime}_" + self.expt_name)
+            plt.savefig(file_name + ".png", dpi=fig_quality)
+            plt.savefig(file_name + ".pdf", dpi=fig_quality)
+        plt.close()
+
+        res_freqs = [round(x, 5) for x in res_freqs]
+        return res_freqs
+
+    def plot_results_overlay(
+            self,
+            ge_fpts, ge_fcenter, ge_amps, ge_reloaded_config,
+            ef_fpts, ef_fcenter, ef_amps, ef_reloaded_config,
+            fig_quality=100,
+            *,  # <-- forces everything below to be keyword-only (prevents this exact bug forever)
+            label_ge="Qubit in g",
+            label_ef="Qubit in e",
+            ge_date=None,
+            ef_date=None,
+    ):
+        plt.figure(figsize=(12, 8))
+        plt.rcParams.update({
+            "font.size": 14,
+            "axes.titlesize": 18,
+            "axes.labelsize": 16,
+            "xtick.labelsize": 14,
+            "ytick.labelsize": 14,
+            "legend.fontsize": 14,
+        })
+
+        plt.subplot(2, 3, 1)
+
+        ge_x = [f + ge_fcenter[0] for f in ge_fpts]
+        ef_x = [f + ef_fcenter[0] for f in ef_fpts]
+
+        plt.plot(ge_x, ge_amps[0], "-", linewidth=1.5, label=label_ge)
+        plt.plot(ef_x, ef_amps[0], "-", linewidth=1.5, label=label_ef)
+
+        # optional resonance markers
+        try:
+            ge_freq_r = ge_fpts[np.argmin(ge_amps[0])] + ge_fcenter[0]
+            plt.axvline(ge_freq_r, linestyle="--", linewidth=1.5)
+        except Exception:
+            ge_freq_r = None
+
+        try:
+            ef_freq_r = ef_fpts[np.argmin(ef_amps[0])] + ef_fcenter[0]
+            plt.axvline(ef_freq_r, linestyle="--", linewidth=1.5)
+        except Exception:
+            ef_freq_r = None
+
+        if ge_freq_r is not None and ef_freq_r is not None:
+            plt.title(f"Resonator {self.QubitIndex + 1}  g:{ge_freq_r:.3f} MHz  e:{ef_freq_r:.3f} MHz", pad=10)
+        else:
+            plt.title(f"Resonator {self.QubitIndex + 1}", pad=10)
+
+        plt.xlabel("Frequency (MHz)")
+        plt.ylabel("Amplitude (a.u.)")
+        plt.legend()
+
+        yl = plt.ylim()
+        plt.ylim(yl[0] - 0.05 * (yl[1] - yl[0]), yl[1])
+
+        plt.suptitle("Resonator spectroscopy overlay (g vs e)", fontsize=24, y=0.95)
+
+        if ge_date and ef_date:
+            plt.figtext(0.01, 0.01, f"paired: ge={ge_date}  ->  ef={ef_date}", fontsize=10)
+
+        plt.tight_layout(pad=2.0)
+
+        if self.save_figs:
+            outerFolder_expt = os.path.join(self.outerFolder, self.expt_name + "_ge_ef_plots")
+            self.create_folder_if_not_exists(outerFolder_expt)
+            now = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            file_name = os.path.join(
+                outerFolder_expt,
+                f"R_{self.round_num}_Q_{self.QubitIndex + 1}_{now}_{self.expt_name}_ge_ef_overlay"
+            )
+            plt.savefig(file_name + ".png", dpi=fig_quality)
+            plt.savefig(file_name + ".pdf", dpi=fig_quality)
+
+        plt.close()
 
     def create_folder_if_not_exists(self, folder):
         """Creates a folder at the given path if it doesn't already exist."""

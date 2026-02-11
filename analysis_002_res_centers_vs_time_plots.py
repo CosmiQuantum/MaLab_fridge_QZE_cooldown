@@ -180,56 +180,78 @@ class ResonatorFreqVsTime:
                 del H5_class_instance
         return date_times, resonator_centers
 
-    def plot(self, date_times, resonator_centers, show_legends, exp_extension = ''):
-        #---------------------------------plot-----------------------------------------------------
+    def plot(self, date_times, resonator_centers, show_legends, exp_extension=''):
+        # ---------------------------------plot-----------------------------------------------------
         analysis_folder = f"M:/_Data/20250822 - Olivia/{self.run_name}/benchmark_analysis_plots/"
         self.create_folder_if_not_exists(analysis_folder)
         analysis_folder = f"M:/_Data/20250822 - Olivia/{self.run_name}/benchmark_analysis_plots/features_vs_time/"
         self.create_folder_if_not_exists(analysis_folder)
 
         font = 14
-        colors = ['orange','blue','purple','green','brown','pink']
-        fig, axes = plt.subplots(2, 3, figsize=(12, 8))
-        ext = exp_extension.split('_')[0]
-        plt.title(f'Resonator centers vs Time {ext}',fontsize = font)
-        axes = axes.flatten()
-        titles = [f"Res {i + 1}" for i in range(self.number_of_qubits)]
-        from datetime import datetime
-        for i, ax in enumerate(axes):
+        colors = ['orange', 'blue', 'purple', 'green', 'brown', 'pink']
 
-            ax.set_title(titles[i], fontsize = font)
+        fig, axes = plt.subplots(2, 3, figsize=(12, 8))
+        axes = axes.flatten()
+
+        ext = exp_extension.split('_')[0]
+        fig.suptitle(f'Resonator centers vs Time {ext}', fontsize=font)
+
+        titles = [f"Res {i + 1}" for i in range(self.number_of_qubits)]
+
+        from datetime import datetime
+
+        for i, ax in enumerate(axes):
+            # If you only have self.number_of_qubits qubits, blank the extra subplots.
+            if i >= self.number_of_qubits:
+                ax.axis("off")
+                continue
+
+            ax.set_title(titles[i], fontsize=font)
+
+            # ---- Skip if missing / empty for this i ----
+            if (
+                    i >= len(date_times)
+                    or i >= len(resonator_centers)
+                    or not date_times[i]  # covers None, [], "", etc.
+                    or not resonator_centers[i]
+            ):
+                ax.axis("off")  # "put nothing"
+                continue
 
             x = date_times[i]
             y = resonator_centers[i]
+
             # Convert strings to datetime objects.
-            datetime_objects = [datetime.strptime(date_string, "%Y-%m-%d %H:%M:%S") for date_string in x]
+            datetime_objects = [datetime.strptime(ds, "%Y-%m-%d %H:%M:%S") for ds in x]
 
-            # Combine datetime objects and y values into a list of tuples and sort by datetime.
+            # Sort by datetime (latest first)
             combined = list(zip(datetime_objects, y))
-            combined.sort(reverse=True, key=lambda x: x[0])
+            combined.sort(key=lambda t: t[0], reverse=True)
 
-            # Unpack them back into separate lists, in order from latest to most recent.
-            sorted_x, sorted_y = zip(*combined)
+            sorted_x, sorted_y = zip(*combined)  # tuples of datetimes and y's
+
             ax.scatter(sorted_x, sorted_y, color=colors[i])
 
-            sorted_x = np.asarray(sorted(x))
-
-            num_points = 5
+            # xticks: pick up to 5 evenly-spaced points
+            num_points = min(5, len(sorted_x))
             indices = np.linspace(0, len(sorted_x) - 1, num_points, dtype=int)
 
-            # Set new x-ticks using the datetime objects at the selected indices
-            ax.set_xticks(sorted_x[indices])
-            ax.set_xticklabels([dt for dt in sorted_x[indices]], rotation=45)
+            ax.set_xticks([sorted_x[idx] for idx in indices])
+            ax.set_xticklabels([sorted_x[idx] for idx in indices], rotation=45)
 
-            ax.scatter(x, y, color=colors[i])
             if show_legends:
                 ax.legend(edgecolor='black')
-            ax.set_xlabel('Time (Days)', fontsize=font-2)
-            ax.set_ylabel('Resonator Center (MHz)', fontsize=font-2)
+
+            ax.set_xlabel('Time (Days)', fontsize=font - 2)
+            ax.set_ylabel('Resonator Center (MHz)', fontsize=font - 2)
             ax.tick_params(axis='both', which='major', labelsize=8)
 
         plt.tight_layout()
-        plt.savefig(analysis_folder + f'Res_Centers{exp_extension}.pdf', transparent=True, dpi=self.final_figure_quality)
+        plt.savefig(
+            analysis_folder + f'Res_Centers{exp_extension}.pdf',
+            transparent=True,
+            dpi=self.final_figure_quality
+        )
 
         #plt.show()
     def plot_both_transitions(self, date_times_ge,
@@ -257,6 +279,19 @@ class ResonatorFreqVsTime:
         from matplotlib.ticker import FormatStrFormatter
         import matplotlib.dates as mdates
         from datetime import datetime
+        import matplotlib.dates as mdates
+
+        def _sorted_xy(times_str_list, y_vals):
+            if not times_str_list or not y_vals:
+                return np.array([]), np.array([])
+
+            dt = [datetime.strptime(ts, "%Y-%m-%d %H:%M:%S") for ts in times_str_list]
+            pairs = sorted(zip(dt, y_vals), key=lambda t: t[0])
+            xs, ys = zip(*pairs)
+
+            # Convert datetime -> matplotlib "date numbers"
+            xs_num = mdates.date2num(xs)
+            return np.asarray(xs_num), np.asarray(ys)
 
         font = 14
         ge_color = "tab:blue"
@@ -298,8 +333,17 @@ class ResonatorFreqVsTime:
                     ax.scatter(x_fe, y_fe, s=20, label="FE", color=fe_color)
 
             # Axes formatting
+            # Make locator/formatter per-axis (recommended)
+            locator = mdates.AutoDateLocator()
+            formatter = mdates.ConciseDateFormatter(locator)
+
+            x_ge, y_ge = _sorted_xy(date_times_ge[i], resonator_centers_ge[i])
+            if x_ge.size:
+                ax.scatter(x_ge, y_ge, s=14, label="GE", color=ge_color)
+
             ax.xaxis.set_major_locator(locator)
             ax.xaxis.set_major_formatter(formatter)
+
             ax.yaxis.set_major_formatter(FormatStrFormatter("%.1f"))
             ax.tick_params(axis="both", which="major", labelsize=8)
             plt.setp(ax.get_xticklabels(), rotation=45, ha="right")

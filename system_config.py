@@ -74,7 +74,7 @@ class QICK_experiment:
             #"res_freq_ge": [6217, 6276, 6335, 6407, 6476, 6538],  # MHz, run 5
             #'res_freq_ge': [6217.011, 6275.7973, 6335.1068, 6407.052, 6476.1091, 6538], # Arianna 3/27/
             #'res_freq_ge': [6216.811, 6275.9373, 6335, 6407.0338, 6475.8835, 6538], #Joyce 3/11
-            'res_freq_ge': [7149,7171,7204,7228.9, 7264.31,7287.5],#[7148.588, 7170.546, 7203.351, 7228.059, 7263.744 ,7286.719], #updated by Kester for run 7, Qick board, 6418.4 R5
+            'res_freq_ge': [7149,7171,7204,7228.9, 7264.22,7287.5],#[7148.588, 7170.546, 7203.351, 7228.059, 7263.744 ,7286.719], #updated by Kester for run 7, Qick board, 6418.4 R5
             #'res_freq_ge': [6219.097, 6284.55, 6343.95, 6414.934, 6418.4, 6547.25],  # updated by Kester for run 7, QICK box
 
             # "res_freq_ge": [6191.419, 6216.1, 6292.361, 6405.77, 6432.759, 6468.481],  # MHz, run 4a
@@ -85,7 +85,7 @@ class QICK_experiment:
             # "res_gain_ge": [1,1,0.7,0.7,0.7,1], #[0.4287450656184295, 0.4903077560386716, 0.4903077560386716, 0.3941941738241592, 0.3941941738241592, 0.4903077560386716],  # DAC units
             # "res_freq_ef": [7149.44, 0, 0, 0, 0, 0], # [MHz]
             # "res_gain_ef": [0.6, 0, 0, 0, 0, 0], # [DAC units]
-            "res_freq_ef": [6223.016, 6284.544, 6343.861, 6414.893, 6414.893, 6546.754],  # [MHz] updated by arianna for run 7
+            "res_freq_ef": [6223.016, 6284.544, 6343.861, 6414.893, 7264.12, 6546.754],  # [MHz] updated by arianna for run 7
             "res_gain_ef": [0.95,0.9,0.95,0.55,0.55,0.95],  # [DAC units]
             "res_freq_fh": [6223.016, 6284.544, 6343.861, 6414.893, 6414.893, 6546.754],  # [MHz]
             "res_gain_fh": [0.95,0.9,0.95,0.55,0.55,0.95],  # [DAC units]
@@ -118,16 +118,16 @@ class QICK_experiment:
             "qubit_pi_len": 0.11, # Olivia May 17th
             # [0.4287450656184295, 0.4287450656184295, 0.4903077560386716, 0.6, 0.4903077560386716, 0.4287450656184295], # For spec pulse
             "qubit_length_ge": 5,  # 15 [us] for spec Pulse
-            "qubit_freq_ef": [4009.81, 3645.58, 3988.21, 4292.73, 4292.73, 4838.86], #Q4 not fixed, looks like it shifted quite a lot
+            "qubit_freq_ef": [2616, 2830, 2723, 2946, 2893, 2943], #Q4 not fixed, looks like it shifted quite a lot
             # [MHz] Freqs of Qubit e/f Transition
             "qubit_freq_fh": [4016.3, 3450.8, 3988.44, 4292.73, 4292.73, 4833.17],
             "qubit_freq_ftores": [4016.3, 3644.76, 3988.44, 4292.73, 4303.18, 4833.17],
-            "qubit_gain_ef":  [0.001, 0.001, 0.0075, 0.1, 0.15, 0.005],# [0.03, 0.14, 0.04, 0.1, 0.15, 0.08],#
+            "qubit_gain_ef":  [0.003,0.002,0.002,0.0005,0.002, 0.001],# [0.03, 0.14, 0.04, 0.1, 0.15, 0.08],#
             "qubit_gain_fh": [0.001, 0.015, 0.0075, 0.1, 0.15, 0.005],
             "corrected_qspec_freq":[],
             'qubit_gain_ftores': 1,#[0.2, 0.14, 0.04, 0.17, 0.13, 0.08],
             # [0.01, 0.05, 0.05, 0.05, 0.01, 0.5], # [DAC units] Pulse Gain
-            "qubit_length_ef": 22, #22.0,
+            "qubit_length_ef": 5, #22.0,
             "qubit_length_ftores": 22,  # 25.0,
             "qubit_phase": 0,  # [deg]
             #"sigma": [0.15]*6,  # [us] for Gaussian Pulse (5+10 DAC atten for qubit)
@@ -135,7 +135,7 @@ class QICK_experiment:
             "sigma": [0.28, 0.25, 0.22, 0.25, 0.15, 0.07],  # DAC 2 04/07 [us] for Gaussian Pulse (5+10 DAC atten for qubit). Updated on 7/17 by Arianna
             #"sigma": [0.05, 0.09, 0.07, 0.065, 0.09, 0.3],  # Goal: cut sigma in half [us] for Gaussian Pulse (5+4 DAC atten for qubit)
             # "pi_amp": [0.92, 0.87, 0.75, 0.73, 0.77, 0.78], # old RR values
-            "sigma_ef": [0.15, 0.2, 0.25, 0.29, 0.28, 0.5],  # [us] for Gaussian Pulse, #Arianna 3/27
+            "sigma_ef": [0.28, 0.25, 0.22, 0.25, 0.15, 0.07],  # [us] for Gaussian Pulse, #Arianna 3/27
             "sigma_fh": [0.15, 0.21, 0.25, 0.29, 0.28, 0.5],  # [us] for Gaussian Pulse, #Arianna 3/27
             "pi_amp": [0.067,0.067,0.067, 0.067, 0.067, 0.067], #Joyce 3/11
             "pi_amp_ampl": [0.5942, 0.634499, 0.76542, 0.7754, 0.55393, 0.9], # Joyce 04/07 DAC 0

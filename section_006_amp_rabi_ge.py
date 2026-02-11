@@ -25,9 +25,10 @@ class AmplitudeRabiExperiment:
     def __init__(self, QubitIndex, number_of_qubits, outerFolder, round_num, signal, save_shots=False, save_figs = True, experiment = None,
                  live_plot = None, increase_qubit_reps = False, qubit_to_increase_reps_for = None,
                  multiply_qubit_reps_by = 0, verbose = False, logger = None, qick_verbose=True, QZE=False,
-                 projective_readout_pulse_len_us=9,  time_between_projective_readout_pulses=None, expt_name = "power_rabi_ge",
+                 projective_readout_pulse_len_us=9,  time_between_projective_readout_pulses=None, expt_name = "power_rabi_ge",chevron=False,
                  unmasking_resgain = False, correction=False):
         self.qick_verbose = qick_verbose
+        self.chevron = chevron
         self.correction=correction
         self.QubitIndex = QubitIndex
         self.number_of_qubits = number_of_qubits
@@ -78,7 +79,11 @@ class AmplitudeRabiExperiment:
                 iq_list = amp_rabi.acquire(self.experiment.soc, rounds=self.config["rounds"],
                                            progress=self.qick_verbose)
         else:
-            amp_rabi = AmplitudeRabiProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay=self.config['relax_delay'], cfg=self.config)
+            if not self.chevron:
+                amp_rabi = AmplitudeRabiProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay=self.config['relax_delay'], cfg=self.config)
+            else:
+                amp_rabi = AmplitudeRabiChevronProgram(self.experiment.soccfg, reps=self.config['reps'],
+                                                final_delay=self.config['relax_delay'], cfg=self.config)
 
             if self.live_plot:
                 I, Q, gains = self.live_plotting(amp_rabi, thresholding)
@@ -127,10 +132,21 @@ class AmplitudeRabiExperiment:
             ss_Q_g = iq_list_g[0][0].T[1]
             ss_I_e = iq_list_e[0][0].T[0]
             ss_Q_e = iq_list_e[0][0].T[1]
-            q1_fit_cosine, pi_amp = self.plot_results(I, Q, gains, config=self.config,
-                                                      scaling=scaling, Ie = ss_I_e, Ig = ss_I_g, Qe = ss_Q_e, Qg = ss_Q_g)
+            if self.chevron:
+                freqs = amp_rabi.get_pulse_param('qubit_pulse', "freq", as_array=True)
+                mag = self.plot_results_chevron(I, Q, gains, freqs, config=self.config)
+                q1_fit_cosine, pi_amp = None, None
+            else:
+
+                q1_fit_cosine, pi_amp = self.plot_results(I, Q, gains, config=self.config,
+                                                          scaling=scaling, Ie = ss_I_e, Ig = ss_I_g, Qe = ss_Q_e, Qg = ss_Q_g)
         else:
-            q1_fit_cosine, pi_amp = self.plot_results(I, Q, gains, config=self.config)
+            if self.chevron:
+                freqs = amp_rabi.get_pulse_param('qubit_pulse', "freq", as_array=True)
+                mag = self.plot_results_chevron(I, Q, gains, freqs, config=self.config)
+                q1_fit_cosine, pi_len = None, None
+            else:
+                q1_fit_cosine, pi_amp = self.plot_results(I, Q, gains, config=self.config)
 
         if self.save_shots:
             raw_0 = amp_rabi.get_raw()  # I,Q data without normalizing to readout window, subtracting readout offset, or rotation/thresholding
@@ -175,6 +191,139 @@ class AmplitudeRabiExperiment:
     def cosine(self, x, a, b, c, d):
 
         return a * np.cos(2. * np.pi * b * x - c * 2 * np.pi) + d
+    def plot_results_chevron(self, I, Q, lens, freqs,
+                             config=None, fig_quality=100,
+                             showfig=False, subtract_center=False):
+        """
+        Chevron heatmap:
+          z-axis (color): sqrt(I^2 + Q^2)
+          x-axis: pulse length (lens)
+          y-axis: frequency offset (freqs)
+
+        Supports:
+          - single 2D arrays: I,Q shape (n_freqs, n_lens)
+          - list/tuple of 2D arrays (multiple repeats): averaged before plotting
+
+        Parameters
+        ----------
+        subtract_center : bool
+            If True, subtract median of the magnitude to remove background contrast.
+        """
+
+        # ---- helper: normalize inputs into a list of arrays ----
+        def _to_stack(x):
+            if x is None:
+                return None
+            # if list of arrays -> keep
+            if isinstance(x, (list, tuple)) and len(x) > 0 and isinstance(x[0], (list, tuple, np.ndarray)):
+                return [np.asarray(xx) for xx in x]
+            # otherwise wrap
+            return [np.asarray(x)]
+
+        try:
+            lens = np.asarray(lens)
+            freqs = np.asarray(freqs)
+
+            I_stack = _to_stack(I)
+            Q_stack = _to_stack(Q)
+
+            plt.rcParams.update({'font.size': 18})
+
+            # ---- average across repeats/traces if provided as list ----
+            I_arr = np.stack(I_stack, axis=0)  # (n_traces, n_freqs, n_lens) OR (n_traces, ...)
+            Q_arr = np.stack(Q_stack, axis=0)
+
+            I_mean = np.mean(I_arr, axis=0)
+            Q_mean = np.mean(Q_arr, axis=0)
+
+            if I_mean.ndim != 2 or Q_mean.ndim != 2:
+                raise ValueError(
+                    f"Chevron plotting expects 2D I/Q after averaging. "
+                    f"Got I_mean.ndim={I_mean.ndim}, Q_mean.ndim={Q_mean.ndim}."
+                )
+
+            # Expect shape (n_freqs, n_lens)
+            n_freqs, n_lens = I_mean.shape
+
+            if freqs.shape[0] != n_freqs:
+                raise ValueError(
+                    f"freqs length ({freqs.shape[0]}) does not match I/Q freq dimension ({n_freqs})."
+                )
+            if lens.shape[0] != n_lens:
+                raise ValueError(
+                    f"lens length ({lens.shape[0]}) does not match I/Q length dimension ({n_lens})."
+                )
+
+            mag = np.sqrt(I_mean ** 2 + Q_mean ** 2)  # (n_freqs, n_lens)
+
+            if subtract_center:
+                mag = mag - np.median(mag)
+
+            # ---- plot heatmap ----
+            fig, ax = plt.subplots(1, 1, figsize=(10, 6))
+            plot_middle = (ax.get_position().x0 + ax.get_position().x1) / 2
+
+            # imshow expects (Ny, Nx) = (len(y), len(x)).
+            # Our mag is (n_freqs, n_lens) which corresponds to (y, x) already,
+            # so we do NOT transpose here.
+            im = ax.imshow(
+                mag,
+                origin='lower',
+                aspect='auto',
+                extent=(lens[0], lens[-1], freqs[0], freqs[-1]),
+                interpolation='nearest',  # <- no smoothing between pixels
+                resample=False  # <- avoid extra resampling smoothing
+            )
+
+            ax.set_xlabel("Qubit drive pulse gain", fontsize=20)
+            ax.set_ylabel("Frequency offset (Hz)", fontsize=20)  # change label/units if your freqs are MHz etc.
+            ax.tick_params(axis='both', which='major', labelsize=16)
+
+            cbar = fig.colorbar(im, ax=ax)
+            cbar.set_label("Signal magnitude sqrt(I^2+Q^2) (avg)", fontsize=18)
+
+            # ---- title ----
+            if config is not None:
+                fig.text(
+                    plot_middle, 0.98,
+                    f"Chevron Q{self.QubitIndex + 1}, {float(config['reps'])}*{float(config['rounds'])} avgs",
+                    fontsize=16, ha='center', va='top'
+                )
+            else:
+                fig.text(
+                    plot_middle, 0.98,
+                    f"Chevron Q{self.QubitIndex + 1}",
+                    fontsize=16, ha='center', va='top'
+                )
+
+            plt.tight_layout()
+            plt.subplots_adjust(top=0.93)
+
+            if showfig:
+                plt.show()
+
+            if self.save_figs:
+                outerFolder_expt = os.path.join(self.outerFolder, self.expt_name)
+                self.create_folder_if_not_exists(outerFolder_expt)
+                now = datetime.datetime.now()
+                formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
+                file_name = os.path.join(
+                    outerFolder_expt,
+                    f"R_{self.round_num}_Q_{self.QubitIndex + 1}_{formatted_datetime}_{self.expt_name}_chevron_q{self.QubitIndex + 1}.png"
+                )
+                fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')
+
+            plt.close(fig)
+
+            # For chevron we typically don't return a pi_len from a 1D cosine fit.
+            # Return the magnitude map in case you want to analyze it later.
+            return mag
+
+        except Exception as e:
+            if self.verbose:
+                print("Error plotting chevron heatmap:", e)
+            self.logger.info(f"Error plotting chevron heatmap: {e}")
+            return None
 
     def plot_results(self, I, Q, gains, config = None, fig_quality = 100, scaling=False, Ie=None, Ig=None, Qe=None, Qg=None, file_ext=''):
         try:
@@ -1667,6 +1816,62 @@ class AmplitudeRabiProgram(AveragerProgramV2):
         # # self.delay_auto()#(self.cfg['sigma'] * 4)  # ????
         # self.jump("Readout and check conditions")
         # self.label('skip everything')
+class AmplitudeRabiChevronProgram(AveragerProgramV2):
+    def _initialize(self, cfg):
+        ro_ch = cfg['ro_ch']
+        res_ch = cfg['res_ch']
+        qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
+        self.add_readoutconfig(ch=ro_ch, name="myro",
+                               freq=cfg['res_freq_ge'],
+                               gen_ch=res_ch,
+                               outsel='product')
+        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
+        # Define a generator for the readout pulses with the gains, phases, and mixer/mux frequencies
+        # Configure the hardware to set this sort of pulse that we can trigger later
+        # This has a rectangle pulse becuase style="const"
+        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
+                       style="const",
+                       length=cfg["res_length"],
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
+                       )
+        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
+        self.add_gauss(ch=qubit_ch, name="ramp", sigma=cfg['sigma'], length=cfg['sigma'] * 4, even_length=False)
+        # Add a pulse configuration to store in the hardware so you can just trigger it later on
+        # Tell it to shape the pulse with the gaussian pulse we just defined as 'ramp'. then set the feq/phase/gain
+        self.add_pulse(ch=qubit_ch, name="qubit_pulse",
+                       style="arb",
+                       envelope="ramp",
+                       freq=QickSweep1D("freqloop", cfg['start_freq'], cfg['end_freq']),
+                       phase=cfg['qubit_phase'],
+                       gain=cfg['qubit_gain_ge'],
+                       )
+        self.add_pulse(ch=qubit_ch, name="pi_pulse",
+                       style="arb",
+                       envelope="ramp",
+                       freq=cfg['qubit_freq_ge'],
+                       phase=cfg['qubit_phase'],
+                       gain=cfg['pi_amp'],
+                       )
+        print('rabi chevron cfg: ',cfg)
+        # Make a loop that interates over different pulse amplitudes/gains, this wil be used for the qubit pump, and rabi later
+        self.add_loop("gainloop", cfg["steps"])
+        self.add_loop("freqloop", cfg["freq_steps"])
+    def _body(self, cfg):
+        # Here we define a sequence of operations that we will use for each iteration of the loop
+        # Drive the qubit:
+        self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)
+        # Delay
+        self.delay_auto(t=0.0, tag='waiting')
+        # Readout pulse to look at qubit state
+        self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+        # Trigger the readout channels to start collecting the data
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 class AmplitudeRabi_QZE_Program(AveragerProgramV2):
     def __init__(self, soccfg, reps, final_delay, final_wait=0, initial_delay=1.0,

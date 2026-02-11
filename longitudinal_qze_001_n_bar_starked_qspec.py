@@ -42,7 +42,7 @@ multiply_qubit_reps_by = 2           # only has impact if the line two above is 
 Qs_to_look_at = [4]        # only list the qubits you want to do the RR for
 
 #Data saving info
-run_name = 'bob_run_started_Aug_23'
+run_name = 'bob_run_started_Feb_11'
 device_name = 'squill'
 substudy_txt_notes = ('testing')
 

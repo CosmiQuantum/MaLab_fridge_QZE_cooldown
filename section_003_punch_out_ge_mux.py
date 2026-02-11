@@ -81,6 +81,7 @@ class PunchOut:
             freq_res_for_power = []
 
             for qi in range(N):
+                # if qi
                 self.QubitIndex = qi
 
                 fpts = self.exp_cfg["start"] + self.exp_cfg["step_size"] * np.arange(self.exp_cfg["steps"])
@@ -96,25 +97,6 @@ class PunchOut:
                     amp = np.abs(iq_list[0][0][0] + 1j * iq_list[0][0][1])
                     amps.append(amp)
                 amps = np.array(amps)
-
-                # amps_q = np.zeros(F, dtype=float)
-                # center_q = float(fcenter[qi])
-                #
-                # for fi, df in enumerate(fpts):
-                #     self.config["res_freq_ge"] = float(center_q + df)
-                #
-                #
-                #     prog = SingleToneSpectroscopyProgram(
-                #         soccfg, reps=self.exp_cfg["reps"], final_delay=0.5, cfg=self.config
-                #     )
-                #     iq_list = prog.acquire(soc, rounds=self.exp_cfg["rounds"], progress=True)
-                #     amps_q[fi] = self._amp_from_iq(iq_list)
-
-
-
-
-
-
                 frequency_sweeps[pi, qi, :] = amps
 
                 min_idx = int(np.argmin(amps))

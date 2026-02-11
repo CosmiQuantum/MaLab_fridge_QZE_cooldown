@@ -82,7 +82,7 @@ class T1ProgramIBMZenoSingleGain(AveragerProgramV2):
                        phase=cfg['ro_phase'],
                        gain=cfg['res_gain_ge']
                        )
-
+        print('gain in t1:',cfg)
         self.add_pulse(ch=res_ch, name="qze_pulse", ro_ch=ro_ch,
                        style="const",
                        length=QickSweep1D("waitloop", cfg['start'], cfg['stop']),
@@ -111,6 +111,7 @@ class T1ProgramIBMZenoSingleGain(AveragerProgramV2):
         self.delay_auto(t=5, tag='wait_for_ring_down')
         self.pulse(ch=cfg['res_ch'], name="res_pulse")           # play readout pulse after 5 us for ring down
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+
 class T1ProgramIBMZenoFlatTop(AveragerProgramV2):
     def _initialize(self, cfg):
 
