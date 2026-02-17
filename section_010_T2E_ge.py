@@ -444,7 +444,7 @@ class T2EMeasurement:
             if self.save_figs:
                 self.plot_results(I, Q, delay_times, now, fit, t2e_est, t2e_err, plot_sig)
 
-            return  t2e_est, t2e_err, I, Q, delay_times, fit, self.config, I_shots, Q_shots
+            return  t2e_est, t2e_err, I, Q, delay_times, fit, self.config
 
     def live_plotting(self, echo,thresholding):
         I = Q = expt_mags = expt_phases = expt_pop = None
@@ -611,7 +611,8 @@ class T2EMeasurement:
             # Adjust the top margin to make room for the title
             plt.subplots_adjust(top=0.93)
             if self.save_figs:
-                outerFolder_expt = os.path.join(self.outerFolder, self.expt_name + '_' + str(self.correction_round))
+
+                outerFolder_expt = os.path.join(self.outerFolder, self.expt_name )
 
                 self.create_folder_if_not_exists(outerFolder_expt)
                 now = datetime.datetime.now()

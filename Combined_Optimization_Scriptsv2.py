@@ -61,9 +61,9 @@ n_loops = 2  # Number of repetitions per length to average
 Qs = [4]
 
 #Change for NEXUS vs QUIET
-res_leng_vals = [7]*6
-res_gain = [0.15,0.2, 0.2, 0.2, 0.2833, 0.15]
-freq_offsets = [0, -0.15, -0.15,-0.15, -0.08, -0.15]
+res_leng_vals = [4]*6
+res_gain = [0.05,0.05, 0.05, 0.05, 0.05, 0.05]
+freq_offsets = [-0.15,0,-0.15,-0.15,0,0]
 punch_out_vals = [0.3] *6
 
 optimal_lengths = [None] * 6 # creates list where the script will be storing the optimal readout lengths for each qubit. We currently have 6 qubits in total.

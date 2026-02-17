@@ -452,7 +452,8 @@ class T2RMeasurement:
             if self.save_figs:
                 self.plot_results(I, Q, delay_times, now, fit, t2r_est, t2r_err, plot_sig)
 
-            return  t2r_est, t2r_err, I, Q, delay_times, fit, self.config, I_shots, Q_shots
+
+            return  t2r_est, t2r_err, I, Q, delay_times, fit, self.config
 
     def adjust_qspec(self, thresholding=False,correction=False):
         now = datetime.datetime.now()

@@ -155,7 +155,7 @@ class T1Measurement:
                 return T1_est, T1_err, Ishots, Qshots, delay_times, q1_fit_exponential, self.config, I_shots, Q_shots
 
             else:
-                return  T1_est, T1_err, I, Q, delay_times, q1_fit_exponential, self.config, I_shots, Q_shots
+                return  T1_est, T1_err, I, Q, delay_times, q1_fit_exponential, self.config
 
     def live_plotting(self, t1, thresholding):
         I = Q = expt_mags = expt_phases = expt_pop = None

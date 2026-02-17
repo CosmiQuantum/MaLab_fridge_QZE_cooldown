@@ -37,14 +37,14 @@ run_name = 'bob_run_started_Feb_11/squill/track_res_spec_lower_gain0p05_len_4us/
 #run_name = 'run6/6transmon/QZE/QZE_measurement/Optimization/'
 FRIDGE = "QUIET"
 run_notes = ('Added IR shielding, better cryo terminators, thermalizing with 0dB attenuator ') #please make it brief for the plot
-top_folder_dates = ['2026-02-04_21-13-00']
+top_folder_dates = ['2026-02-12_19-32-00']
 
 #
 #top_folder_dates = ['2025-04-02']
 
 #
-date = '2026-02-04_21-13-00'
-outerFolder = "M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/track_res_spec_lower_gain0p05_len_4us/qubit_4/2026-02-04_21-13-00/study_data/"
+date = '2026-02-12_19-32-00'
+outerFolder = "M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/track_res_spec_lower_gain0p05_len_4us/qubit_4/2026-02-12_19-32-00/study_data/"
 #f"M:/_Data/20250822 - Olivia/{run_name}/" + date + "/study_data/"
 # ################################################ 01: Get all data ######################################################
 res_spec_vs_time_ge = ResonatorFreqVsTime(figure_quality, final_figure_quality, tot_num_of_qubits, top_folder_dates,

@@ -55,7 +55,7 @@ unmask = True                        # Do you want to use the unmasking feature 
 qubit_to_increase_reps_for = 0       # only has impact if previous line is True
 multiply_qubit_reps_by = 2           # only has impact if the line two above is True
 
-Qs_to_look_at = [4]     # only list the qubits you want to do the RR for
+Qs_to_look_at = [0,1,2,3,4,5]     # only list the qubits you want to do the RR for
 
 #Data saving info
 run_name = 'bob_run_started_Feb_11'
@@ -72,8 +72,8 @@ run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss":  False, "rabi
 
 # optimization outputs from qick board, unmasking set to true
 res_leng_vals =[4]*6 #[10]*6
-res_gain =[0.15,0.2, 0.2, 0.2, 0.05, 0.15] #[0.15,0.2, 0.2, 0.2, 0.2833, 0.15]
-freq_offsets = [0, -0.15, -0.15,-0.15, -0.08, -0.15]
+res_gain =[0.05,0.05, 0.05, 0.05, 0.05, 0.05] #[0.15,0.2, 0.2, 0.2, 0.2833, 0.15]
+freq_offsets = [-0.15,0,-0.15,-0.15,0,0]
 
 qubit_freqs_ef = [None]*6
 increase_steps_to_ef = 600

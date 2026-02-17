@@ -26,7 +26,7 @@ Qubit_index= 0 #starts at 0
 Unmask = True
 punch_out   = PunchOut(Qubit_index, number_of_qubits, outerfolder_plots, experiment, Unmask)
 
-start_gain, stop_gain, num_points =  0.001, 1, 30 # for QUIET 0.55, 0.775, 5 #
+start_gain, stop_gain, num_points =  0.001, 1, 20 # for QUIET 0.55, 0.775, 5 #
 #start_gain, stop_gain, num_points = 0.0, 0.8, 10 # for NEXUS
 
 punch_out.run(experiment.soccfg, experiment.soc, start_gain, stop_gain, num_points, DAC_att, ADC_att, plot_Center_shift = True, plot_res_sweeps = True)

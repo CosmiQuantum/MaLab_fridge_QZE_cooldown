@@ -61,19 +61,19 @@ Qs_to_look_at = [4]     # only list the qubits you want to do the RR for
 run_name = 'bob_run_started_Feb_11'
 device_name = 'squill'
 substudy_txt_notes = ('track res and q spec')
-study ='track_res_spec_lower_gain0p05_len_4us'#'higher_spec_transitions'
-sub_study = f'qubit_' + str(4)
+study ='find_best_reps_rounds_post_amp_removal'
+sub_study = f'feb_17'
 data_set = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 # set which of the following you'd like to run to 'True'
-run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss":  False, "rabi":  True, "ss_gef": False, "test_act": False, "fh_rabi": False,
-             "t1":  False, "t2r": False, "t2r_correction":True, "t2e":  False, "ef_res_spec": True, "ef_q_spec": False, "fh_q_spec": False, "rabi_pop_meas": False, "ef_Rabi": False, "ef_ss": False}
+run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss":  False, "rabi":  False, "ss_gef": False, "test_act": False, "fh_rabi": False,
+             "t1":  False, "t2r": False, "t2r_correction":False, "t2e":  True, "ef_res_spec": False, "ef_q_spec": False, "fh_q_spec": False, "rabi_pop_meas": False, "ef_Rabi": False, "ef_ss": False}
 
 
 # optimization outputs from qick board, unmasking set to true
 res_leng_vals =[4]*6 #[10]*6
-res_gain =[0.15,0.2, 0.2, 0.2, 0.05, 0.15] #[0.15,0.2, 0.2, 0.2, 0.2833, 0.15]
-freq_offsets = [0, -0.15, -0.15,-0.15, -0.08, -0.15]
+res_gain =[0.05,0.05, 0.05, 0.05, 0.05, 0.05] #[0.15,0.2, 0.2, 0.2, 0.2833, 0.15]
+freq_offsets = [-0.15,0,-0.15,-0.15,0,0]#[0, -0.15, -0.15,-0.15, -0.08, -0.15]
 
 qubit_freqs_ef = [None]*6
 increase_steps_to_ef = 600
