@@ -113,7 +113,7 @@ class QICK_experiment:
             "fwhm_w01_starked": None, #for err bars
             "fwhm_w01": None, #for err bars
 
-            "qubit_gain_ge": [],#[0.002,0.003,0.002,0.001,0.001, 0.001],# [0.007]*6, #[1] * 6,
+            "qubit_gain_ge": [0.01, 0.01, 0.03, 0.01,0.02,0.03],#[0.01, 0.01, 0.03, 0.01,0.02,0.008],
             "qubit_ampl_gain_ge": 0.025,
             "qubit_pi_len": 0.11, # Olivia May 17th
             # [0.4287450656184295, 0.4287450656184295, 0.4903077560386716, 0.6, 0.4903077560386716, 0.4287450656184295], # For spec pulse
@@ -132,12 +132,12 @@ class QICK_experiment:
             "qubit_phase": 0,  # [deg]
             #"sigma": [0.15]*6,  # [us] for Gaussian Pulse (5+10 DAC atten for qubit)
             "sigma_ampl": [0.03, 0.03, 0.05, 0.04, 0.05, 0.05], #DAC 0 04/07
-            "sigma": [0.39, 0.25, 0.22, 0.10, 0.08, 0.09],  # DAC 2 04/07 [us] for Gaussian Pulse (5+10 DAC atten for qubit). Updated on 7/17 by Arianna
+            "sigma": [0.39, 0.27, 0.3, 0.10, 0.19, 0.11],  # DAC 2 04/07 [us] for Gaussian Pulse (5+10 DAC atten for qubit). Updated on 7/17 by Arianna
             #"sigma": [0.05, 0.09, 0.07, 0.065, 0.09, 0.3],  # Goal: cut sigma in half [us] for Gaussian Pulse (5+4 DAC atten for qubit)
             # "pi_amp": [0.92, 0.87, 0.75, 0.73, 0.77, 0.78], # old RR values
             "sigma_ef": [0.28, 0.25, 0.22, 0.25, 0.15, 0.07],  # [us] for Gaussian Pulse, #Arianna 3/27
             "sigma_fh": [0.15, 0.21, 0.25, 0.29, 0.28, 0.5],  # [us] for Gaussian Pulse, #Arianna 3/27
-            "pi_amp": [0.067,0.067,0.067, 0.067, 0.067, 0.067], #Joyce 3/11
+            "pi_amp": [0.7,0.7,0.7, 0.7, 0.62, 0.61], #Joyce 3/11
             "pi_amp_ampl": [0.5942, 0.634499, 0.76542, 0.7754, 0.55393, 0.9], # Joyce 04/07 DAC 0
             #"pi_amp": [1.0, 0.93, 0.77, 0.8, 0.81, 0.9], # Eyeballed by Sara today (5+10 DAC atten for qubit)
             #"pi_amp": [0.7, 0.95, 0.75, 0.78, 0.77, 0.8],  # With shorter sigma (5+4 DAC instead of 5+5 DAC atten for qubit)

@@ -721,6 +721,8 @@ class T1VsTime:
             save_csv=True,
             fig_dpi=150,
             max_T1_us=500.0,
+            return_distributions=False,  # NEW
+            distribution_mode="per_gain_array",  # NEW: "per_gain_array" or "per_dataset_arrays"
     ):
         """
         Fit T1 and plot Gamma = 1/T1 vs dataset index.
@@ -728,6 +730,13 @@ class T1VsTime:
         Also saves boxplots (with overlaid points, NO jitter) for:
           - Gamma by gain
           - T1 by gain
+
+        NEW (optional):
+          If return_distributions=True, returns (fig, ax, amps_list_gamma, amps_list_t1, gain_labels_out)
+          where amps_list_* are in the same "amps_list" format expected by your histogram functions:
+            amps_list_gamma[gi] == {q_key: [np.array([...gamma estimates...])]}   (default)
+            amps_list_t1[gi]    == {q_key: [np.array([...T1 estimates...])]}
+          gain_labels_out aligns with those lists (same order as gains).
         """
         import os
         import csv
@@ -1067,7 +1076,37 @@ class T1VsTime:
             Gamma_err_1_per_us=np.array([r[6] for r in summary_rows], dtype=float),
         )
 
+        # -------------------- NEW: optionally return fit-based distributions --------------------
+        if return_distributions:
+            amps_list_gamma_out = []
+            amps_list_t1_out = []
+
+            # return the original gains (aligned with amps_list_* indices)
+            gain_labels_out = list(gains)
+
+            for gain_label in gains:
+                gl = str(gain_label)
+
+                gvals = np.asarray(gamma_by_gain.get(gl, []), dtype=float)
+                tvals = np.asarray(t1_by_gain.get(gl, []), dtype=float)
+
+                gvals = gvals[np.isfinite(gvals)]
+                tvals = tvals[np.isfinite(tvals)]
+
+                if distribution_mode == "per_dataset_arrays":
+                    gamma_payload = [np.array([v], dtype=float) for v in gvals]
+                    t1_payload = [np.array([v], dtype=float) for v in tvals]
+                else:
+                    gamma_payload = [gvals]
+                    t1_payload = [tvals]
+
+                amps_list_gamma_out.append({q_key: gamma_payload})
+                amps_list_t1_out.append({q_key: t1_payload})
+
+            return fig, ax, amps_list_gamma_out, amps_list_t1_out, gain_labels_out
+
         return fig, ax
+
 
     def plot_t1_scatter_multi_gain_by_round(self,
                                             amps_t1_gains, dates_t1_gains, delay_times_t1_gains,

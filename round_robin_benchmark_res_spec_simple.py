@@ -55,13 +55,13 @@ unmask = True                        # Do you want to use the unmasking feature 
 qubit_to_increase_reps_for = 0       # only has impact if previous line is True
 multiply_qubit_reps_by = 2           # only has impact if the line two above is True
 
-Qs_to_look_at = [0,1,2,3,4,5]     # only list the qubits you want to do the RR for
+Qs_to_look_at = [4,5]     # only list the qubits you want to do the RR for
 
 #Data saving info
 run_name = 'bob_run_started_Feb_11'
 device_name = 'squill'
 substudy_txt_notes = ('track res and q spec')
-study ='track_res_spec_lower_gain0p05_len_4us'#'higher_spec_transitions'
+study ='track_res_spec'#'higher_spec_transitions'
 sub_study = f'qubit_' + str(4)
 data_set = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
@@ -71,9 +71,9 @@ run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss":  False, "rabi
 
 
 # optimization outputs from qick board, unmasking set to true
-res_leng_vals =[4]*6 #[10]*6
-res_gain =[0.05,0.05, 0.05, 0.05, 0.05, 0.05] #[0.15,0.2, 0.2, 0.2, 0.2833, 0.15]
-freq_offsets = [-0.15,0,-0.15,-0.15,0,0]
+res_leng_vals = [9]*6
+res_gain = [0.25,0.25,0.25,0.25,0.24,0.25]
+freq_offsets = [0,0,0,0,-0.25,-0.15]
 
 qubit_freqs_ef = [None]*6
 increase_steps_to_ef = 600
@@ -204,7 +204,9 @@ while j < n:
         experiment.readout_cfg['res_gain_ge'] = res_gain[QubitIndex]
         experiment.readout_cfg['res_gain_ef'] = res_gain[QubitIndex]
         experiment.readout_cfg['res_length'] = res_leng_vals[QubitIndex]
+        orig_freq = experiment.readout_cfg['res_freq_ge'][QubitIndex]
         experiment.readout_cfg['res_freq_ge'] = experiment.readout_cfg['res_freq_ge'][QubitIndex]
+
 
         experiment.qubit_cfg['qubit_freq_ge'] = experiment.qubit_cfg['qubit_freq_ge'][QubitIndex]
         experiment.qubit_cfg['qubit_gain_ge'] = experiment.qubit_cfg['qubit_gain_ge'][QubitIndex]
@@ -256,7 +258,7 @@ while j < n:
                     ef_res_spec = ResonanceSpectroscopyEF(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, sample,
                                                           save_figs, experiment=experiment, verbose=verbose,
                                                           logger=rr_logger, qick_verbose=qick_verbose, unmasking_resgain = unmask)
-                    ef_res_freqs, ef_freq_pts, ef_freq_center, ef_amps, sys_config_rspec_ef = ef_res_spec.run()
+                    ef_res_freqs, ef_freq_pts, ef_freq_center, ef_amps, sys_config_rspec_ef = ef_res_spec.run(org_res_freq=orig_freq)
                     ef_res_freqs_samples.append(ef_res_freqs)
                     rr_logger.info(f"EF ResSpec sample {sample} for qubit {QubitIndex + 1}: {ef_res_freqs}")
 

@@ -72,9 +72,12 @@ class ResonanceSpectroscopyEF:
             if self.verbose: print(f'Q {self.QubitIndex + 1} Round {self.round_num} Res Spec configuration: ',
                                    self.config)
 
-    def run(self):
+    def run(self,org_res_freq=None):
         fpts = self.exp_cfg["start"] + self.exp_cfg["step_size"] * np.arange(self.exp_cfg["steps"])
-        fcenter = self.config['res_freq_ge']
+        if org_res_freq==None:
+            fcenter=self.config['res_freq_ge']
+        else:
+            fcenter = org_res_freq
 
         amps = []
         for index, f in enumerate(tqdm(fpts)):
