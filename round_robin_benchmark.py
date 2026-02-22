@@ -66,8 +66,8 @@ sub_study = f'feb_17'
 data_set = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 # set which of the following you'd like to run to 'True'
-run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss":  False, "rabi": True, "ss_gef": False, "test_act": False, "fh_rabi": False,
-             "t1":  False, "t2r": False, "t2r_correction":False, "t2e":  False, "ef_res_spec": False, "ef_q_spec": False, "fh_q_spec": False, "rabi_pop_meas": False, "ef_Rabi": False, "ef_ss": False}
+run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss":  False, "rabi": True, "len_rabi": True, "ss_gef": False, "test_act": False, "fh_rabi": False,
+             "t1":  False, "t2r": True, "t2r_correction":True, "t2e":  False, "ef_res_spec": True, "ef_q_spec": False, "fh_q_spec": False, "rabi_pop_meas": False, "ef_Rabi": False, "ef_ss": False}
 
 
 # optimization outputs from qick board, unmasking set to true
@@ -170,6 +170,7 @@ tof_data = create_data_dict(tof_keys, save_r, list_of_all_qubits)
 res_data = create_data_dict(res_keys, save_r, list_of_all_qubits)
 qspec_data = create_data_dict(qspec_keys, save_r, list_of_all_qubits)
 rabi_data = create_data_dict(rabi_keys, save_r, list_of_all_qubits)
+len_rabi_data = create_data_dict(rabi_keys, save_r, list_of_all_qubits)
 ss_data = create_data_dict(ss_keys, save_r, list_of_all_qubits)
 ef_ss_data = create_data_dict(ss_keys, save_r, list_of_all_qubits)
 t1_data = create_data_dict(t1_keys, save_r, list_of_all_qubits)
@@ -379,19 +380,6 @@ if pre_optimize:
             rr_logger.exception(f"g-e Rabi error on qubit {Q}: {e}")
             continue
 
-        # ################### length rabi test ################
-        # from section_006p5_length_rabi_ge import LengthRabiExperiment
-        # len_rabi = LengthRabiExperiment(Q, tot_num_of_qubits, 'M:/_Data/20250822 - Olivia/run6/6transmon/test/', 0,
-        #                                signal, save_figs=True, experiment=experiment,
-        #                                live_plot=live_plot,
-        #                                increase_qubit_reps=increase_qubit_reps,
-        #                                qubit_to_increase_reps_for=qubit_to_increase_reps_for,
-        #                                multiply_qubit_reps_by=multiply_qubit_reps_by,
-        #                                verbose=verbose, logger=rr_logger,
-        #                                qick_verbose=True)
-        # (rabi_I, rabi_Q, rabi_gains, rabi_fit, stored_pi_amp, sys_config_rabi) = len_rabi.run()
-
-
         ################################################ optimize ################################################
 
         freq_range = np.linspace(-0.5, 0.5, freq_offset_steps)
@@ -597,8 +585,39 @@ while j < n:
                         rr_logger.exception(f'Got the following error, continuing: {e}')
                         if verbose: print(f'Got the following error, continuing: {e}')
                         continue  # skip the rest of this qubit
+            ################################################### len rabi ###############################################
+            if run_flags["len_rabi"]:
+                try:
 
-        ########################################## g-e Single Shot Measurements ############################################
+                    from section_006p5_length_rabi_ge import LengthRabiExperiment
+
+                    rabi = LengthRabiExperiment(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j, signal,
+                                                save_figs=save_figs,
+                                                experiment=experiment, live_plot=live_plot,
+                                                increase_qubit_reps=increase_qubit_reps,
+                                                qubit_to_increase_reps_for=qubit_to_increase_reps_for,
+                                                multiply_qubit_reps_by=multiply_qubit_reps_by,
+                                                verbose=verbose, logger=rr_logger)
+                    (len_rabi_I, len_rabi_Q, len_rabi_gains, len_rabi_fit, len_pi_amp,
+                     len_sys_config_rabi, len_ss_Q_e, len_ss_Q_g, len_ss_I_e, len_ss_I_g,
+                     len_I_shots, len_Q_shots) = rabi.run(thresholding=thresholding)
+
+                    # if these are None, fit didnt work
+                    if (len_rabi_fit is None and len_pi_amp is None):
+                        rr_logger.info('g-e Rabi fit didnt work, skipping the rest of this qubit')
+                        if verbose: print('g-e Rabi fit didnt work, skipping the rest of this qubit')
+                        continue  # skip the rest of this qubit
+
+                    del rabi
+                except Exception as e:
+                    if debug_mode:
+                        raise e  # In debug mode, re-raise the exception immediately
+                    else:
+                        rr_logger.exception(f'Got the following error, continuing: {e}')
+                        if verbose: print(f'Got the following error, continuing: {e}')
+                        continue
+
+                        ########################################## g-e Single Shot Measurements ############################################
         if run_flags["ss"]:
             # try:
             ss = SingleShot(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j, save_figs, experiment = experiment,
@@ -1019,6 +1038,22 @@ while j < n:
                 rabi_data[QubitIndex]['Batch Num'][j - batch_num * save_r - 1] = batch_num
                 rabi_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = expt_cfg
                 rabi_data[QubitIndex]['Syst Config'][j - batch_num * save_r - 1] = sys_config_rabi
+            # ---------------------Collect g-e Rabi Results----------------
+            if run_flags["len_rabi"]:
+                len_rabi_data[QubitIndex]['Dates'][0] = (
+                    time.mktime(datetime.datetime.now().timetuple()))
+                len_rabi_data[QubitIndex]['I'][0] = len_rabi_I
+                len_rabi_data[QubitIndex]['Q'][0] = len_rabi_Q
+                len_rabi_data[QubitIndex]['Gains'][0] = len_rabi_gains
+                len_rabi_data[QubitIndex]['Fit'][0] = len_rabi_fit
+                len_rabi_data[QubitIndex]['Round Num'][0] = 0
+                len_rabi_data[QubitIndex]['Batch Num'][0] = 0
+                len_rabi_data[QubitIndex]['Exp Config'][0] = expt_cfg
+                len_rabi_data[QubitIndex]['Syst Config'][0] = len_sys_config_rabi
+                len_rabi_data[QubitIndex]['ss_Q_e'][0] = len_ss_Q_e
+                len_rabi_data[QubitIndex]['ss_Q_g'][0] = len_ss_Q_g
+                len_rabi_data[QubitIndex]['ss_I_e'][0] = len_ss_I_e
+                len_rabi_data[QubitIndex]['ss_I_g'][0] = len_ss_I_g
 
             # ---------------------Collect g-e Single Shot Results----------------
             if run_flags["ss"]:
@@ -1255,7 +1290,12 @@ while j < n:
                 saver_rabi.save_to_h5('rabi_ge')
                 del saver_rabi
                 del rabi_data
-
+            # --------------------------save g-e len Rabi-----------------------
+            if run_flags["len_rabi"]:
+                saver_rabi = Data_H5(optimizationFolder, len_rabi_data, 0, save_r)
+                saver_rabi.save_to_h5('len_rabi')
+                del saver_rabi
+                del len_rabi_data
             # --------------------------save g-e SS-----------------------
             if run_flags["ss"]:
                 saver_ss = Data_H5(subStudyDataFolder, ss_data, batch_num, save_r)
@@ -1364,6 +1404,7 @@ while j < n:
     res_data = create_data_dict(res_keys, save_r, list_of_all_qubits)
     qspec_data = create_data_dict(qspec_keys, save_r, list_of_all_qubits)
     rabi_data = create_data_dict(rabi_keys, save_r, list_of_all_qubits)
+    len_rabi_data = create_data_dict(rabi_keys, save_r, list_of_all_qubits)
     fh_rabi_data = create_data_dict(rabi_keys, save_r, list_of_all_qubits)
     ss_data = create_data_dict(ss_keys, save_r, list_of_all_qubits)
     ss_data_ef = create_data_dict(ss_keys, save_r, list_of_all_qubits)

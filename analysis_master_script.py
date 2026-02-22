@@ -33,17 +33,17 @@ signal = 'None'
 run_number = 3 #starting from first run with qubits. Run 1 = run4a at quiet, run 2 = run5a at quiet, etc
 figure_quality = 100 #ramp this up to like 500 for presentation plots
 final_figure_quality = 200
-run_name = 'bob_run_started_Feb_11/squill/track_res_spec]/qubit_4'
+run_name = 'bob_run_started_Feb_11/squill/track_res_spec/qubit_4'
 #run_name = 'run6/6transmon/QZE/QZE_measurement/Optimization/'
 FRIDGE = "QUIET"
 run_notes = ('Added IR shielding, better cryo terminators, thermalizing with 0dB attenuator ') #please make it brief for the plot
-top_folder_dates = ['2026-02-18_22-31-14']
+top_folder_dates = ['2026-02-19_17-23-41']
 
 #
 #top_folder_dates = ['2025-04-02']
 
 #
-date = '2026-02-18_22-31-14'
+date = '2026-02-19_17-23-41'
 outerFolder = f"M:/_Data/20250822 - Olivia/{run_name}/{date}/study_data/"
 #f"M:/_Data/20250822 - Olivia/{run_name}/" + date + "/study_data/"
 # ################################################ 01: Get all data ######################################################

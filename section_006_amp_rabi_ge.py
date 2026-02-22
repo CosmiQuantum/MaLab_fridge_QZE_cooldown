@@ -117,6 +117,9 @@ class AmplitudeRabiExperiment:
 
         if scaling:
             from section_005_single_shot_ge import SingleShotProgram_g, SingleShotProgram_e
+            q1_fit_cosine_no_calibration, pi_amp_fit_no_calibration = self.plot_results(I, Q, gains, config=self.config)
+            self.experiment.qubit_cfg['pi_amp'] = float(pi_amp_fit_no_calibration)
+
             q_config = all_qubit_state(self.experiment, self.number_of_qubits)
             ss_exp_cfg = add_qubit_experiment(expt_cfg, 'Readout_Optimization', self.QubitIndex)
             ss_config = {**q_config[self.Qubit], **ss_exp_cfg}

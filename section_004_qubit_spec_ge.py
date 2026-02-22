@@ -91,8 +91,8 @@ class QubitSpectroscopy:
 
             raw_0 = qspec.get_raw()  # I,Q data without normalizing to readout window, subtracting readout offset, or rotation/thresholding
             A = np.squeeze(raw_0[0])
-            I_shots = A[:,:, 0]  #if you have 4 steps and 3 shots/reps this is like [[1,2,3,4],[1,2,3,4],[1,2,3,4]]
-            Q_shots = A[:,:, 1]
+            I_shots = A[:, 0]  #if you have 4 steps and 3 shots/reps this is like [[1,2,3,4],[1,2,3,4],[1,2,3,4]]
+            Q_shots = A[:, 1]
 
             freqs = qspec.get_pulse_param('qubit_pulse', "freq", as_array=True)
             self.plot_results(I, Q, freqs, config=self.config,

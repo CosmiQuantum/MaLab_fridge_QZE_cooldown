@@ -430,7 +430,7 @@ for QubitIndex in Qs_to_look_at:
             raise e
         rr_logger.exception(f"Rabi error on qubit {QubitIndex}: {e}")
         continue
-    ################### amp rabi ################
+    ################### len rabi ################
     rabi_data = create_data_dict(rabi_keys, save_r, list_of_all_qubits)
     from section_006p5_length_rabi_ge import LengthRabiExperiment
     rabi = LengthRabiExperiment(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j, signal,

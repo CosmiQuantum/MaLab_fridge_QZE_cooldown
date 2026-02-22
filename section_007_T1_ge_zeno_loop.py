@@ -33,7 +33,8 @@ class T1ProgramIBMZeno(AveragerProgramV2):
 
         self.add_pulse(ch=res_ch, name="qze_pulse", ro_ch=ro_ch,
                        style="const",
-                       length=QickSweep1D("waitloop", cfg['start'], cfg['stop']),
+                       length=QickSweep1D("waitloop", cfg['start']+cfg['sigma'] * 4 + cfg["readout_pulse_delay"],
+                                          cfg['stop']+cfg['sigma'] * 4+cfg["readout_pulse_delay"]),
                        freq=cfg['res_freq_qze'],
                        phase=cfg['res_phase_qze'],
                        gain=QickSweep1D("gain_loop", cfg["gain_start"], cfg["gain_stop"])
@@ -53,11 +54,9 @@ class T1ProgramIBMZeno(AveragerProgramV2):
         self.add_loop("gain_loop", cfg["gain_steps"])  # inner loop
 
     def _body(self, cfg):
-        self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)  # play probe pulse
-        self.delay_auto(tag='wait_pi_pulse')                          # wait for it to be done, now qubit is in e
-        self.pulse(ch=cfg['res_ch'], name="qze_pulse", t=0.01)           # play res pulse that has same length as wait_time
-        self.delay_auto(tag='wait_qze_pulse')                         # wait for that pulse to finish
-        self.delay_auto(t=5, tag='wait_for_ring_down')
+        self.pulse(ch=cfg['res_ch'], name="qze_pulse", t=0.01)  # play res pulse that has same length as wait_time
+        self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=cfg["readout_pulse_delay"])  # play probe pulse
+        self.delay_auto(t=cfg["readout_pulse_delay"], tag='wait_for_ring_down')
         self.pulse(ch=cfg['res_ch'], name="res_pulse")           # play readout pulse after 5 us for ring down
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
@@ -288,7 +287,10 @@ class T1Measurement_with_Zeno_loop:
                     ss_I_e_all.append(ss_I_e)
                     ss_Q_e_all.append(ss_Q_e)
 
+
             delay_times = t1.get_pulse_param(pulsename='qze_pulse', parname='length', as_array=True)
+            delay_times = [t - self.experiment.qubit_cfg["sigma"] * 4 - self.config['readout_pulse_delay'] for t in
+                           delay_times]
             gains = t1.get_pulse_param('qze_pulse', "gain", as_array=True)
 
             if self.plot_results:

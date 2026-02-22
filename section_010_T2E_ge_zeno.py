@@ -195,7 +195,15 @@ class T2EProgram(AveragerProgramV2):
                       )
         self.add_pulse(ch=res_ch, name="qze_pulse", ro_ch=ro_ch,
                        style="const",
-                       length=cfg['wait_time']/2,  # varying in the loop
+                       length=(cfg['wait_time']/2) + cfg['readout_pulse_delay']+cfg['sigma'] * 4,  # varying in the loop
+                       freq=cfg['res_freq_qze'],
+                       phase=cfg['res_phase_qze'],
+                       gain=QickSweep1D("gain_loop", cfg["gain_start"], cfg["gain_stop"])
+                       )
+        self.add_pulse(ch=res_ch, name="qze_pulse2", ro_ch=ro_ch,
+                       style="const",
+                       length=(cfg['wait_time'] / 2) + cfg['sigma'] * 4,
+                       # varying in the loop
                        freq=cfg['res_freq_qze'],
                        phase=cfg['res_phase_qze'],
                        gain=QickSweep1D("gain_loop", cfg["gain_start"], cfg["gain_stop"])
@@ -205,16 +213,14 @@ class T2EProgram(AveragerProgramV2):
         self.add_loop("gain_loop", cfg["gain_steps"])  # inner loop
 
     def _body(self, cfg):
-        self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse1", t=0)  # put qubit on equator
-        self.delay_auto(0.01, tag='wait0') # wait for pulse to finish
-        self.pulse(ch=cfg['res_ch'], name="qze_pulse", t=0.01) # do the resonator qze pulse for delay_time/2
-        self.delay_auto(0.01, tag='wait1') # wait for pulse to finish
+        self.pulse(ch=cfg['res_ch'], name="qze_pulse", t=0)  # do the resonator qze pulse for delay_time/2
+        self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse1", t=cfg['readout_pulse_delay'])  # put qubit on equator
+        self.delay_auto(0, tag='wait1') # wait for res pulse to finish/ half of wait time
+        self.pulse(ch=cfg['res_ch'], name="qze_pulse2", t=0)  # do the resonator qze pulse for delay_time/2
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse_pi", t=0)  # echo around equator
-        self.delay_auto(0.01, tag='wait2') # wait for pulse to finish
-        self.pulse(ch=cfg['res_ch'], name="qze_pulse", t=0.01) # do the resonator qze pulse for delay_time/2
-        self.delay_auto(0.01, tag='wait3') # wait for pulse to finish
+        self.delay_auto(0, tag='wait2') # wait for pulse to finish
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse2", t=0)  # put on the z axis
-        self.delay_auto(t=5, tag='wait_for_ring_down')  # wait_time after last pulse
+        self.delay_auto(t=cfg['readout_pulse_delay'], tag='wait3')  # wait_time after last pulse
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 class T2EProgramSingleGain(AveragerProgramV2):
@@ -546,6 +552,8 @@ class T2EMeasurementZeno:
                 ss_Q_e_all.append(ss_Q_e)
 
             delay_times = echo.get_pulse_param(pulsename='qze_pulse', parname='length', as_array=True) * 2
+            delay_times = delay_times - self.config['readout_pulse_delay'] - self.experiment.qubit_cfg["sigma"] * 4
+
             gains = echo.get_pulse_param('qze_pulse', "gain", as_array=True)
             self.plot_results_interweaved_cal(Is_all, Qs_all, delay_times, gains=gains, scaling=scaling, Ie=ss_I_e_all
                                               , Ig=ss_I_g_all, Qe=ss_Q_e_all, Qg=ss_Q_g_all)

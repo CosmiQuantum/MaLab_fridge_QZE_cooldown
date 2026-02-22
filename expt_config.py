@@ -26,7 +26,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
 
         "res_spec": {
             "reps": 1, #shots at one freq
-            "rounds": 100, #sweeps through each freq and average
+            "rounds": 200, #sweeps through each freq and average
             "start": -0.7, #[MHz]
             "step_size": 0.01,  # [MHz]
             "steps": 150,
@@ -36,38 +36,38 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
 
         "res_spec_ef": {
             "reps": 1,#shots at one freq
-            "rounds": 100, #sweeps through each freq and average
+            "rounds": 200, #sweeps through each freq and average
             "start": -0.7, #[MHz]
             "step_size": 0.01,  # [MHz]
             "steps": 150,#,200,#70
             "relax_delay": 5,  # [us]
         },
 
-        # "qubit_spec_ge": {
-        #     "reps": 3000,
-        #     "rounds": 20,#3
-        #     "start": list(VNA_qubit-15), # [MHz] -30
-        #     "stop": list(VNA_qubit+15), # [MHz] +15
-        #     "steps": 200,
-        #     "relax_delay": 60, # [us]
-        #     "list_of_all_qubits": list_of_all_qubits,
-        # },
         "qubit_spec_ge": {
-            "reps": 5000,
-            "rounds": 20,  # 3
-            "start": list(VNA_qubit - 250),  # [MHz] -30
-            "stop": list(VNA_qubit + 15),  # [MHz] +15
-            "steps": 1000,
-            "relax_delay": 60,  # [us]
+            "reps": 200,
+            "rounds": 20,#3
+            "start": list(VNA_qubit-15), # [MHz] -30
+            "stop": list(VNA_qubit+15), # [MHz] +15
+            "steps": 200,
+            "relax_delay": 60, # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
+        # "qubit_spec_ge": {
+        #     "reps": 5000,
+        #     "rounds": 20,  # 3
+        #     "start": list(VNA_qubit - 250),  # [MHz] -30
+        #     "stop": list(VNA_qubit + 15),  # [MHz] +15
+        #     "steps": 4000,
+        #     "relax_delay": 60,  # [us]
+        #     "list_of_all_qubits": list_of_all_qubits,
+        # },
         "qubit_spec_ef": {
             "reps": 500,
             "rounds": 10,
             "start": list(VNA_qubit - 500),  # list(ef_freqs-40), # [MHz] -30
             "stop": list(VNA_qubit + 50),  # list(ef_freqs+45), # [MHz] +15
             "steps": 40000,#2000,
-            "relax_delay": 1000,  # [us]
+            "relax_delay": 4000,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
         "qubit_spec_ge_zeno": {
@@ -81,6 +81,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "gain_start": gain_start,
             "gain_stop": gain_stop,
             "gain_steps": gain_steps,
+            "readout_pulse_delay": 5,
         },
 
         "qubit_spec_ge_extended": {
@@ -88,8 +89,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "rounds": 1,  # 10
             "start": list(VNA_qubit - 250),  # [MHz]
             "stop": list(VNA_qubit + 100),  # [MHz]
-            "steps": 1000,  # 100
-            "relax_delay": 10,  # 1000, # [us]
+            "steps": 4000,  # 100
+            "relax_delay": 10,  # 4000, # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
 
@@ -99,7 +100,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "start": list(VNA_qubit - 30),  # [MHz]
             "stop": list(VNA_qubit + 30),  # [MHz]
             "steps": 600,  # 100
-            "relax_delay": 10,  # 1000, # [us]
+            "relax_delay": 10,  # 4000, # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
 
@@ -111,7 +112,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             # "start": list(VNA_qubit - 100),  # [MHz] #-300 #-15
             # "stop": list(VNA_qubit + 100),  # [MHz] #+15
             "steps": 200,  # 100
-            "relax_delay": 700,  # 1000, # [us]
+            "relax_delay": 700,  # 4000, # [us]
             "list_of_all_qubits": list_of_all_qubits,
             "qze_mask": [],
         },
@@ -123,7 +124,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "start": list(fh_freqs - 0.3), # [MHz] #-300 #-6
             "stop": list(fh_freqs +  0.2),  # [MHz] #6
             "steps": 180,#450,  # 1000 #450
-            "relax_delay": 1000,  # 1000,  # [us]
+            "relax_delay": 4000,  # 4000,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
         "qubit_spec_ftores": {
@@ -131,8 +132,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "rounds": 1,  # 10
             "start": list((VNA_qubit + ef_freqs) - VNA_res - 200),  # [MHz] #-300
             "stop":  list((VNA_qubit + ef_freqs) - VNA_res + 200),  # [MHz]
-            "steps": 1000,  # 1000
-            "relax_delay": 0.5,  # 1000,  # [us]
+            "steps": 4000,  # 1000
+            "relax_delay": 0.5,  # 4000,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
 
@@ -147,12 +148,12 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "power_rabi_ge": {
-            "reps": 400,
-            "rounds": 3,
+            "reps": 300,
+            "rounds": 10,
             "start": 0, # [DAC units]
             "stop": 0.8,  # [DAC units]
-            "steps": 70,
-            "relax_delay": 2000,# [us]
+            "steps": 30,
+            "relax_delay": 4000,# [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
 
@@ -162,7 +163,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "start": 0,  # [DAC units]
             "stop": 0.6,  # [DAC units]
             "steps": 200,
-            "relax_delay": 1000,  # [us]
+            "relax_delay": 4000,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
             "start_freq": VNA_qubit[4] - 20,
             "end_freq": VNA_qubit[4] + 20,
@@ -175,7 +176,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "start": 0,  # [DAC units]
             "stop": 0.085,  # [DAC units]
             "steps": 70,
-            "relax_delay": 1000,  # [us]
+            "relax_delay": 4000,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
 
@@ -188,7 +189,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "start": 0,  # [DAC units]
             "stop": 0.085*6,  # [DAC units] get many fringes, 6/2
             "steps": 70,
-            "relax_delay": 1000,  # [us]
+            "relax_delay": 4000,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
 
@@ -196,9 +197,9 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "reps": 500,
             "rounds": 10,
             "start": 0.01,  # [us]
-            "stop": 15,#[0.7] * 6,  # [us]
-            "steps": 500,
-            "relax_delay": 1000,# [us]
+            "stop": 5,#[0.7] * 6,  # [us]
+            "steps": 50,
+            "relax_delay": 4000,# [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
         "length_rabi_ge_chevron": {
@@ -207,7 +208,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "start": 0.01,  # [us]
             "stop": 2,  # [0.7] * 6,  # [us]
             "steps": 100,
-            "relax_delay": 1000,  # [us]
+            "relax_delay": 4000,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
             "start_freq":VNA_qubit[4] - 15,
             "end_freq":VNA_qubit[4] + 15,
@@ -220,7 +221,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "start": 0.02,  # [us]
             "stop": 2,#[0.7] * 6,  # [us]
             "steps": 200,
-            "relax_delay": 1000,# [us]
+            "relax_delay": 4000,# [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
         "length_rabi_ge_pi_len": { #for the zeno tests, bare qubit frequency rabi
@@ -229,7 +230,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "start": 0.01,  # [us]
             "stop": 4,  # [0.7] * 6,  # [us]
             "steps": 60,
-            "relax_delay": 1000,  # [us]
+            "relax_delay": 4000,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
         "length_rabi_ge_qze": {
@@ -238,7 +239,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "start": 0.01,  # [us]
             "stop": 10,   #[3] * 6,   # [us]
             "steps": 150,  # 140,
-            "relax_delay": 1000,# [us]
+            "relax_delay": 4000,# [us]
             "list_of_all_qubits": list_of_all_qubits,
             "qze_mask": [],
             "zeno_pulse_width": 0.007,
@@ -252,7 +253,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "start": 0.0,  # [DAC units]
             "stop": 1.0,  # [DAC units]
             "steps": 155,
-            "relax_delay": 1000,  # [us]
+            "relax_delay": 4000,  # [us]
         },
         "power_rabi_fh": {
             "reps": 20,
@@ -261,7 +262,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "start": 0.0,  # [DAC units]
             "stop": 1.0,  # [DAC units]
             "steps": 155,
-            "relax_delay": 1000,  # [us]
+            "relax_delay": 4000,  # [us]
         },
         "T1_ge": {
             "reps": 400,#,50, #300
@@ -269,7 +270,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "start":  0.01,  # [us]
             "stop": 500,  # [us] ### Should be ~10x T1! Should change this per qubit.
             "steps": 200,
-            "relax_delay": 1000,  # [us] ### Should be >10x T1!
+            "relax_delay": 4000,  # [us] ### Should be >10x T1!
             "wait_time": 0.0,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
@@ -280,7 +281,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "start": 30,  # [us]
             "stop": 31,  # [250.0] * 6,  # [us] ### Should be ~10x T1! Should change this per qubit.
             "steps": 1,
-            "relax_delay": 1000,  # [us] ### Should be >10x T1!
+            "relax_delay": 4000,  # [us] ### Should be >10x T1!
             "wait_time": 30,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
             "gain_start": gain_start,
@@ -294,12 +295,13 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "start": 0.01,  # [us]
             "stop": 100,  # [250.0] * 6,  # [us] ### Should be ~10x T1! Should change this per qubit.
             "steps": 200,
-            "relax_delay": 1000,  # [us] ### Should be >10x T1!
+            "relax_delay": 4000,  # [us] ### Should be >10x T1!
             "wait_time": 30,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
             "gain_start": gain_start,
             "gain_stop": gain_stop,
             "gain_steps": gain_steps,
+            "readout_pulse_delay": 5,
         },
 
         "T1_fe": {
@@ -308,7 +310,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "start": 0.0,  # [us]
             "stop": 200,  # [250.0] * 6,  # [us] ### Should be ~10x T1! Should change this per qubit.
             "steps": 150,
-            "relax_delay": 1000,  # [us] ### Should be >10x T1!
+            "relax_delay": 4000,  # [us] ### Should be >10x T1!
             "wait_time": 0.0,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
@@ -319,7 +321,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "start": 0.0,  # [us]
             "stop": 200,  # [250.0] * 6,  # [us] ### Should be ~10x T1! Should change this per qubit.
             "steps": 150,
-            "relax_delay": 1000,  # [us] ### Should be >10x T1!
+            "relax_delay": 4000,  # [us] ### Should be >10x T1!
             "wait_time": 0.0,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
@@ -346,7 +348,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
         "res_stark_shift_2D": {
             "reps": 30,
-            "rounds": 1500,
+            "rounds": 150,
             "list_of_all_qubits": list_of_all_qubits,
             "qubit_pulse_delay": 5, #[us] time to wait for qubit pulse after stark tone is sent
             "stark_length": 19,  # [us] stark tone length for 2D scan, overlaps qubit pulse
@@ -393,7 +395,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "start_gain": 0.0,
             "end_gain": 1.0, #res gain values between -1 and 1, convert to qubit freq shift w/ stark ramsey
             "readout_pulse_delay": 5, #2/kappa
-            "relax_delay": 1000, #[us]
+            "relax_delay": 4000, #[us]
             "detuning": [-20, -10, -10, -10, -15, -10], #[MHz] start w/negative detuning, script flips to positive halfway thru scan
             "stark_sigma": 0.01,  # [us] 10 ns
             "stark_gain": [],
@@ -409,10 +411,10 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "rounds": 3,
             "start": 0.02,  # [us]
             "stop": 60,  # [us]
-            "steps": 1500,
+            "steps": 100,
             "start_gain": 0.0,
             "end_gain": 0.012,
-            "gain_steps": 100,
+            "gain_steps": 3,
             "ramsey_freq": 1.5, #1.5 [MHz]
             "relax_delay": 2000,
             "wait_time": 0.0,  # [us]
@@ -420,6 +422,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "detuning": -20, # [MHz]
             "stark_sigma": 0.01, # [us] 10 ns
             "list_of_all_qubits": list_of_all_qubits,
+            "readout_pulse_delay":5,
             "anharmonicity": [150]*6,
             'chi': [x/2 for x in [-0.264, -0.272, -0.266, -0.274, -0.274, -0.234]],
         },
@@ -437,13 +440,13 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "Ramsey_ge": {
-            "reps": 400,
-            "rounds": 3,
+            "reps": 1,
+            "rounds": 200,
             "start": 0.0, # [us]
-            "stop":  20, # [us]
+            "stop":  150, # [us]
             "steps": 200,
             "ramsey_freq": 0.6,  # [MHz]
-            "relax_delay": 1000, # [us] the time to wait to let the qubit to relax to gnd again after exciting it (make it way above T1)
+            "relax_delay": 4000, # [us] the time to wait to let the qubit to relax to gnd again after exciting it (make it way above T1)
             "wait_time": 0.0, # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
@@ -455,13 +458,14 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "stop": 20,  # [us]
             "steps": 200,
             "ramsey_freq": 0.6,  #.15 [MHz]
-            "relax_delay": 1000,
+            "relax_delay": 4000,
             # [us] the time to wait to let the qubit to relax to gnd again after exciting it (make it way above T1)
             "wait_time": 0.0,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
             "gain_start": gain_start,
             "gain_stop": gain_stop,
             "gain_steps": gain_steps,
+            "readout_pulse_delay": 5,
         },
 
         "Ramsey_ge_correction": {
@@ -471,7 +475,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "stop": 1,  # [us]
             "steps": 50,
             "ramsey_freq": 4,  # [MHz]
-            "relax_delay": 1000,
+            "relax_delay": 4000,
             # [us] the time to wait to let the qubit to relax to gnd again after exciting it (make it way above T1)
             "wait_time": 0.0,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
@@ -484,7 +488,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "stop": 1,  # [us]
             "steps": 100,
             "ramsey_freq": 4,  # [MHz]
-            "relax_delay": 1000,
+            "relax_delay": 4000,
             # [us] the time to wait to let the qubit to relax to gnd again after exciting it (make it way above T1)
             "wait_time": 0.0,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
@@ -494,10 +498,10 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "reps": 400,#20,
             "rounds": 3,
             "start": 0.01, # [us]
-            "stop":  20, # [us]
+            "stop":  150,#20, # [us]
             "steps": 200,
             "ramsey_freq": 0.6,  #0.12 [MHz]
-            "relax_delay": 1000, # [us]
+            "relax_delay": 4000, # [us]
             "wait_time": 0.0, # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
@@ -508,12 +512,13 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "stop": 20,  # [us]
             "steps": 200,
             "ramsey_freq": 0.6,  # 0.12 [MHz]
-            "relax_delay": 1000,  # [us]
+            "relax_delay": 4000,  # [us]
             "wait_time": 0.0,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
             "gain_start": gain_start,
             "gain_stop": gain_stop,
             "gain_steps": gain_steps,
+            "readout_pulse_delay": 5,
         },
 
 
@@ -524,7 +529,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
     #         "start": [7148, 0, 7202, 0, 0, 0], # [MHz]
     #         "stop":  [7151, 0, 7207, 0, 0, 0], # [MHz]
     #         "steps": 200,
-    #         "relax_delay": 1000, # [us]
+    #         "relax_delay": 4000, # [us]
     #         "list_of_all_qubits": list_of_all_qubits,
     #     },
     #
@@ -534,7 +539,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
     #         "start": [2750, 0, 0, 0, 0, 0], # [MHz]
     #         "stop":  [2850, 0, 0, 0, 0, 0], # [MHz]
     #         "steps": 500,
-    #         "relax_delay": 1000, # [us]
+    #         "relax_delay": 4000, # [us]
         #         "list_of_all_qubits": list_of_all_qubits,
     #     },
     #
@@ -551,12 +556,12 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
 
     #
     #     "power_rabi_ef": {
-    #         "reps": 1000,
+    #         "reps": 4000,
     #         "py_avg": 10,
     #         "start": [0.0] * 6, # [DAC units]
     #         "stop":  [1.0] * 6, # [DAC units]
     #         "steps": 100,
-    #         "relax_delay": 1000, # [us]
+    #         "relax_delay": 4000, # [us]
     #         "list_of_all_qubits": list_of_all_qubits,
     #     },
     #
@@ -567,7 +572,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
     #         "stop":  [100] * 6, # [us]
     #         "steps": 100,
     #         "ramsey_freq": 0.05,  # [MHz]
-    #         "relax_delay": 1000, # [us]
+    #         "relax_delay": 4000, # [us]
     #         "wait_time": 0.0, # [us]
     #         "list_of_all_qubits": list_of_all_qubits,
     #     },
@@ -576,14 +581,14 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "steps": 5000, # shots
             "py_avg": 1,
             "reps": 1,
-            "relax_delay": 1000, # [us]
+            "relax_delay": 4000, # [us]
             "SS_ONLY": False,
             "list_of_all_qubits": list_of_all_qubits,
         },
     # #
 
         "Readout_Optimization":{
-            "steps": 3000, # shots
+            "steps": 20000, # shots
             "py_avg": 1,
             "gain_start" : [0, 0, 0, 0],
             "gain_stop" : [1, 0, 0, 0],
@@ -591,7 +596,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "freq_start" : [6176.0, 0, 0, 0],
             "freq_stop" : [6178.0, 0, 0, 0],
             "freq_step" : 0.1,
-            "relax_delay": 1000,#600, # [us]
+            "relax_delay": 4000,#600, # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
 
@@ -604,7 +609,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "freq_start": [6176.0, 0, 0, 0],
             "freq_stop": [6178.0, 0, 0, 0],
             "freq_step": 0.1,
-            "relax_delay": 1000,  # 600, # [us]
+            "relax_delay": 4000,  # 600, # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
 

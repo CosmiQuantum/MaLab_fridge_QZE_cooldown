@@ -169,6 +169,8 @@ class starkT2RProgram(AveragerProgramV2):
                        )
 
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
+        print('inside of ramsey program, sigma*4 is: ',cfg['sigma'] * 4)
+        print('inside of ramsey program, sigma is: ', cfg['sigma'])
         self.add_gauss(ch=qubit_ch, name="ramp", sigma=cfg['sigma'], length=cfg['sigma'] * 4, even_length=False)
         self.add_pulse(ch=qubit_ch, name="qubit_pulse1", ro_ch=ro_ch,
                        style="arb",
@@ -179,7 +181,8 @@ class starkT2RProgram(AveragerProgramV2):
                        )
         self.add_pulse(ch=res_ch, name="qze_pulse", ro_ch=ro_ch,
                        style="const",
-                       length=QickSweep1D("waitloop", cfg['start'], cfg['stop']),  # varying in the loop
+                       length=QickSweep1D("waitloop", cfg['start']+cfg['readout_pulse_delay']+cfg['sigma'] * 4,
+                                          cfg['stop']+cfg['readout_pulse_delay']+cfg['sigma'] * 4),  # varying in the loop
                        freq=cfg['res_freq_qze'],
                        phase=cfg['res_phase_qze'],
                        gain=cfg['stark_gain']
@@ -198,14 +201,13 @@ class starkT2RProgram(AveragerProgramV2):
 
 
     def _body(self, cfg):
-        self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse1", t=0)  # put on equator
-        self.pulse(ch=cfg['res_ch'], name="qze_pulse",
-                   t=0.01)  # play res pulse that has same length as wait_time and let evolve for wait time
-        self.delay_auto(0.01, tag='wait')  # wait_time after last pulse
+        self.pulse(ch=cfg['res_ch'], name="qze_pulse",t=0)  # play res pulse that has same length as wait_time and let evolve for wait time
+        self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse1", t=cfg['readout_pulse_delay'])  # put on equator after ring up
+        self.delay_auto(0, tag='wait')  # wait_time after last pulse, wait for res pulse to finish
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse2", t=0)  # put on z axis
-        self.delay_auto(0.01)  # wait_time after last pulse
-        self.delay_auto(t=5, tag='wait_for_ring_down')
-        self.pulse(ch=cfg['res_ch'], name="res_pulse")  # play res pulse 5 us after everything
+        self.delay_auto(0)  # wait_time after last pulse
+        self.delay_auto(t=cfg['readout_pulse_delay'], tag='wait_for_ring_down')
+        self.pulse(ch=cfg['res_ch'], name="res_pulse")  # play res pulse cfg['readout_pulse_delay'] us after everything
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 class starkT2RMeasurement:
@@ -407,6 +409,11 @@ class starkT2RMeasurement:
             I.append(i0)
             Q.append(q0)
             delay_times = ramsey.get_pulse_param(pulsename='qze_pulse', parname='length', as_array=True)
+            print(delay_times)
+            print(self.config['readout_pulse_delay'])
+            print(self.experiment.qubit_cfg["sigma"][self.QubitIndex] * 4)
+            delay_times = delay_times - self.config['readout_pulse_delay'] - self.experiment.qubit_cfg["sigma"][self.QubitIndex] * 4
+            print(delay_times)
 
             if self.fit_data:
                 fit0, t2r_est0, t2r_err0, f_est0, f_err0, plot_sig0 = self.t2_fit(delay_times, i0, q0)
