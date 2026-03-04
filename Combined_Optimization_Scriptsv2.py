@@ -58,12 +58,12 @@ n = 1  # Number of rounds
 n_loops = 2  # Number of repetitions per length to average
 
 # List of qubits to measure
-Qs = [4,5]
+Qs = [5]
 
 #Change for NEXUS vs QUIET
 res_leng_vals = [4]*6
-res_gain = [0.25,0.25,0.25,0.25,0.24,0.25]*6
-freq_offsets = [0,0,0,0,-0.25,-0.15]
+res_gain = [0.25,0.25,0.25,0.25,0.24,0.2133]
+freq_offsets = [0,0,0,0,-0.25,-0.16]
 punch_out_vals = [0.25] *6
 
 optimal_lengths = [None] * 6 # creates list where the script will be storing the optimal readout lengths for each qubit. We currently have 6 qubits in total.
@@ -71,7 +71,7 @@ res_freq_ge = [None] * 6 # creates list where the script will be storing the fre
 
 j=0 #round number, from RR code. Not really used here since we just run it once for each qubit
 
-lengs = np.arange(1, 10, 1)
+lengs = np.arange(1, 6, 1)
 start=time.time()
 for QubitIndex in Qs:
     # Get the config for this qubit
@@ -92,7 +92,7 @@ for QubitIndex in Qs:
     res_spec = ResonanceSpectroscopy(QubitIndex, number_of_qubits, outerfolder_plots, j, True,
                                      experiment, unmasking_resgain = unmask)
     res_freqs, freq_pts, freq_center, amps, res_spec_config = res_spec.run()
-    print(res_freqs)
+
     base_res_freq=res_freqs[0]
     offset = freq_offsets[
         QubitIndex]  # use optimized offset values or whats set at top of script based on pre_optimize flag
@@ -123,74 +123,77 @@ for QubitIndex in Qs:
     del q_spec
 
 
-    # ###################################################### Rabi ####################################################
-    # increase_qubit_reps = False  # if you want to increase the reps for a qubit, set to True
-    # qubit_to_increase_reps_for = 0  # only has impact if previous line is True
-    # multiply_qubit_reps_by = 2  # only has impact if the line two above is True
-    # print('ge Rabi')
-    # rabi = AmplitudeRabiExperiment(QubitIndex, number_of_qubits, outerfolder_plots, j, signal,
-    #                                False, experiment=experiment, live_plot=live_plot,
-    #                                increase_qubit_reps=increase_qubit_reps, qubit_to_increase_reps_for=qubit_to_increase_reps_for,
-    #                                multiply_qubit_reps_by=multiply_qubit_reps_by, unmasking_resgain = unmask)
-    # rabi_I, rabi_Q, rabi_gains, rabi_fit, pi_amp, sys_config_to_save = rabi.run()
-    #
-    # # if these are None, fit didnt work
-    # if (rabi_fit is None and pi_amp is None):
-    #     print('Rabi fit didnt work, skipping the rest of this qubit')
-    #     continue  # skip the rest of this qubit
-    #
-    # experiment.qubit_cfg['pi_amp'] = float(pi_amp)
-    # print('Pi amplitude for qubit ', QubitIndex + 1, ' is: ', float(pi_amp))
-    #
-    # t2r = T2RMeasurement(QubitIndex, tot_num_of_qubits, outerfolder_plots, j, signal, save_figs,
-    #                      experiment=experiment, live_plot=live_plot, fit_data=True,
-    #                      increase_qubit_reps=increase_qubit_reps,
-    #                      qubit_to_increase_reps_for=qubit_to_increase_reps_for,
-    #                      multiply_qubit_reps_by=multiply_qubit_reps_by,
-    #                      unmasking_resgain=unmask, correction=True,
-    #                      correction_round=1)
-    # t2r_est_1, t2r_err_1, t2r_I_1, t2r_Q_1, t2r_delay_times_1, fit_ramsey_1, sys_config_t2r_1, ramsey_found_q_freq = t2r.adjust_qspec(
-    #     thresholding=False, correction=True)
-    #
-    # experiment.qubit_cfg['qubit_freq_ge'] = experiment.qubit_cfg['qubit_freq_ge'] - ramsey_found_q_freq + \
-    #                                         expt_cfg['Ramsey_ge_correction']['ramsey_freq']
-    # del t2r
-    #
-    # # correct again
-    # t2r = T2RMeasurement(QubitIndex, tot_num_of_qubits, outerfolder_plots, j, signal, save_figs,
-    #                      experiment=experiment, live_plot=live_plot, fit_data=True,
-    #                      increase_qubit_reps=increase_qubit_reps,
-    #                      qubit_to_increase_reps_for=qubit_to_increase_reps_for,
-    #                      multiply_qubit_reps_by=multiply_qubit_reps_by,
-    #                      unmasking_resgain=unmask, correction=True,
-    #                      correction_round=2)
-    # t2r_est_2, t2r_err_2, t2r_I_2, t2r_Q_2, t2r_delay_times_2, fit_ramsey_2, sys_config_t2r_2, ramsey_found_q_freq = t2r.adjust_qspec(
-    #     thresholding=False, correction=True)
-    #
-    # experiment.qubit_cfg['qubit_freq_ge'] = experiment.qubit_cfg[
-    #                                             'qubit_freq_ge'] - ramsey_found_q_freq + \
-    #                                         expt_cfg['Ramsey_ge_correction']['ramsey_freq']
-    # del t2r
-    #
-    # # correct rabi
-    # rabi = AmplitudeRabiExperiment(QubitIndex, tot_num_of_qubits, outerfolder_plots, j, signal,
-    #                                save_figs=save_figs, save_shots=False,
-    #                                experiment=experiment, live_plot=live_plot,
-    #                                increase_qubit_reps=increase_qubit_reps,
-    #                                qubit_to_increase_reps_for=qubit_to_increase_reps_for,
-    #                                multiply_qubit_reps_by=multiply_qubit_reps_by,
-    #                                unmasking_resgain=unmask,
-    #                                correction=True)
-    # (rabi_I_corrected, rabi_Q_corrected, rabi_gains_corrected, rabi_fit_corrected, pi_amp_corrected,
-    #  sys_config_rabi_corrected) = rabi.run(thresholding=False)
-    #
-    # # if these are None, fit didnt work
-    # if (rabi_fit is None and pi_amp is None):
-    #     continue  # skip the rest of this qubit
+    ###################################################### Rabi ####################################################
+    increase_qubit_reps = False  # if you want to increase the reps for a qubit, set to True
+    qubit_to_increase_reps_for = 0  # only has impact if previous line is True
+    multiply_qubit_reps_by = 2  # only has impact if the line two above is True
+    print('ge Rabi')
+    rabi = AmplitudeRabiExperiment(QubitIndex, number_of_qubits, outerfolder_plots, j, signal,
+                                   False, experiment=experiment, live_plot=live_plot,
+                                   increase_qubit_reps=increase_qubit_reps, qubit_to_increase_reps_for=qubit_to_increase_reps_for,
+                                   multiply_qubit_reps_by=multiply_qubit_reps_by, unmasking_resgain = unmask)
+    (rabi_I, rabi_Q, rabi_gains, rabi_fit, pi_amp,
+     sys_config_rabi, rabi_I_shots, rabi_Q_shots) = rabi.run()
 
-    # experiment.qubit_cfg['pi_amp'] = float(pi_amp)
-    # del rabi
-    experiment.qubit_cfg['pi_amp'] = float(experiment.qubit_cfg['pi_amp'][QubitIndex])
+    # if these are None, fit didnt work
+    if (rabi_fit is None and pi_amp is None):
+        print('Rabi fit didnt work, skipping the rest of this qubit')
+        continue  # skip the rest of this qubit
+
+    experiment.qubit_cfg['pi_amp'] = float(pi_amp)
+    print('Pi amplitude for qubit ', QubitIndex + 1, ' is: ', float(pi_amp))
+
+    t2r = T2RMeasurement(QubitIndex, tot_num_of_qubits, outerfolder_plots, j, signal, save_figs,
+                         experiment=experiment, live_plot=live_plot, fit_data=True,
+                         increase_qubit_reps=increase_qubit_reps,
+                         qubit_to_increase_reps_for=qubit_to_increase_reps_for,
+                         multiply_qubit_reps_by=multiply_qubit_reps_by,
+                         unmasking_resgain=unmask, correction=True,
+                         correction_round=1)
+    t2r_est_1, t2r_err_1, t2r_I_1, t2r_Q_1, t2r_delay_times_1, fit_ramsey_1, sys_config_t2r_1, \
+        ramsey_found_q_freq, t2r_I_shots_1, t2r_Q_shots_1 = t2r.adjust_qspec(
+        thresholding=False, correction=True)
+
+    experiment.qubit_cfg['qubit_freq_ge'] = experiment.qubit_cfg['qubit_freq_ge'] - ramsey_found_q_freq + \
+                                            expt_cfg['Ramsey_ge_correction']['ramsey_freq']
+    del t2r
+
+    # correct again
+    t2r = T2RMeasurement(QubitIndex, tot_num_of_qubits, outerfolder_plots, j, signal, save_figs,
+                         experiment=experiment, live_plot=live_plot, fit_data=True,
+                         increase_qubit_reps=increase_qubit_reps,
+                         qubit_to_increase_reps_for=qubit_to_increase_reps_for,
+                         multiply_qubit_reps_by=multiply_qubit_reps_by,
+                         unmasking_resgain=unmask, correction=True,
+                         correction_round=2)
+    t2r_est_1, t2r_err_1, t2r_I_1, t2r_Q_1, t2r_delay_times_1, fit_ramsey_1, sys_config_t2r_1, \
+        ramsey_found_q_freq, t2r_I_shots_1, t2r_Q_shots_1 = t2r.adjust_qspec(
+        thresholding=False, correction=True)
+
+    experiment.qubit_cfg['qubit_freq_ge'] = experiment.qubit_cfg[
+                                                'qubit_freq_ge'] - ramsey_found_q_freq + \
+                                            expt_cfg['Ramsey_ge_correction']['ramsey_freq']
+    del t2r
+
+    # correct rabi
+    rabi = AmplitudeRabiExperiment(QubitIndex, tot_num_of_qubits, outerfolder_plots, j, signal,
+                                   save_figs=save_figs, save_shots=False,
+                                   experiment=experiment, live_plot=live_plot,
+                                   increase_qubit_reps=increase_qubit_reps,
+                                   qubit_to_increase_reps_for=qubit_to_increase_reps_for,
+                                   multiply_qubit_reps_by=multiply_qubit_reps_by,
+                                   unmasking_resgain=unmask,
+                                   correction=True)
+    (rabi_I, rabi_Q, rabi_gains, rabi_fit, pi_amp,
+     sys_config_rabi, rabi_I_shots, rabi_Q_shots) = rabi.run(thresholding=False)
+
+    # if these are None, fit didnt work
+    if (rabi_fit is None and pi_amp is None):
+        continue  # skip the rest of this qubit
+
+    experiment.qubit_cfg['pi_amp'] = float(pi_amp)
+    del rabi
+
 
 
     #MAKE DEEP COPY OF CONFIG, IMPORTANT!!!
@@ -297,7 +300,7 @@ for QubitIndex in Qs:
     del avg_fids, rms_fids, avg_ground_iq, avg_excited_iq, loop_group, length_group
 
     #---------------------Res Gain and Res Freq Sweeps------------------------
-    optimal_lengths = [7]*6#[5,4.2,8.3,7.9,7.5,6.4]
+    # optimal_lengths = [9]*6#[5,4.2,8.3,7.9,7.5,6.4]
     date_str = str(datetime.date.today())
     output_folder = outerFolder + "/study_data/Data_h5/2D_Gain_Freq_Sweeps/"
     # Ensure the output folder exists
@@ -308,15 +311,15 @@ for QubitIndex in Qs:
     #     gain_range = [0.8, 1.0]
     # elif QubitIndex == 3 or QubitIndex == 4:
     #     gain_range = [0.46,0.66]  # Gain range in a.u.
-    gain_range=[0.05,0.25]#res_gain[QubitIndex]]
-    freq_steps = 15
-    gain_steps = 15
+    gain_range=[0.2,0.25]#res_gain[QubitIndex]]
+    freq_steps = 10
+    gain_steps = 5
 
     print(f'Starting Qubit {QubitIndex + 1} res gain and res freq measurements.')
     # Select the reference frequency for the current resonator
     reference_frequency = base_res_freq
 
-    freq_range = [reference_frequency -0.4, reference_frequency + 0.4]# Frequency range in MHz
+    freq_range = [reference_frequency -0.3, reference_frequency + 0.3]# Frequency range in MHz
     #freq_range = [reference_frequency -0.2, (reference_frequency + 0.2) + 1]  # Frequency range in MHz
 
     experiment = copy.deepcopy(tuned_experiment)

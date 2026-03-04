@@ -293,7 +293,7 @@ class Data_H5:
 
                     else:
                         # Attempt to map HDF5 keys to the target dictionaries' keys.
-                        if data_type == 'Res' or data_type == 'Res_ge' or  data_type == 'Res_ef':
+                        if data_type == 'Res' or data_type == 'Res_ge' or  data_type == 'Res_ef'or  data_type == 'Res_fh':
                             target_keys = {'Dates': 'Dates', 'freq_pts': 'freq_pts', 'freq_center': 'freq_center',
                                            'Amps': 'Amps', 'Found Freqs': 'Found Freqs', 'Round Num': 'Round Num',
                                            'Batch Num': 'Batch Num', 'Exp Config': 'Exp Config',

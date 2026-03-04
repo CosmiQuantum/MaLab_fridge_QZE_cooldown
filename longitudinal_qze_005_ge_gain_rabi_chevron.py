@@ -45,7 +45,7 @@ thresholding = False                 # use internal QICK threshold for ratio of 
 increase_qubit_reps = False          # if you want to increase the reps for a qubit, set to True
 qubit_to_increase_reps_for = 0       # only has impact if previous line is True
 multiply_qubit_reps_by = 2           # only has impact if the line two above is True
-Qs_to_look_at = [4]        # only list the qubits you want to do the RR for
+Qs_to_look_at = [5]        # only list the qubits you want to do the RR for
 
 #Data saving info
 run_name = 'bob_run_started_Feb_11'
@@ -56,9 +56,9 @@ study = 'power_rabi_chevron'
 
 ################################################ optimization outputs ##################################################
 # Optimization parameters for resonator spectroscopy
-res_leng_vals = [10]*6
-res_gain = [0.15,0.2, 0.2, 0.2, 0.2833, 0.15]
-freq_offsets = [0, -0.15, -0.15,-0.15, -0.08, -0.15]
+res_leng_vals = [9]*6
+res_gain = [0.25,0.25,0.25,0.25,0.24,0.2133]
+freq_offsets = [0,0,0,0,-0.25,-0.16]
 ####################################################### RR #############################################################
 
 def create_data_dict(keys, save_r, qs):
@@ -441,7 +441,7 @@ for QubitIndex in Qs_to_look_at:
                                    verbose=verbose, logger=rr_logger, unmasking_resgain=unmask, chevron=True, expt_name = "power_rabi_ge_chevron")
     (rabi_I, rabi_Q, rabi_gains, rabi_fit, pi_amp,
      sys_config_rabi, ss_Q_e, ss_Q_g, ss_I_e, ss_I_g, rabi_I_shots, rabi_Q_shots) = rabi.run(
-        thresholding=thresholding, scaling=True)
+        thresholding=thresholding, scaling=False)
     del rabi
 
     rabi_data[QubitIndex]['Dates'][0] = (

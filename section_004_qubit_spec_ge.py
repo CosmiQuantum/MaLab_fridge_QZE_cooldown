@@ -77,7 +77,7 @@ class QubitSpectroscopy:
 
         if self.increase_reps:
             self.config['reps'] = self.increase_reps_to
-        qspec = PulseProbeSpectroscopyProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay=0.5, cfg=self.config)
+        qspec = PulseProbeSpectroscopyProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay=self.config['relax_delay'], cfg=self.config)
 
         # iq_lists= []
         if self.live_plot:
@@ -200,7 +200,7 @@ class QubitSpectroscopy:
             ydata = pop_norm
 
             freqs = np.array(freqs)
-            freq_q = freqs[np.argmax(I)]
+            freq_q = np.argmax(ydata)
 
             mean_y_data,y_data_fit, largest_amp_curve_mean, largest_amp_curve_fwhm, fit_err = self.fit_lorenzian_scaled(
                 ydata, freqs,
@@ -218,7 +218,7 @@ class QubitSpectroscopy:
 
             # I subplot
             ax1.plot(freqs, ydata, label='Qubit Population', linewidth=2)
-            ax1.set_ylabel("I Amplitude (a.u.)", fontsize=20)
+            ax1.set_ylabel("Qubit Population", fontsize=20)
             ax1.tick_params(axis='both', which='major', labelsize=16)
             ax1.legend()
 

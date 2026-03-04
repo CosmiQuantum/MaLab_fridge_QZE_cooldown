@@ -9,13 +9,13 @@ save_individual_qspec = False
 figure_quality = 100
 final_figure_quality = 200
 FRIDGE = "QUIET"
-qubits = [4]
-path = '2d_higher_n_bar'
+qubits = [5]
+path = '2d_test'
 
 for qubit in qubits:
-    # run_name = f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/'
+    # run_name = f'M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/all_qubits/'
     # top_folder_dates = [f'qubit_{qubit}round{round}' for round in range(113)]
-    run_name = f'bob_run_started_Aug_23/squill/{path}/all_qubits/'
+    run_name = f'bob_run_started_Feb_11/squill/{path}/all_qubits/'
     from pathlib import Path
 
     p = Path('M:/_Data/20250822 - Olivia/' + run_name)
@@ -292,7 +292,7 @@ for qubit in qubits:
     # Re-filter with tolerance
     amps_f, gains_f, rounds_f, delay_f = filter_by_gains_same_format_tol(
         amps_t1, gains_t1, rounds_t1, delay_times_t1,
-        gains_keep=[0.0,0.034243,0.054386, 0.080571, 0.0987],
+        gains_keep=[0.0,0.01,0.02, 0.03, 0.039],
         atol=1e-3, rtol=1e-6
     )
 
@@ -302,7 +302,7 @@ for qubit in qubits:
     # Split per gain for plotting
     amps_list, delay_list, rounds_list, gain_labels = split_same_format_by_gain(
         amps_f, gains_f, rounds_f, delay_f,
-        gains_list=[0.0,0.034243,0.054386, 0.080571, 0.0987],
+        gains_list=[0.0,0.01,0.02, 0.03, 0.039],
         atol=1e-3, rtol=1e-6
     )
 
@@ -311,7 +311,7 @@ for qubit in qubits:
         amps_list,
         delay_list,
         gain_labels,
-        f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis_gain/',
+        f'M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/all_qubits/analysis_gain/',
         q_key=q,
         return_distributions=True
     )
@@ -726,7 +726,7 @@ for qubit in qubits:
 
         return outs
 
-    save_dir=f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis_gain/'
+    save_dir=f'M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/all_qubits/analysis_gain/'
 
     # NEW: histograms for T1 (one image per gain)
     plot_histograms_by_gain(

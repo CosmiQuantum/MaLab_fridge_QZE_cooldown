@@ -210,6 +210,27 @@ while j < n:
         experiment.qubit_cfg['qubit_freq_ge'] = experiment.qubit_cfg['qubit_freq_ge'][QubitIndex]
         experiment.qubit_cfg['qubit_gain_ge'] = experiment.qubit_cfg['qubit_gain_ge'][QubitIndex]
 
+        # ################################################# g-e Res spec ####################################################
+        # if run_flags["res_spec"]:
+        #     try:
+        #         res_spec = ResonanceSpectroscopy(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j, save_figs,
+        #                                          experiment=experiment, verbose=verbose, logger=rr_logger,
+        #                                          unmasking_resgain=unmask)
+        #         res_freqs, freq_pts, freq_center, amps, sys_config_rspec = res_spec.run()
+        #
+        #         offset = freq_offsets[
+        #             QubitIndex]  # use optimized offset values or whats set at top of script based on pre_optimize flag
+        #         offset_res_freqs = [r + offset for r in res_freqs]
+        #         experiment.readout_cfg['res_freq_ge'] = offset_res_freqs[0]
+        #         del res_spec
+        #
+        #     except Exception as e:
+        #         if debug_mode:
+        #             raise e  # In debug mode, re-raise the exception immediately
+        #         else:
+        #             rr_logger.exception(f'Got the following error, continuing: {e}')
+        #             if verbose: print(f'Got the following error, continuing: {e}')
+        #             continue  # skip the rest of this qubit
 
         ################################################## g-e Qubit spec ##################################################
         if run_flags["q_spec"]:

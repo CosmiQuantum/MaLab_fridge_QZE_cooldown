@@ -562,9 +562,9 @@ class QubitSpectroscopyZeno:
                 cbar = fig.colorbar(im, ax=ax)
                 cbar.set_label("Qubit Population (avg)", fontsize=18)
 
-                # Optionally overlay the fitted peak (averaged over gain)
-                if self.plot_fit:
-                    ax.axhline(largest_amp_curve_mean, color='orange', linestyle='--', linewidth=2)
+                # # Optionally overlay the fitted peak (averaged over gain)
+                # if self.plot_fit:
+                #     ax.axhline(largest_amp_curve_mean, color='orange', linestyle='--', linewidth=2)
 
                 # Title text
                 plot_middle = (ax.get_position().x0 + ax.get_position().x1) / 2

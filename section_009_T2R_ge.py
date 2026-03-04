@@ -418,10 +418,11 @@ class T2RMeasurement:
 
             raw_0 = ramsey.get_raw()  # I,Q data without normalizing to readout window, subtracting readout offset, or rotation/thresholding
             A = np.squeeze(raw_0[0])
-            I_shots = A[:, :, 0]  # if you have 4 steps and 3 shots/reps this is like [[1,2,3,4],[1,2,3,4],[1,2,3,4]]
-            Q_shots = A[:, :, 1]
+            I_shots = A  # if you have 4 steps and 3 shots/reps this is like [[1,2,3,4],[1,2,3,4],[1,2,3,4]]
+            Q_shots = A
 
             delay_times = ramsey.get_time_param('wait', "t", as_array=True)
+
         if scaling:
             from section_005_single_shot_ge import SingleShotProgram_g, SingleShotProgram_e
             q_config = all_qubit_state(self.experiment, self.number_of_qubits)

@@ -60,21 +60,17 @@ class PlotAllRR:
         return result
 
     def process_h5_data(self, data):
-        # Check if the data is a byte string; decode if necessary.
         if isinstance(data, bytes):
             data_str = data.decode()
         elif isinstance(data, str):
             data_str = data
         else:
-            raise ValueError("Unsupported data type. Data should be bytes or string.")
+            raise ValueError("Unsupported data type.")
 
-        # Remove extra whitespace and non-numeric characters.
-        cleaned_data = ''.join(c for c in data_str if c.isdigit() or c in ['-', '.', ' ', 'e'])
-
-        # Split into individual numbers, removing empty strings.
-        numbers = [float(x) for x in cleaned_data.split() if x]
+        # Strip brackets and split on commas or whitespace
+        data_str = data_str.strip('[]')
+        numbers = [float(x.strip()) for x in re.split(r'[,\s]+', data_str) if x.strip()]
         return numbers
-
     def string_to_float_list(self, input_string):
         try:
             # Remove 'np.float64()' parts
@@ -90,7 +86,7 @@ class PlotAllRR:
             return None
     
     def run(self, plot_res_spec = True,plot_res_spec_ef = True,load_plot_save_res_spec_overlay_ge_ef=True, plot_q_spec = True, plot_rabi = True, rabi_rolling_avg=False, plot_ss = True,
-            plot_ss_hist_only=False,ss_plot_title = None, ss_plot_gef = True, plot_t1 = True,
+            plot_ss_hist_only=False,ss_plot_title = None,load_plot_save_res_spec_overlay_ge_ef_fh=False, ss_plot_gef = True, plot_t1 = True,
             plot_t2r = True, plot_t2e = True, plot_rabis_Qtemps = False):
 
         if plot_res_spec:
@@ -99,6 +95,8 @@ class PlotAllRR:
             self.load_plot_save_res_spec(exp_extension='_ef')
         if load_plot_save_res_spec_overlay_ge_ef:
             self.load_plot_save_res_spec_overlay_ge_ef()
+        if load_plot_save_res_spec_overlay_ge_ef_fh:
+            self.load_plot_save_res_spec_overlay_ge_ef_fh()
         if plot_q_spec:
             self.load_plot_save_q_spec()
         if plot_rabis_Qtemps:
@@ -327,6 +325,161 @@ class PlotAllRR:
                 )
                 del res_class_instance
 
+    def load_plot_save_res_spec_overlay_ge_ef_fh(self, ge_ext="_ge", ef_ext="_ef", fh_ext="_fh"):
+        # ----------------------------------- Load/Pair/Overlay Plot/Save Res Spec -----------------------------------
+        outerFolder_expt = os.path.join(self.outerFolder, "Data_h5")
+        print(outerFolder_expt)
+
+        def _collect_entries(exp_extension):
+            entries = {}
+
+            h5_files = glob.glob(os.path.join(outerFolder_expt, f"Res{exp_extension}", "*.h5"))
+            h5_files += glob.glob(os.path.join(outerFolder_expt, "Res", "*.h5"))
+
+            for h5_file in h5_files:
+                save_round = h5_file.split("Num_per_batch")[-1].split(".")[0]
+
+                H5_class_instance = Data_H5(h5_file)
+                H5_class_instance.print_h5_contents(h5_file)
+
+                load_data = H5_class_instance.load_from_h5(
+                    data_type=f"Res{exp_extension}",
+                    save_r=int(save_round),
+                )
+
+                res_key = f"Res{exp_extension}"
+                if res_key not in load_data:
+                    del H5_class_instance
+                    continue
+
+                for q_key in load_data[res_key]:
+                    dates_arr = load_data[res_key][q_key].get("Dates", [])[0]
+                    if dates_arr is None:
+                        continue
+
+                    for dataset in range(len(dates_arr)):
+                        if "nan" in str(load_data[res_key][q_key].get("Dates", [])[0][dataset]):
+                            continue
+
+                        ts = load_data[res_key][q_key].get("Dates", [])[0][dataset]
+                        date = datetime.datetime.fromtimestamp(ts)
+
+                        freq_pts = self.process_h5_data(
+                            load_data[res_key][q_key].get("freq_pts", [])[0][0].decode()
+                        )
+
+                        freq_center = self.process_h5_data(
+                            str(load_data[res_key][q_key].get("freq_center", [])[0][0])
+                        )
+
+                        amps = self.process_string_of_nested_lists(
+                            load_data[res_key][q_key].get("Amps", [])[0][0].decode()
+                        )
+
+                        round_num = load_data[res_key][q_key].get("Round Num", [])[0][dataset]
+                        batch_num = load_data[res_key][q_key].get("Batch Num", [])[0][dataset]
+
+                        try:
+                            exp_config = load_data[res_key][q_key].get("Exp Config", [])[0][dataset].decode()
+                            safe_globals = {"np": np, "array": np.array, "__builtins__": {}}
+                            exp_config = eval(exp_config, safe_globals)
+                        except Exception:
+                            exp_config = None
+
+                        if len(freq_pts) > 0:
+                            entries.setdefault(q_key, []).append({
+                                "ts": float(ts),
+                                "date": date,
+                                "freq_pts": freq_pts,
+                                "freq_center": freq_center,
+                                "amps": amps,
+                                "round_num": round_num,
+                                "batch_num": batch_num,
+                                "exp_config": exp_config,
+                            })
+
+                del H5_class_instance
+
+            for q_key in entries:
+                entries[q_key].sort(key=lambda d: d["ts"])
+            return entries
+
+        ge_entries = _collect_entries(ge_ext)
+        ef_entries = _collect_entries(ef_ext)
+        fh_entries = _collect_entries(fh_ext)
+
+        # Include fh_entries in the union of keys
+        all_q_keys = sorted(set(ge_entries.keys()) | set(ef_entries.keys()) | set(fh_entries.keys()))
+        print("q_keys found:", all_q_keys)
+
+        # ------------------------------- Pairing + plotting -------------------------------
+        for q_key in all_q_keys:
+            ge_list = ge_entries.get(q_key, [])
+            ef_list = ef_entries.get(q_key, [])
+            fh_list = fh_entries.get(q_key, [])
+            if not ge_list or not ef_list:
+                continue
+
+            ef_used = [False] * len(ef_list)
+            fh_used = [False] * len(fh_list)
+
+            for ge_item in ge_list:
+                ge_ts = ge_item["ts"]
+
+                for q_key in all_q_keys:
+                    ge_list = ge_entries.get(q_key, [])
+                    ef_list = ef_entries.get(q_key, [])
+                    fh_list = fh_entries.get(q_key, [])
+
+                    if not ge_list or not ef_list:
+                        continue
+
+                    n = min(len(ge_list), len(ef_list))
+                    for i in range(n):
+                        ge_item = ge_list[i]
+                        ef_item = ef_list[i]
+                        fh_item = fh_list[i] if i < len(fh_list) else None
+
+
+                # Extract configs
+                try:
+                    ge_cfg = ge_item["exp_config"]["res_spec"] if ge_item["exp_config"] else None
+                except Exception:
+                    ge_cfg = None
+                try:
+                    ef_cfg = ef_item["exp_config"]["res_spec"] if ef_item["exp_config"] else None
+                except Exception:
+                    ef_cfg = None
+                try:
+                    fh_cfg = fh_item["exp_config"]["res_spec"] if (fh_item and fh_item["exp_config"]) else None
+                except Exception:
+                    fh_cfg = None
+
+                res_class_instance = ResonanceSpectroscopy(
+                    q_key,
+                    self.number_of_qubits,
+                    self.outerFolder_save_plots,
+                    ge_item["round_num"],
+                    self.save_figs
+                )
+
+                res_class_instance.plot_results_overlay(
+                    ge_item["freq_pts"], ge_item["freq_center"], ge_item["amps"], ge_cfg,
+                    ef_item["freq_pts"], ef_item["freq_center"], ef_item["amps"], ef_cfg,
+                    self.figure_quality,
+                    label_ge="Qubit in g",
+                    label_ef="Qubit in e",
+                    ge_date=ge_item["date"],
+                    ef_date=ef_item["date"],
+                    # FH data — pass None gracefully if no match was found
+                    fh_freq_pts=fh_item["freq_pts"] if fh_item else None,
+                    fh_freq_center=fh_item["freq_center"] if fh_item else None,
+                    fh_amps=fh_item["amps"] if fh_item else None,
+                    fh_cfg=fh_cfg,
+                    label_fh="Qubit in f",
+                    fh_date=fh_item["date"] if fh_item else None,
+                )
+                del res_class_instance
     def load_plot_save_q_spec(self):
         # ----------------------------------------------Load/Plot/Save QSpec------------------------------------
         outerFolder_expt = self.outerFolder + "/Data_h5/QSpec_ge/"

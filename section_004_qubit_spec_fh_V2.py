@@ -42,7 +42,7 @@ class FHQubitSpectroscopy:
         # if self.increase_steps:
         #     self.config['steps'] = self.increase_steps_to
 
-        efqspec = FHPulseProbeSpectroscopyProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay=0.5, cfg=self.config)
+        efqspec = FHPulseProbeSpectroscopyProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay=self.config['relax_delay'], cfg=self.config)
 
         # iq_lists= []
         if self.live_plot:
@@ -261,24 +261,25 @@ class FHQubitSpectroscopy:
 
 class FHPulseProbeSpectroscopyProgram(AveragerProgramV2):
     def _initialize(self, cfg):
-        ro_chs = cfg['ro_ch']
-        gen_ch = cfg['res_ch']
+        ro_ch = cfg['ro_ch']
+        res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
-        self.declare_gen(ch=gen_ch, nqz=cfg['nqz_res'])
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
         self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
 
-        self.add_readoutconfig(ch=ro_chs, name="myro",
-                               freq=cfg['res_freq_ef'],
-                               gen_ch=gen_ch,
+        self.add_readoutconfig(ch=ro_ch, name="myro",
+                               freq=cfg['res_freq_fh'],
+                               gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
-        self.add_pulse(ch=gen_ch, name="res_pulse", ro_ch=ro_chs,
+        print(cfg['res_freq_fh'],cfg['res_gain_fh'])
+        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
                        style="const",
                        length=cfg["res_length"],
-                       freq=cfg['res_freq_ef'],
+                       freq=cfg['res_freq_fh'],
                        phase=cfg['ro_phase'],
-                       gain=cfg['res_gain_ef']
+                       gain=cfg['res_gain_ge']
                        )
 
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
@@ -302,10 +303,9 @@ class FHPulseProbeSpectroscopyProgram(AveragerProgramV2):
                        gain=cfg['pi_ef_amp'],
                        )
 
-        # print('FH',cfg['qubit_length_ge'], cfg['qubit_freq_fh'],cfg['qubit_gain_fh'])
-        self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_chs[0],
+        self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch,
                        style="const",
-                       length=cfg['qubit_length_ge'],
+                       length=cfg['qubit_length_fh'],
                        freq=cfg['qubit_freq_fh'],
                        phase=0,
                        gain=cfg['qubit_gain_fh'],

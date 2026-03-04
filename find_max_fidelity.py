@@ -14,7 +14,7 @@ import datetime
 #outerFolder1 = os.path.join("M:/_Data/20250822 - Olivia/6transmon_run6/", '2025-03-02')
 # outerFolder1 = os.path.join("M:/_Data/20250822 - Olivia/run6/6transmon/ef_studies/Optimization/", str(datetime.date.today())) # for RR folders
 #outerFolder = "M:/_Data/20250822 - Olivia/run7/6transmon/readout_optimization/unmasking_resgain/2025-07-18_21-34-17/study_data/Data_h5/2D_Gain_Freq_Sweeps"
-outerFolder = "M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/readout_gain_offset_optimization_q4/2025-11-04_14-34-42/study_data/Data_h5/2D_Gain_Freq_Sweeps"
+outerFolder = "M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/readout_gain_offset_optimization/2026-02-26_12-29-33/study_data/Data_h5/2D_Gain_Freq_Sweeps"
 print('For files inside: ', outerFolder)
 
 def find_max_fidelity(file_path):

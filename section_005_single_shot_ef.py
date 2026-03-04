@@ -198,7 +198,7 @@ class SingleShotProgram_h(AveragerProgramV2):
         qubit_ch = cfg['qubit_ch']
         self.declare_gen(ch=gen_ch, nqz=cfg['nqz_res'])
         self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
-
+        print(cfg['res_freq_fh'])
         self.add_readoutconfig(ch=ro_chs, name="myro",
                                freq=cfg['res_freq_fh'],
                                gen_ch=gen_ch,
@@ -210,7 +210,7 @@ class SingleShotProgram_h(AveragerProgramV2):
                        length=cfg["res_length"],
                        freq=cfg['res_freq_fh'],
                        phase=cfg['ro_phase'],
-                       gain=cfg['res_gain_fh']
+                       gain=cfg['res_gain_ge']
                        )
 
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
@@ -332,45 +332,28 @@ class SingleShot_ef:
         ssp_h = SingleShotProgram_h(self.experiment.soccfg, reps=1, final_delay=self.config['relax_delay'],
                                     cfg=self.config)
         iq_list_h = ssp_h.acquire(self.experiment.soc, rounds=1, progress=True)
-
-        fid, fid_fh, theta_ef, theta_fh, ie_new, qe_new, if_new, qf_new, threshold_ef, ih_new, qh_new, threshold_fh = self.plot_results(self.outerFolder, iq_list_g, iq_list_e,
+        fid, fid_fh, theta_ef, theta_fh, ig_new, qg_new, ie_new, qe_new, if_new, qf_new, threshold_ef, ih_new, qh_new, threshold_fh = self.plot_results(self.outerFolder, iq_list_g, iq_list_e,
                                                                         iq_list_f, iq_list_h, self.QubitIndex)
-        # ie_new, qe_new, if_new, qf_new, theta_ef, threshold_ef = self.plot_results( iq_list_e,iq_list_f,self.QubitIndex)
+        # self.plot_results( iq_list_e,iq_list_f,self.QubitIndex)
         # return fid, angle, iq_list_g, iq_list_e, iq_list_f
         return iq_list_e, iq_list_f, ie_new, if_new, theta_ef, theta_fh,  threshold_ef, threshold_fh , self.config, fid, fid_fh
 
     def plot_results(self, outerfolder_plots, iq_list_g, iq_list_e, iq_list_f, iq_list_h, QubitIndex, fig_quality=100):
-        I_g = iq_list_g[QubitIndex][0].T[0]
-        Q_g = iq_list_g[QubitIndex][0].T[1]
-        I_e = iq_list_e[QubitIndex][0].T[0]
-        Q_e = iq_list_e[QubitIndex][0].T[1]
-        I_f = iq_list_f[QubitIndex][0].T[0]
-        Q_f = iq_list_f[QubitIndex][0].T[1]
-        I_h = iq_list_h[QubitIndex][0].T[0]
-        Q_h = iq_list_h[QubitIndex][0].T[1]
-        print(QubitIndex)
-        # fid, theta_ef, ie_new, qe_new, if_new, qf_new, threshold_ef
+        I_g = iq_list_g[0][0].T[0]
+        Q_g = iq_list_g[0][0].T[1]
+        I_e = iq_list_e[0][0].T[0]
+        Q_e = iq_list_e[0][0].T[1]
+        I_f = iq_list_f[0][0].T[0]
+        Q_f = iq_list_f[0][0].T[1]
+        I_h = iq_list_h[0][0].T[0]
+        Q_h = iq_list_h[0][0].T[1]
 
-        # fid, theta_ef,  ie_new, qe_new, if_new, qf_new, threshold_ef  = self.hist_ssf(outerfolder_plots, data=[I_g, Q_g, I_e, Q_e, I_f, Q_f, I_h, Q_h], cfg=self.config, plot=self.save_figs,  fig_quality=fig_quality)
-
-        fid, fid_fh, theta_ef, theta_fh, ie_new, qe_new, if_new, qf_new, threshold_ef, ih_new, qh_new, threshold_fh = self.hist_ssf(
+        fid_ge, fid_ef, fid_fh, theta_ef, theta_fh, ig_new, qg_new, ie_new, qe_new, if_new, qf_new, threshold_ge, threshold_ef, ih_new, qh_new, threshold_fh = self.hist_ssf(
             outerfolder_plots, data=[I_g, Q_g, I_e, Q_e, I_f, Q_f, I_h, Q_h], cfg=self.config, plot=self.save_figs,
             fig_quality=fig_quality)
 
-        # fid, theta_ef, ig_new, ie_new, qe_new, if_new, qf_new, threshold_ef = self.hist_ssf(outerfolder_plots, data=[I_e, Q_e, I_f, Q_f], cfg=self.config, plot=self.save_figs,  fig_quality=fig_quality)
+        return fid_ge, fid_ef, fid_fh, theta_ef, theta_fh, ig_new, qg_new, ie_new, qe_new, if_new, qf_new, threshold_ge, threshold_ef, ih_new, qh_new, threshold_fh
 
-        # print('Optimal fidelity after rotation = %.3f' % fid)
-        # print('Optimal angle after rotation = %f' % angle)
-        # print(self.config)
-
-        # return fid, angle
-        #     return ie_new, qe_new, if_new, qf_new, theta_ef, threshold_ef
-
-        # return ie_new,  if_new,  theta_ef, threshold_ef, fid
-        return fid, fid_fh, theta_ef, theta_fh, ie_new, qe_new, if_new, qf_new, threshold_ef, ih_new, qh_new, threshold_fh
-
-
-    # def hist_ssf(self, freq, gain, outerfolder_plots, data=None, cfg=None, plot=True, fig_quality=100):
     def hist_ssf(self, outerfolder_plots, data=None, cfg=None, plot=True, fig_quality=100):
         ig = data[0]
         qg = data[1]
@@ -389,109 +372,123 @@ class SingleShot_ef:
         xh, yh = np.median(ih), np.median(qh)
 
         if plot == True:
-            fig, axs = plt.subplots(nrows=1, ncols=3, figsize=(16, 4))
-            fig.tight_layout()
+            fig, axs = plt.subplots(nrows=1, ncols=3, figsize=(18, 5))
+            fig.tight_layout(pad=3.0)
 
-            # axs[0].scatter(ig, qg, label='g', color='b', marker='*', alpha=0.3)
-            # axs[0].scatter(ie, qe, label='e', color='r', marker='*', alpha=0.3)
-            axs[0].scatter(i_f, qf, label='f', color='g', marker='*', alpha=0.3)
-            axs[0].scatter(ih, qh, label='h', color='y', marker='*', alpha=0.3)
+            # ---- Left: Unrotated IQ scatter with ALL 4 states ----
+            axs[0].scatter(ig, qg, label='g', color='blue', marker='*', alpha=0.3, s=10)
+            axs[0].scatter(ie, qe, label='e', color='red', marker='*', alpha=0.3, s=10)
+            axs[0].scatter(i_f, qf, label='f', color='green', marker='*', alpha=0.3, s=10)
+            axs[0].scatter(ih, qh, label='h', color='goldenrod', marker='*', alpha=0.3, s=10)
 
-            # axs[0].scatter(xg, yg, color='k', marker='o')
-            # axs[0].scatter(xe, ye, color='k', marker='o')
-            axs[0].scatter(xf, yf, color='k', marker='o')
-            axs[0].scatter(xh, yh, color='k', marker='o')
+            # Centroids
+            axs[0].scatter(xg, yg, color='k', marker='o', s=60, zorder=5)
+            axs[0].scatter(xe, ye, color='k', marker='o', s=60, zorder=5)
+            axs[0].scatter(xf, yf, color='k', marker='o', s=60, zorder=5)
+            axs[0].scatter(xh, yh, color='k', marker='o', s=60, zorder=5)
 
             axs[0].set_xlabel('I (a.u.)')
             axs[0].set_ylabel('Q (a.u.)')
             axs[0].legend(loc='upper right')
             axs[0].set_title('Unrotated')
             axs[0].axis('equal')
-            axs[0].set_xlabel('I (a.u.)')
-            axs[0].set_ylabel('Q (a.u.)')
-            axs[0].legend(loc='upper right')
-
 
         """Compute the rotation angle"""
-        # Will use the same angle to rotate all datasets (g, e, and f), to ensure that all states are rotated into a common frame for direct comparison.
         theta_ef = -np.arctan2((yf - ye), (xf - xe))
-        theta_gf = -np.arctan2((yf - yg), (xf - xg))
-        theta_fh = -np.arctan2((yh - yf), (xh - xf)) + (np.pi/8)
-        # theta_fh = np.arctan2((yf - yh), (xf - xh))
+        theta_fh = -np.arctan2((yh - yf), (xh - xf))
 
-        """Rotate the IQ data"""
-        # ig_new = ig * np.cos(theta_ge) - qg * np.sin(theta_ge)
-        # qg_new = ig * np.sin(theta_ge) + qg * np.cos(theta_ge)
+        """Rotate the IQ data — use theta_ef for all states so they share a common frame"""
+        ig_new = ig * np.cos(theta_ef) - qg * np.sin(theta_ef)
+        qg_new = ig * np.sin(theta_ef) + qg * np.cos(theta_ef)
+
         ie_new = ie * np.cos(theta_ef) - qe * np.sin(theta_ef)
         qe_new = ie * np.sin(theta_ef) + qe * np.cos(theta_ef)
 
         if_new = i_f * np.cos(theta_ef) - qf * np.sin(theta_ef)
         qf_new = i_f * np.sin(theta_ef) + qf * np.cos(theta_ef)
 
-        ih_new = ih * np.cos(theta_fh) - qh * np.sin(theta_fh)
-        qh_new = ih * np.sin(theta_fh) + qh * np.cos(theta_fh)
+        ih_new = ih * np.cos(theta_ef) - qh * np.sin(theta_ef)
+        qh_new = ih * np.sin(theta_ef) + qh * np.cos(theta_ef)
 
-        """New means of each blob"""
-        # xg, yg = np.median(ig_new), np.median(qg_new)
-        xe, ye = np.median(ie_new), np.median(qe_new)
-        xf, yf = np.median(if_new), np.median(qf_new)
-        xh, yh = np.median(ih_new), np.median(qh_new)
+        """New medians of each blob after rotation"""
+        xg_r, yg_r = np.median(ig_new), np.median(qg_new)
+        xe_r, ye_r = np.median(ie_new), np.median(qe_new)
+        xf_r, yf_r = np.median(if_new), np.median(qf_new)
+        xh_r, yh_r = np.median(ih_new), np.median(qh_new)
 
-        # print(xg, xe)
-        # xlims = [xg - ran, xg + ran]
-        xlims = [np.min(if_new), np.max(ih_new)]
+        xlims = [min(np.min(ig_new), np.min(ie_new), np.min(if_new), np.min(ih_new)),
+                 max(np.max(ig_new), np.max(ie_new), np.max(if_new), np.max(ih_new))]
 
         if plot == True:
-            # axs[1].scatter(ig_new, qg_new, label='g', color='b', marker='*')
-            # axs[1].scatter(ie_new, qe_new, label='e', color='r', marker='*', alpha=0.3)
-            axs[1].scatter(if_new, qf_new, label='f', color='g', marker='*', alpha=0.3)
-            axs[1].scatter(ih_new, qh_new, label='h', color='y', marker='*', alpha=0.3)
-            # axs[1].scatter(xg, yg, color='k', marker='o')
-            # axs[1].scatter(xe, ye, color='k', marker='o')
-            axs[1].scatter(xf, yf, color='k', marker='o')
-            axs[1].scatter(xh, yh, color='k', marker='o')
+            # ---- Middle: Rotated IQ scatter with ALL 4 states ----
+            axs[1].scatter(ig_new, qg_new, label='g', color='blue', marker='*', alpha=0.3, s=10)
+            axs[1].scatter(ie_new, qe_new, label='e', color='red', marker='*', alpha=0.3, s=10)
+            axs[1].scatter(if_new, qf_new, label='f', color='green', marker='*', alpha=0.3, s=10)
+            axs[1].scatter(ih_new, qh_new, label='h', color='goldenrod', marker='*', alpha=0.3, s=10)
+
+            axs[1].scatter(xg_r, yg_r, color='k', marker='o', s=60, zorder=5)
+            axs[1].scatter(xe_r, ye_r, color='k', marker='o', s=60, zorder=5)
+            axs[1].scatter(xf_r, yf_r, color='k', marker='o', s=60, zorder=5)
+            axs[1].scatter(xh_r, yh_r, color='k', marker='o', s=60, zorder=5)
+
             axs[1].set_xlabel('I (a.u.)')
-            axs[1].legend(loc='lower right')
-            axs[1].set_title(f'Rotated Theta:{round(theta_fh, 5)}')
+            axs[1].set_ylabel('Q (a.u.)')
+            axs[1].legend(loc='upper right')
+            axs[1].set_title(f'Rotated (theta_ef={round(theta_ef, 5)})')
             axs[1].axis('equal')
 
-            # --- Draw a circle around the f-state centroid ---
-            # # Compute distances of each f-point from its centroid:
-            # distances_f = np.sqrt((if_new - xf) ** 2 + (qf_new - yf) ** 2)
-            # # For example, use the median distance as the circle's radius:
-            # radius_f = np.median(distances_f)
-            # # Create and add the circle to the rotated plot
-            # circle_f = Circle((xf, yf), radius=radius_f, edgecolor='black', facecolor='none', linestyle='--')
-            # axs[1].add_patch(circle_f)
-            # print("Circle center:", circle_f.get_center())
-            # print("Circle radius:", circle_f.get_radius())
-            # -----------------------------------------------------
+            # ---- Right: Histogram of all 4 states ----
+            axs[2].hist(ig_new, bins=numbins, range=xlims, color='blue', label='g', alpha=0.5, edgecolor='blue',
+                        linewidth=0.5)
+            axs[2].hist(ie_new, bins=numbins, range=xlims, color='red', label='e', alpha=0.5, edgecolor='red',
+                        linewidth=0.5)
+            axs[2].hist(if_new, bins=numbins, range=xlims, color='green', label='f', alpha=0.5, edgecolor='green',
+                        linewidth=0.5)
+            axs[2].hist(ih_new, bins=numbins, range=xlims, color='goldenrod', label='h', alpha=0.5,
+                        edgecolor='goldenrod', linewidth=0.5)
 
-            """X and Y ranges for histogram"""
-            # ng, binsg, pg = axs[2].hist(ig_new, bins=numbins, range=xlims, color='b', label='g', alpha=0.5)
-            ne, binse, pe = axs[2].hist(ie_new, bins=numbins, range=xlims, color='r', label='e', alpha=0.3)
-            nf, binsf, pf = axs[2].hist(if_new, bins=numbins, range=xlims, color='g', label='f', alpha=0.3)
-            nh, binsh, ph = axs[2].hist(ih_new, bins=numbins, range=xlims, color='y', label='h', alpha=0.3)
+            axs[2].set_xlabel('I (a.u.)')
+            axs[2].set_ylabel('Counts')
+            axs[2].legend(loc='upper right')
 
-            axs[2].set_xlabel('I(a.u.)')
         else:
-            # ng, binsg = np.histogram(ig_new, bins=numbins, range=xlims)
+            ng, binsg = np.histogram(ig_new, bins=numbins, range=xlims)
             ne, binse = np.histogram(ie_new, bins=numbins, range=xlims)
             nf, binsf = np.histogram(if_new, bins=numbins, range=xlims)
             nh, binsh = np.histogram(ih_new, bins=numbins, range=xlims)
 
         """Compute the fidelity using overlap of the histograms"""
-        contrast = np.abs(((np.cumsum(ne) - np.cumsum(nf)) / (0.5 * ne.sum() + 0.5 * nf.sum())))
-        tind = contrast.argmax()
-        threshold_ef = binse[tind]
-        fid = contrast[tind]
+        if plot == True:
+            ng, binsg = np.histogram(ig_new, bins=numbins, range=xlims)
+            ne, binse = np.histogram(ie_new, bins=numbins, range=xlims)
+            nf, binsf = np.histogram(if_new, bins=numbins, range=xlims)
+            nh, binsh = np.histogram(ih_new, bins=numbins, range=xlims)
 
+        # GE fidelity
+        contrast_ge = np.abs(((np.cumsum(ng) - np.cumsum(ne)) / (0.5 * ng.sum() + 0.5 * ne.sum())))
+        tind_ge = contrast_ge.argmax()
+        threshold_ge = binsg[tind_ge]
+        fid_ge = contrast_ge[tind_ge]
+
+        # EF fidelity
+        contrast_ef = np.abs(((np.cumsum(ne) - np.cumsum(nf)) / (0.5 * ne.sum() + 0.5 * nf.sum())))
+        tind_ef = contrast_ef.argmax()
+        threshold_ef = binse[tind_ef]
+        fid_ef = contrast_ef[tind_ef]
+
+        # FH fidelity
         contrast_fh = np.abs(((np.cumsum(nf) - np.cumsum(nh)) / (0.5 * nf.sum() + 0.5 * nh.sum())))
         tind_fh = contrast_fh.argmax()
         threshold_fh = binsf[tind_fh]
         fid_fh = contrast_fh[tind_fh]
 
         if plot == True:
+            axs[2].set_title(
+                f"GE Fid = {fid_ge * 100:.2f}%\n"
+                f"EF Fid = {fid_ef * 100:.2f}%\n"
+                f"FH Fid = {fid_fh * 100:.2f}%"
+            )
+
             outerFolder_expt = os.path.join(outerfolder_plots, "ss_repeat_meas_efh")
             self.create_folder_if_not_exists(outerFolder_expt)
             outerFolder_expt = os.path.join(outerFolder_expt, "Q" + str(self.QubitIndex + 1))
@@ -501,16 +498,168 @@ class SingleShot_ef:
             file_name = os.path.join(outerFolder_expt,
                                      f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" + f"{formatted_datetime}_" + self.expt_name + f"_q{self.QubitIndex + 1}.png")
 
-            axs[2].set_title(f"EF Fidelity = {fid * 100:.2f}% \n FH Fidelity = {fid_fh * 100:.2f}%")  # , freq={freq}MHz, gain={gain}")
             fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')
             plt.close(fig)
 
-            # return fid, threshold_ge, theta, ig_new, ie_new, if_new
+            return fid_ge, fid_ef, fid_fh, theta_ef, theta_fh, ig_new, qg_new, ie_new, qe_new, if_new, qf_new, threshold_ge, threshold_ef, ih_new, qh_new, threshold_fh
 
-            # return fid, theta_ef, ie_new, qe_new, if_new, qf_new, threshold_ef
-            return fid, fid_fh, theta_ef, theta_fh, ie_new, qe_new, if_new, qf_new, threshold_ef, ih_new, qh_new, threshold_fh
+    def run_gef(self):
+        ssp_g = SingleShotProgram_g(self.experiment.soccfg, reps=1, final_delay=self.config['relax_delay'],
+                                    cfg=self.config)
+        iq_list_g = ssp_g.acquire(self.experiment.soc, rounds=1, progress=True)
 
+        ssp_e = SingleShotProgram_e(self.experiment.soccfg, reps=1, final_delay=self.config['relax_delay'],
+                                    cfg=self.config)
+        iq_list_e = ssp_e.acquire(self.experiment.soc, rounds=1, progress=True)
 
+        ssp_f = SingleShotProgram_f(self.experiment.soccfg, reps=1, final_delay=self.config['relax_delay'],
+                                    cfg=self.config)
+        iq_list_f = ssp_f.acquire(self.experiment.soc, rounds=1, progress=True)
+
+        fid_ge, fid_ef, theta_ef, ig_new, qg_new, ie_new, qe_new, if_new, qf_new, threshold_ge, threshold_ef = self.plot_results_gef(
+            self.outerFolder, iq_list_g, iq_list_e, iq_list_f, self.QubitIndex)
+
+        return iq_list_e, iq_list_f, ie_new, if_new, theta_ef, threshold_ef, self.config, fid_ge, fid_ef
+
+    def plot_results_gef(self, outerfolder_plots, iq_list_g, iq_list_e, iq_list_f, QubitIndex, fig_quality=100):
+        I_g = iq_list_g[0][0].T[0]
+        Q_g = iq_list_g[0][0].T[1]
+        I_e = iq_list_e[0][0].T[0]
+        Q_e = iq_list_e[0][0].T[1]
+        I_f = iq_list_f[0][0].T[0]
+        Q_f = iq_list_f[0][0].T[1]
+
+        fid_ge, fid_ef, theta_ef, ig_new, qg_new, ie_new, qe_new, if_new, qf_new, threshold_ge, threshold_ef = self.hist_ssf_gef(
+            outerfolder_plots, data=[I_g, Q_g, I_e, Q_e, I_f, Q_f], cfg=self.config, plot=self.save_figs,
+            fig_quality=fig_quality)
+
+        return fid_ge, fid_ef, theta_ef, ig_new, qg_new, ie_new, qe_new, if_new, qf_new, threshold_ge, threshold_ef
+
+    def hist_ssf_gef(self, outerfolder_plots, data=None, cfg=None, plot=True, fig_quality=100):
+        ig = data[0]
+        qg = data[1]
+        ie = data[2]
+        qe = data[3]
+        i_f = data[4]
+        qf = data[5]
+
+        numbins = round(math.sqrt(float(cfg["steps"])))
+
+        xg, yg = np.median(ig), np.median(qg)
+        xe, ye = np.median(ie), np.median(qe)
+        xf, yf = np.median(i_f), np.median(qf)
+
+        if plot == True:
+            fig, axs = plt.subplots(nrows=1, ncols=3, figsize=(18, 5))
+            fig.tight_layout(pad=3.0)
+
+            # ---- Left: Unrotated IQ scatter with g, e, f ----
+            axs[0].scatter(ig, qg, label='g', color='blue', marker='*', alpha=0.3, s=10)
+            axs[0].scatter(ie, qe, label='e', color='red', marker='*', alpha=0.3, s=10)
+            axs[0].scatter(i_f, qf, label='f', color='green', marker='*', alpha=0.3, s=10)
+
+            # Centroids
+            axs[0].scatter(xg, yg, color='k', marker='o', s=60, zorder=5)
+            axs[0].scatter(xe, ye, color='k', marker='o', s=60, zorder=5)
+            axs[0].scatter(xf, yf, color='k', marker='o', s=60, zorder=5)
+
+            axs[0].set_xlabel('I (a.u.)')
+            axs[0].set_ylabel('Q (a.u.)')
+            axs[0].legend(loc='upper right')
+            axs[0].set_title('Unrotated')
+            axs[0].axis('equal')
+
+        """Compute the rotation angle"""
+        theta_ef = -np.arctan2((yf - ye), (xf - xe))
+
+        """Rotate the IQ data — use theta_ef for all states so they share a common frame"""
+        ig_new = ig * np.cos(theta_ef) - qg * np.sin(theta_ef)
+        qg_new = ig * np.sin(theta_ef) + qg * np.cos(theta_ef)
+
+        ie_new = ie * np.cos(theta_ef) - qe * np.sin(theta_ef)
+        qe_new = ie * np.sin(theta_ef) + qe * np.cos(theta_ef)
+
+        if_new = i_f * np.cos(theta_ef) - qf * np.sin(theta_ef)
+        qf_new = i_f * np.sin(theta_ef) + qf * np.cos(theta_ef)
+
+        """New medians of each blob after rotation"""
+        xg_r, yg_r = np.median(ig_new), np.median(qg_new)
+        xe_r, ye_r = np.median(ie_new), np.median(qe_new)
+        xf_r, yf_r = np.median(if_new), np.median(qf_new)
+
+        xlims = [min(np.min(ig_new), np.min(ie_new), np.min(if_new)),
+                 max(np.max(ig_new), np.max(ie_new), np.max(if_new))]
+
+        if plot == True:
+            # ---- Middle: Rotated IQ scatter with g, e, f ----
+            axs[1].scatter(ig_new, qg_new, label='g', color='blue', marker='*', alpha=0.3, s=10)
+            axs[1].scatter(ie_new, qe_new, label='e', color='red', marker='*', alpha=0.3, s=10)
+            axs[1].scatter(if_new, qf_new, label='f', color='green', marker='*', alpha=0.3, s=10)
+
+            axs[1].scatter(xg_r, yg_r, color='k', marker='o', s=60, zorder=5)
+            axs[1].scatter(xe_r, ye_r, color='k', marker='o', s=60, zorder=5)
+            axs[1].scatter(xf_r, yf_r, color='k', marker='o', s=60, zorder=5)
+
+            axs[1].set_xlabel('I (a.u.)')
+            axs[1].set_ylabel('Q (a.u.)')
+            axs[1].legend(loc='upper right')
+            axs[1].set_title(f'Rotated (theta_ef={round(theta_ef, 5)})')
+            axs[1].axis('equal')
+
+            # ---- Right: Histogram of g, e, f ----
+            axs[2].hist(ig_new, bins=numbins, range=xlims, color='blue', label='g', alpha=0.5, edgecolor='blue',
+                        linewidth=0.5)
+            axs[2].hist(ie_new, bins=numbins, range=xlims, color='red', label='e', alpha=0.5, edgecolor='red',
+                        linewidth=0.5)
+            axs[2].hist(if_new, bins=numbins, range=xlims, color='green', label='f', alpha=0.5, edgecolor='green',
+                        linewidth=0.5)
+
+            axs[2].set_xlabel('I (a.u.)')
+            axs[2].set_ylabel('Counts')
+            axs[2].legend(loc='upper right')
+
+        else:
+            ng, binsg = np.histogram(ig_new, bins=numbins, range=xlims)
+            ne, binse = np.histogram(ie_new, bins=numbins, range=xlims)
+            nf, binsf = np.histogram(if_new, bins=numbins, range=xlims)
+
+        """Compute the fidelity using overlap of the histograms"""
+        if plot == True:
+            ng, binsg = np.histogram(ig_new, bins=numbins, range=xlims)
+            ne, binse = np.histogram(ie_new, bins=numbins, range=xlims)
+            nf, binsf = np.histogram(if_new, bins=numbins, range=xlims)
+
+        # GE fidelity
+        contrast_ge = np.abs(((np.cumsum(ng) - np.cumsum(ne)) / (0.5 * ng.sum() + 0.5 * ne.sum())))
+        tind_ge = contrast_ge.argmax()
+        threshold_ge = binsg[tind_ge]
+        fid_ge = contrast_ge[tind_ge]
+
+        # EF fidelity
+        contrast_ef = np.abs(((np.cumsum(ne) - np.cumsum(nf)) / (0.5 * ne.sum() + 0.5 * nf.sum())))
+        tind_ef = contrast_ef.argmax()
+        threshold_ef = binse[tind_ef]
+        fid_ef = contrast_ef[tind_ef]
+
+        if plot == True:
+            axs[2].set_title(
+                f"GE Fid = {fid_ge * 100:.2f}%\n"
+                f"EF Fid = {fid_ef * 100:.2f}%"
+            )
+
+            outerFolder_expt = os.path.join(outerfolder_plots, "ss_repeat_meas_ef")
+            self.create_folder_if_not_exists(outerFolder_expt)
+            outerFolder_expt = os.path.join(outerFolder_expt, "Q" + str(self.QubitIndex + 1))
+            self.create_folder_if_not_exists(outerFolder_expt)
+            now = datetime.datetime.now()
+            formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
+            file_name = os.path.join(outerFolder_expt,
+                                     f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" + f"{formatted_datetime}_" + self.expt_name + f"_q{self.QubitIndex + 1}.png")
+
+            fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')
+            plt.close(fig)
+
+            return fid_ge, fid_ef, theta_ef, ig_new, qg_new, ie_new, qe_new, if_new, qf_new, threshold_ge, threshold_ef
     def create_folder_if_not_exists(self, folder):
         """Creates a folder at the given path if it doesn't already exist."""
         if not os.path.exists(folder):

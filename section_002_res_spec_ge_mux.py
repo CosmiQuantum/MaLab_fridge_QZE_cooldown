@@ -233,73 +233,99 @@ class ResonanceSpectroscopy:
             ge_fpts, ge_fcenter, ge_amps, ge_reloaded_config,
             ef_fpts, ef_fcenter, ef_amps, ef_reloaded_config,
             fig_quality=100,
-            *,  # <-- forces everything below to be keyword-only (prevents this exact bug forever)
+            *,
             label_ge="Qubit in g",
             label_ef="Qubit in e",
             ge_date=None,
             ef_date=None,
+            fh_freq_pts=None,
+            fh_freq_center=None,
+            fh_amps=None,
+            fh_cfg=None,
+            label_fh="Qubit in f",
+            fh_date=None,
     ):
-        plt.figure(figsize=(12, 8))
         plt.rcParams.update({
-            "font.size": 14,
-            "axes.titlesize": 18,
-            "axes.labelsize": 16,
-            "xtick.labelsize": 14,
-            "ytick.labelsize": 14,
-            "legend.fontsize": 14,
+            "font.size": 16,
+            "axes.titlesize": 16,
+            "axes.labelsize": 18,
+            "xtick.labelsize": 16,
+            "ytick.labelsize": 16,
+            "legend.fontsize": 16,
         })
-
-        plt.subplot(2, 3, 1)
+        fig, ax = plt.subplots(figsize=(14, 10))
 
         ge_x = [f + ge_fcenter[0] for f in ge_fpts]
         ef_x = [f + ef_fcenter[0] for f in ef_fpts]
+        ax.plot(ge_x, ge_amps[0], "-", linewidth=2, label=label_ge)
+        ax.plot(ef_x, ef_amps[0], "-", linewidth=2, label=label_ef)
 
-        plt.plot(ge_x, ge_amps[0], "-", linewidth=1.5, label=label_ge)
-        plt.plot(ef_x, ef_amps[0], "-", linewidth=1.5, label=label_ef)
+        # optional FH trace
+        fh_x = None
+        if fh_freq_pts is not None and fh_freq_center is not None and fh_amps is not None:
+            fh_x = [f + fh_freq_center[0] for f in fh_freq_pts]
+            ax.plot(fh_x, fh_amps[0], "-", linewidth=2, label=label_fh)
 
-        # optional resonance markers
+        # resonance markers
         try:
             ge_freq_r = ge_fpts[np.argmin(ge_amps[0])] + ge_fcenter[0]
-            plt.axvline(ge_freq_r, linestyle="--", linewidth=1.5)
+            ax.axvline(ge_freq_r, linestyle="--", linewidth=1.5)
         except Exception:
             ge_freq_r = None
-
         try:
             ef_freq_r = ef_fpts[np.argmin(ef_amps[0])] + ef_fcenter[0]
-            plt.axvline(ef_freq_r, linestyle="--", linewidth=1.5)
+            ax.axvline(ef_freq_r, linestyle="--", linewidth=1.5)
         except Exception:
             ef_freq_r = None
+        fh_freq_r = None
+        if fh_x is not None:
+            try:
+                fh_freq_r = fh_freq_pts[np.argmin(fh_amps[0])] + fh_freq_center[0]
+                ax.axvline(fh_freq_r, linestyle="--", linewidth=1.5)
+            except Exception:
+                fh_freq_r = None
 
-        if ge_freq_r is not None and ef_freq_r is not None:
-            plt.title(f"Resonator {self.QubitIndex + 1}  g:{ge_freq_r:.3f} MHz  e:{ef_freq_r:.3f} MHz", pad=10)
-        else:
-            plt.title(f"Resonator {self.QubitIndex + 1}", pad=10)
+        # --- stacked title: each resonance on its own line ---
+        title_lines = [f"Resonator {self.QubitIndex + 1}"]
+        if ge_freq_r is not None:
+            title_lines.append(f"g: {ge_freq_r:.4f} MHz")
+        if ef_freq_r is not None:
+            title_lines.append(f"e: {ef_freq_r:.4f} MHz")
+        if fh_freq_r is not None:
+            title_lines.append(f"f: {fh_freq_r:.4f} MHz")
+        ax.set_title("\n".join(title_lines), pad=14, linespacing=1.6)
 
-        plt.xlabel("Frequency (MHz)")
-        plt.ylabel("Amplitude (a.u.)")
-        plt.legend()
+        ax.set_xlabel("Frequency (MHz)")
+        ax.set_ylabel("Amplitude (a.u.)")
+        ax.legend()
+        yl = ax.get_ylim()
+        ax.set_ylim(yl[0] - 0.05 * (yl[1] - yl[0]), yl[1])
 
-        yl = plt.ylim()
-        plt.ylim(yl[0] - 0.05 * (yl[1] - yl[0]), yl[1])
+        fig.suptitle("Resonator Spectroscopy Overlay (g vs e vs f)", fontsize=22, y=1.01)
 
-        plt.suptitle("Resonator spectroscopy overlay (g vs e)", fontsize=24, y=0.95)
+        # footer timestamp
+        date_parts = []
+        if ge_date:
+            date_parts.append(f"ge={ge_date}")
+        if ef_date:
+            date_parts.append(f"ef={ef_date}")
+        if fh_date:
+            date_parts.append(f"fh={fh_date}")
+        if date_parts:
+            fig.text(0.01, 0.01, "paired: " + "  ->  ".join(date_parts), fontsize=11)
 
-        if ge_date and ef_date:
-            plt.figtext(0.01, 0.01, f"paired: ge={ge_date}  ->  ef={ef_date}", fontsize=10)
-
-        plt.tight_layout(pad=2.0)
+        plt.tight_layout(pad=2.5)
 
         if self.save_figs:
-            outerFolder_expt = os.path.join(self.outerFolder, self.expt_name + "_ge_ef_plots")
+            outerFolder_expt = os.path.join(self.outerFolder, self.expt_name + "_ge_ef_fh_plots")
             self.create_folder_if_not_exists(outerFolder_expt)
             now = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             file_name = os.path.join(
                 outerFolder_expt,
-                f"R_{self.round_num}_Q_{self.QubitIndex + 1}_{now}_{self.expt_name}_ge_ef_overlay"
+                f"R_{self.round_num}_Q_{self.QubitIndex + 1}_{now}_{self.expt_name}_ge_ef_fh_overlay"
             )
-            plt.savefig(file_name + ".png", dpi=fig_quality)
-            plt.savefig(file_name + ".pdf", dpi=fig_quality)
-
+            plt.savefig(file_name + ".png", dpi=fig_quality, bbox_inches="tight")
+            plt.savefig(file_name + ".pdf", dpi=fig_quality, bbox_inches="tight")
         plt.close()
 
     def create_folder_if_not_exists(self, folder):

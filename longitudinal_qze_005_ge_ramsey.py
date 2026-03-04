@@ -45,20 +45,20 @@ thresholding = False                 # use internal QICK threshold for ratio of 
 increase_qubit_reps = False          # if you want to increase the reps for a qubit, set to True
 qubit_to_increase_reps_for = 0       # only has impact if previous line is True
 multiply_qubit_reps_by = 2           # only has impact if the line two above is True
-Qs_to_look_at = [4]        # only list the qubits you want to do the RR for
+Qs_to_look_at = [5]        # only list the qubits you want to do the RR for
 
 #Data saving info
 run_name = 'bob_run_started_Feb_11'
 device_name = 'squill'
 substudy_txt_notes = ('script longitudinal_qze_005_ge_ramsey.py')
 
-study = '2d_higher_n_bar'
+study = '2d_test'
 
 ################################################ optimization outputs ##################################################
 # Optimization parameters for resonator spectroscopy
-res_leng_vals = [10]*6
-res_gain = [0.15,0.2, 0.2, 0.2, 0.2833, 0.15]
-freq_offsets = [0, -0.15, -0.15,-0.15, -0.08, -0.15]
+res_leng_vals = [9]*6
+res_gain = [0.25,0.25,0.25,0.25,0.24,0.2133]
+freq_offsets = [0,0,0,0,-0.25,-0.16]
 ####################################################### RR #############################################################
 
 def create_data_dict(keys, save_r, qs):
@@ -176,6 +176,10 @@ for QubitIndex in Qs_to_look_at:
 
     experiment.qubit_cfg['qubit_freq_ge'] = experiment.qubit_cfg['qubit_freq_ge'][QubitIndex]
     experiment.qubit_cfg['qubit_gain_ge'] = experiment.qubit_cfg['qubit_gain_ge'][QubitIndex]
+
+    # experiment.readout_cfg['res_freq_ge'] = freq_offsets[QubitIndex] + 7267.56
+    # experiment.qubit_cfg['qubit_freq_ge'] = float(3095.45)
+    # experiment.qubit_cfg['pi_amp'] =  experiment.qubit_cfg['pi_amp'][QubitIndex]
     ################################ Do Res spec once per qubit and store the value ####################################
     ################################################# g-e Res spec ####################################################
 
@@ -715,45 +719,6 @@ for QubitIndex in Qs_to_look_at:
 
         # reinitialize
         qspec_data = create_data_dict(qspec_keys, save_r, list_of_all_qubits)
-        # # ############################################# Ramsey freq correction #########################################
-        # t2r_data = create_data_dict(t2r_keys, save_r, list_of_all_qubits)
-        # try:
-        #     t2r = T2RMeasurementZeno(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j, signal,
-        #                              save_figs,
-        #                              experiment=exp, live_plot=live_plot, fit_data=fit_data,
-        #                              increase_qubit_reps=increase_qubit_reps,
-        #                              qubit_to_increase_reps_for=qubit_to_increase_reps_for,
-        #                              multiply_qubit_reps_by=multiply_qubit_reps_by,
-        #                              verbose=verbose, logger=rr_logger, unmasking_resgain=unmask, correction=True)
-        #     t2r_est, t2r_err, t2r_I, t2r_Q, t2r_delay_times, fit_ramsey, sys_config_t2r, ss_Q_e_t2r, ss_Q_g_t2r, \
-        #         ss_I_e_t2r, ss_I_g_t2r, I_shots_t2r, Q_shots_t2r, gains_t2r,ramsey_corrected_freqsv = t2r.run(
-        #         thresholding=thresholding, scaling=True, qze_pulse='const')
-        #     t2r_data[QubitIndex]['T2'][j - batch_num * save_r - 1] = t2r_est
-        #     t2r_data[QubitIndex]['Errors'][j - batch_num * save_r - 1] = t2r_err
-        #     t2r_data[QubitIndex]['Dates'][j - batch_num * save_r - 1] = (
-        #         time.mktime(datetime.datetime.now().timetuple()))
-        #     t2r_data[QubitIndex]['I'][j - batch_num * save_r - 1] = t2r_I
-        #     t2r_data[QubitIndex]['Q'][j - batch_num * save_r - 1] = t2r_Q
-        #     t2r_data[QubitIndex]['Delay Times'][j - batch_num * save_r - 1] = t2r_delay_times
-        #     t2r_data[QubitIndex]['Fit'][j - batch_num * save_r - 1] = fit_ramsey
-        #     t2r_data[QubitIndex]['Round Num'][j - batch_num * save_r - 1] = j
-        #     t2r_data[QubitIndex]['Batch Num'][j - batch_num * save_r - 1] = batch_num
-        #     t2r_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = expt_cfg
-        #     t2r_data[QubitIndex]['Syst Config'][j - batch_num * save_r - 1] = sys_config_t2r
-        #     t2r_data[QubitIndex]['ss_Q_e'][0] = ss_Q_e_t2r
-        #     t2r_data[QubitIndex]['ss_Q_g'][0] = ss_Q_g_t2r
-        #     t2r_data[QubitIndex]['ss_I_e'][0] = ss_I_e_t2r
-        #     t2r_data[QubitIndex]['ss_I_g'][0] = ss_I_g_t2r
-        #     t2r_data[QubitIndex]['I_shots'][0] = I_shots_t2r
-        #     t2r_data[QubitIndex]['Q_shots'][0] = Q_shots_t2r
-        #     t2r_data[QubitIndex]['Gains'][0] = gains_t2r
-        #
-        #     saver_t2 = Data_H5(subStudyDataFolder, t2r_data, batch_num, save_r)
-        #     saver_t2.save_to_h5('T2_ge_zeno_correction')
-        #     del t2r
-        # except:
-        #     continue
-        # t2r_data = create_data_dict(t2r_keys, save_r, list_of_all_qubits)
 
         ###################################################### T1 ######################################################
         try:
@@ -796,7 +761,10 @@ for QubitIndex in Qs_to_look_at:
             del saver_t1
             del t1_data
             del t1
-        except:
+        except Exception as e:
+            if debug_mode:
+                raise e
+            rr_logger.exception(f"T1 zeno error on qubit {QubitIndex}: {e}")
             continue
         t1_data = create_data_dict(t1_keys, save_r, list_of_all_qubits)
         # ###################################################### T2R ######################################################
@@ -876,7 +844,10 @@ for QubitIndex in Qs_to_look_at:
             saver_t2e = Data_H5(subStudyDataFolder, t2e_data, batch_num, save_r)
             saver_t2e.save_to_h5('T2E_ge_zeno')
             del t2e
-        except:
+        except Exception as e:
+            if debug_mode:
+                raise e
+            rr_logger.exception(f"T2E error on qubit {QubitIndex}: {e}")
             continue
         t2e_data = create_data_dict(t2e_keys, save_r, list_of_all_qubits)
         del exp

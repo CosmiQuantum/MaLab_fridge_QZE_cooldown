@@ -118,7 +118,10 @@ class AmplitudeRabiExperiment:
         if scaling:
             from section_005_single_shot_ge import SingleShotProgram_g, SingleShotProgram_e
             q1_fit_cosine_no_calibration, pi_amp_fit_no_calibration = self.plot_results(I, Q, gains, config=self.config)
-            self.experiment.qubit_cfg['pi_amp'] = float(pi_amp_fit_no_calibration)
+            try:
+                self.experiment.qubit_cfg['pi_amp'] = float(pi_amp_fit_no_calibration)
+            except:
+                print('pi fit didnt work')
 
             q_config = all_qubit_state(self.experiment, self.number_of_qubits)
             ss_exp_cfg = add_qubit_experiment(expt_cfg, 'Readout_Optimization', self.QubitIndex)
@@ -147,7 +150,7 @@ class AmplitudeRabiExperiment:
             if self.chevron:
                 freqs = amp_rabi.get_pulse_param('qubit_pulse', "freq", as_array=True)
                 mag = self.plot_results_chevron(I, Q, gains, freqs, config=self.config)
-                q1_fit_cosine, pi_len = None, None
+                q1_fit_cosine, pi_len, pi_amp = None, None, None
             else:
                 q1_fit_cosine, pi_amp = self.plot_results(I, Q, gains, config=self.config)
 
@@ -328,7 +331,8 @@ class AmplitudeRabiExperiment:
             self.logger.info(f"Error plotting chevron heatmap: {e}")
             return None
 
-    def plot_results(self, I, Q, gains, config = None, fig_quality = 100, scaling=False, Ie=None, Ig=None, Qe=None, Qg=None, file_ext=''):
+    def plot_results(self, I, Q, gains, config=None, fig_quality=100, scaling=False, Ie=None, Ig=None, Qe=None,
+                     Qg=None, file_ext=''):
         try:
             if scaling:
                 e = np.mean((Ie + 1j * Qe))
@@ -344,13 +348,40 @@ class AmplitudeRabiExperiment:
                 q1_a_guess_ydata = (np.max(ydata) - np.min(ydata)) / 2
                 q1_d_guess_ydata = np.mean(ydata)
 
-                q1_b_guess = 1 / gains[-1]
-                q1_c_guess = 0
+                # Improved frequency guess: assume half a period over the gain range
+                q1_b_guess = 0.5 / (gains[-1] - gains[0])
 
-                q1_guess_ydata = [q1_a_guess_ydata, q1_b_guess, q1_c_guess, q1_d_guess_ydata]
-                q1_popt_ydata, q1_pcov_ydata = curve_fit(self.cosine, gains, ydata, maxfev=100000, p0=q1_guess_ydata)
-                q1_fit_cosine_ydata = self.cosine(gains, *q1_popt_ydata)
+                # Multi-start fitting with bounds
+                amp_bound = (np.max(ydata) - np.min(ydata))
+                freq_upper = 10.0 / (gains[-1] - gains[0])
+                bounds = (
+                    [0, 0, -np.pi, -np.inf],
+                    [amp_bound * 1.5, freq_upper, np.pi, np.inf]
+                )
 
+                best_residual = np.inf
+                best_popt = None
+
+                for b_scale in [0.5, 1.0, 1.5, 2.0]:
+                    for c_guess in [0, np.pi / 4, np.pi / 2, np.pi]:
+                        try:
+                            p0 = [q1_a_guess_ydata, q1_b_guess * b_scale, c_guess, q1_d_guess_ydata]
+                            popt, _ = curve_fit(self.cosine, gains, ydata, maxfev=100000, p0=p0, bounds=bounds)
+                            residual = np.sum((ydata - self.cosine(gains, *popt)) ** 2)
+                            if residual < best_residual:
+                                best_residual = residual
+                                best_popt = popt
+                        except RuntimeError:
+                            continue
+
+                if best_popt is not None:
+                    q1_fit_cosine_ydata = self.cosine(gains, *best_popt)
+                else:
+                    # Fallback to original single-guess approach if all multi-start attempts fail
+                    q1_guess_ydata = [q1_a_guess_ydata, q1_b_guess, 0, q1_d_guess_ydata]
+                    q1_popt_ydata, q1_pcov_ydata = curve_fit(self.cosine, gains, ydata, maxfev=100000,
+                                                             p0=q1_guess_ydata)
+                    q1_fit_cosine_ydata = self.cosine(gains, *q1_popt_ydata)
 
                 first_three_avg_ydata = np.mean(q1_fit_cosine_ydata[:3])
                 last_three_avg_ydata = np.mean(q1_fit_cosine_ydata[-3:])
@@ -376,14 +407,12 @@ class AmplitudeRabiExperiment:
                                                                                                                    f' readout pulse amp: '
                                                                                                                    f' {self.experiment.readout_cfg["res_gain_ge"][self.QubitIndex]} ',
                                  fontsize=24, ha='center',
-                                 va='top')  # f", {config['sigma'] * 1000} ns sigma" need to add in all qqubit sigmas to save exp_cfg before putting htis back
-
+                                 va='top')
                     else:
                         fig.text(plot_middle, 0.98,
                                  f"Rabi Q{self.QubitIndex + 1}_" + f", {config['reps']}*{config['rounds']} avgs" + f' pi_amp {pi_amp} ',
                                  fontsize=24, ha='center',
-                                 va='top')  # f", {config['sigma'] * 1000} ns sigma" need to add in all qqubit sigmas to save exp_cfg before putting htis back
-
+                                 va='top')
                 else:
                     fig.text(plot_middle, 0.98,
                              f' pi_amp {pi_amp} ',
@@ -406,7 +435,7 @@ class AmplitudeRabiExperiment:
                     now = datetime.datetime.now()
                     formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
                     file_name = os.path.join(outerFolder_expt,
-                                             f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" + f"{formatted_datetime}_" + self.expt_name + f"_q{self.QubitIndex + 1}"+file_ext+".png")
+                                             f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" + f"{formatted_datetime}_" + self.expt_name + f"_q{self.QubitIndex + 1}" + file_ext + ".png")
                     fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')
                 plt.close(fig)
             else:
@@ -419,16 +448,67 @@ class AmplitudeRabiExperiment:
                 q1_d_guess_I = np.mean(I)
                 q1_a_guess_Q = (np.max(Q) - np.min(Q)) / 2
                 q1_d_guess_Q = np.mean(Q)
-                q1_b_guess = 1 / gains[-1]
-                q1_c_guess = 0
 
-                q1_guess_I = [q1_a_guess_I, q1_b_guess, q1_c_guess, q1_d_guess_I]
-                q1_popt_I, q1_pcov_I = curve_fit(self.cosine, gains, I, maxfev=100000, p0=q1_guess_I)
-                q1_fit_cosine_I = self.cosine(gains, *q1_popt_I)
+                # Improved frequency guess: assume half a period over the gain range
+                q1_b_guess = 0.5 / (gains[-1] - gains[0])
 
-                q1_guess_Q = [q1_a_guess_Q, q1_b_guess, q1_c_guess, q1_d_guess_Q]
-                q1_popt_Q, q1_pcov_Q = curve_fit(self.cosine, gains, Q, maxfev=100000, p0=q1_guess_Q)
-                q1_fit_cosine_Q = self.cosine(gains, *q1_popt_Q)
+                # Bounds for I and Q fits
+                amp_bound_I = (np.max(I) - np.min(I))
+                amp_bound_Q = (np.max(Q) - np.min(Q))
+                freq_upper = 10.0 / (gains[-1] - gains[0])
+
+                bounds_I = (
+                    [0, 0, -np.pi, -np.inf],
+                    [amp_bound_I * 1.5, freq_upper, np.pi, np.inf]
+                )
+                bounds_Q = (
+                    [0, 0, -np.pi, -np.inf],
+                    [amp_bound_Q * 1.5, freq_upper, np.pi, np.inf]
+                )
+
+                # Multi-start fitting for I
+                best_residual_I = np.inf
+                best_popt_I = None
+                for b_scale in [0.5, 1.0, 1.5, 2.0]:
+                    for c_guess in [0, np.pi / 4, np.pi / 2, np.pi]:
+                        try:
+                            p0 = [q1_a_guess_I, q1_b_guess * b_scale, c_guess, q1_d_guess_I]
+                            popt, _ = curve_fit(self.cosine, gains, I, maxfev=100000, p0=p0, bounds=bounds_I)
+                            residual = np.sum((I - self.cosine(gains, *popt)) ** 2)
+                            if residual < best_residual_I:
+                                best_residual_I = residual
+                                best_popt_I = popt
+                        except RuntimeError:
+                            continue
+
+                if best_popt_I is not None:
+                    q1_fit_cosine_I = self.cosine(gains, *best_popt_I)
+                else:
+                    q1_guess_I = [q1_a_guess_I, q1_b_guess, 0, q1_d_guess_I]
+                    q1_popt_I, _ = curve_fit(self.cosine, gains, I, maxfev=100000, p0=q1_guess_I)
+                    q1_fit_cosine_I = self.cosine(gains, *q1_popt_I)
+
+                # Multi-start fitting for Q
+                best_residual_Q = np.inf
+                best_popt_Q = None
+                for b_scale in [0.5, 1.0, 1.5, 2.0]:
+                    for c_guess in [0, np.pi / 4, np.pi / 2, np.pi]:
+                        try:
+                            p0 = [q1_a_guess_Q, q1_b_guess * b_scale, c_guess, q1_d_guess_Q]
+                            popt, _ = curve_fit(self.cosine, gains, Q, maxfev=100000, p0=p0, bounds=bounds_Q)
+                            residual = np.sum((Q - self.cosine(gains, *popt)) ** 2)
+                            if residual < best_residual_Q:
+                                best_residual_Q = residual
+                                best_popt_Q = popt
+                        except RuntimeError:
+                            continue
+
+                if best_popt_Q is not None:
+                    q1_fit_cosine_Q = self.cosine(gains, *best_popt_Q)
+                else:
+                    q1_guess_Q = [q1_a_guess_Q, q1_b_guess, 0, q1_d_guess_Q]
+                    q1_popt_Q, _ = curve_fit(self.cosine, gains, Q, maxfev=100000, p0=q1_guess_Q)
+                    q1_fit_cosine_Q = self.cosine(gains, *q1_popt_Q)
 
                 first_three_avg_I = np.mean(q1_fit_cosine_I[:3])
                 last_three_avg_I = np.mean(q1_fit_cosine_I[-3:])
@@ -439,30 +519,25 @@ class AmplitudeRabiExperiment:
                 pi_amp = None
                 if 'Q' in self.signal:
                     best_signal_fit = q1_fit_cosine_Q
-                    # figure out if you should take the min or the max value of the fit to say where pi_amp should be
                     if last_three_avg_Q > first_three_avg_Q:
                         pi_amp = gains[np.argmax(best_signal_fit)]
                     else:
                         pi_amp = gains[np.argmin(best_signal_fit)]
                 if 'I' in self.signal:
                     best_signal_fit = q1_fit_cosine_I
-                    # figure out if you should take the min or the max value of the fit to say where pi_amp should be
                     if last_three_avg_I > first_three_avg_I:
                         pi_amp = gains[np.argmax(best_signal_fit)]
                     else:
                         pi_amp = gains[np.argmin(best_signal_fit)]
                 if 'None' in self.signal:
-                    # choose the best signal depending on which has a larger magnitude
                     if abs(first_three_avg_Q - last_three_avg_Q) > abs(first_three_avg_I - last_three_avg_I):
                         best_signal_fit = q1_fit_cosine_Q
-                        # figure out if you should take the min or the max value of the fit to say where pi_amp should be
                         if last_three_avg_Q > first_three_avg_Q:
                             pi_amp = gains[np.argmax(best_signal_fit)]
                         else:
                             pi_amp = gains[np.argmin(best_signal_fit)]
                     else:
                         best_signal_fit = q1_fit_cosine_I
-                        # figure out if you should take the min or the max value of the fit to say where pi_amp should be
                         if last_three_avg_I > first_three_avg_I:
                             pi_amp = gains[np.argmax(best_signal_fit)]
                         else:
@@ -470,29 +545,27 @@ class AmplitudeRabiExperiment:
                 else:
                     print('Invalid signal passed, please do I Q or None')
 
-
                 ax2.plot(gains, q1_fit_cosine_Q, '-', color='red', linewidth=3, label="Fit")
                 ax1.plot(gains, q1_fit_cosine_I, '-', color='red', linewidth=3, label="Fit")
 
                 if config is not None:
                     if self.QZE:
                         fig.text(plot_middle, 0.98,
-                                 f"Rabi Q{self.QubitIndex + 1}_" + f", {config['reps']}*{config['rounds']} avgs" + f' pi_amp {round(pi_amp,2)} '
+                                 f"Rabi Q{self.QubitIndex + 1}_" + f", {config['reps']}*{config['rounds']} avgs" + f' pi_amp {round(pi_amp, 2)} '
                                                                                                                    f'projective readout pulse length'
                                                                                                                    f': {self.projective_readout_pulse_len_us}'
                                                                                                                    f' readout pulse amp: '
                                                                                                                    f' {self.experiment.readout_cfg["res_gain_ge"][self.QubitIndex]} ',
                                  fontsize=24, ha='center',
-                                 va='top')  # f", {config['sigma'] * 1000} ns sigma" need to add in all qqubit sigmas to save exp_cfg before putting htis back
-
+                                 va='top')
                     else:
                         fig.text(plot_middle, 0.98,
-                                 f"Rabi Q{self.QubitIndex + 1}_"  + f", {config['reps']}*{config['rounds']} avgs" + f' pi_amp {pi_amp} ',
-                                 fontsize=24, ha='center', va='top') #f", {config['sigma'] * 1000} ns sigma" need to add in all qqubit sigmas to save exp_cfg before putting htis back
-
+                                 f"Rabi Q{self.QubitIndex + 1}_" + f", {config['reps']}*{config['rounds']} avgs" + f' pi_amp {pi_amp} ',
+                                 fontsize=24, ha='center',
+                                 va='top')
                 else:
                     fig.text(plot_middle, 0.98,
-                             f"Rabi Q{self.QubitIndex + 1}_" f", {self.config['sigma'] * 1000} ns sigma" + f' pi_amp {pi_amp} '+ f", {self.config['reps']}*{self.config['rounds']} avgs",
+                             f"Rabi Q{self.QubitIndex + 1}_" f", {self.config['sigma'] * 1000} ns sigma" + f' pi_amp {pi_amp} ' + f", {self.config['reps']}*{self.config['rounds']} avgs",
                              fontsize=24, ha='center', va='top')
 
                 ax1.plot(gains, I, label="Gain (a.u.)", linewidth=2)
@@ -509,13 +582,14 @@ class AmplitudeRabiExperiment:
 
                 if self.save_figs:
                     if self.correction:
-                        outerFolder_expt = os.path.join(self.outerFolder, self.expt_name +'_correction'+ "_plots")
+                        outerFolder_expt = os.path.join(self.outerFolder, self.expt_name + '_correction' + "_plots")
                     else:
-                        outerFolder_expt = os.path.join(self.outerFolder, self.expt_name +  "_plots")
+                        outerFolder_expt = os.path.join(self.outerFolder, self.expt_name + "_plots")
                     self.create_folder_if_not_exists(outerFolder_expt)
                     now = datetime.datetime.now()
                     formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
-                    file_name = os.path.join(outerFolder_expt, f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" + f"{formatted_datetime}_" + self.expt_name + f"_q{self.QubitIndex + 1}.png")
+                    file_name = os.path.join(outerFolder_expt,
+                                             f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" + f"{formatted_datetime}_" + self.expt_name + f"_q{self.QubitIndex + 1}.png")
                     fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')
                 plt.close(fig)
             return best_signal_fit, pi_amp
@@ -523,7 +597,6 @@ class AmplitudeRabiExperiment:
         except Exception as e:
             if self.verbose: print("Error fitting cosine:", e)
             self.logger.info("Error fitting cosine: {e}")
-            # Return None if the fit didn't work
             return None, None
 
     def plot_QZE(self, I, Q, gains, proj_pulse_gains, fig_quality=100, filter_amp_above=None, mark_w01s=True,

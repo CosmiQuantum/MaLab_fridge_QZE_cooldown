@@ -331,9 +331,8 @@ class EF_AmplitudeRabiProgram(AveragerProgramV2):
         self.add_loop("gainloop", cfg["steps"])
 
     def _body(self, cfg):
-        self.pulse(ch=self.cfg["qubit_ch"], name="ge_pi_pulse", t=0)  # play pulse: ge pi
+        self.pulse(ch=self.cfg["qubit_ch"], name="pi_ge", t=0)  # play pulse: ge pi
         self.delay_auto(0.0)
-
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0) #  play pulse: variable-gain fh pi
         self.delay_auto(t=0.0, tag='waiting') #wait
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0) #probe pulse

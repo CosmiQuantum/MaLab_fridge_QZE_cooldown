@@ -180,11 +180,10 @@ class T2RProgram(AveragerProgramV2):
                        )
         self.add_pulse(ch=res_ch, name="qze_pulse",  ro_ch=ro_ch,
                        style="const",
-                       length=QickSweep1D("waitloop", cfg['start'], cfg['stop']), #varying in the loop
+                       length=QickSweep1D("waitloop", cfg['start']+cfg['readout_pulse_delay']+cfg['sigma'] * 4, cfg['stop']+cfg['readout_pulse_delay']+cfg['sigma'] * 4), #varying in the loop
                        freq=cfg['res_freq_qze'],
                        phase=cfg['res_phase_qze'],
-                       gain=QickSweep1D("gain_loop", cfg["gain_start"]+cfg['readout_pulse_delay']+cfg['sigma'] * 4
-                                        , cfg["gain_stop"]+cfg['readout_pulse_delay']+cfg['sigma'] * 4)
+                       gain=QickSweep1D("gain_loop", cfg["gain_start"], cfg["gain_stop"])
                        )
 
         self.add_pulse(ch=qubit_ch, name="qubit_pulse2",  ro_ch=ro_ch,
@@ -675,7 +674,7 @@ class T2RMeasurementZeno:
                 ss_Q_e_all.append(ss_Q_e)
 
             delay_times = ramsey.get_pulse_param(pulsename='qze_pulse', parname='length', as_array=True)
-            delay_times = delay_times - self.config['readout_pulse_delay'] - self.experiment.qubit_cfg["sigma"] * 4
+            delay_times = delay_times - self.config['readout_pulse_delay'] - self.experiment.qubit_cfg["sigma"][self.QubitIndex] * 4
             gains = ramsey.get_pulse_param('qze_pulse', "gain", as_array=True)
 
             self.plot_results_interweaved_cal(Is_all, Qs_all, delay_times, gains=gains, scaling=scaling, Ie = ss_I_e_all

@@ -289,7 +289,7 @@ class T1Measurement_with_Zeno_loop:
 
 
             delay_times = t1.get_pulse_param(pulsename='qze_pulse', parname='length', as_array=True)
-            delay_times = [t - self.experiment.qubit_cfg["sigma"] * 4 - self.config['readout_pulse_delay'] for t in
+            delay_times = [t - self.experiment.qubit_cfg["sigma"][self.QubitIndex] * 4 - self.config['readout_pulse_delay'] for t in
                            delay_times]
             gains = t1.get_pulse_param('qze_pulse', "gain", as_array=True)
 
