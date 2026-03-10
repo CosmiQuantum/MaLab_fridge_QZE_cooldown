@@ -22,6 +22,7 @@ class SingleShotProgram(AveragerProgramV2):
         ro_chs = cfg['ro_chs']
         gen_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
+        self.reset_gens()
         self.declare_gen(ch=gen_ch, nqz=cfg['nqz_res'])
         self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
 
@@ -31,6 +32,8 @@ class SingleShotProgram(AveragerProgramV2):
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
+        ## Original Pulse
         self.add_pulse(ch=gen_ch, name="res_pulse", ro_ch=ro_chs,
                        style="const",
                        length=cfg["res_length"],
@@ -38,6 +41,30 @@ class SingleShotProgram(AveragerProgramV2):
                        phase=cfg['ro_phase'],
                        gain=cfg['res_gain_ge']
                        )
+
+
+        ## Here I try to define a different readout pulse, we'll start with a gaussian ramp into a constant, I don't believe we expect this to be better than the current constant pulse 
+        #self.add_gauss(ch=gen_ch, name='ramp2',sigma = 0.05, length = 0.05, even_length=true)
+        #self.add_pulse(ch=gen_ch, name="res_pulse", ro_ch=ro_chs,
+        #               style="const",
+        #               evelope = "ramp2",
+        #               length=cfg["res_length"],
+        #               freq=cfg['res_freq_ge'],
+        #               phase=cfg['ro_phase'],
+        #               gain=cfg['res_gain_ge']
+        #               )
+
+        ## Here I try to use the DRAG pulse as defined in the QICK Code Base
+        #self.add_DRAG(ch=qubit_ch, name="Drag_o_clock", sigma=cfg['sigma'], length=cfg["res_length"], delta=-282.27, alpha=0.9, det=0, even_length=True)
+        #self.add_pulse(ch=gen_ch, name="res_pulse", ro_ch=ro_chs,                                                                                        
+        #               style="arb",                                                                                                                    
+        #               evelope = "Drag_o_clock",                                                                                                         
+        #               length=cfg["res_length"],                                                                                                         
+        #               freq=cfg['res_freq_ge'],                                                                                                          
+        #               phase=cfg['ro_phase'],                                                                                                            
+        #               gain=cfg['res_gain_ge']                                                                                                           
+        #               )      
+
 
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
 
@@ -49,7 +76,79 @@ class SingleShotProgram(AveragerProgramV2):
                        phase=cfg['qubit_phase'],
                        gain=cfg['pi_gain'],
                        )
+                 #####282.27
+        #self.add_DRAG(ch=qubit_ch, name="Drag_o_clock", sigma=cfg['sigma'], length=cfg['sigma'] * 5, delta=-282.27, alpha=0.6, det=0, even_length=True) 
+        #self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_chs[0],
+        #               style="arb",
+        #               envelope="Drag_o_clock",
+        #               freq=cfg['f_ge'],
+        #               phase=cfg['qubit_phase'],
+        #               gain=cfg['pi_gain'],
+        #               )
 
+
+        
+        ## This is my attempt at a Two Stepped Pulse                                                                     
+        ##                                                                                                            
+        ##    A Few Notes                                                                                            
+        ##                                                                                                    
+        ##  Because we delare a custom envelope it is safest to reset_gen before and after reach run,              
+        ##  this ensures we do not accidentally overlaod the board or at least it gives us an escape if we do                  
+        ##                                                                                                             
+        ##  For a similar reason we add a delay at the end of the pulse/envelope delarations. This ensures the     
+        ##  FPGA has time to set properly.                                                                       
+        ##                                                                                                              
+        ##  Skipping these two lines is a dangerous game and has resulted in a board crash requiring manual reset  
+        ##  Unfortunately as the board lives in LOUD (which is far away) this is not optimal                           
+        ##                                                                                                      
+        ##  Finally the current setting of the envelope power is sloppy given the board constraints. This can be
+        ##  Handeled more rigerously however given the parameters of LOUD's Silicon Chip this is sufficient for now
+        ##  If you have question on this ask me -Daniel Molenaar                                                         
+        ##                                                                                                            
+        ###==================================================================================================          
+        #StartTime = 0.4                                                                                                
+        v_smag = 16383#470                                                                                                   
+        sigma2 = 0.02
+        alpha =0.05
+        l_two = 0.01
+        l_base =0.9
+        ti = 0 #0 + StartTime                                                                                                  
+        omega = 1##Test Freq                                                                                   
+        stepsmall = 200
+        deslen = 0.8
+        fs_gen = self.soccfg['gens'][res_ch]['fs']
+        stepscorr = (((int(fs_gen * deslen)) + 15) // 16) * 16
+        t_new = np.linspace(0, deslen, stepscorr)
+
+        # Defining the piecewise flat-top Gaussian function f(t, sigma, ti, L)                                          
+        def f_flat(t_new, sigma2, ti, L):
+            # Gaussian Rise                                                                                               
+            rise = np.exp(-((t_new - ti)**2) / (2 * sigma2**2))
+            # Flat Top                                                                                                  
+            top = np.ones_like(t_new)
+            # Gaussian Fall                                                                                    
+            fall = np.exp(-((t_new - (ti + L))**2) / (2 * sigma2**2))
+            # Use np.select to apply conditions element-wise                                                      
+            return np.select(
+                [t_new < ti, (t_new >= ti) & (t_new < ti + L), t_new >= ti + L],
+                [rise, top, fall]
+            )
+        pulse_shape = v_smag  * (f_flat(t_new, sigma2, ti, l_base) + alpha * f_flat(t_new, sigma2, ti, l_two))
+        #pulse = v_smag * np.sin(omega*t) * (f_flat(t, sigma, ti, l_base) + alpha * f_flat(t, sigma, ti, l_two))           
+
+
+        #self.add_envelope(ch=res_ch, name="TwoStep",idata = pulse_shape)
+        #self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_chs,
+        ##               style="arb",
+        #               envelope='TwoStep',
+        #               freq= cfg['res_freq_ge'],#cfg['res_freq_ge'],
+        #               phase=cfg['ro_phase'],
+        #               gain= 1.0#cfg['res_gain_ge']+0.6                                                                      
+        #               )
+
+        self.delay(100.0)
+
+        
         #         self.add_loop("shotloop", cfg["steps"]) # number of total shots
         self.add_loop("gainloop", cfg["expts"])  # Pulse / no Pulse loop
 
@@ -58,7 +157,7 @@ class SingleShotProgram(AveragerProgramV2):
         self.delay_auto(0.01)
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)  # play probe pulse
         self.trigger(ros=cfg['ro_chs'], pins=[0], t=cfg['trig_time'])
-
+        self.reset_gens()
 
 # Separate g and e per each experiment defined.
 class SingleShotProgram_g(AveragerProgramV2):
@@ -67,28 +166,119 @@ class SingleShotProgram_g(AveragerProgramV2):
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
 
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+        #self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        #self.declare_readout(ch=cfg['ro_ch'], length= cfg['res_length'] ) #*0.73)
 
+        #self.add_readoutconfig(ch=ro_chs, name="myro",
+        #                       freq=cfg['res_freq_ge'],
+        #                       gen_ch=res_ch,
+        #                       outsel='product')
+        #self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
+        #self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_chs,
+        #               style="const",
+        #               length=cfg["res_length"],
+        #               freq=cfg['res_freq_ge'],
+        #               phase=cfg['ro_phase'],
+        #               gain=cfg['res_gain_ge']
+        #               )
+
+        #StartTime = 0.4                                                                                
+        v_smag = 16383  ## Max Power for arb signal                                                    \
+                                                                                                              
+        sigma2 = 0.003  ## Sam Suggest 0.01, TOF plots suggest 0.02 looks a lot smoother                  
+        alpha = 0.08  ### Normal Gain Units ## With this setup alpha + beta cannot be more than 0.5     
+        beta = 0.081 #0.085  ### Normal Gain units  ## sneaking around this is tough so we will ignore for now 
+        l_two = 0.00    ##Length of initial peak                                                       
+        l_base = 0.95 #0.85     ##Dominated Readout length                                                     
+
+
+        stepsmall = 3000  ##This is probably over kill but it looks nice                               
+        ti = 4*sigma2 #0 + StartTime
+        deslen = l_base+ti+ (4*sigma2)
+        alpha =alpha*4
+        beta = beta * 4
+        fs_gen = self.soccfg['gens'][res_ch]['fs']
+        stepscorr = (((int(fs_gen * deslen)) + 15) // 16) * 16
+
+        t_new = np.linspace(0, deslen, stepscorr)  
+
+        # Defining the piecewise flat-top Gaussian function f(t, sigma, ti, L)                                                    
+        def f_flat(t_new, sigma2, ti, L):
+            # Gaussian Rise                                                                                                      
+            rise = np.exp(-((t_new - ti)**2) / (2 * sigma2**2))
+            # Flat Top                                                                                                           
+            top = np.ones_like(t_new)
+            # Gaussian Fall                                                                                                      
+            fall = np.exp(-((t_new - (ti + L))**2) / (2 * sigma2**2))
+            # Use np.select to apply conditions element-wise                                                                     
+            return np.select(
+                [t_new < ti, (t_new >= ti) & (t_new < ti + L), t_new >= ti + L],
+                [rise,top,fall]
+            )
+        pulse_shape = v_smag  * (beta * f_flat(t_new, sigma2, ti, l_base) + alpha * f_flat(t_new, sigma2, ti, l_two))
+        #pulse = v_smag * np.sin(omega*t) * (f_flat(t, sigma, ti, l_base) + alpha * f_flat(t, sigma, ti, l_two))                 
+        self.add_envelope(ch=res_ch, name="TwoStep",idata = pulse_shape)
+        self.add_pulse(ch=res_ch, name="two_step", ro_ch=ro_chs,
+                       style="arb",
+                       envelope='TwoStep',
+                       freq= cfg['res_freq_ge'],#cfg['res_freq_ge'],                  
+                       phase=cfg['ro_phase'],
+                       gain= 1.0#cfg['res_gain_ge']+0.6 
+                       )
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        #self.declare_readout(ch=cfg['ro_ch'], length=deslen-0.04) #*0.73)                                         
+        self.declare_readout(ch=cfg['ro_ch'], length = cfg['res_length'])#*0.73)  
+
+
+        #self.add_envelope(ch=res_ch, name="TwoStep",idata = pulse_shape)
+        #self.add_pulse(ch=res_ch, name="two_step", ro_ch=ro_ch,
+        #               style="arb",
+        #               envelope='TwoStep',
+        #               freq= cfg['res_freq_ge'],#cfg['res_freq_ge'],                                         
+        #               phase=cfg['ro_phase'],
+        #               gain= 1.0#cfg['res_gain_ge']+0.6                                                  
+        #               )
+
+        
         self.add_readoutconfig(ch=ro_chs, name="myro",
                                freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_chs,
-                       style="const",
-                       length=cfg["res_length"],
-                       freq=cfg['res_freq_ge'],
+
+        self.add_gauss(ch=res_ch, name="ramp_1", sigma=0.07, length=0.07 * 2, even_length=False)
+        #self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_chs,
+        #               style="flat_top",
+        #               envelope	= 'ramp_1',
+        #               length=cfg["res_length"],
+        #               freq=cfg['res_freq_ge'],
+        #               phase=cfg['ro_phase'],
+        #               gain=cfg['res_gain_ge']*2
+        #               )
+
+
+        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_chs,                                                            
+                       style="const",                                                                
+                       length=cfg["res_length"],                                                            
+                       freq=cfg['res_freq_ge'],                                                            
                        phase=cfg['ro_phase'],
                        gain=cfg['res_gain_ge']
-                       )
+                       )     
 
+        
+        self.delay(100.0)
+
+        
         self.add_loop("shotloop", cfg["steps"])  # number of total shots
 
     def _body(self, cfg):
         self.delay_auto(0.01)
-        self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)  # play probe pulse
-        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+        self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)  # play probe pulse 
+        #self.pulse(ch=cfg['res_ch'], name="two_step", t=0)  # play probe pulse
+        #self.trigger(ros=[cfg['ro_ch']], pins=[0],t = cfg['trig_time']+0.07)#0.35+0.375)#
+        self.trigger(ros=[cfg['ro_ch']], pins=[0],t = cfg['trig_time']+0.0)#+0.1)#0.35+0.375)#   
+        #self.reset_gens()
         # relax delay ...
 
 
@@ -97,27 +287,111 @@ class SingleShotProgram_e(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
+        #self.reset_gens()
+        #self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        #self.declare_readout(ch=cfg['ro_ch'], length = cfg['res_length'])#*0.73)
+
+        #self.add_readoutconfig(ch=ro_ch, name="myro",
+        #                       freq=cfg['res_freq_ge'],
+        #                       gen_ch=res_ch,
+        #                       outsel='product')
+        #self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
+        #self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
+        #               style="const",
+        #               length=cfg["res_length"],
+        #               freq=cfg['res_freq_ge'],
+        #               phase=cfg['ro_phase'],
+        #               gain=cfg['res_gain_ge']
+        #               )
+
+        v_smag = 16383  ## Max Power for arb signal                                         
+        sigma2 = 0.003  ## Sam Suggest 0.01, TOF plots suggest 0.02 looks a lot smoother                  
+        alpha = 0.08   ### Normal Gain Units ## With this setup alpha + beta cannot be more than 0.5     
+        beta = 0.081 #0.085  ### Normal Gain units  ## sneaking around this is tough so we will ignore for now       
+        l_two = 0.00    ##Length of initial peak                                                                 
+        l_base = 0.95  #0.85    ##Dominated Readout length                                                        
+
+        stepsmall = 3000  ##This is probably over kill but it looks nice
+        ti = 4*sigma2 #0 + StartTime
+        deslen = l_base+ti+ (4*sigma2)
+        alpha =alpha*4
+        beta = beta * 4
+        fs_gen = self.soccfg['gens'][res_ch]['fs']
+        stepscorr = (((int(fs_gen * deslen)) + 15) // 16) * 16
+
+        t_new = np.linspace(0, deslen, stepscorr)
+
+        # Defining the piecewise flat-top Gaussian function f(t, sigma, ti, L)                                                   
+        def f_flat(t_new, sigma2, ti, L):
+            # Gaussian Rise                                                                                                      
+            rise = np.exp(-((t_new - ti)**2) / (2 * sigma2**2))
+            # Flat Top                                                                                                           
+            top = np.ones_like(t_new)
+            # Gaussian Fall                                                                                                      
+            fall = np.exp(-((t_new - (ti + L))**2) / (2 * sigma2**2))
+            # Use np.select to apply conditions element-wise                                                                     
+            return np.select(
+                [t_new < ti, (t_new >= ti) & (t_new < ti + L), t_new >= ti + L],
+                [rise, top, fall]
+            )
+        pulse_shape = v_smag  * (beta * f_flat(t_new, sigma2, ti, l_base) + alpha * f_flat(t_new, sigma2, ti, l_two))
+        #pulse = v_smag * np.sin(omega*t) * (f_flat(t, sigma, ti, l_base) + alpha * f_flat(t, sigma, ti, l_two))
+        
+        #self.add_envelope(ch=res_ch, name="TwoStep",idata = pulse_shape)
+        #self.add_pulse(ch=res_ch, name="two_step", ro_ch=ro_ch,
+        #               style="arb",
+        #               envelope='TwoStep',
+        #               freq= cfg['res_freq_ge'],#cfg['res_freq_ge'],                              
+        #               phase=cfg['ro_phase'],
+        #               gain= 1.0#cfg['res_gain_ge']+0.6                 
+        #               )
 
         self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+        #self.declare_readout(ch=cfg['ro_ch'], length = deslen-0.04)#*0.73)  
+        self.declare_readout(ch=cfg['ro_ch'], length = cfg['res_length']-0.0)#*0.73)   
 
+        self.add_envelope(ch=res_ch, name="TwoStep",idata = pulse_shape)
+        self.add_pulse(ch=res_ch, name="two_step", ro_ch=ro_ch,
+                       style="arb",
+                       envelope='TwoStep',
+                       freq= cfg['res_freq_ge'],#cfg['res_freq_ge'],                                
+                       phase=cfg['ro_phase'],
+                       gain= 1.0#cfg['res_gain_ge']+0.6                                  
+                       )
+
+        
         self.add_readoutconfig(ch=ro_ch, name="myro",
                                freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
-                       style="const",
-                       length=cfg["res_length"],
-                       freq=cfg['res_freq_ge'],
-                       phase=cfg['ro_phase'],
-                       gain=cfg['res_gain_ge']
-                       )
 
+        self.add_gauss(ch=res_ch, name="ramp_1", sigma=0.07, length=0.07 * 2, even_length=False)
+        #self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
+        #               style="flat_top",
+        #               envelope = 'ramp_1',
+        #               length=cfg["res_length"],
+        #               freq=cfg['res_freq_ge'],
+        #               phase=cfg['ro_phase'],
+        #               gain=cfg['res_gain_ge']*2
+        #               )
+
+        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,                                                              
+                       style="const",                                                                                        
+                       length=cfg["res_length"],                                                                   
+                       freq=cfg['res_freq_ge'],                                                                    
+                       phase=cfg['ro_phase'],                                                                   
+                       gain=cfg['res_gain_ge']                                                                  
+                       )  
+
+
+
+        
+        self.delay(100.0)
+        
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
 
         self.add_gauss(ch=qubit_ch, name="ramp", sigma=cfg['sigma'], length=cfg['sigma'] * 4, even_length=False)
-
         self.add_pulse(ch=qubit_ch, name="qubit_pulse",
                        style="arb",
                        envelope="ramp",
@@ -125,6 +399,18 @@ class SingleShotProgram_e(AveragerProgramV2):
                        phase=cfg['qubit_phase'],
                        gain=cfg['pi_amp'],
                        )
+
+                ## Here I try to use the DRAG pulse as defined in the QICK Code Base                                                                                                                                                                       
+        self.add_DRAG(ch=qubit_ch, name="Drag_o_clock", sigma=cfg['sigma'], length=cfg["sigma"]*4, delta=280.5, alpha=1.0, even_length=False)            
+        self.add_pulse(ch=qubit_ch, name="drag_pulse", ro_ch=ro_ch,                                                                                     
+                       style="arb",                                                                             
+                       envelope = "Drag_o_clock",                                                                                         
+                       freq=cfg['qubit_freq_ge'],                                           
+                       phase=cfg['qubit_phase'],                                                          
+                       gain=cfg['pi_amp']                                                                                                
+                       )                                                                                                                                                                                       
+
+
         # print('cfg[pi_amp]',cfg['pi_amp'])
         # print('cfg[qubit_freq_ge]', cfg['qubit_freq_ge'])
         # print('cfg[res_freq_ge]', cfg['res_freq_ge'])
@@ -133,9 +419,29 @@ class SingleShotProgram_e(AveragerProgramV2):
 
     def _body(self, cfg):
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)  # play pulse
+        #self.pulse(ch=self.cfg["qubit_ch"], name="drag_pulse", t=0)  # play pulse 
         self.delay_auto(0.0)
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)  # play probe pulse
-        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+        #self.pulse(ch=cfg['res_ch'], name="two_step", t=0)  # play probe pulse 
+        #self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time']+0.07)#0.35+0.375)
+        #self.delay(100.0)
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time']+0.0)#+0.1)#0.35+0.375)   
+        self.delay(100.0)
+        #self.reset_gens()
+        ################ Active Reset #################################
+        # self.wait_auto(cfg['res_length'])
+        # self.delay_auto(cfg['res_length']*2)
+        # #
+        # self.read_and_jump(ro_ch=cfg['ro_ch'][1],
+        #                     component='I',
+        #                     threshold=int(cfg['threshold'] * (cfg['res_length'] / 0.026)),
+        #                     test="<", label='skip everything')
+        
+        # self.pulse(ch=self.cfg["qubit_ch"], name="ge_pi_pulse", t=0)
+        # self.label('skip everything')
+        
+        
+        
 
 class SingleShot:
     def __init__(self, QubitIndex, number_of_qubits,  outerFolder, round_num, save_figs=False, experiment = None,
@@ -155,7 +461,7 @@ class SingleShot:
         self.verbose = verbose
         self.logger = logger if logger is not None else logging.getLogger("custom_logger_for_rr_only")
         self.exp_cfg = expt_cfg[self.expt_name]
-
+        self.experiment.soc.reset_gens()
         if unmasking_resgain:
             self.exp_cfg["list_of_all_qubits"] = [QubitIndex]
 
@@ -177,6 +483,9 @@ class SingleShot:
                                     cfg=self.config)
         iq_list_g = ssp_g.acquire(soc,  progress=False)
 
+        print(iq_list_g)
+
+        
         ssp_e = SingleShotProgram_e(soccfg,  reps=1, final_delay=self.config['relax_delay'],
                                     cfg=self.config)
         iq_list_e = ssp_e.acquire(soc, progress=False)
@@ -185,15 +494,18 @@ class SingleShot:
         fidelity, _, _, _,_ = self.hist_ssf(
             data=[iq_list_g[0][0].T[0], iq_list_g[0][0].T[1],
                   iq_list_e[0][0].T[0], iq_list_e[0][0].T[1]],
-            cfg=self.config, plot=False)
+            cfg=self.config, plot=True)
 
         return fidelity
 
     def run(self):
         ssp_g = SingleShotProgram_g(self.experiment.soccfg, reps=1, final_delay=self.config['relax_delay'], cfg=self.config)
         iq_list_g = ssp_g.acquire(self.experiment.soc,  progress=True)
+        #print(iq_list_g)
         g_shots= ssp_g.get_raw()
-
+        #print(g_shots)
+        #crash1=crasher1
+        
         ssp_e = SingleShotProgram_e(self.experiment.soccfg, reps=1, final_delay=self.config['relax_delay'], cfg=self.config)
         iq_list_e = ssp_e.acquire(self.experiment.soc,  progress=True)
         e_shots= ssp_e.get_raw()
@@ -201,6 +513,7 @@ class SingleShot:
 
         fid, angle = self.plot_results(iq_list_g, iq_list_e, self.QubitIndex)
         #fid, angle = self.plot_results(g_shots, e_shots, self.QubitIndex)
+        #self.experiment.soc.reset_gens()
         return fid, angle, iq_list_g, iq_list_e, self.config
 
     def plot_results(self, iq_list_g, iq_list_e, QubitIndex,  fig_quality=100):
@@ -244,7 +557,7 @@ class SingleShot:
             axs[0].set_xlabel('I (a.u.)')
             axs[0].set_ylabel('Q (a.u.)')
             axs[0].legend(loc='upper right')
-            axs[0].set_title('Unrotated')
+            axs[0].set_title(f'Unrotated: res_gain={self.config["res_gain_ge"]}\n res_len={self.config["res_length"]} us')
             axs[0].axis('equal')
         """Compute the rotation angle"""
         theta = -np.arctan2((ye - yg), (xe - xg))
@@ -269,9 +582,11 @@ class SingleShot:
             axs[1].scatter(xe, ye, color='k', marker='o')
             axs[1].set_xlabel('I (a.u.)')
             axs[1].legend(loc='lower right')
-            axs[1].set_title(f'Rotated Theta:{round(theta, 5)}')
+            axs[1].set_title(f'Rotated Theta:{round(theta, 5)}:\n  res_gain={self.config["res_gain_ge"]}\n res_len={self.config["res_length"]} us')
             axs[1].axis('equal')
 
+            
+            
             """X and Y ranges for histogram"""
             ng, binsg, pg = axs[2].hist(ig_new, bins=numbins, range=xlims, color='b', label='g', alpha=0.2)
             ne, binse, pe = axs[2].hist(ie_new, bins=numbins, range=xlims, color='r', label='e', alpha=0.2)
@@ -301,6 +616,8 @@ class SingleShot:
                                      f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" + self.expt_name+ f"{formatted_datetime}_"  + f"_q{self.QubitIndex + 1}.png")
 
             axs[2].set_title(f"Fidelity = {fid * 100:.2f}%")
+            #axs[2].set_yscale('log')
+            #axs[2].set_ylim(0,500)
             fig.savefig(file_name,  dpi=fig_quality, bbox_inches='tight')
             plt.close(fig)
 
@@ -456,6 +773,8 @@ class SingleShot:
             axs[2].set_title(f"Fidelity = {fid * 100:.2f}%")
             axs[2].set_xlabel('I (rot, a.u.)')
             axs[2].legend(loc='upper right')
+            #axs[2].set_yscale('log')
+            #axs[2].set_ylim(0,500)
 
             # ---- Save like before ----
             self.create_folder_if_not_exists(self.outerFolder)
@@ -688,6 +1007,8 @@ class SingleShot:
                 f"R_{self.round_num}_Q_{self.QubitIndex + 1}_{self.expt_name}{now}_q{self.QubitIndex + 1}.png"
             )
             axs[2].set_title(f"Fidelity = {fid * 100:.2f}%")
+            #axs[2].set_yscale('log')
+            #axs[2].set_ylim(0,500)
             plt.tight_layout()
             fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')
             plt.close(fig)
@@ -983,6 +1304,8 @@ class SingleShot:
                 f"R_{self.round_num}_Q_{self.QubitIndex + 1}_{self.expt_name}{now}_q{self.QubitIndex + 1}.png"
             )
             axs[2].set_title(f"Fidelity = {fid * 100:.2f}%")
+            axs[2].set_yscale('log')
+            axs[2].set_ylim(0,500)
             plt.tight_layout()
             fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')
             plt.close(fig)

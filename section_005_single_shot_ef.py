@@ -72,7 +72,7 @@ class SingleShotProgram_g(AveragerProgramV2):
         self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
 
         self.add_readoutconfig(ch=ro_chs, name="myro",
-                               freq=cfg['res_freq_ef'],
+                               freq=cfg['res_freq_ge'], #[cfg["list_of_all_qubits"][0]],
                                gen_ch=gen_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
@@ -80,7 +80,7 @@ class SingleShotProgram_g(AveragerProgramV2):
         self.add_pulse(ch=gen_ch, name="res_pulse", ro_ch=ro_chs,
                        style="const",
                        length=cfg["res_length"],
-                       freq=cfg['res_freq_ef'],
+                       freq=cfg['res_freq_ge'], #[cfg["list_of_all_qubits"][0]],
                        phase=cfg['ro_phase'],
                        gain=cfg['res_gain_ge']
                        )
@@ -103,7 +103,7 @@ class SingleShotProgram_e(AveragerProgramV2):
         self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
 
         self.add_readoutconfig(ch=ro_chs, name="myro",
-                               freq=cfg['res_freq_ef'],
+                               freq=cfg['res_freq_ge'],#[cfg["list_of_all_qubits"][0]],
                                gen_ch=gen_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
@@ -111,9 +111,9 @@ class SingleShotProgram_e(AveragerProgramV2):
         self.add_pulse(ch=gen_ch, name="res_pulse", ro_ch=ro_chs,
                        style="const",
                        length=cfg["res_length"],
-                       freq=cfg['res_freq_ef'],
+                       freq=cfg['res_freq_ge'],#[cfg["list_of_all_qubits"][0]],
                        phase=cfg['ro_phase'],
-                       gain=cfg['res_gain_ef']
+                       gain=cfg['res_gain_ge']
                        )
 
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
@@ -146,7 +146,7 @@ class SingleShotProgram_f(AveragerProgramV2):
         self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
 
         self.add_readoutconfig(ch=ro_chs, name="myro",
-                               freq=cfg['res_freq_ef'],
+                               freq=cfg['res_freq_ge'],# [cfg["list_of_all_qubits"][0]],
                                gen_ch=gen_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
@@ -154,9 +154,9 @@ class SingleShotProgram_f(AveragerProgramV2):
         self.add_pulse(ch=gen_ch, name="res_pulse", ro_ch=ro_chs,
                        style="const",
                        length=cfg["res_length"],
-                       freq=cfg['res_freq_ef'],
+                       freq=cfg['res_freq_ge'],#[cfg["list_of_all_qubits"][0]],
                        phase=cfg['ro_phase'],
-                       gain=cfg['res_gain_ef']
+                       gain=cfg['res_gain_ge']
                        )
 
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
@@ -200,7 +200,7 @@ class SingleShotProgram_h(AveragerProgramV2):
         self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
 
         self.add_readoutconfig(ch=ro_chs, name="myro",
-                               freq=cfg['res_freq_fh'],
+                               freq=cfg['res_freq_ge'], #[cfg["list_of_all_qubits"][0]],
                                gen_ch=gen_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
@@ -208,9 +208,9 @@ class SingleShotProgram_h(AveragerProgramV2):
         self.add_pulse(ch=gen_ch, name="res_pulse", ro_ch=ro_chs,
                        style="const",
                        length=cfg["res_length"],
-                       freq=cfg['res_freq_fh'],
+                       freq=cfg['res_freq_ge'], #[cfg["list_of_all_qubits"][0]],
                        phase=cfg['ro_phase'],
-                       gain=cfg['res_gain_fh']
+                       gain=cfg['res_gain_ge'] #[cfg["list_of_all_qubits"][0]]
                        )
 
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
@@ -297,11 +297,11 @@ class SingleShot_ef:
         print('config', self.config)
         ssp_e = SingleShotProgram_e(self.experiment.soccfg, reps=1, final_delay=self.config['relax_delay'],
                                     cfg=self.config)
-        iq_list_e = ssp_e.acquire(self.experiment.soc, rounds=1, progress=True)
+        iq_list_e = ssp_e.acquire(self.experiment.soc, progress=True)
 
         ssp_f = SingleShotProgram_f(self.experiment.soccfg, reps=1, final_delay=self.config['relax_delay'],
                                     cfg=self.config)
-        iq_list_f = ssp_f.acquire(self.experiment.soc, rounds=1, progress=True)
+        iq_list_f = ssp_f.acquire(self.experiment.soc, progress=True)
 
         # Use the fidelity calculation from SingleShotGE
         # fid, theta_ef, ie_new, qe_new, if_new, qf_new, threshold_ef = self.hist_ssf(self.config["res_freq_ef"][self.QubitIndex],  self.config["res_gain_ef"][self.QubitIndex], outerfolder_plots,
@@ -310,8 +310,8 @@ class SingleShot_ef:
         #     cfg=self.config, plot=True)
         fid, theta_ef, ie_new, qe_new, if_new, qf_new, threshold_ef = self.hist_ssf(
             outerfolder_plots,
-            data=[iq_list_e[self.QubitIndex][0].T[0], iq_list_e[self.QubitIndex][0].T[1],
-                  iq_list_f[self.QubitIndex][0].T[0], iq_list_f[self.QubitIndex][0].T[1]],
+            data=[iq_list_e[0].T[0], iq_list_e[0].T[1],
+                  iq_list_f[0].T[0], iq_list_f[0].T[1]],
             cfg=self.config, plot=True)
 
         return fid, theta_ef, ie_new, qe_new, if_new, qf_new
@@ -319,44 +319,61 @@ class SingleShot_ef:
     def run(self):
         ssp_g = SingleShotProgram_g(self.experiment.soccfg, reps=1, final_delay=self.config['relax_delay'],
                                     cfg=self.config)
-        iq_list_g = ssp_g.acquire(self.experiment.soc, rounds=1, progress=True)
+        iq_list_g = ssp_g.acquire(self.experiment.soc, progress=True)
 
         ssp_e = SingleShotProgram_e(self.experiment.soccfg, reps=1, final_delay=self.config['relax_delay'],
                                     cfg=self.config)
-        iq_list_e = ssp_e.acquire(self.experiment.soc, rounds=1, progress=True)
+        iq_list_e = ssp_e.acquire(self.experiment.soc, progress=True)
 
         ssp_f = SingleShotProgram_f(self.experiment.soccfg, reps=1, final_delay=self.config['relax_delay'],
                                     cfg=self.config)
-        iq_list_f = ssp_f.acquire(self.experiment.soc, rounds=1, progress=True)
+        iq_list_f = ssp_f.acquire(self.experiment.soc, progress=True)
 
-        ssp_h = SingleShotProgram_h(self.experiment.soccfg, reps=1, final_delay=self.config['relax_delay'],
-                                    cfg=self.config)
-        iq_list_h = ssp_h.acquire(self.experiment.soc, rounds=1, progress=True)
+        #ssp_h = SingleShotProgram_h(self.experiment.soccfg, reps=1, final_delay=self.config['relax_delay'],
+        #                            cfg=self.config)
+        #iq_list_h = ssp_h.acquire(self.experiment.soc, progress=True)
 
-        fid, fid_fh, theta_ef, theta_fh, ie_new, qe_new, if_new, qf_new, threshold_ef, ih_new, qh_new, threshold_fh = self.plot_results(self.outerFolder, iq_list_g, iq_list_e,
-                                                                        iq_list_f, iq_list_h, self.QubitIndex)
+        fid, theta_ef, ie_new, qe_new, if_new, qf_new, threshold_ef = self.plot_results(self.outerFolder, iq_list_g, iq_list_e,
+                                                                        iq_list_f, self.QubitIndex)
+
+        #fid, fid_fh, theta_ef, theta_fh, ie_new, qe_new, if_new, qf_new, threshold_ef, ih_new, qh_new, threshold_fh = self.plot_results(self.outerFolder, iq_list_g, iq_list_e,
+        #                                                                iq_list_f, iq_list_h, self.QubitIndex)
         # ie_new, qe_new, if_new, qf_new, theta_ef, threshold_ef = self.plot_results( iq_list_e,iq_list_f,self.QubitIndex)
         # return fid, angle, iq_list_g, iq_list_e, iq_list_f
-        return iq_list_e, iq_list_f, ie_new, if_new, theta_ef, theta_fh,  threshold_ef, threshold_fh , self.config, fid, fid_fh
-
-    def plot_results(self, outerfolder_plots, iq_list_g, iq_list_e, iq_list_f, iq_list_h, QubitIndex, fig_quality=100):
-        I_g = iq_list_g[QubitIndex][0].T[0]
-        Q_g = iq_list_g[QubitIndex][0].T[1]
-        I_e = iq_list_e[QubitIndex][0].T[0]
-        Q_e = iq_list_e[QubitIndex][0].T[1]
-        I_f = iq_list_f[QubitIndex][0].T[0]
-        Q_f = iq_list_f[QubitIndex][0].T[1]
-        I_h = iq_list_h[QubitIndex][0].T[0]
-        Q_h = iq_list_h[QubitIndex][0].T[1]
+        #return iq_list_g, iq_list_e, iq_list_f, ie_new, if_new, theta_ef, theta_fh,  threshold_ef, threshold_fh , self.config, fid, fid_fh
+        return iq_list_g, iq_list_e, iq_list_f, ie_new, if_new, theta_ef,  threshold_ef, self.config, fid
+        
+    def plot_results(self, outerfolder_plots, iq_list_g, iq_list_e, iq_list_f, QubitIndex, fig_quality=100):
+        print(QubitIndex)
+        print(iq_list_g)
+        print(iq_list_g)
+        I_g = iq_list_g[0].T[0]
+        Q_g = iq_list_g[0].T[1]
+        I_e = iq_list_e[0].T[0]
+        Q_e = iq_list_e[0].T[1]
+        I_f = iq_list_f[0].T[0]
+        Q_f = iq_list_f[0].T[1]
+        #I_h = iq_list_h[0].T[0]
+        #Q_h = iq_list_h[0].T[1]
         print(QubitIndex)
         # fid, theta_ef, ie_new, qe_new, if_new, qf_new, threshold_ef
 
+    #def plot_results(self, outerfolder_plots, iq_list_g, iq_list_e, iq_list_f, iq_list_h, QubitIndex, fig_quality=100): 
+
+
+
+        
         # fid, theta_ef,  ie_new, qe_new, if_new, qf_new, threshold_ef  = self.hist_ssf(outerfolder_plots, data=[I_g, Q_g, I_e, Q_e, I_f, Q_f, I_h, Q_h], cfg=self.config, plot=self.save_figs,  fig_quality=fig_quality)
 
-        fid, fid_fh, theta_ef, theta_fh, ie_new, qe_new, if_new, qf_new, threshold_ef, ih_new, qh_new, threshold_fh = self.hist_ssf(
-            outerfolder_plots, data=[I_g, Q_g, I_e, Q_e, I_f, Q_f, I_h, Q_h], cfg=self.config, plot=self.save_figs,
+        fid, theta_ef, ie_new, qe_new, if_new, qf_new, threshold_ef = self.hist_ssf(
+            outerfolder_plots, data=[I_g, Q_g, I_e, Q_e, I_f, Q_f], cfg=self.config, plot=self.save_figs,
             fig_quality=fig_quality)
 
+        #fid, fid_fh, theta_ef, theta_fh, ie_new, qe_new, if_new, qf_new, threshold_ef, ih_new, qh_new, threshold_fh = self.hist_ssf(
+        #    outerfolder_plots, data=[I_g, Q_g, I_e, Q_e, I_f, Q_f, I_h, Q_h], cfg=self.config, plot=self.save_figs,
+        #    fig_quality=fig_quality)
+
+        
         # fid, theta_ef, ig_new, ie_new, qe_new, if_new, qf_new, threshold_ef = self.hist_ssf(outerfolder_plots, data=[I_e, Q_e, I_f, Q_f], cfg=self.config, plot=self.save_figs,  fig_quality=fig_quality)
 
         # print('Optimal fidelity after rotation = %.3f' % fid)
@@ -367,7 +384,8 @@ class SingleShot_ef:
         #     return ie_new, qe_new, if_new, qf_new, theta_ef, threshold_ef
 
         # return ie_new,  if_new,  theta_ef, threshold_ef, fid
-        return fid, fid_fh, theta_ef, theta_fh, ie_new, qe_new, if_new, qf_new, threshold_ef, ih_new, qh_new, threshold_fh
+        return fid, theta_ef, ie_new, qe_new, if_new, qf_new, threshold_ef
+        #return fid, fid_fh, theta_ef, theta_fh, ie_new, qe_new, if_new, qf_new, threshold_ef, ih_new, qh_new, threshold_fh
 
 
     # def hist_ssf(self, freq, gain, outerfolder_plots, data=None, cfg=None, plot=True, fig_quality=100):
@@ -378,29 +396,29 @@ class SingleShot_ef:
         qe = data[3]
         i_f = data[4]
         qf = data[5]
-        ih = data[6]
-        qh = data[7]
+        #ih = data[6]
+        #qh = data[7]
 
         numbins = round(math.sqrt(float(cfg["steps"])))
 
         xg, yg = np.median(ig), np.median(qg)
         xe, ye = np.median(ie), np.median(qe)
         xf, yf = np.median(i_f), np.median(qf)
-        xh, yh = np.median(ih), np.median(qh)
+        #xh, yh = np.median(ih), np.median(qh)
 
         if plot == True:
             fig, axs = plt.subplots(nrows=1, ncols=3, figsize=(16, 4))
             fig.tight_layout()
 
-            # axs[0].scatter(ig, qg, label='g', color='b', marker='*', alpha=0.3)
-            # axs[0].scatter(ie, qe, label='e', color='r', marker='*', alpha=0.3)
+            axs[0].scatter(ig, qg, label='g', color='b', marker='*', alpha=0.3)
+            axs[0].scatter(ie, qe, label='e', color='r', marker='*', alpha=0.3)
             axs[0].scatter(i_f, qf, label='f', color='g', marker='*', alpha=0.3)
-            axs[0].scatter(ih, qh, label='h', color='y', marker='*', alpha=0.3)
+            #axs[0].scatter(ih, qh, label='h', color='y', marker='*', alpha=0.3)
 
-            # axs[0].scatter(xg, yg, color='k', marker='o')
-            # axs[0].scatter(xe, ye, color='k', marker='o')
+            axs[0].scatter(xg, yg, color='k', marker='o')
+            axs[0].scatter(xe, ye, color='k', marker='o')
             axs[0].scatter(xf, yf, color='k', marker='o')
-            axs[0].scatter(xh, yh, color='k', marker='o')
+            #axs[0].scatter(xh, yh, color='k', marker='o')
 
             axs[0].set_xlabel('I (a.u.)')
             axs[0].set_ylabel('Q (a.u.)')
@@ -414,45 +432,48 @@ class SingleShot_ef:
 
         """Compute the rotation angle"""
         # Will use the same angle to rotate all datasets (g, e, and f), to ensure that all states are rotated into a common frame for direct comparison.
+        theta_ge = -np.arctan2((ye - yg), (xe - xg))
         theta_ef = -np.arctan2((yf - ye), (xf - xe))
         theta_gf = -np.arctan2((yf - yg), (xf - xg))
-        theta_fh = -np.arctan2((yh - yf), (xh - xf)) + (np.pi/8)
-        # theta_fh = np.arctan2((yf - yh), (xf - xh))
+        #theta_fh = -np.arctan2((yh - yf), (xh - xf)) + (np.pi/8)
+        #theta_fh = np.arctan2((yf - yh), (xf - xh))
 
         """Rotate the IQ data"""
-        # ig_new = ig * np.cos(theta_ge) - qg * np.sin(theta_ge)
-        # qg_new = ig * np.sin(theta_ge) + qg * np.cos(theta_ge)
+        ig_new = ig * np.cos(theta_ge) - qg * np.sin(theta_ge)
+        qg_new = ig * np.sin(theta_ge) + qg * np.cos(theta_ge)
         ie_new = ie * np.cos(theta_ef) - qe * np.sin(theta_ef)
         qe_new = ie * np.sin(theta_ef) + qe * np.cos(theta_ef)
 
         if_new = i_f * np.cos(theta_ef) - qf * np.sin(theta_ef)
         qf_new = i_f * np.sin(theta_ef) + qf * np.cos(theta_ef)
 
-        ih_new = ih * np.cos(theta_fh) - qh * np.sin(theta_fh)
-        qh_new = ih * np.sin(theta_fh) + qh * np.cos(theta_fh)
+        #ih_new = ih * np.cos(theta_fh) - qh * np.sin(theta_fh)
+        #qh_new = ih * np.sin(theta_fh) + qh * np.cos(theta_fh)
 
         """New means of each blob"""
-        # xg, yg = np.median(ig_new), np.median(qg_new)
+        xg, yg = np.median(ig_new), np.median(qg_new)
         xe, ye = np.median(ie_new), np.median(qe_new)
         xf, yf = np.median(if_new), np.median(qf_new)
-        xh, yh = np.median(ih_new), np.median(qh_new)
+        #xh, yh = np.median(ih_new), np.median(qh_new)
 
         # print(xg, xe)
-        # xlims = [xg - ran, xg + ran]
-        xlims = [np.min(if_new), np.max(ih_new)]
+        #xlims = [xg - ran, xg + ran]
+        #xlims = [np.min(if_new), np.max(ih_new)]
+        xlims = [np.min(ig_new), np.max(if_new)]
 
+        
         if plot == True:
-            # axs[1].scatter(ig_new, qg_new, label='g', color='b', marker='*')
-            # axs[1].scatter(ie_new, qe_new, label='e', color='r', marker='*', alpha=0.3)
+            axs[1].scatter(ig_new, qg_new, label='g', color='b', marker='*')
+            axs[1].scatter(ie_new, qe_new, label='e', color='r', marker='*', alpha=0.3)
             axs[1].scatter(if_new, qf_new, label='f', color='g', marker='*', alpha=0.3)
-            axs[1].scatter(ih_new, qh_new, label='h', color='y', marker='*', alpha=0.3)
-            # axs[1].scatter(xg, yg, color='k', marker='o')
-            # axs[1].scatter(xe, ye, color='k', marker='o')
+            #axs[1].scatter(ih_new, qh_new, label='h', color='y', marker='*', alpha=0.3)
+            axs[1].scatter(xg, yg, color='k', marker='o')
+            axs[1].scatter(xe, ye, color='k', marker='o')
             axs[1].scatter(xf, yf, color='k', marker='o')
-            axs[1].scatter(xh, yh, color='k', marker='o')
+            #axs[1].scatter(xh, yh, color='k', marker='o')
             axs[1].set_xlabel('I (a.u.)')
             axs[1].legend(loc='lower right')
-            axs[1].set_title(f'Rotated Theta:{round(theta_fh, 5)}')
+             #axs[1].set_title(f'Rotated Theta:{round(theta_fh, 5)}')
             axs[1].axis('equal')
 
             # --- Draw a circle around the f-state centroid ---
@@ -468,17 +489,17 @@ class SingleShot_ef:
             # -----------------------------------------------------
 
             """X and Y ranges for histogram"""
-            # ng, binsg, pg = axs[2].hist(ig_new, bins=numbins, range=xlims, color='b', label='g', alpha=0.5)
+            ng, binsg, pg = axs[2].hist(ig_new, bins=numbins, range=xlims, color='b', label='g', alpha=0.5)
             ne, binse, pe = axs[2].hist(ie_new, bins=numbins, range=xlims, color='r', label='e', alpha=0.3)
             nf, binsf, pf = axs[2].hist(if_new, bins=numbins, range=xlims, color='g', label='f', alpha=0.3)
-            nh, binsh, ph = axs[2].hist(ih_new, bins=numbins, range=xlims, color='y', label='h', alpha=0.3)
+            #nh, binsh, ph = axs[2].hist(ih_new, bins=numbins, range=xlims, color='y', label='h', alpha=0.3)
 
             axs[2].set_xlabel('I(a.u.)')
         else:
-            # ng, binsg = np.histogram(ig_new, bins=numbins, range=xlims)
+            ng, binsg = np.histogram(ig_new, bins=numbins, range=xlims)
             ne, binse = np.histogram(ie_new, bins=numbins, range=xlims)
             nf, binsf = np.histogram(if_new, bins=numbins, range=xlims)
-            nh, binsh = np.histogram(ih_new, bins=numbins, range=xlims)
+            #nh, binsh = np.histogram(ih_new, bins=numbins, range=xlims)
 
         """Compute the fidelity using overlap of the histograms"""
         contrast = np.abs(((np.cumsum(ne) - np.cumsum(nf)) / (0.5 * ne.sum() + 0.5 * nf.sum())))
@@ -486,10 +507,10 @@ class SingleShot_ef:
         threshold_ef = binse[tind]
         fid = contrast[tind]
 
-        contrast_fh = np.abs(((np.cumsum(nf) - np.cumsum(nh)) / (0.5 * nf.sum() + 0.5 * nh.sum())))
-        tind_fh = contrast_fh.argmax()
-        threshold_fh = binsf[tind_fh]
-        fid_fh = contrast_fh[tind_fh]
+        #contrast_fh = np.abs(((np.cumsum(nf) - np.cumsum(nh)) / (0.5 * nf.sum() + 0.5 * nh.sum())))
+        #tind_fh = contrast_fh.argmax()
+        #threshold_fh = binsf[tind_fh]
+        #fid_fh = contrast_fh[tind_fh]
 
         if plot == True:
             outerFolder_expt = os.path.join(outerfolder_plots, "ss_repeat_meas_efh")
@@ -501,15 +522,15 @@ class SingleShot_ef:
             file_name = os.path.join(outerFolder_expt,
                                      f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" + f"{formatted_datetime}_" + self.expt_name + f"_q{self.QubitIndex + 1}.png")
 
-            axs[2].set_title(f"EF Fidelity = {fid * 100:.2f}% \n FH Fidelity = {fid_fh * 100:.2f}%")  # , freq={freq}MHz, gain={gain}")
+            #axs[2].set_title(f"EF Fidelity = {fid * 100:.2f}% \n FH Fidelity = {fid_fh * 100:.2f}%")  # , freq={freq}MHz, gain={gain}")
             fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')
             plt.close(fig)
 
             # return fid, threshold_ge, theta, ig_new, ie_new, if_new
 
             # return fid, theta_ef, ie_new, qe_new, if_new, qf_new, threshold_ef
-            return fid, fid_fh, theta_ef, theta_fh, ie_new, qe_new, if_new, qf_new, threshold_ef, ih_new, qh_new, threshold_fh
-
+            return fid, theta_ef, ie_new, qe_new, if_new, qf_new, threshold_ef
+            #return fid, fid_fh, theta_ef, theta_fh, ie_new, qe_new, if_new, qf_new, threshold_ef, ih_new, qh_new, threshold_fh
 
     def create_folder_if_not_exists(self, folder):
         """Creates a folder at the given path if it doesn't already exist."""

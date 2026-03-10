@@ -75,7 +75,7 @@ class QubitSpectroscopy:
 
     def run(self,return_fwhm=False, scaling=False):
         print(' self.expt_name', self.expt_name)
-
+#        time.sleep(30)
         if self.increase_reps:
             self.config['reps'] = self.increase_reps_to
         qspec = PulseProbeSpectroscopyProgram(self.experiment.soccfg, reps=self.config['reps'],  final_delay=0.5, cfg=self.config)

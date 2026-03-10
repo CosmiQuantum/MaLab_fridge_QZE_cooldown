@@ -69,8 +69,21 @@ class SingleShotProgram_g(AveragerProgramV2):
         self.declare_gen(ch=gen_ch, nqz=cfg['nqz_res'])
         self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
 
+        # self.add_readoutconfig(ch=ro_chs, name="myro",
+        #                        freq=cfg['res_freq_ge'],
+        #                        gen_ch=gen_ch,
+        #                        outsel='product')
+        # self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
+        # self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+        # self.add_pulse(ch=gen_ch, name="res_pulse", ro_ch=ro_chs,
+        #                style="const",
+        #                length=cfg["res_length"],
+        #                freq=cfg['res_freq_ge'],
+        #                phase=cfg['ro_phase'],
+        #                gain=cfg['res_gain_ge']
+        #                )
         self.add_readoutconfig(ch=ro_chs, name="myro",
-                               freq=cfg['res_freq_ef'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=gen_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
@@ -78,9 +91,9 @@ class SingleShotProgram_g(AveragerProgramV2):
         self.add_pulse(ch=gen_ch, name="res_pulse", ro_ch=ro_chs,
                        style="const",
                        length=cfg["res_length"],
-                       freq=cfg['res_freq_ef'],
+                       freq=cfg['res_freq_ge'],
                        phase=cfg['ro_phase'],
-                       gain=cfg['res_gain_ef']
+                       gain=cfg['res_gain_ge']
                        )
 
         self.add_loop("shotloop", cfg["steps"])  # number of total shots
@@ -100,8 +113,21 @@ class SingleShotProgram_e(AveragerProgramV2):
         self.declare_gen(ch=gen_ch, nqz=cfg['nqz_res'])
         self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
 
+        # self.add_readoutconfig(ch=ro_chs, name="myro",
+        #                        freq=cfg['res_freq_ge'],
+        #                        gen_ch=gen_ch,
+        #                        outsel='product')
+        # self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
+        # self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+        # self.add_pulse(ch=gen_ch, name="res_pulse", ro_ch=ro_chs,
+        #                style="const",
+        #                length=cfg["res_length"],
+        #                freq=cfg['res_freq_ge'],
+        #                phase=cfg['ro_phase'],
+        #                gain=cfg['res_gain_ge']
+        #                )
         self.add_readoutconfig(ch=ro_chs, name="myro",
-                               freq=cfg['res_freq_ef'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=gen_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
@@ -109,7 +135,7 @@ class SingleShotProgram_e(AveragerProgramV2):
         self.add_pulse(ch=gen_ch, name="res_pulse", ro_ch=ro_chs,
                        style="const",
                        length=cfg["res_length"],
-                       freq=cfg['res_freq_ef'],
+                       freq=cfg['res_freq_ge'],
                        phase=cfg['ro_phase'],
                        gain=cfg['res_gain_ge']
                        )
@@ -142,8 +168,21 @@ class SingleShotProgram_f(AveragerProgramV2):
         self.declare_gen(ch=gen_ch, nqz=cfg['nqz_res'])
         self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
 
+        # self.add_readoutconfig(ch=ro_chs, name="myro",
+        #                        freq=cfg['res_freq_ef'],
+        #                        gen_ch=gen_ch,
+        #                        outsel='product')
+        # self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
+        # self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+        # self.add_pulse(ch=gen_ch, name="res_pulse", ro_ch=ro_chs,
+        #                style="const",
+        #                length=cfg["res_length"],
+        #                freq=cfg['res_freq_ef'],
+        #                phase=cfg['ro_phase'],
+        #                gain=cfg['res_gain_ge']
+        #                )
         self.add_readoutconfig(ch=ro_chs, name="myro",
-                               freq=cfg['res_freq_ef'],
+                               freq=cfg['res_freq_ge'],
                                gen_ch=gen_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
@@ -151,7 +190,7 @@ class SingleShotProgram_f(AveragerProgramV2):
         self.add_pulse(ch=gen_ch, name="res_pulse", ro_ch=ro_chs,
                        style="const",
                        length=cfg["res_length"],
-                       freq=cfg['res_freq_ef'],
+                       freq=cfg['res_freq_ge'],
                        phase=cfg['ro_phase'],
                        gain=cfg['res_gain_ge']
                        )
@@ -257,19 +296,22 @@ class SingleShot_ef:
         Q_e = iq_list_e[QubitIndex][0].T[1]
         I_f = iq_list_f[QubitIndex][0].T[0]
         Q_f = iq_list_f[QubitIndex][0].T[1]
-        print(QubitIndex)
+        #print(QubitIndex)
 
         # fid, threshold, angle, ig_new, ie_new = self.hist_ssf(data=[I_g, Q_g, I_e, Q_e, I_f, Q_f], cfg=self.config, plot=self.save_figs,  fig_quality=fig_quality)
         ig_new, qg_new, ie_new, qe_new, if_new, qf_new, theta_ge, threshold_ge = self.hist_ssf(data=[I_g, Q_g, I_e, Q_e, I_f, Q_f], cfg=self.config, plot=self.save_figs, fig_quality=fig_quality)
         # print('Optimal fidelity after rotation = %.3f' % fid)
         # print('Optimal angle after rotation = %f' % angle)
-        print(self.config)
+        #print(self.config)
 
         # return fid, angle
         return ig_new, qg_new, ie_new, qe_new, if_new, qf_new, theta_ge, threshold_ge
 
     def hist_ssf(self, data=None, cfg=None, plot=True,  fig_quality = 100):
-
+        print("This is histo")
+        print("This is histo")
+        print("This is histo")
+        
         ig = data[0]
         qg = data[1]
         ie = data[2]
@@ -287,6 +329,8 @@ class SingleShot_ef:
             fig, axs = plt.subplots(nrows=1, ncols=3, figsize=(16, 4))
             fig.tight_layout()
 
+
+            print("Plot Was True")
             axs[0].scatter(ig, qg, label='g', color='b', marker='*')
             axs[0].scatter(ie, qe, label='e', color='r', marker='*')
             axs[0].scatter(i_f, qf, label='f', color='g', marker='*')
@@ -327,6 +371,7 @@ class SingleShot_ef:
         xlims = [np.min(ig_new), np.max(if_new)]
 
         if plot == True:
+            print("Plot Was True 2")
             axs[1].scatter(ig_new, qg_new, label='g', color='b', marker='*')
             axs[1].scatter(ie_new, qe_new, label='e', color='r', marker='*')
             axs[1].scatter(if_new, qf_new, label='f', color='g', marker='*')
@@ -370,6 +415,7 @@ class SingleShot_ef:
 
 
         if plot == True:
+            print("Plot Was True 3")
             outerFolder_expt = os.path.join(self.outerFolder, "ss_repeat_meas_gef")
             self.create_folder_if_not_exists(outerFolder_expt)
             outerFolder_expt = os.path.join(outerFolder_expt, "Q" + str(self.QubitIndex + 1))

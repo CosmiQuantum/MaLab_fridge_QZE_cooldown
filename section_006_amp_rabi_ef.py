@@ -71,15 +71,22 @@ class EF_AmplitudeRabiExperiment:
             #     iq_list = amp_rabi.acquire(self.experiment.soc, rounds=self.config["rounds"],
             #                                progress=self.qick_verbose)
             iq_list = amp_rabi.acquire(self.experiment.soc,  progress=self.qick_verbose)
-            iq_list = iq_list[0][0].T
-            I = (iq_list[0])
-            Q = (iq_list[1])
+            # iq_list = iq_list[0][0].T
+            # I = (iq_list[0])
+            # Q = (iq_list[1])
+            iq_list = np.array(iq_list[0])  #) # iq_list[0][0].T # np.array(iq_list).squeeze(0) # 
+            I = iq_list[...,0][0] #iq_list[...,0][1]# (iq_list[0])# iq_list[...,0][1]#
+            Q =iq_list[...,1][0]# (iq_list[1])
+            I1 = iq_list[...,0][0] #iq_list[...,0][1]# (iq_list[0])# iq_list[...,0][1]#
+            Q1 =iq_list[...,1][0]# (iq_list[1])
+            # I2 = iq_list[...,0][2] #iq_list[...,0][1]# (iq_list[0])# iq_list[...,0][1]#
+            # Q2 =iq_list[...,1][2]# (iq_list[1])
         # get the gains that were used so you can use to plot on the x axis
         gains = amp_rabi.get_pulse_param('qubit_pulse', "gain", as_array=True)
             # print('gains', gains)
             # print('I: ', I)
             # print('Q: ', Q)
-        q1_fit_cosine, pi_amp = self.plot_results( I, Q, gains, config = self.config)
+        q1_fit_cosine, pi_amp = self.plot_results( I, Q, I1, Q1, gains, config = self.config)
         # self.plot_results(I, Q, gains, config=self.config)
         return I, Q, gains, q1_fit_cosine, pi_amp, self.config
         #return I, Q, gains, self.config
@@ -110,7 +117,7 @@ class EF_AmplitudeRabiExperiment:
 
         return a * np.cos(2. * np.pi * b * x - c * 2 * np.pi) + d
 
-    def plot_results(self, I, Q, gains, config = None, fig_quality = 100):
+    def plot_results(self, I, Q, I1, Q1, gains, config = None, fig_quality = 100):
         try:
             fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
             plt.rcParams.update({'font.size': 18})
@@ -185,14 +192,30 @@ class EF_AmplitudeRabiExperiment:
                          f"e-f Rabi Q{self.QubitIndex + 1}: {pi_amp:.4f} (a.u.)_" f", {self.config['sigma'] * 1000} ns sigma" + f", {self.config['reps']}*{self.config['rounds']} avgs",
                          fontsize=24, ha='center', va='top')
             # print(len(gains))
-            ax1.plot(gains, I, label="Gain (a.u.)", linewidth=2)
+            # ax1.plot(gains, I, label="Gain (a.u.)", linewidth=2)
+            # ax1.set_ylabel("I Amplitude (a.u.)", fontsize=20)
+            # ax1.tick_params(axis='both', which='major', labelsize=16)
+
+            # ax2.plot(gains, Q, label="Q", linewidth=2)
+            # ax2.set_xlabel("Gain (a.u.)", fontsize=20)
+            # ax2.set_ylabel("Q Amplitude (a.u.)", fontsize=20)
+            # ax2.tick_params(axis='both', which='major', labelsize=16)
+
+            ax1.plot(gains, I, label="I", linewidth=2)
+            #ax1.plot(gains, I1, label="I_1 (a.u.)", linewidth=2)
+            #ax1.axhline(y=2.5, label="g-R.O value=2.5", linewidth=2)
+            #ax1.plot(gains, I2, label="I_2 (a.u.)", linewidth=2)
             ax1.set_ylabel("I Amplitude (a.u.)", fontsize=20)
             ax1.tick_params(axis='both', which='major', labelsize=16)
 
             ax2.plot(gains, Q, label="Q", linewidth=2)
-            ax2.set_xlabel("Gain (a.u.)", fontsize=20)
+            #ax2.plot(gains, Q1, label="Q_1", linewidth=2)
+            #ax2.plot(gains, Q2, label="Q_2", linewidth=2)
+            #ax2.set_xlabel("Gain (a.u.)", fontsize=20)
             ax2.set_ylabel("Q Amplitude (a.u.)", fontsize=20)
             ax2.tick_params(axis='both', which='major', labelsize=16)
+            ax1.legend()
+            ax2.legend()
 
             plt.tight_layout()
             plt.subplots_adjust(top=0.93)
@@ -331,13 +354,31 @@ class EF_AmplitudeRabiProgram(AveragerProgramV2):
         self.add_loop("gainloop", cfg["steps"])
 
     def _body(self, cfg):
-        self.pulse(ch=self.cfg["qubit_ch"], name="ge_pi_pulse", t=0)  # play pulse: ge pi
+        self.pulse(ch=self.cfg["qubit_ch"], name="pi_ge", t=0)  # play pulse: ge pi
         self.delay_auto(0.0)
 
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0) #  play pulse: variable-gain fh pi
         self.delay_auto(t=0.0, tag='waiting') #wait
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0) #probe pulse
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+        ############################################################
+        # self.delay_auto(cfg['wait_before_reset'])
+        # self.wait_auto(cfg['res_length']*2)
+        
+        # ######################################################################################
+        # self.read_and_jump(ro_ch=cfg['ro_ch'],
+        #                     component='I',
+        #                     threshold=int(cfg['threshold'] * (cfg['res_length'] / 0.026)),
+        #                     test="<", label='skip everything')
+        
+        # self.pulse(ch=self.cfg["qubit_ch"], name="pi_ge", t=0)
+        # self.label('skip everything')
+        # ###################################################################################
+        # self.delay_auto(cfg['wait_in_reset'])
+        # self.wait_auto(cfg['res_length']*2)
+        # self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+        # self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+        # self.delay_auto(cfg['wait_after_reset'])
 
     #For temperature calculations, DO NOT USE (just storing this here for now)
     # def _body(self, cfg):

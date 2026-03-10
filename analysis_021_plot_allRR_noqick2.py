@@ -1,0 +1,4096 @@
+from section_008_save_data_to_h5 import Data_H5
+import matplotlib.dates as mdates
+from typing import List
+from matplotlib.axes import Axes
+import glob
+from pathlib import Path
+from matplotlib.lines import Line2D
+from matplotlib import cm, colors as mcolors
+from match_h5files_to_pngs_get_timestamps import load_h5_png_map, create_h5_png_map
+import sys
+# from section_011_qubit_temperatures_efRabipt3 import Temps_EFAmpRabiExperiment #uses qick modoule
+from section_011_qubit_temperatures_efRabipt3_noqick_analysis import Temps_EFAmpRabiExperiment
+import math
+import re
+from collections import defaultdict
+from bisect import bisect_left
+from scipy.stats import norm
+import pytz
+# from build_task import *
+# from build_state_noqick import *
+from expt_config import *
+import matplotlib.pyplot as plt
+import numpy as np
+import ast
+from scipy.optimize import curve_fit
+import datetime
+import re
+from matplotlib.ticker import StrMethodFormatter
+import logging
+import os
+import pandas as pd
+# -----------------This script currently has the capacity to plot T1, Qfreqs, and RPMs (ef Rabi) data--------=====
+# Can also do T1 vs time and Q1 vs time
+
+sys.path.append(os.path.abspath("/home/quietuser/Documents/GitHub/tprocv2_demos/qick_tprocv2_experiments_mux/"))
+
+class SingleShot:
+    def __init__(self, QubitIndex, number_of_qubits,  outerFolder , outerFolder_save_plots, round_num, save_figs=False, experiment = None,
+                 verbose = False, logger = None, qick_verbose=True):
+        self.qick_verbose = qick_verbose
+        self.QubitIndex = QubitIndex
+        self.outerFolder = outerFolder
+        self.outerFolder_save_plots = outerFolder_save_plots
+        self.expt_name = "Readout_Optimization"
+        self.Qubit = 'Q' + str(self.QubitIndex)
+        self.round_num = round_num
+        self.save_figs = save_figs
+        self.experiment = experiment
+        self.number_of_qubits = number_of_qubits
+        self.verbose = verbose
+        self.logger = logger if logger is not None else logging.getLogger("custom_logger_for_rr_only")
+
+        # if experiment is not None:
+        #     self.q_config = all_qubit_state(self.experiment, self.number_of_qubits)
+        #     self.exp_cfg = add_qubit_experiment(expt_cfg, self.expt_name, self.QubitIndex)
+        #     self.config = {**self.q_config[self.Qubit], **self.exp_cfg}
+        #     if self.verbose: print(f'Q {self.QubitIndex + 1} Round {self.round_num} Single Shot configuration: ', self.config)
+        #     self.logger.info(f'Q {self.QubitIndex + 1} Round {self.round_num} Single Shot configuration: {self.config}')
+
+        self.q1_t1 = []
+        self.q1_t1_err = []
+        self.dates = []
+
+    def plot_results(self, iq_list_g, iq_list_e, QubitIndex,  fig_quality=100):
+        I_g = iq_list_g[QubitIndex][0].T[0]
+        Q_g = iq_list_g[QubitIndex][0].T[1]
+        I_e = iq_list_e[QubitIndex][0].T[0]
+        Q_e = iq_list_e[QubitIndex][0].T[1]
+
+        if "run4" in self.outerFolder or "run5" in self.outerFolder:
+            # We can update this later if we really care about extracting the config for hist_ssf()
+            config = None #it's not that we didn't save it for runs 4 and 5, it was just saved differently (inside a separate folder as an h5 file, not within our experiment h5 files).
+        else:
+            config = self.config
+
+
+        fid, threshold, angle, ig_new, ie_new = self.hist_ssf(data=[I_g, Q_g, I_e, Q_e], cfg = config, plot=self.save_figs,  fig_quality=fig_quality)
+        if self.verbose: print('Optimal fidelity after rotation = %.3f' % fid)
+        if self.verbose: print('Optimal angle after rotation = %f' % angle)
+        self.logger.info('Optimal fidelity after rotation = %.3f' % fid)
+        self.logger.info('Optimal angle after rotation = %f' % angle)
+        return fid, angle
+
+    def hist_ssf(self, data=None, cfg=None, plot=True,  fig_quality = 100):
+
+        ig = data[0]
+        qg = data[1]
+        ie = data[2]
+        qe = data[3]
+
+        if cfg is not None:
+            numbins = round(math.sqrt(float(cfg["steps"])))
+        else:
+            numbins = 60
+
+        xg, yg = np.median(ig), np.median(qg)
+        xe, ye = np.median(ie), np.median(qe)
+
+        if plot == True:
+            fig, axs = plt.subplots(nrows=1, ncols=3, figsize=(16, 4))
+            fig.tight_layout()
+
+            axs[0].scatter(ig, qg, label='g', color='b', marker='*')
+            axs[0].scatter(ie, qe, label='e', color='r', marker='*')
+            axs[0].scatter(xg, yg, color='k', marker='o')
+            axs[0].scatter(xe, ye, color='k', marker='o')
+            axs[0].set_xlabel('I (a.u.)')
+            axs[0].set_ylabel('Q (a.u.)')
+            axs[0].legend(loc='upper right')
+            axs[0].set_title('Unrotated')
+            axs[0].axis('equal')
+        """Compute the rotation angle"""
+        theta = -np.arctan2((ye - yg), (xe - xg))
+        """Rotate the IQ data"""
+        ig_new = ig * np.cos(theta) - qg * np.sin(theta)
+        qg_new = ig * np.sin(theta) + qg * np.cos(theta)
+        ie_new = ie * np.cos(theta) - qe * np.sin(theta)
+        qe_new = ie * np.sin(theta) + qe * np.cos(theta)
+
+        """New means of each blob"""
+        xg, yg = np.median(ig_new), np.median(qg_new)
+        xe, ye = np.median(ie_new), np.median(qe_new)
+
+        # print(xg, xe)
+        #xlims = [xg - ran, xg + ran]
+        xlims = [np.min(ig_new), np.max(ie_new)]
+
+        if plot == True:
+            axs[1].scatter(ig_new, qg_new, label='g', color='b', marker='*')
+            axs[1].scatter(ie_new, qe_new, label='e', color='r', marker='*')
+            axs[1].scatter(xg, yg, color='k', marker='o')
+            axs[1].scatter(xe, ye, color='k', marker='o')
+            axs[1].set_xlabel('I (a.u.)')
+            axs[1].legend(loc='lower right')
+            axs[1].set_title(f'Rotated Theta:{round(theta, 5)}')
+            axs[1].axis('equal')
+
+            """X and Y ranges for histogram"""
+            ng, binsg, pg = axs[2].hist(ig_new, bins=numbins, range=xlims, color='b', label='g', alpha=0.5)
+            ne, binse, pe = axs[2].hist(ie_new, bins=numbins, range=xlims, color='r', label='e', alpha=0.5)
+
+            axs[2].set_xlabel('I(a.u.)')
+        else:
+            ng, binsg = np.histogram(ig_new, bins=numbins, range=xlims)
+            ne, binse = np.histogram(ie_new, bins=numbins, range=xlims)
+
+        """Compute the fidelity using overlap of the histograms"""
+        contrast = np.abs(((np.cumsum(ng) - np.cumsum(ne)) / (0.5 * ng.sum() + 0.5 * ne.sum())))
+        tind = contrast.argmax()
+        threshold = binsg[tind]
+        fid = contrast[tind]
+        #axs[2].set_title(f"Fidelity = {fid * 100:.2f}%")
+
+
+        if plot == True:
+            self.create_folder_if_not_exists(self.outerFolder_save_plots)
+            outerFolder_expt = os.path.join(self.outerFolder_save_plots, "ss_ge")
+            self.create_folder_if_not_exists(outerFolder_expt)
+            outerFolder_expt = os.path.join(outerFolder_expt, "Q" + str(self.QubitIndex + 1))
+            self.create_folder_if_not_exists(outerFolder_expt)
+            now = datetime.datetime.now()
+            formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
+            file_name = os.path.join(outerFolder_expt,
+                                     f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" + f"{formatted_datetime}_" + self.expt_name + f"_q{self.QubitIndex + 1}.png")
+
+            axs[2].set_title(f"Fidelity = {fid * 100:.2f}%")
+            fig.savefig(file_name,  dpi=fig_quality, bbox_inches='tight')
+            plt.close(fig)
+
+        return fid, threshold, theta, ig_new, ie_new
+
+    def only_hist_ssf(self, data=None, cfg=None, plot=True, fig_quality=100, plot_title="Run 3"):
+        import math
+        import numpy as np
+        import matplotlib.pyplot as plt
+        import os
+        import datetime
+
+        # Unpack IQ data
+        ig = data[0]
+        qg = data[1]
+        ie = data[2]
+        qe = data[3]
+
+        # Determine number of bins for the histogram
+        numbins = round(math.sqrt(float(cfg["steps"])))
+
+        # Compute medians (used for rotation angle calculation)
+        xg, yg = np.median(ig), np.median(qg)
+        xe, ye = np.median(ie), np.median(qe)
+
+        # Compute rotation angle
+        theta = -np.arctan2((ye - yg), (xe - xg))
+
+        # Rotate the IQ data
+        ig_new = ig * np.cos(theta) - qg * np.sin(theta)
+        qg_new = ig * np.sin(theta) + qg * np.cos(theta)
+        ie_new = ie * np.cos(theta) - qe * np.sin(theta)
+        qe_new = ie * np.sin(theta) + qe * np.cos(theta)
+
+        # New medians after rotation (not used further in plotting)
+        xg, yg = np.median(ig_new), np.median(qg_new)
+        xe, ye = np.median(ie_new), np.median(qe_new)
+
+        # Define histogram range from the rotated ground state to the excited state
+        xlims = [np.min(ig_new), np.max(ie_new)]
+        ng, binsg = np.histogram(ig_new, bins=numbins, range=xlims)
+        ne, binse = np.histogram(ie_new, bins=numbins, range=xlims)
+        # Compute the fidelity using the overlap of the histograms
+        contrast = np.abs(((np.cumsum(ng) - np.cumsum(ne)) /
+                           (0.5 * ng.sum() + 0.5 * ne.sum())))
+        tind = contrast.argmax()
+        threshold = binsg[tind]
+        fid = contrast[tind]
+        if plot:
+            # Create figure and axis for the histogram
+            fig, ax = plt.subplots(figsize=(8, 6))
+
+            # Plot histogram for ground state and first excited state with updated labels
+            ng, binsg, _ = ax.hist(ig_new, bins=numbins, range=xlims, color='b',
+                                   label='Ground', alpha=0.5)
+            ne, binse, _ = ax.hist(ie_new, bins=numbins, range=xlims, color='r',
+                                   label='First Excited State', alpha=0.5)
+
+            # Set axis labels with 12-point font
+            ax.set_xlabel('I (a.u.)', fontsize=12)
+            ax.set_ylabel('Counts', fontsize=12)
+            # Set plot title using the provided parameter
+            ax.set_title(plot_title + f'   SSF: {int(fid * 100)}%', fontsize=12)
+            ax.legend()
+
+            # Save the figure
+            self.create_folder_if_not_exists(self.outerFolder)
+            outerFolder_expt = os.path.join(self.outerFolder, "ss_repeat_meas_ge")
+            self.create_folder_if_not_exists(outerFolder_expt)
+            outerFolder_expt = os.path.join(outerFolder_expt, "Q" + str(self.QubitIndex + 1))
+            self.create_folder_if_not_exists(outerFolder_expt)
+            now = datetime.datetime.now()
+            formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
+            file_name = os.path.join(outerFolder_expt,
+                                     f"R_{self.round_num}_Q_{self.QubitIndex + 1}_{formatted_datetime}_{self.expt_name}_q{self.QubitIndex + 1}.png")
+            fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')
+            plt.close(fig)
+
+        return fid, threshold, theta, ig_new, ie_new
+
+    def create_folder_if_not_exists(self, folder):
+        """Creates a folder at the given path if it doesn't already exist."""
+        if not os.path.exists(folder):
+            os.makedirs(folder)
+
+class T1Measurement:
+    def __init__(self, QubitIndex, number_of_qubits,  outerFolder, round_num, signal, save_figs, experiment = None,
+                 live_plot = None, fit_data = None, increase_qubit_reps = False, qubit_to_increase_reps_for = None,
+                 multiply_qubit_reps_by = 0, verbose = False, logger = None, qick_verbose=True, save_shots=False,
+                 set_relax_delay=False, relax_delay=1000):
+
+        self.qick_verbose = qick_verbose
+        self.QubitIndex = QubitIndex
+        self.number_of_qubits = number_of_qubits
+        self.outerFolder = outerFolder
+        self.expt_name = "T1_ge"
+        self.fit_data = fit_data
+        self.Qubit = 'Q' + str(self.QubitIndex)
+        self.experiment = experiment
+        self.exp_cfg = expt_cfg[self.expt_name]
+        self.round_num = round_num
+        self.live_plot = live_plot
+        self.signal = signal
+        self.save_figs = save_figs
+        self.verbose = verbose
+        self.save_shots = save_shots
+        self.set_relax_delay = set_relax_delay
+        self.logger = logger if logger is not None else logging.getLogger("custom_logger_for_rr_only")
+
+        # if experiment is not None:
+            # self.q_config = all_qubit_state(self.experiment, self.number_of_qubits)
+            # self.exp_cfg = add_qubit_experiment(expt_cfg, self.expt_name, self.QubitIndex)
+            # self.config = {**self.q_config[self.Qubit], **self.exp_cfg}
+            # if increase_qubit_reps:
+            #         if self.QubitIndex==qubit_to_increase_reps_for:
+            #             self.logger.info(f"Increasing reps for {self.Qubit} by {multiply_qubit_reps_by} times")
+            #             if self.verbose: print(f"Increasing reps for {self.Qubit} by {multiply_qubit_reps_by} times")
+            #             self.config["reps"] *= multiply_qubit_reps_by
+            # if self.verbose: print(f'Q {self.QubitIndex + 1} Round {self.round_num} T1 configuration: {self.config}')
+            # self.logger.info(f'Q {self.QubitIndex + 1} Round {self.round_num} T1 configuration: {self.config}')
+            # if self.set_relax_delay:
+            #     self.config['relax_delay'] = relax_delay
+            #     print(f'set t1 relax delay to {relax_delay} us')
+
+    def exponential(self, x, a, b, c, d):
+        return a * np.exp(-(x - b) / c) + d
+
+    def create_folder_if_not_exists(self, folder):
+        """Creates a folder at the given path if it doesn't already exist."""
+        if not os.path.exists(folder):
+            os.makedirs(folder)
+
+    def exponential(self, x, a, b, c, d):
+        return a * np.exp(- (x - b) / c) + d
+
+    def t1_fit(self, I, Q, delay_times):
+        if 'I' in self.signal:
+            signal = I
+            plot_sig = 'I'
+        elif 'Q' in self.signal:
+            signal = Q
+            plot_sig = 'Q'
+        else:
+            if abs(I[-1] - I[0]) > abs(Q[-1] - Q[0]):
+                signal = I
+                plot_sig = 'I'
+            else:
+                signal = Q
+                plot_sig = 'Q'
+
+        # Initial guess for parameters
+        q1_a_guess = np.max(signal) - np.min(signal)  # Initial guess for amplitude (a)
+        q1_b_guess = 0  # Initial guess for time shift (b)
+        q1_c_guess = (delay_times[-1] - delay_times[0]) / 5  # Initial guess for decay constant (T1)
+        q1_d_guess = np.min(signal)  # Initial guess for baseline (d)
+
+        # Form the guess array
+        q1_guess = [q1_a_guess, q1_b_guess, q1_c_guess, q1_d_guess]
+
+        # Define bounds to constrain T1 (c) to be positive, but allow amplitude (a) to be negative
+        lower_bounds = [-np.inf, -np.inf, 0, -np.inf]  # Amplitude (a) can be negative/positive, but T1 (c) > 0
+        upper_bounds = [np.inf, np.inf, np.inf, np.inf]  # No upper bound on parameters
+
+        # Perform the fit using the 'trf' method with bounds
+        q1_popt, q1_pcov = curve_fit(self.exponential, delay_times, signal,
+                                     p0=q1_guess, bounds=(lower_bounds, upper_bounds),
+                                     method='trf', maxfev=10000)
+
+        # Generate the fitted exponential curve
+        q1_fit_exponential = self.exponential(delay_times, *q1_popt)
+
+        # Extract T1 and its error
+        T1_est = q1_popt[2]  # Decay constant T1
+        T1_err = np.sqrt(q1_pcov[2][2]) if q1_pcov[2][2] >= 0 else float('inf')  # Ensure error is valid
+
+        return q1_fit_exponential, T1_err, T1_est, plot_sig
+
+    def plot_results(self, I, Q, delay_times, now, config = None, fig_quality =100):
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+        plt.rcParams.update({'font.size': 18})
+
+        # Calculate the middle of the plot area
+        plot_middle = (ax1.get_position().x0 + ax1.get_position().x1) / 2
+
+
+        if self.fit_data:
+            q1_fit_exponential, T1_err, T1_est, plot_sig = self.t1_fit(I, Q, delay_times)
+
+            if 'I' in plot_sig:
+                ax1.plot(delay_times, q1_fit_exponential, '-', color='red', linewidth=3, label="Fit")
+            else:
+                ax2.plot(delay_times, q1_fit_exponential, '-', color='red', linewidth=3, label="Fit")
+
+            # Add title, centered on the plot area
+            if config is not None:
+                fig.text(plot_middle, 0.98,
+                         f"Q{self.QubitIndex + 1} " + f"T1={T1_est:.2f} us" + f", {float(config['reps'])}*{float(config['rounds'])} avgs,",
+                         fontsize=24, ha='center',
+                         va='top')  # , pi gain %.2f" % float(config['pi_amp']) + f", {float(config['sigma']) * 1000} ns sigma
+            else:
+                fig.text(plot_middle, 0.98,
+                         f"T1 Q{self.QubitIndex + 1}, T1 %.2f us" % T1_est + f", {self.config['reps']}*{self.config['rounds']} avgs,",
+                         fontsize=24, ha='center', va='top')
+
+        else:
+            if config is not None:
+                fig.text(plot_middle, 0.98,
+                         f"T1 Q{self.QubitIndex + 1}" + f", {float(config['reps'])}*{float(config['rounds'])} avgs,",
+                         fontsize=24, ha='center',
+                         va='top')  # , pi gain %.2f" % float(config['pi_amp']) + f", {float(config['sigma']) * 1000} ns sigma"   you can put this back once you save configs properly for when replotting
+            else:
+                fig.text(plot_middle, 0.98,
+                         f"T1 Q{self.QubitIndex + 1}",
+                         fontsize=24, ha='center', va='top')
+            q1_fit_exponential = None
+            T1_est = None
+            T1_err = None
+
+        # I subplot
+        ax1.plot(delay_times, I, label="Gain (a.u.)", linewidth=2)
+        ax1.set_ylabel("I Amplitude (a.u.)", fontsize=20)
+        ax1.tick_params(axis='both', which='major', labelsize=16)
+        # ax1.axvline(freq_q, color='orange', linestyle='--', linewidth=2)
+
+        # Q subplot
+        ax2.plot(delay_times, Q, label="Q", linewidth=2)
+        ax2.set_xlabel("Delay time (us)", fontsize=20)
+        ax2.set_ylabel("Q Amplitude (a.u.)", fontsize=20)
+        ax2.tick_params(axis='both', which='major', labelsize=16)
+        # ax2.axvline(freq_q, color='orange', linestyle='--', linewidth=2)
+
+        # Adjust spacing
+        plt.tight_layout()
+
+        # Adjust the top margin to make room for the title
+        plt.subplots_adjust(top=0.93)
+        if self.save_figs:
+            outerFolder_expt = os.path.join(self.outerFolder, self.expt_name)
+            self.create_folder_if_not_exists(outerFolder_expt)
+            now = datetime.datetime.now()
+            formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
+            file_name = os.path.join(outerFolder_expt, f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" + f"{formatted_datetime}_" + self.expt_name + f"_q{self.QubitIndex + 1}.png")
+            fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')  # , facecolor='white'
+        plt.close(fig)
+
+
+class T1VsTime:
+    def __init__(self, figure_quality, final_figure_quality, number_of_qubits, top_folder_dates, save_figs, fit_saved,
+                 signal, run_name, fridge, exp_name = 'ge'):
+        self.save_figs = save_figs
+        self.fit_saved = fit_saved
+        self.signal = signal
+        self.figure_quality = figure_quality
+        self.run_name = run_name
+        self.number_of_qubits = number_of_qubits
+        self.final_figure_quality = final_figure_quality
+        self.top_folder_dates = top_folder_dates
+        self.fridge = fridge
+        self.exp_name = exp_name
+
+    def datetime_to_unix(self, dt):
+        # Convert to Unix timestamp
+        unix_timestamp = int(dt.timestamp())
+        return unix_timestamp
+
+    def unix_to_datetime(self, unix_timestamp):
+        # Convert the Unix timestamp to a datetime object
+        dt = datetime.fromtimestamp(unix_timestamp)
+        return dt
+
+    def create_folder_if_not_exists(self, folder):
+        """Creates a folder at the given path if it doesn't already exist."""
+        if not os.path.exists(folder):
+            os.makedirs(folder)
+
+    def exponential(self, x, a, b, c, d):
+        return a * np.exp(-(x - b) / c) + d
+
+    def optimal_bins(self, data):
+        n = len(data)
+        if n == 0:
+            return {}
+        # Sturges' Rule
+        sturges_bins = int(np.ceil(np.log2(n) + 1))
+        return sturges_bins
+
+    def process_string_of_nested_lists(self, data):
+        # Remove extra whitespace and non-numeric characters.
+        data = re.sub(r'\s*\[(\s*.*?\s*)\]\s*', r'[\1]', data)
+        data = data.replace('[ ', '[')
+        data = data.replace('[ ', '[')
+        data = data.replace('[ ', '[')
+
+        cleaned_data = ''.join(c for c in data if c.isdigit() or c in ['-', '.', ' ', 'e', '[', ']'])
+        pattern = r'\[(.*?)\]'  # Regular expression to match data within brackets
+        matches = re.findall(pattern, cleaned_data)
+        result = []
+        for match in matches:
+            numbers = [float(x.strip('[').strip(']').replace("'", "").replace(" ", "").replace("  ", "")) for x in match.split()] # Convert strings to integers
+            result.append(numbers)
+
+        return result
+
+
+    def process_h5_data(self, data):
+        # Check if the data is a byte string; decode if necessary.
+        if isinstance(data, bytes):
+            data_str = data.decode()
+        elif isinstance(data, str):
+            data_str = data
+        else:
+            raise ValueError("Unsupported data type. Data should be bytes or string.")
+
+        # Remove extra whitespace and non-numeric characters.
+        cleaned_data = ''.join(c for c in data_str if c.isdigit() or c in ['-', '.', ' ', 'e'])
+
+        # Split into individual numbers, removing empty strings.
+        numbers = [float(x) for x in cleaned_data.split() if x]
+        return numbers
+
+    def string_to_float_list(self, input_string):
+        try:
+            # Remove 'np.float64()' parts
+            cleaned_string = input_string.replace('np.float64(', '').replace(')', '')
+
+            # Use ast.literal_eval for safe evaluation
+            float_list = ast.literal_eval(cleaned_string)
+
+            # Check if all elements are floats (or can be converted to floats)
+            return [float(x) for x in float_list]
+        except (ValueError, SyntaxError, TypeError):
+            print("Error: Invalid input string format.  It should be a string representation of a list of numbers.")
+            return None
+
+    def run(self, return_errs = False, exp_extension=''):
+        import datetime
+
+        # ----------Load/get data------------------------
+        t1_vals = {i: [] for i in range(self.number_of_qubits)}
+        t1_errs = {i: [] for i in range(self.number_of_qubits)}
+        rounds = []
+        reps = []
+        file_names = []
+        date_times = {i: [] for i in range(self.number_of_qubits)}
+        mean_values = {}
+        #print(self.top_folder_dates)
+        for folder_date in self.top_folder_dates:
+            if self.fridge.upper() == 'QUIET':
+                outerFolder = f"/exp/cosmiq/data/QUIET/QICK_data/run6/6transmon/TLS_Comprehensive_Study/" + folder_date + "/"
+                outerFolder_save_plots = "/exp/cosmiq/data/home/cosmiq/Analysis/acolonce/RR_metrics/Plots/T1_ge"
+            elif self.fridge.upper() == 'NEXUS':
+                outerFolder = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/" + folder_date + "/"
+                outerFolder_save_plots = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/" + folder_date + "_plots/"
+            else:
+                raise ValueError("fridge must be either 'QUIET' or 'NEXUS'")
+
+            # ------------------------------------------------Load/Plot/Save T1----------------------------------------------
+            if '_' in exp_extension:
+                outerFolder_expt = outerFolder + f"/Data_h5/t1{exp_extension}/"
+            else:
+                outerFolder_expt = outerFolder + "/Data_h5/t1_ge/"
+            h5_files = glob.glob(os.path.join(outerFolder_expt, "*.h5"))
+            #print(outerFolder_expt)
+            for h5_file in h5_files:
+
+                save_round = h5_file.split('Num_per_batch')[-1].split('.')[0]
+                H5_class_instance = Data_H5(h5_file)
+                load_data = H5_class_instance.load_from_h5(data_type=f't1{exp_extension}', save_r=int(save_round))
+                # if '01-27' in outerFolder_expt:
+                #     print(load_data)
+                # Define specific days to exclude
+                exclude_dates = {
+                    datetime.date(2025, 1, 26),  # power outage
+                    datetime.date(2025, 1, 29),  # HEMT Issues
+                    datetime.date(2025, 1, 30),  # HEMT Issues
+                    datetime.date(2025, 1, 31)  # Optimization Issues and non RR work in progress
+                }
+
+                for q_key in load_data[f't1{exp_extension}']:
+                    for dataset in range(len(load_data[f't1{exp_extension}'][q_key].get('Dates', [])[0])):
+                        if 'nan' in str(load_data[f't1{exp_extension}'][q_key].get('Dates', [])[0][dataset]):
+                            continue
+                        # T1 = load_data['t1'][q_key].get('t1', [])[0][dataset]
+                        # errors = load_data['t1'][q_key].get('Errors', [])[0][dataset]
+                        date = datetime.datetime.fromtimestamp(load_data[f't1{exp_extension}'][q_key].get('Dates', [])[0][dataset])
+
+                        # Skip processing if the date (as a date object) is in the excluded set
+                        if date.date() in exclude_dates:
+                            print(f"Skipping data for {date} (excluded date)")
+                            continue
+
+                        I = self.process_h5_data(load_data[f't1{exp_extension}'][q_key].get('I', [])[0][dataset].decode())
+                        Q = self.process_h5_data(load_data[f't1{exp_extension}'][q_key].get('Q', [])[0][dataset].decode())
+                        delay_times = self.process_h5_data(load_data[f't1{exp_extension}'][q_key].get('Delay Times', [])[0][dataset].decode())
+                        # fit = load_data['t1'][q_key].get('Fit', [])[0][dataset]
+                        round_num = load_data[f't1{exp_extension}'][q_key].get('Round Num', [])[0][dataset]
+                        try:
+                            batch_num = load_data[f't1{exp_extension}'][q_key].get('Batch Num', [])[0][dataset]
+                            syst_config = load_data[f't1{exp_extension}'][q_key].get('Syst Config', [])[0][dataset].decode()
+                            exp_config = load_data[f't1{exp_extension}'][q_key].get('Exp Config', [])[0][dataset].decode()
+                            safe_globals = {"np": np, "array": np.array, "__builtins__": {}}
+                            exp_config = eval(exp_config, safe_globals)
+                        except:
+                            exp_config =None
+
+                        if len(I) > 0:
+
+                            T1_class_instance = T1Measurement(q_key, self.number_of_qubits, outerFolder_save_plots, round_num, self.signal, self.save_figs,
+                                                              fit_data=True)
+                            #T1_spec_cfg = exp_config['T1_ge']
+                            q1_fit_exponential, T1_err, T1_est, plot_sig = T1_class_instance.t1_fit(I, Q, delay_times)
+                            if T1_est < 0:
+                                print("The value is negative, continuing...")
+                                continue
+                            if T1_est > 1000:
+                                print("The value is above 1000 us, this is a bad fit, continuing...")
+                                continue
+                            if T1_err >= 0.8 * T1_est:
+                                print(
+                                    f"Skipping T1 = {T1_est:.3f} µs because its error {T1_err:.3f} µs is >= 80% of its value.")
+                                continue
+
+                            t1_vals[q_key].extend([T1_est])
+                            t1_errs[q_key].extend([T1_err])
+                            date_times[q_key].extend([date.strftime("%Y-%m-%d %H:%M:%S")])
+
+                            del T1_class_instance
+
+                del H5_class_instance
+        if return_errs:
+            return date_times, t1_vals, t1_errs
+        else:
+            return date_times, t1_vals
+
+    def plot_without_errs(self, date_times, t1_vals, show_legends):
+        #---------------------------------plot-----------------------------------------------------
+        if self.fridge.upper() == 'QUIET':
+            analysis_folder = f"/data/QICK_data/{self.run_name}/benchmark_analysis_plots/"
+            self.create_folder_if_not_exists(analysis_folder)
+            analysis_folder = f"/data/QICK_data/{self.run_name}/benchmark_analysis_plots/features_vs_time/"
+            self.create_folder_if_not_exists(analysis_folder)
+        elif self.fridge.upper() == 'NEXUS':
+            analysis_folder = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/benchmark_analysis_plots/"
+            self.create_folder_if_not_exists(analysis_folder)
+            analysis_folder = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/benchmark_analysis_plots/features_vs_time/"
+            self.create_folder_if_not_exists(analysis_folder)
+        else:
+            raise ValueError("fridge must be either 'QUIET' or 'NEXUS'")
+
+        #----------------To Plot a specific timeframe------------------
+        from datetime import datetime
+        year = 2025
+        month = 1
+        day1 = 22  # Start date
+        day2 = 23  # End date
+        hour_start = 0  # Start hour
+        hour_end = 23  # End hour
+        start_time = datetime(year, month, day1, hour_start, 0)
+        end_time = datetime(year, month, day2, hour_end, 59)
+        #-----------------------------------------------------------------
+
+        font = 14
+        titles = [f"Qubit {i+1}" for i in range(self.number_of_qubits)]
+        colors = ['orange','blue','purple','green','brown','pink']
+        fig, axes = plt.subplots(2, 3, figsize=(12, 8))
+        plt.title('T1 Values vs Time',fontsize = font)
+        axes = axes.flatten()
+
+        from datetime import datetime
+        for i, ax in enumerate(axes):
+
+            if i >= self.number_of_qubits: # If we have fewer qubits than subplots, stop plotting and hide the rest
+                ax.set_visible(False)
+                continue
+
+            ax.set_title(titles[i], fontsize = font)
+
+            x = date_times[i]
+            y = t1_vals[i]
+
+            # Convert strings to datetime objects.
+            datetime_objects = [datetime.strptime(date_string, "%Y-%m-%d %H:%M:%S") for date_string in x]
+
+            # Combine datetime objects and y values into a list of tuples and sort by datetime.
+            combined = list(zip(datetime_objects, y))
+            combined.sort(reverse=True, key=lambda x: x[0])
+
+            if len(combined) == 0:
+                # If this qubit has no data, just skip
+                ax.set_visible(False)
+                continue
+
+            # Unpack them back into separate lists, in order from latest to most recent.
+            sorted_x, sorted_y = zip(*combined)
+            ax.scatter(sorted_x, sorted_y, color=colors[i])
+
+            # Set x-axis limits for the specific timeframe
+            ax.set_xlim(start_time, end_time)
+
+            sorted_x = np.asarray(sorted(x))
+            num_points = 5
+            indices = np.linspace(0, len(sorted_x) - 1, num_points, dtype=int)
+
+            ax.xaxis.set_major_locator(mdates.AutoDateLocator())  # Automatically choose good tick locations
+            # ax.xaxis.set_major_formatter(mdates.DateFormatter("%m-%d"))  # Format as month-day
+            ax.xaxis.set_major_formatter(mdates.DateFormatter("%m-%d %H:%M"))  # Show day and time
+            ax.tick_params(axis='x', rotation=45)  # Rotate ticks for better readability
+
+            # Disable scientific notation and format y-ticks
+            ax.ticklabel_format(style="plain", axis="y")
+            ax.yaxis.set_major_formatter(StrMethodFormatter("{x:.0f}"))  #decimal places
+
+
+            if show_legends:
+                ax.legend(edgecolor='black')
+            ax.set_xlabel('Time', fontsize=font-2)
+            ax.set_ylabel('T1 (us)', fontsize=font-2)
+            ax.tick_params(axis='both', which='major', labelsize=8)
+
+        plt.tight_layout()
+        plt.savefig(analysis_folder + 'T1_vals.pdf', transparent=True, dpi=self.final_figure_quality)
+        print('Plot saved to: ', analysis_folder)
+        plt.close()
+
+    def plot_with_errs(self, date_times, t1_vals, t1_fit_err, show_legends,exp_extension=''):
+        # ---------------------------------plot-----------------------------------------------------
+        if self.fridge.upper() == 'QUIET':
+            analysis_folder = f"/data/QICK_data/{self.run_name}/benchmark_analysis_plots/"
+            self.create_folder_if_not_exists(analysis_folder)
+            analysis_folder = f"/data/QICK_data/{self.run_name}/benchmark_analysis_plots/features_vs_time/"
+            self.create_folder_if_not_exists(analysis_folder)
+        elif self.fridge.upper() == 'NEXUS':
+            analysis_folder = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/benchmark_analysis_plots/"
+            self.create_folder_if_not_exists(analysis_folder)
+            analysis_folder = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/benchmark_analysis_plots/features_vs_time/"
+            self.create_folder_if_not_exists(analysis_folder)
+        else:
+            raise ValueError("fridge must be either 'QUIET' or 'NEXUS'")
+
+        # ----------------To Plot a specific timeframe------------------
+        from datetime import datetime
+        year = 2025
+        month = 1
+        day1 = 22  # Start date
+        day2 = 23  # End date
+        hour_start = 0  # Start hour
+        hour_end = 23  # End hour
+        start_time = datetime(year, month, day1, hour_start, 0)
+        end_time = datetime(year, month, day2, hour_end, 59)
+        # -----------------------------------------------------------------
+
+        font = 14
+        titles = [f"Qubit {i + 1}" for i in range(self.number_of_qubits)]
+        colors = ['orange', 'blue', 'purple', 'green', 'brown', 'pink']
+        fig, axes = plt.subplots(2, 3, figsize=(12, 8))
+        ext = exp_extension.replace('_', '')
+        plt.suptitle(f'T1 Values vs Time {ext}', fontsize=font)
+        axes = axes.flatten()
+
+        import matplotlib.dates as mdates
+        from matplotlib.ticker import StrMethodFormatter
+
+        for i, ax in enumerate(axes):
+            if i >= self.number_of_qubits:
+                ax.set_visible(False)
+                continue
+
+            ax.set_title(titles[i], fontsize=font)
+
+            x = date_times[i]
+            y = t1_vals[i]
+            err = t1_fit_err[i]
+
+            datetime_objects = [datetime.strptime(date_string, "%Y-%m-%d %H:%M:%S") for date_string in x]
+
+            combined = list(zip(datetime_objects, y, err))
+            combined.sort(key=lambda tup: tup[0])
+            if len(combined) == 0:
+                ax.set_visible(False)
+                continue
+            sorted_x, sorted_y, sorted_err = zip(*combined)
+            sorted_x = np.array(sorted_x)
+
+            #ax.set_xlim(start_time, end_time)
+
+            ax.errorbar(
+                sorted_x, sorted_y, yerr=sorted_err,
+                fmt='none',
+                ecolor=colors[i],
+                elinewidth=1,
+                capsize=0
+            )
+
+            ax.scatter(
+                sorted_x, sorted_y,
+                s=10,
+                color=colors[i],
+                alpha=0.5
+            )
+
+            ax.xaxis.set_major_formatter(mdates.DateFormatter("%m-%d %H:%M"))
+            ax.tick_params(axis='x', rotation=45)
+
+            ax.ticklabel_format(style="plain", axis="y")
+
+            if show_legends:
+                ax.legend(edgecolor='black')
+            ax.set_xlabel('Time', fontsize=font - 2)
+            ax.set_ylabel('T1 (us)', fontsize=font - 2)
+            ax.tick_params(axis='both', which='major', labelsize=8)
+
+        plt.tight_layout()
+        plt.savefig(analysis_folder + f'T1_vals{exp_extension}.pdf', transparent=True, dpi=self.final_figure_quality)
+        print('Plot saved to:', analysis_folder)
+        plt.close()
+
+    def plot_with_errs_single_plot(self, date_times, t1_vals, t1_fit_err, show_legends):
+        if self.fridge.upper() == 'QUIET':
+            analysis_folder = f"/data/QICK_data/{self.run_name}/benchmark_analysis_plots/"
+            self.create_folder_if_not_exists(analysis_folder)
+            analysis_folder = f"/data/QICK_data/{self.run_name}/benchmark_analysis_plots/features_vs_time/"
+            self.create_folder_if_not_exists(analysis_folder)
+        elif self.fridge.upper() == 'NEXUS':
+            analysis_folder = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/benchmark_analysis_plots/"
+            self.create_folder_if_not_exists(analysis_folder)
+            analysis_folder = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/benchmark_analysis_plots/features_vs_time/"
+            self.create_folder_if_not_exists(analysis_folder)
+        else:
+            raise ValueError("fridge must be either 'QUIET' or 'NEXUS'")
+        from datetime import datetime
+        year = 2025
+        month = 1
+        day1 = 22
+        day2 = 23
+        hour_start = 0
+        hour_end = 23
+        start_time = datetime(year, month, day1, hour_start, 0)
+        end_time = datetime(year, month, day2, hour_end, 59)
+        font = 14
+        titles = [f"Qubit {i + 1}" for i in range(self.number_of_qubits)]
+        colors = ['orange', 'blue', 'purple', 'green', 'brown', 'pink']
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots(figsize=(12, 8))
+        fig.suptitle('T1 Values vs Time', fontsize=font)
+        import matplotlib.dates as mdates
+        from matplotlib.ticker import StrMethodFormatter
+        for i in range(self.number_of_qubits):
+            x = date_times[i]
+            y = t1_vals[i]
+            err = t1_fit_err[i]
+            datetime_objects = [datetime.strptime(date_string, "%Y-%m-%d %H:%M:%S") for date_string in x]
+            combined = list(zip(datetime_objects, y, err))
+            combined.sort(key=lambda tup: tup[0])
+            if len(combined) == 0:
+                continue
+            sorted_x, sorted_y, sorted_err = zip(*combined)
+            sorted_x = np.array(sorted_x)
+            ax.errorbar(sorted_x, sorted_y, yerr=sorted_err, fmt='none', ecolor=colors[i], elinewidth=1, capsize=0,
+                        label=titles[i] if show_legends else None)
+            ax.scatter(sorted_x, sorted_y, s=10, color=colors[i], alpha=0.5)
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%m-%d %H:%M"))
+        ax.tick_params(axis='x', rotation=45)
+        ax.ticklabel_format(style="plain", axis="y")
+        if show_legends:
+            ax.legend(edgecolor='black')
+        ax.set_xlabel('Time', fontsize=font - 2)
+        ax.set_ylabel('T1 (us)', fontsize=font - 2)
+        ax.tick_params(axis='both', which='major', labelsize=8)
+        plt.tight_layout()
+        plt.savefig(analysis_folder + 'T1_vals_single_plot.pdf', transparent=True, dpi=self.final_figure_quality)
+        print('Plot saved to:', analysis_folder)
+        plt.close()
+
+
+class QubitSpectroscopy:
+    def __init__(self, QubitIndex, number_of_qubits,  outerFolder,  round_num, signal, save_figs, experiment = None,
+                 live_plot = None, verbose = False, logger = None, qick_verbose=True, increase_reps = False,
+                 increase_reps_to = 500, plot_fit=True, zeno_stark=False, zeno_stark_pulse_gain=None,
+                 ext_q_spec=False, high_gain_q_spec=False, fit_data=True):
+
+        self.qick_verbose = qick_verbose
+        self.QubitIndex = QubitIndex
+        self.outerFolder = outerFolder
+        self.plot_fit=plot_fit
+        self.zeno_stark = zeno_stark
+        self.zeno_stark_pulse_gain = zeno_stark_pulse_gain
+        self.ext_q_spec = ext_q_spec
+        self.fit_data = fit_data
+        self.high_gain_q_spec = high_gain_q_spec
+        if self.zeno_stark:
+            self.expt_name = "qubit_spec_ge_zeno_stark"
+        elif self.ext_q_spec:
+            self.expt_name = "qubit_spec_ge_extended"
+        elif self.high_gain_q_spec:
+            self.expt_name = "qubit_spec_ge_high_gain"
+        else:
+            self.expt_name = "qubit_spec_ge"
+        self.signal = signal
+        self.save_figs = save_figs
+        self.experiment = experiment
+        self.Qubit = 'Q' + str(self.QubitIndex)
+        self.exp_cfg = expt_cfg[self.expt_name]
+        self.round_num = round_num
+        self.number_of_qubits = number_of_qubits
+        self.verbose = verbose
+        self.logger = logger if logger is not None else logging.getLogger("custom_logger_for_rr_only")
+        self.increase_reps = increase_reps
+        self.increase_reps_to = increase_reps_to
+
+        if experiment is not None:
+            if self.zeno_stark:
+                qze_mask = np.arange(0, self.number_of_qubits + 1)
+                qze_mask = np.delete(qze_mask, QubitIndex)
+                self.exp_cfg['qze_mask'] = qze_mask
+                self.experiment.readout_cfg['res_gain_qze'] = [self.experiment.readout_cfg['res_gain_ge'][QubitIndex],
+                                                               0, 0, 0, 0, 0, self.zeno_stark_pulse_gain]
+                self.experiment.readout_cfg['res_freq_qze'] = self.experiment.readout_cfg['res_freq_ge']
+                self.experiment.readout_cfg['res_phase_qze'] = self.experiment.readout_cfg['res_phase']
+                if len(self.experiment.readout_cfg['res_freq_qze']) < 7:  # otherise it keeps appending
+                    self.experiment.readout_cfg['res_freq_qze'].append(
+                        experiment.readout_cfg['res_freq_qze'][self.QubitIndex])
+                    self.experiment.readout_cfg['res_phase_qze'].append(
+                        experiment.readout_cfg['res_phase_qze'][self.QubitIndex])
+
+            # self.q_config = all_qubit_state(self.experiment, self.number_of_qubits)
+            self.live_plot = live_plot
+            # self.exp_cfg = add_qubit_experiment(expt_cfg, self.expt_name, self.QubitIndex)
+            # self.config = {**self.q_config[self.Qubit], **self.exp_cfg}
+            # if self.verbose: print(f'Q {self.QubitIndex + 1} Round {self.round_num} Qubit Spec configuration: ', self.config)
+            # self.logger.info(f'Q {self.QubitIndex + 1} Round {self.round_num} Qubit Spec configuration: {self.config}')
+
+
+    def plot_results(self, I, Q, freqs, config=None, fig_quality=100, sigma_guess=1, return_fwhm=False, return_fit_err=False):
+        freqs = np.array(freqs)
+        freq_q = freqs[np.argmax(I)]
+
+        mean_I, mean_Q, I_fit, Q_fit, largest_amp_curve_mean, largest_amp_curve_fwhm, fit_err = self.fit_lorenzian(I, Q, freqs,
+                                                                                                          freq_q,sigma_guess)
+
+        # Check if the returned values are all None
+        if (mean_I is None and mean_Q is None and I_fit is None and Q_fit is None
+                and largest_amp_curve_mean is None and largest_amp_curve_fwhm is None):
+            # If so, return None for the values in this definition as well
+            empties = [None, None, None]
+            if return_fwhm:
+                empties.append(None)
+            if return_fit_err:
+                empties.append(None)
+            return tuple(empties)
+
+        # If we get here, the fit was successful and we can proceed with plotting
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+        plt.rcParams.update({'font.size': 18})
+
+        # I subplot
+        ax1.plot(freqs, I, label='I', linewidth=2)
+        ax1.set_ylabel("I Amplitude (a.u.)", fontsize=20)
+        ax1.tick_params(axis='both', which='major', labelsize=16)
+        ax1.legend()
+
+        # Q subplot
+        ax2.plot(freqs, Q, label='Q', linewidth=2)
+        ax2.set_xlabel("Qubit Frequency (MHz)", fontsize=20)
+        ax2.set_ylabel("Q Amplitude (a.u.)", fontsize=20)
+        ax2.tick_params(axis='both', which='major', labelsize=16)
+        ax2.legend()
+        # Plot the fits
+        if self.plot_fit:
+            ax1.plot(freqs, I_fit, 'r--', label='Lorentzian Fit')
+            ax1.axvline(largest_amp_curve_mean, color='orange', linestyle='--', linewidth=2)
+
+            ax2.plot(freqs, Q_fit, 'r--', label='Lorentzian Fit')
+            ax2.axvline(largest_amp_curve_mean, color='orange', linestyle='--', linewidth=2)
+
+        # Calculate the middle of the plot area
+        plot_middle = (ax1.get_position().x0 + ax1.get_position().x1) / 2
+
+        if self.plot_fit:
+            # Add title, centered on the plot area
+            if config is not None:  # then its been passed to this definition, so use that
+                fig.text(plot_middle, 0.98,
+                         f"Qubit Spectroscopy Q{self.QubitIndex + 1}, %.2f MHz" % largest_amp_curve_mean +
+                         f" FWHM: {round(largest_amp_curve_fwhm, 1)}" +
+                         f", {config['reps']}*{config['rounds']} avgs",
+                         fontsize=24, ha='center', va='top')
+            else:
+                fig.text(plot_middle, 0.98,
+                         f"Qubit Spectroscopy Q{self.QubitIndex + 1}, %.2f MHz" % largest_amp_curve_mean +
+                         f" FWHM: {round(largest_amp_curve_fwhm, 1)}" +
+                         f", {self.config['reps']}*{self.config['rounds']} avgs",
+                         fontsize=24, ha='center', va='top')
+        else:
+            # Add title, centered on the plot area
+            if config is not None:  # then its been passed to this definition, so use that
+                fig.text(plot_middle, 0.98,
+                         f"Qubit Spectroscopy Q{self.QubitIndex + 1}" +
+                         f", {config['reps']}*{config['rounds']} avgs",
+                         fontsize=24, ha='center', va='top')
+            else:
+                fig.text(plot_middle, 0.98,
+                         f"Qubit Spectroscopy Q{self.QubitIndex + 1}",
+                         fontsize=24, ha='center', va='top')
+
+
+        # Adjust spacing
+        plt.tight_layout()
+
+        # Adjust the top margin to make room for the title
+        plt.subplots_adjust(top=0.93, right=0.78)
+
+        ### Save figure
+        if self.save_figs:
+            outerFolder_expt = os.path.join(self.outerFolder, self.expt_name)
+            self.create_folder_if_not_exists(outerFolder_expt)
+            now = datetime.datetime.now()
+            formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
+            file_name = os.path.join(outerFolder_expt, f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" +
+                                     f"{formatted_datetime}_" + self.expt_name + f"_q{self.QubitIndex + 1}.png")
+            fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')
+        plt.close(fig)
+        if return_fwhm and return_fit_err: #both set to True
+            return largest_amp_curve_mean, I_fit, Q_fit, largest_amp_curve_fwhm, fit_err
+        elif return_fwhm:
+            return largest_amp_curve_mean, I_fit, Q_fit, largest_amp_curve_fwhm
+        elif return_fit_err:
+            return largest_amp_curve_mean, I_fit, Q_fit, fit_err
+        else:
+            return largest_amp_curve_mean, I_fit, Q_fit
+
+    def get_results(self, I, Q, freqs):
+        freqs = np.array(freqs)
+        freq_q = freqs[np.argmax(I)]
+
+        mean_I, mean_Q, I_fit, Q_fit, largest_amp_curve_mean, largest_amp_curve_fwhm, qspec_fit_err = self.fit_lorenzian(I, Q, freqs, freq_q)
+
+        return largest_amp_curve_mean, I_fit, Q_fit, qspec_fit_err
+
+
+    def lorentzian(self, f, f0, gamma, A, B):
+
+        return A * gamma ** 2 / ((f - f0) ** 2 + gamma ** 2) + B
+
+    def max_offset_difference_with_x(self, x_values, y_values, offset):
+        max_average_difference = -1
+        corresponding_x = None
+
+        # average all 3 to avoid noise spikes
+        for i in range(len(y_values) - 2):
+            # group 3 vals
+            y_triplet = y_values[i:i + 3]
+
+            # avg differences for these 3 vals
+            average_difference = sum(abs(y - offset) for y in y_triplet) / 3
+
+            # see if this is the highest difference yet
+            if average_difference > max_average_difference:
+                max_average_difference = average_difference
+                # x value for the middle y value in the 3 vals
+                corresponding_x = x_values[i + 1]
+
+        return corresponding_x, max_average_difference
+
+    def fit_lorenzian(self, I, Q, freqs, freq_q, sigma_guess = 1):
+        try:
+            # Initial guesses for I and Q
+            initial_guess_I = [freq_q, sigma_guess, np.max(I), np.min(I)]
+            initial_guess_Q = [freq_q, sigma_guess, np.max(Q), np.min(Q)]
+
+            # First round of fits (to get rough estimates)
+            params_I, _ = curve_fit(self.lorentzian, freqs, I, p0=initial_guess_I)
+            params_Q, _ = curve_fit(self.lorentzian, freqs, Q, p0=initial_guess_Q)
+
+            # Use these fits to refine guesses
+            x_max_diff_I, max_diff_I = self.max_offset_difference_with_x(freqs, I, params_I[3])
+            x_max_diff_Q, max_diff_Q = self.max_offset_difference_with_x(freqs, Q, params_Q[3])
+            initial_guess_I = [x_max_diff_I, sigma_guess, np.max(I), np.min(I)]
+            initial_guess_Q = [x_max_diff_Q, sigma_guess, np.max(Q), np.min(Q)]
+
+            # Second (refined) round of fits, this time capturing the covariance matrices
+            params_I, cov_I = curve_fit(self.lorentzian, freqs, I, p0=initial_guess_I)
+            params_Q, cov_Q = curve_fit(self.lorentzian, freqs, Q, p0=initial_guess_Q)
+
+            # Create the fitted curves
+            I_fit = self.lorentzian(freqs, *params_I)
+            Q_fit = self.lorentzian(freqs, *params_Q)
+
+            # Calculate errors from the covariance matrices
+            fit_err_I = np.sqrt(np.diag(cov_I))
+            fit_err_Q = np.sqrt(np.diag(cov_Q))
+
+            # Extract fitted means and FWHM (assuming params[0] is the mean and params[1] relates to the width)
+            mean_I = params_I[0]
+            mean_Q = params_Q[0]
+            fwhm_I = 2 * params_I[1]
+            fwhm_Q = 2 * params_Q[1]
+
+            # Calculate the amplitude differences from the fitted curves
+            amp_I_fit = abs(np.max(I_fit) - np.min(I_fit))
+            amp_Q_fit = abs(np.max(Q_fit) - np.min(Q_fit))
+
+            # Choose which curve to use based on the input signal indicator
+            if 'None' in self.signal or self.signal is None:
+                if amp_I_fit > amp_Q_fit:
+                    largest_amp_curve_mean = mean_I
+                    largest_amp_curve_fwhm = fwhm_I
+                    # error on the Q fit's center frequency (first parameter):
+                    qspec_fit_err = fit_err_I[0]
+                else:
+                    largest_amp_curve_mean = mean_Q
+                    largest_amp_curve_fwhm = fwhm_Q
+                    qspec_fit_err = fit_err_Q[0]
+            elif 'I' in self.signal:
+                largest_amp_curve_mean = mean_I
+                largest_amp_curve_fwhm = fwhm_I
+                qspec_fit_err = fit_err_I[0]
+            elif 'Q' in self.signal:
+                largest_amp_curve_mean = mean_Q
+                largest_amp_curve_fwhm = fwhm_Q
+                qspec_fit_err = fit_err_Q[0]
+            else:
+                print('Invalid signal passed, please choose "I", "Q", or "None".')
+                return None
+
+            # Return all desired results including the error on the Q fit
+            return mean_I, mean_Q, I_fit, Q_fit, largest_amp_curve_mean, largest_amp_curve_fwhm, qspec_fit_err
+
+        except Exception as e:
+            if self.verbose: print("Error during Lorentzian fit:", e)
+            self.logger.info(f'Error during Lorentzian fit: {e}')
+            return None, None,None,None,None,None,None
+
+    def create_folder_if_not_exists(self, folder_path):
+        import os
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)
+
+class QubitFreqsVsTime:
+    def __init__(self, figure_quality, final_figure_quality, number_of_qubits, top_folder_dates, save_figs, fit_saved,
+                 signal, run_name,  fridge):
+        self.save_figs = save_figs
+        self.fit_saved = fit_saved
+        self.signal = signal
+        self.figure_quality = figure_quality
+        self.run_name = run_name
+        self.number_of_qubits = number_of_qubits
+        self.final_figure_quality = final_figure_quality
+        self.top_folder_dates = top_folder_dates
+        self.fridge = fridge
+
+    def datetime_to_unix(self, dt):
+        # Convert to Unix timestamp
+        unix_timestamp = int(dt.timestamp())
+        return unix_timestamp
+
+    def unix_to_datetime(self, unix_timestamp):
+        # Convert the Unix timestamp to a datetime object
+        dt = datetime.fromtimestamp(unix_timestamp)
+        return dt
+
+    def create_folder_if_not_exists(self, folder):
+        """Creates a folder at the given path if it doesn't already exist."""
+        if not os.path.exists(folder):
+            os.makedirs(folder)
+
+    def exponential(self, x, a, b, c, d):
+        return a * np.exp(-(x - b) / c) + d
+
+    def optimal_bins(self, data):
+        n = len(data)
+        if n == 0:
+            return {}
+        # Sturges' Rule
+        sturges_bins = int(np.ceil(np.log2(n) + 1))
+        return sturges_bins
+
+    def process_string_of_nested_lists(self, data):
+        # Remove extra whitespace and non-numeric characters.
+        data = re.sub(r'\s*\[(\s*.*?\s*)\]\s*', r'[\1]', data)
+        data = data.replace('[ ', '[')
+        data = data.replace('[ ', '[')
+        data = data.replace('[ ', '[')
+
+        cleaned_data = ''.join(c for c in data if c.isdigit() or c in ['-', '.', ' ', 'e', '[', ']'])
+        pattern = r'\[(.*?)\]'  # Regular expression to match data within brackets
+        matches = re.findall(pattern, cleaned_data)
+        result = []
+        for match in matches:
+            numbers = [float(x.strip('[').strip(']').replace("'", "").replace(" ", "").replace("  ", "")) for x in match.split()] # Convert strings to integers
+            result.append(numbers)
+
+        return result
+
+    def process_h5_data(self, data):
+        # Check if the data is a byte string; decode if necessary.
+        if isinstance(data, bytes):
+            data_str = data.decode()
+        elif isinstance(data, str):
+            data_str = data
+        else:
+            raise ValueError("Unsupported data type. Data should be bytes or string.")
+
+        # Remove extra whitespace and non-numeric characters.
+        cleaned_data = ''.join(c for c in data_str if c.isdigit() or c in ['-', '.', ' ', 'e'])
+
+        # Split into individual numbers, removing empty strings.
+        numbers = [float(x) for x in cleaned_data.split() if x]
+        return numbers
+
+    def string_to_float_list(self, input_string):
+        try:
+            # Remove 'np.float64()' parts
+            cleaned_string = input_string.replace('np.float64(', '').replace(')', '')
+
+            # Use ast.literal_eval for safe evaluation
+            float_list = ast.literal_eval(cleaned_string)
+
+            # Check if all elements are floats (or can be converted to floats)
+            return [float(x) for x in float_list]
+        except (ValueError, SyntaxError, TypeError):
+            print("Error: Invalid input string format.  It should be a string representation of a list of numbers.")
+            return None
+
+    def run(self,exp_extension=''):
+        import datetime
+
+        qubit_frequencies = {i: [] for i in range(self.number_of_qubits)}
+        qspec_fit_errs= {i: [] for i in range(self.number_of_qubits)}
+        rounds = []
+        reps = []
+        file_names = []
+        date_times = {i: [] for i in range(self.number_of_qubits)}
+        mean_values = {}
+        for folder_date in self.top_folder_dates:
+            if self.fridge.upper() == 'QUIET':
+                outerFolder = f"/exp/cosmiq/data/QUIET/QICK_data/run6/6transmon/TLS_Comprehensive_Study/" + folder_date + "/"
+                outerFolder_save_plots = "/exp/cosmiq/data/home/cosmiq/Analysis/acolonce/RR_metrics/Plots/QSpec_ge"
+            elif self.fridge.upper() == 'NEXUS':
+                outerFolder = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/" + folder_date + "/"
+                outerFolder_save_plots = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/" + folder_date + "_plots/"
+            else:
+                raise ValueError("fridge must be either 'QUIET' or 'NEXUS'")
+
+            # ------------------------------------------Load/Plot/Save Q Spec------------------------------------
+            if '_' in exp_extension:
+                outerFolder_expt = outerFolder + f"/optimization/Data_h5/qspec{exp_extension}/"
+            else:
+                outerFolder_expt = outerFolder + "/optimization/Data_h5/QSpec/"
+
+
+            h5_files = glob.glob(os.path.join(outerFolder_expt, "*.h5"))
+
+            for h5_file in h5_files:
+                save_round = h5_file.split('Num_per_batch')[-1].split('.')[0]
+
+                H5_class_instance = Data_H5(h5_file)
+                #H5_class_instance.print_h5_contents(h5_file)
+                #sometimes you get '1(1)' when redownloading the h5 files for some reason
+                load_data = H5_class_instance.load_from_h5(data_type=f'qspec{exp_extension}', save_r=int(save_round.split('(')[0]))
+
+                # Define specific days to exclude
+                exclude_dates = {
+                    datetime.date(2025, 1, 26),  # power outage
+                    datetime.date(2025, 1, 29),  # HEMT Issues
+                    datetime.date(2025, 1, 30),  # HEMT Issues
+                    datetime.date(2025, 1, 31)  # Optimization Issues and non RR work in progress
+                }
+
+                for q_key in load_data[f'qspec{exp_extension}']:
+                    for dataset in range(len(load_data[f'qspec{exp_extension}'][q_key].get('Dates', [])[0])):
+                        if 'nan' in str(load_data[f'qspec{exp_extension}'][q_key].get('Dates', [])[0][dataset]):
+                            continue
+                        date = datetime.datetime.fromtimestamp(load_data[f'qspec{exp_extension}'][q_key].get('Dates', [])[0][dataset])
+
+                        # Skip processing if the date (as a date object) is in the excluded set
+                        if date.date() in exclude_dates:
+                            print(f"Skipping data for {date} (excluded date)")
+                            continue
+
+                        I = self.process_h5_data(load_data[f'qspec{exp_extension}'][q_key].get('I', [])[0][dataset].decode())
+                        Q = self.process_h5_data(load_data[f'qspec{exp_extension}'][q_key].get('Q', [])[0][dataset].decode())
+                        # I_fit = load_data['qspec'][q_key].get('I Fit', [])[0][dataset]
+                        # Q_fit = load_data['qspec'][q_key].get('Q Fit', [])[0][dataset]
+                        freqs = self.process_h5_data(load_data[f'qspec{exp_extension}'][q_key].get('Frequencies', [])[0][dataset].decode())
+                        round_num = load_data[f'qspec{exp_extension}'][q_key].get('Round Num', [])[0][dataset]
+                        batch_num = load_data[f'qspec{exp_extension}'][q_key].get('Batch Num', [])[0][dataset]
+                        try:
+                            syst_config = load_data[f'qspec{exp_extension}'][q_key].get('Syst Config', [])[0][dataset].decode()
+                            exp_config = load_data[f'qspec{exp_extension}'][q_key].get('Exp Config', [])[0][dataset].decode()
+                            safe_globals = {"np": np, "array": np.array, "__builtins__": {}}
+                            exp_config = eval(exp_config, safe_globals)
+                        except:
+                            exp_config =None
+
+                        if len(I) > 0:
+                            qspec_class_instance = QubitSpectroscopy(q_key, self.number_of_qubits, outerFolder_save_plots, round_num, self.signal,
+                                                                     self.save_figs)
+                            # if '_' in exp_extension:
+                            #     q_spec_cfg = exp_config[f'qubit_spec{exp_extension}']
+                            # else:
+                            #     q_spec_cfg = exp_config['qubit_spec_ge']
+                            largest_amp_curve_mean, I_fit, Q_fit, qspec_fit_err = qspec_class_instance.get_results(I, Q, freqs)
+                            if qspec_fit_err is not None and qspec_fit_err < 1: #above 1 MHz fit err is probably not a good fit
+                                qubit_frequencies[q_key].extend([largest_amp_curve_mean])
+                                qspec_fit_errs[q_key].extend([qspec_fit_err])
+                                date_times[q_key].extend([date.strftime("%Y-%m-%d %H:%M:%S")])
+
+                            del qspec_class_instance
+
+                del H5_class_instance
+        return date_times, qubit_frequencies, qspec_fit_errs
+
+    def plot_without_errs(self, date_times, qubit_frequencies, show_legends):
+        # ---------------------------------plot-----------------------------------------------------
+        if self.fridge.upper() == 'QUIET':
+            analysis_folder = f"/data/QICK_data/{self.run_name}/benchmark_analysis_plots/"
+            self.create_folder_if_not_exists(analysis_folder)
+            analysis_folder = f"/data/QICK_data/{self.run_name}/benchmark_analysis_plots/features_vs_time/"
+            self.create_folder_if_not_exists(analysis_folder)
+        elif self.fridge.upper() == 'NEXUS':
+            analysis_folder = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/benchmark_analysis_plots/"
+            self.create_folder_if_not_exists(analysis_folder)
+            analysis_folder = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/benchmark_analysis_plots/features_vs_time/"
+            self.create_folder_if_not_exists(analysis_folder)
+        else:
+            raise ValueError("fridge must be either 'QUIET' or 'NEXUS'")
+
+        # ----------------To Plot a specific timeframe------------------
+        from datetime import datetime
+        year = 2025
+        month = 1
+        day1 = 24  # Start date
+        day2 = 25  # End date
+        hour_start = 0  # Start hour
+        hour_end = 12  # End hour
+        start_time = datetime(year, month, day1, hour_start, 0)
+        end_time = datetime(year, month, day2, hour_end, 0)
+        # -----------------------------------------------------------------
+
+        font = 14
+        titles = [f"Qubit {i + 1}" for i in range(self.number_of_qubits)]
+        colors = ['orange', 'blue', 'purple', 'green', 'brown', 'pink']
+        fig, axes = plt.subplots(2, 3, figsize=(12, 8))
+        plt.title('Qubit Frequencies vs Time', fontsize=font)
+        axes = axes.flatten()
+
+        from datetime import datetime
+        for i, ax in enumerate(axes):
+            if i >= self.number_of_qubits:  # If we have fewer qubits than subplots, stop plotting and hide the rest
+                ax.set_visible(False)
+                continue
+
+            ax.set_title(titles[i], fontsize=font)
+
+            x = date_times[i]
+            y = qubit_frequencies[i]
+
+            # Convert strings to datetime objects.
+            datetime_objects = [datetime.strptime(date_string, "%Y-%m-%d %H:%M:%S") for date_string in x]
+
+            # Combine datetime objects and y values into a list of tuples and sort by datetime.
+            combined = list(zip(datetime_objects, y))
+            combined.sort(reverse=True, key=lambda x: x[0])
+
+            if len(combined) == 0:
+                # If this qubit has no data, just skip
+                ax.set_visible(False)
+                continue
+
+            # Unpack them back into separate lists, in order from latest to most recent.
+            sorted_x, sorted_y = zip(*combined)
+            ax.scatter(sorted_x, sorted_y, color=colors[i])
+
+            # Set x-axis limits for the specific timeframe
+            #ax.set_xlim(start_time, end_time)
+
+            #ax.set_ylim(sorted_y[0] - 2.0, sorted_y[0] + 2.0)
+
+            sorted_x = np.asarray(sorted(x))
+
+            num_points = 5
+            indices = np.linspace(0, len(sorted_x) - 1, num_points, dtype=int)
+
+            ax.xaxis.set_major_locator(mdates.AutoDateLocator())  # Automatically choose good tick locations
+            # ax.xaxis.set_major_formatter(mdates.DateFormatter("%m-%d"))  # Format as month-day
+            ax.xaxis.set_major_formatter(mdates.DateFormatter("%m-%d %H:%M"))  # Show day and time
+            ax.tick_params(axis='x', rotation=45)  # Rotate ticks for better readability
+
+            # Disable scientific notation and format y-ticks
+            ax.ticklabel_format(style="plain", axis="y")
+            ax.yaxis.set_major_formatter(StrMethodFormatter("{x:.2f}"))  # 2 decimal places
+
+            if show_legends:
+                ax.legend(edgecolor='black')
+            ax.set_xlabel('Time', fontsize=font - 2)
+            ax.set_ylabel('Qubit Frequency (MHz)', fontsize=font - 2)
+            ax.tick_params(axis='both', which='major', labelsize=8)
+
+        plt.tight_layout()
+        plt.savefig(analysis_folder + 'Q_Freqs_no_errs.pdf', transparent=True, dpi=self.final_figure_quality)
+        plt.close()
+
+    def plot_hist(self,  qubit_frequencies, show_legends):
+        # ---------------------------------Setup Analysis Folder-----------------------------------------------------
+        if self.fridge.upper() == 'QUIET':
+            analysis_folder = f"/data/QICK_data/{self.run_name}/benchmark_analysis_plots/"
+            self.create_folder_if_not_exists(analysis_folder)
+            analysis_folder = f"/data/QICK_data/{self.run_name}/benchmark_analysis_plots/features_vs_time/"
+            self.create_folder_if_not_exists(analysis_folder)
+        elif self.fridge.upper() == 'NEXUS':
+            analysis_folder = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/benchmark_analysis_plots/"
+            self.create_folder_if_not_exists(analysis_folder)
+            analysis_folder = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/benchmark_analysis_plots/features_vs_time/"
+            self.create_folder_if_not_exists(analysis_folder)
+        else:
+            raise ValueError("fridge must be either 'QUIET' or 'NEXUS'")
+
+        # ----------------Histogram Plotting of Qubit Frequencies------------------
+        font = 14
+        titles = [f"Qubit {i + 1}" for i in range(self.number_of_qubits)]
+        colors = ['orange', 'blue', 'purple', 'green', 'brown', 'pink']
+        fig, axes = plt.subplots(2, 3, figsize=(12, 8))
+        plt.suptitle('Histogram of Qubit Frequencies', fontsize=font)
+        axes = axes.flatten()
+
+        means = []
+        for i, ax in enumerate(axes):
+            if i >= self.number_of_qubits:
+                ax.set_visible(False)
+                continue
+
+            ax.set_title(titles[i], fontsize=font)
+
+            # Ignore the date_times; only use qubit_frequencies.
+            y = qubit_frequencies[i]
+
+            if len(y) == 0:
+                # If this qubit has no data, hide the subplot.
+                ax.set_visible(False)
+                continue
+            y = self.remove_none_values_1D(y)
+            # Plot histogram of the frequency data.
+            ax.hist(y, bins=50, color=colors[i], edgecolor='black', alpha=0.7)
+            means.append(np.mean(y))
+            if show_legends:
+                ax.legend([f"Freq Data Qubit {i + 1}"], edgecolor='black')
+            ax.set_xlabel('Qubit Frequency (MHz)', fontsize=font - 2)
+            ax.set_ylabel('Count', fontsize=font - 2)
+            ax.tick_params(axis='both', which='major', labelsize=8)
+
+        plt.tight_layout()
+        plt.savefig(analysis_folder + 'Q_Freqs_no_errs.pdf', transparent=True, dpi=self.final_figure_quality)
+        plt.close()
+        return means
+
+    def remove_none_values(self,list1, list2, list3):
+        """Removes None values from list1 and their corresponding indices in list2 and list3."""
+        if not (len(list1) == len(list2) == len(list3)):
+            raise ValueError("All lists must have the same length")
+
+        # Filter out None values and their corresponding elements in list2 and list3
+        filtered_data = [(x, y, z) for x, y, z in zip(list1, list2, list3) if x is not None]
+
+        # Unzip to separate the lists
+        filtered_list1, filtered_list2, filtered_list3 = zip(*filtered_data) if filtered_data else ([], [], [])
+
+        return list(filtered_list1), list(filtered_list2), list(filtered_list3)
+
+    def remove_none_values_1D(self,list1):
+        """Removes None values from list1 and their corresponding indices in list2 and list3."""
+
+        # Filter out None values and their corresponding elements in list2 and list3
+        filtered_data = [x for x in list1 if x is not None]
+
+        return filtered_data
+    def plot_with_errs(self, date_times, qubit_frequencies, qspec_fit_err, show_legends, exp_extension=''):
+        #---------------------------------plot-----------------------------------------------------
+        if self.fridge.upper() == 'QUIET':
+            analysis_folder = f"/data/QICK_data/{self.run_name}/benchmark_analysis_plots/"
+            self.create_folder_if_not_exists(analysis_folder)
+            analysis_folder = f"/data/QICK_data/{self.run_name}/benchmark_analysis_plots/features_vs_time/"
+            self.create_folder_if_not_exists(analysis_folder)
+        elif self.fridge.upper() == 'NEXUS':
+            analysis_folder = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/benchmark_analysis_plots/"
+            self.create_folder_if_not_exists(analysis_folder)
+            analysis_folder = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/benchmark_analysis_plots/features_vs_time/"
+            self.create_folder_if_not_exists(analysis_folder)
+        else:
+            raise ValueError("fridge must be either 'QUIET' or 'NEXUS'")
+
+        # ----------------To Plot a specific timeframe------------------
+        from datetime import datetime
+        year = 2025
+        month = 1
+        day1 = 24  # Start date
+        day2 = 25  # End date
+        hour_start = 0  # Start hour
+        hour_end = 12  # End hour
+        start_time = datetime(year, month, day1, hour_start, 0)
+        end_time = datetime(year, month, day2, hour_end, 0)
+        # -----------------------------------------------------------------
+
+        font = 14
+        titles = [f"Qubit {i+1}" for i in range(self.number_of_qubits)]
+        colors = ['orange', 'blue', 'purple', 'green', 'brown', 'pink']
+        fig, axes = plt.subplots(2, 3, figsize=(12, 8))
+        ext = exp_extension.split('_')[0]
+        plt.suptitle(f'Qubit Frequencies vs Time {ext}', fontsize=font)
+        axes = axes.flatten()
+
+        from datetime import datetime  # (if not already imported)
+        # Loop over each qubit’s data.
+        for i, ax in enumerate(axes):
+            if i >= self.number_of_qubits:  # Hide extra subplots.
+                ax.set_visible(False)
+                continue
+
+            ax.set_title(titles[i], fontsize=font)
+
+            x = date_times[i]       # list of date strings
+            y = qubit_frequencies[i]
+            err = qspec_fit_err[i]  # corresponding error bars
+
+            # Convert date strings to datetime objects.
+            datetime_objects = [datetime.strptime(date_string, "%Y-%m-%d %H:%M:%S") for date_string in x]
+
+            # Combine datetime objects, frequencies, and error values, then sort in ascending order.
+            combined = list(zip(datetime_objects, y, err))
+            combined.sort(key=lambda tup: tup[0])  # sort by time (oldest first)
+
+            if len(combined) == 0:
+                # Skip if there is no data for this qubit.
+                ax.set_visible(False)
+                continue
+
+            # Unpack the sorted data.
+            sorted_x, sorted_y, sorted_err = zip(*combined)
+            sorted_x = np.array(sorted_x)
+            sorted_y, sorted_x,sorted_err = self.remove_none_values(sorted_y,sorted_x,sorted_err)
+            #try:
+            ax.errorbar(
+                sorted_x, sorted_y, yerr=sorted_err,
+                fmt='none',
+                ecolor=colors[i],
+                elinewidth=1,
+                capsize=0
+            )
+            #except:
+            #    print(sorted_x,sorted_y)
+
+            ax.scatter(
+                sorted_x, sorted_y,
+                s=10,
+                color=colors[i],
+                alpha=0.5
+            )
+
+            num_points = 5
+            indices = np.linspace(0, len(sorted_x) - 1, num_points, dtype=int)
+            ax.xaxis.set_major_locator(mdates.AutoDateLocator())
+            ax.xaxis.set_major_formatter(mdates.DateFormatter("%m-%d %H:%M"))
+            ax.tick_params(axis='x', rotation=45)
+
+            ax.ticklabel_format(style="plain", axis="y")
+            ax.yaxis.set_major_formatter(StrMethodFormatter("{x:.2f}"))
+
+            if show_legends:
+                ax.legend(edgecolor='black')
+            ax.set_xlabel('Time', fontsize=font-2)
+            ax.set_ylabel('Qubit Frequency (MHz)', fontsize=font-2)
+            ax.tick_params(axis='both', which='major', labelsize=8)
+
+        plt.tight_layout()
+        plt.savefig(analysis_folder + f'Q_Freqs{exp_extension}.pdf', transparent=True, dpi=self.final_figure_quality)
+        plt.close()
+
+    def plot_with_errs_single_plot(self, date_times, qubit_frequencies, qspec_fit_err, show_legends):
+        # ---------------------------------folder setup-----------------------------------------------------
+        if self.fridge.upper() == 'QUIET':
+            analysis_folder = f"/data/QICK_data/{self.run_name}/benchmark_analysis_plots/"
+            self.create_folder_if_not_exists(analysis_folder)
+            analysis_folder = f"/data/QICK_data/{self.run_name}/benchmark_analysis_plots/features_vs_time/"
+            self.create_folder_if_not_exists(analysis_folder)
+        elif self.fridge.upper() == 'NEXUS':
+            analysis_folder = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/benchmark_analysis_plots/"
+            self.create_folder_if_not_exists(analysis_folder)
+            analysis_folder = f"/home/nexusadmin/qick/NEXUS_sandbox/Data/{self.run_name}/benchmark_analysis_plots/features_vs_time/"
+            self.create_folder_if_not_exists(analysis_folder)
+        else:
+            raise ValueError("fridge must be either 'QUIET' or 'NEXUS'")
+
+        from datetime import datetime
+        year = 2025
+        month = 1
+        day1 = 24  # Start date
+        day2 = 25  # End date
+        hour_start = 0  # Start hour
+        hour_end = 12  # End hour
+        start_time = datetime(year, month, day1, hour_start, 0)
+        end_time = datetime(year, month, day2, hour_end, 0)
+
+        font = 14
+        titles = [f"Qubit {i + 1}" for i in range(self.number_of_qubits)]
+        colors = ['orange', 'blue', 'purple', 'green', 'brown', 'pink']
+
+        fig, ax = plt.subplots(figsize=(12, 8))
+        fig.suptitle('Qubit Frequencies vs Time', fontsize=font)
+
+        for i in range(self.number_of_qubits):
+            x = date_times[i]
+            y = qubit_frequencies[i]
+            err = qspec_fit_err[i]
+
+            datetime_objects = [datetime.strptime(date_string, "%Y-%m-%d %H:%M:%S") for date_string in x]
+
+            combined = list(zip(datetime_objects, y, err))
+            combined.sort(key=lambda tup: tup[0])
+
+            if len(combined) == 0:
+                continue
+
+            sorted_x, sorted_y, sorted_err = zip(*combined)
+            sorted_x = np.array(sorted_x)
+
+            ax.errorbar(
+                sorted_x, sorted_y, yerr=sorted_err,
+                fmt='none',
+                ecolor=colors[i],
+                elinewidth=1,
+                capsize=0,
+                label=titles[i] if show_legends else None
+            )
+            ax.scatter(
+                sorted_x, sorted_y,
+                s=10,
+                color=colors[i],
+                alpha=0.5
+            )
+
+        import matplotlib.dates as mdates
+        ax.xaxis.set_major_locator(mdates.AutoDateLocator())
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%m-%d %H:%M"))
+        ax.tick_params(axis='x', rotation=45)
+
+        ax.ticklabel_format(style="plain", axis="y")
+        from matplotlib.ticker import StrMethodFormatter
+        ax.yaxis.set_major_formatter(StrMethodFormatter("{x:.2f}"))
+
+        if show_legends:
+            ax.legend(edgecolor='black')
+
+        ax.set_xlabel('Time', fontsize=font - 2)
+        ax.set_ylabel('Qubit Frequency (MHz)', fontsize=font - 2)
+        ax.tick_params(axis='both', which='major', labelsize=8)
+
+        plt.tight_layout()
+        plt.savefig(analysis_folder + 'Q_Freqs_single_plot.pdf', transparent=True, dpi=self.final_figure_quality)
+        plt.close()
+
+
+class PlotRR_noQick:
+    def __init__(self,  date, figure_quality, save_figs, fit_saved, signal, run_name, number_of_qubits, outerFolder,
+                 outerFolder_save_plots, unique_folder_path, run_num, filter_out_bad_amp_fits):
+        self.date = date
+        self.filter_out_bad_amp_fits = filter_out_bad_amp_fits
+        self.figure_quality = figure_quality
+        self.save_figs = save_figs
+        self.fit_saved = fit_saved
+        self.signal = signal
+        self.run_num = run_num
+        self.run_name = run_name
+        self.number_of_qubits = number_of_qubits
+        self.outerFolder = outerFolder
+        self.outerFolder_save_plots = outerFolder_save_plots
+        self.unique_folder_path = unique_folder_path # use this when you need to use a different path for anything
+
+    def process_string_of_nested_lists(self, data):
+        # Remove extra whitespace and non-numeric characters.
+        data = re.sub(r'\s*\[(\s*.*?\s*)\]\s*', r'[\1]', data)
+        data = data.replace('[ ', '[')
+        data = data.replace('[ ', '[')
+        data = data.replace('[ ', '[')
+
+        cleaned_data = ''.join(c for c in data if c.isdigit() or c in ['-', '.', ' ', 'e', '[', ']'])
+        pattern = r'\[(.*?)\]'  # Regular expression to match data within brackets
+        matches = re.findall(pattern, cleaned_data)
+        result = []
+        for match in matches:
+            numbers = [float(x.strip('[').strip(']').replace("'", "").replace(" ", "").replace("  ", "")) for x in
+                       match.split()]  # Convert strings to integers
+            result.append(numbers)
+
+        return result
+
+    def process_h5_data(self, data):
+        # Check if the data is a byte string; decode if necessary.
+        if isinstance(data, bytes):
+            data_str = data.decode()
+        elif isinstance(data, str):
+            data_str = data
+        else:
+            raise ValueError("Unsupported data type. Data should be bytes or string.")
+
+        # Remove extra whitespace and non-numeric characters.
+        cleaned_data = ''.join(c for c in data_str if c.isdigit() or c in ['-', '.', ' ', 'e'])
+
+        # Split into individual numbers, removing empty strings.
+        numbers = [float(x) for x in cleaned_data.split() if x]
+        return numbers
+
+    def string_to_float_list(self, input_string):
+        try:
+            # Remove 'np.float64()' parts
+            cleaned_string = input_string.replace('np.float64(', '').replace(')', '')
+
+            # Use ast.literal_eval for safe evaluation
+            float_list = ast.literal_eval(cleaned_string)
+
+            # Check if all elements are floats (or can be converted to floats)
+            return [float(x) for x in float_list]
+        except (ValueError, SyntaxError, TypeError):
+            print("Error: Invalid input string format.  It should be a string representation of a list of numbers.")
+            return None
+
+    def run(self, plot_res_spec=False, plot_q_spec=False, plot_rabi=False, rabi_rolling_avg=False, plot_ss=False,
+            plot_ss_hist_only=False, ss_plot_title=None, ss_plot_gef=False, plot_t1=False,
+            plot_t2r=False, plot_t2e=False, plot_rabis_Qtemps=False, combine_rpm_IQ_signal = False, Pe_dist_err_dict = None):
+
+        # if plot_res_spec:
+        #     self.load_plot_save_res_spec()
+        # if plot_q_spec:
+        #     self.load_plot_save_q_spec()
+        if plot_rabis_Qtemps:
+            list_of_all_qubits = [i for i in range(self.number_of_qubits + 1)]
+            self.load_plot_save_rabis_Qtemps(list_of_all_qubits, run_num = self.run_num, save_figs = self.save_figs, filter_out_bad_amp_fits = self.filter_out_bad_amp_fits,
+                                             combine_IQ_signal = combine_rpm_IQ_signal)
+        # if plot_rabi:
+        #     if rabi_rolling_avg:
+        #         self.load_plot_save_rabi(rabi_rolling_avg=True)
+        #     else:
+        #         self.load_plot_save_rabi()
+        # if plot_ss:
+        #     self.load_plot_save_ss(plot_ss_hist_only=plot_ss_hist_only, plot_title=ss_plot_title)
+        # if ss_plot_gef:
+        #     self.load_plot_save_ss_gef(plot_ssf_gef=ss_plot_gef)
+        # if plot_t1:
+        #     self.load_plot_save_t1()
+        # if plot_t2r:
+        #     self.load_plot_save_t2r()
+        # if plot_t2e:
+        #     self.load_plot_save_t2e()
+
+    def load_plot_save_t1(self):
+        # ------------------------------------------------Load/Plot/Save T1----------------------------------------------
+        outerFolder_expt = self.outerFolder + "/Data_h5/T1_ge/"
+        h5_files = glob.glob(os.path.join(outerFolder_expt, "*.h5"))
+
+        for h5_file in h5_files:
+
+            save_round = h5_file.split('Num_per_batch')[-1].split('.')[0]
+            H5_class_instance = Data_H5(h5_file)
+            load_data = H5_class_instance.load_from_h5(data_type='T1', save_r=int(save_round))
+
+            populated_keys = []
+            for q_key in load_data['T1']:
+                # Access 'Dates' for the current q_key
+                dates_list = load_data['T1'][q_key].get('Dates', [[]])
+
+                # Check if any entry in 'Dates' is not NaN
+                if any(
+                        not np.isnan(date)
+                        for date in dates_list[0]  # Iterate over the first batch of dates
+                ):
+                    populated_keys.append(q_key)
+
+            for q_key in populated_keys:
+                for dataset in range(len(load_data['T1'][q_key].get('Dates', [])[0])):
+                    # T1 = load_data['T1'][q_key].get('T1', [])[0][dataset]
+                    # errors = load_data['T1'][q_key].get('Errors', [])[0][dataset]
+                    date = datetime.datetime.fromtimestamp(load_data['T1'][q_key].get('Dates', [])[0][dataset])
+                    I = self.process_h5_data(load_data['T1'][q_key].get('I', [])[0][dataset].decode())
+                    Q = self.process_h5_data(load_data['T1'][q_key].get('Q', [])[0][dataset].decode())
+                    delay_times = self.process_h5_data(
+                        load_data['T1'][q_key].get('Delay Times', [])[0][dataset].decode())
+                    # fit = load_data['T1'][q_key].get('Fit', [])[0][dataset]
+                    round_num = load_data['T1'][q_key].get('Round Num', [])[0][dataset]
+                    batch_num = load_data['T1'][q_key].get('Batch Num', [])[0][dataset]
+
+                    exp_config = load_data['T1'][q_key].get('Exp Config', [])[0][dataset].decode()
+                    safe_globals = {"np": np, "array": np.array, "__builtins__": {}}
+
+                    exp_config = eval(exp_config, safe_globals)
+
+                    if len(I) > 0:
+                        T1_class_instance = T1Measurement(q_key, self.number_of_qubits, self.outerFolder_save_plots,
+                                                          round_num, self.signal, self.save_figs, fit_data=True)
+                        T1_spec_cfg = exp_config['T1_ge']
+                        T1_class_instance.plot_results(I, Q, delay_times, date, T1_spec_cfg, self.figure_quality)
+                        del T1_class_instance
+
+            del H5_class_instance
+
+    def load_plot_save_q_spec(self):
+        # ----------------------------------------------Load/Plot/Save QSpec------------------------------------
+        outerFolder_expt = self.outerFolder + "/Data_h5/qspec_ge/"
+        h5_files = glob.glob(os.path.join(outerFolder_expt, "*.h5"))
+        extracted_qfreqs = []
+        for h5_file in h5_files:
+            save_round = h5_file.split('Num_per_batch')[-1].split('.')[0]
+            H5_class_instance = Data_H5(h5_file)
+            load_data = H5_class_instance.load_from_h5(data_type='qspec_ge', save_r=int(save_round))
+
+            populated_keys = []
+            for q_key in load_data['qspec_ge']:
+                # Access 'Dates' for the current q_key
+                dates_list = load_data['qspec_ge'][q_key].get('Dates', [[]])
+
+                # Check if any entry in 'Dates' is not NaN
+                if any(
+                        not np.isnan(date)
+                        for date in dates_list[0]  # Iterate over the first batch of dates
+                ):
+                    populated_keys.append(q_key)
+
+            for q_key in populated_keys:
+                for dataset in range(len(load_data['qspec_ge'][q_key].get('Dates', [])[0])):
+                    date = datetime.datetime.fromtimestamp(load_data['qspec_ge'][q_key].get('Dates', [])[0][dataset])
+                    I = self.process_h5_data(load_data['qspec_ge'][q_key].get('I', [])[0][dataset].decode())
+                    Q = self.process_h5_data(load_data['qspec_ge'][q_key].get('Q', [])[0][dataset].decode())
+                    # I_fit = load_data['QSpec'][q_key].get('I Fit', [])[0][dataset]
+                    # Q_fit = load_data['QSpec'][q_key].get('Q Fit', [])[0][dataset]
+                    freqs = self.process_h5_data(load_data['qspec_ge'][q_key].get('Frequencies', [])[0][dataset].decode())
+                    round_num = load_data['qspec_ge'][q_key].get('Round Num', [])[0][dataset]
+                    batch_num = load_data['qspec_ge'][q_key].get('Batch Num', [])[0][dataset]
+
+                    exp_config = load_data['qspec_ge'][q_key].get('Exp Config', [])[0][dataset].decode()
+                    safe_globals = {"np": np, "array": np.array, "__builtins__": {}}
+
+                    exp_config = eval(exp_config, safe_globals)
+
+                    if len(I) > 0:
+                        qspec_class_instance = QubitSpectroscopy(q_key, self.number_of_qubits,
+                                                                 self.outerFolder_save_plots, round_num, self.signal, save_figs = False)
+                        q_spec_cfg = exp_config['qubit_spec_ge']
+                        # print('q_spec_cfg: ', q_spec_cfg)
+                        qubit_freq, _, _, qspec_fit_err = qspec_class_instance.plot_results(I, Q, freqs, q_spec_cfg,
+                                                        self.figure_quality, return_fit_err = True) # You don’t need to mention every parameter in the call
+                        del qspec_class_instance
+
+                        if qubit_freq is not None:
+                            extracted_qfreqs.append({
+                                "filename": os.path.basename(h5_file),
+                                "q_key": int(q_key),
+                                "dataset": dataset,
+                                "round_num": round_num,
+                                "batch_num": batch_num,
+                                "qfreq_MHz": qubit_freq,
+                                "Qfreq_fit_err": qspec_fit_err,
+                                "timestamp": date.timestamp()
+                            })
+                        else:
+                            print(f"Skipped Q{q_key + 1} in round {round_num} batch {batch_num}; fit returned None for ge qspec freq.")
+
+
+            del H5_class_instance
+        # print(extracted_qfreqs)
+        return extracted_qfreqs
+
+    #
+    def load_plot_save_ss(self, plot_ss_hist_only, plot_title):
+        print('Running load_plot_save_ss function')
+        # ------------------------------------------------Load/Plot/Save SS---------------------------------------
+        outerFolder_expt = self.outerFolder + "/Data_h5/ss_ge/"
+
+        h5_files = glob.glob(os.path.join(outerFolder_expt, "*.h5"))
+        data_key = 'ss_ge'
+
+        # Return payload: list of records (one per qubit per dataset entry)
+        ssf_dict = {"records": []}
+
+        for h5_file in h5_files:
+
+            save_round = h5_file.split('Num_per_batch')[-1].split('.')[0]
+
+            H5_class_instance = Data_H5(h5_file)
+            load_data = H5_class_instance.load_from_h5(data_type=data_key, save_r=int(save_round))
+
+            populated_keys = []
+            for q_key in load_data[data_key]:
+                # Access 'Dates' for the current q_key
+                dates_list = load_data[data_key][q_key].get('Dates', [[]])
+
+                # Check if any entry in 'Dates' is not NaN
+                if any(
+                        not np.isnan(date)
+                        for date in dates_list[0]  # Iterate over the first batch of dates
+                ):
+                    populated_keys.append(q_key)
+
+            for q_key in populated_keys:
+                for dataset in range(len(load_data[data_key][q_key].get('Dates', [])[0])):
+
+                    ts = load_data[data_key][q_key].get('Dates', [])[0][dataset]
+                    if ts is None or (isinstance(ts, float) and np.isnan(ts)):
+                        continue
+
+                    date = datetime.datetime.fromtimestamp(ts)
+                    angle = load_data[data_key][q_key].get('Angle', [])[0][dataset]
+                    fidelity = load_data[data_key][q_key].get('Fidelity', [])[0][dataset]
+                    I_g = self.process_h5_data(load_data[data_key][q_key].get('I_g', [])[0][dataset].decode())
+                    Q_g = self.process_h5_data(load_data[data_key][q_key].get('Q_g', [])[0][dataset].decode())
+                    I_e = self.process_h5_data(load_data[data_key][q_key].get('I_e', [])[0][dataset].decode())
+                    Q_e = self.process_h5_data(load_data[data_key][q_key].get('Q_e', [])[0][dataset].decode())
+                    round_num = load_data[data_key][q_key].get('Round Num', [])[0][dataset]
+                    batch_num = load_data[data_key][q_key].get('Batch Num', [])[0][dataset]
+                    syst_config = load_data[data_key][q_key].get('Syst Config', [])[0][dataset].decode()
+                    exp_config = load_data[data_key][q_key].get('Exp Config', [])[0][dataset].decode()
+                    safe_globals = {"np": np, "array": np.array, "__builtins__": {}}
+                    syst_config = eval(syst_config, safe_globals)
+                    exp_config = eval(exp_config, safe_globals)
+
+                    # from expt_config import expt_cfg as exp_config
+                    I_g = np.array(I_g)
+                    Q_g = np.array(Q_g)
+                    I_e = np.array(I_e)
+                    Q_e = np.array(Q_e)
+
+                    # ---------------- NEW: save a minimal record you can query from RPM ----------------
+                    ssf_dict["records"].append({
+                        "ssf_file": os.path.basename(h5_file),
+                        "q_key": int(q_key),
+                        "timestamp": float(date.timestamp()),  # data timestamp
+                        "datetime": date,
+
+                        "round_num": int(round_num) if round_num is not None else None,
+                        "batch_num": int(batch_num) if batch_num is not None else None,
+                        "angle": float(angle) if angle is not None else None,
+                        "fidelity": float(fidelity) if fidelity is not None else None,
+                    })
+                    # -------------------------------------------------------------------------------
+
+                    if len(Q_g) > 0:
+                        ss_class_instance = SingleShot(q_key, self.number_of_qubits, self.outerFolder,
+                                                       self.outerFolder_save_plots, round_num, self.save_figs)
+
+                        if type(exp_config) is dict:
+                            readout_opt = exp_config['Readout_Optimization']
+                            if isinstance(readout_opt, str):
+                                ss_cfg = ast.literal_eval(readout_opt)
+                            else:
+                                ss_cfg = readout_opt
+                        else:
+                            ss_cfg = ast.literal_eval(exp_config['Readout_Optimization'].decode())
+
+                        if plot_ss_hist_only:
+                            ss_class_instance.only_hist_ssf(data=[I_g, Q_g, I_e, Q_e], cfg=ss_cfg, plot=True,
+                                                            plot_title=plot_title)
+                        else:
+                            ss_class_instance.hist_ssf(data=[I_g, Q_g, I_e, Q_e], cfg=ss_cfg, plot=True)
+                        del ss_class_instance
+
+            del H5_class_instance
+
+        return ssf_dict
+
+    def load_plot_save_res_spec(self):
+        # ------------------------------------------Load/Plot/Save Res Spec------------------------------------
+        outerFolder_expt = os.path.join(self.outerFolder, "Data_h5")
+        print('outerFolder_expt: ', outerFolder_expt)
+        #Searches for all .h5 files in the res_ge subdirectory and res subdirectory. Combines them into a single list h5_files.
+        h5_files = glob.glob(os.path.join(outerFolder_expt, "res_ge", "*.h5"))
+        h5_files += glob.glob(os.path.join(outerFolder_expt, "res", "*.h5"))
+
+        # print(outerFolder_expt)
+        extracted_resfreqs =[]
+        for h5_file in h5_files:
+            save_round = h5_file.split('Num_per_batch')[-1].split('.')[0]
+            H5_class_instance = Data_H5(h5_file)
+            # H5_class_instance.print_h5_contents(h5_file)
+            load_data = H5_class_instance.load_from_h5(data_type='res_ge', save_r=int(save_round))
+
+            # just look at this resonator data, should have batch_num of arrays in each one
+            # right now the data writes the same thing batch_num of times, so it will do the same 5 datasets 5 times, until you fix this just grab the first one (All 5)
+
+            populated_keys = []
+            for q_key in load_data['res_ge']:
+                # Access 'Dates' for the current q_key
+                dates_list = load_data['res_ge'][q_key].get('Dates', [[]])
+
+                # Check if any entry in 'Dates' is not NaN
+                if any(
+                        not np.isnan(date)
+                        for date in dates_list[0]  # Iterate over the first batch of dates
+                ):
+                    populated_keys.append(q_key)
+
+            for q_key in populated_keys:
+                # go through each dataset in the batch and plot
+                for dataset in range(len(load_data['res_ge'][q_key].get('Dates', [])[0])):
+                    date = datetime.datetime.fromtimestamp(load_data['res_ge'][q_key].get('Dates', [])[0][dataset])  # single date per dataset
+                    freq_pts = self.process_h5_data(load_data['res_ge'][q_key].get('freq_pts', [])[0][
+                                                        dataset].decode())  # comes in as an array but put into a byte string, need to convert to list
+
+                    freq_center = self.process_h5_data(load_data['res_ge'][q_key].get('freq_center', [])[0][dataset].decode())  # comes in as an array but put into a string, need to convert to list
+                    freqs_found = self.string_to_float_list(load_data['res_ge'][q_key].get('Found Freqs', [])[0][dataset].decode())  # comes in as a list of floats in string format, need to convert
+                    amps = self.process_string_of_nested_lists(
+                        load_data['res_ge'][q_key].get('Amps', [])[0][dataset].decode())  # list of lists
+                    syst_config = load_data['res_ge'][q_key].get('Syst Config', [])[0][dataset].decode()
+                    exp_config = load_data['res_ge'][q_key].get('Exp Config', [])[0][dataset].decode()
+                    safe_globals = {"np": np, "array": np.array, "__builtins__": {}}
+                    syst_config = eval(syst_config, safe_globals)
+                    exp_config = eval(exp_config, safe_globals)
+
+                    round_num = load_data['res_ge'][q_key].get('Round Num', [])[0][dataset]  # already a float
+                    batch_num = load_data['res_ge'][q_key].get('Batch Num', [])[0][dataset]
+                    freq_pts_data = load_data['res_ge'][q_key].get('freq_pts', [])[0][dataset].decode()
+
+                    # Replace whitespace between numbers with commas to make it a valid list
+                    formatted_str = freq_pts_data.replace('  ', ',').replace('\n', '')
+                    formatted_str = formatted_str.replace(' ', ',').replace('\n', '')
+                    formatted_str = formatted_str.replace(',]', ']').replace('\n', '')
+                    formatted_str = formatted_str.replace('],[', '],[')
+                    formatted_str = re.sub(r",,", ",", formatted_str)
+                    formatted_str = re.sub(r",\s*([\]])", r"\1", formatted_str)
+                    formatted_str = re.sub(r"(\d+)\.,", r"\1.0,",
+                                           formatted_str)  # Fix malformed floating-point numbers (e.g., '5829.,' -> '5829.0')
+                    # Convert to NumPy array
+                    freq_points = np.array(eval(formatted_str))
+                    # print('here: ', freq_points)
+                    if len(freq_pts) > 0:
+                        if freqs_found[q_key] is not None:
+                            extracted_resfreqs.append({
+                                "filename": os.path.basename(h5_file),
+                                "q_key": int(q_key),
+                                "dataset": dataset,
+                                "round_num": round_num,
+                                "batch_num": batch_num,
+                                "resfreq_MHz": freqs_found[q_key],
+                                "timestamp": date.timestamp()
+                            })
+                        else:
+                            print(f"Skipped Q{q_key + 1} in round {round_num} batch {batch_num}; fit returned None for ge res spec freq.")
+
+            del H5_class_instance
+        return extracted_resfreqs
+
+    def extract_batch_number(self, filename):
+        match = re.search(r'batch_(\d+)', filename)
+        return int(match.group(1)) if match else None
+
+    # Helper function to extract datetime from filename
+    def extract_timestamp_from_filename(self, filename):
+        """
+        Extracts a datetime object from the prefix of a filename like:
+        '2025-07-19_09-03-21_qspec_ge_results_batch_1_Num_per_batch1.h5'
+        """
+        from datetime import datetime
+        time_str = "_".join(os.path.basename(filename).split('_')[:2])
+        return datetime.strptime(time_str, "%Y-%m-%d_%H-%M-%S")
+
+    def relerr(self, val, err, eps=1e-12): # calculates relative error of a value and its associated error
+        return float(abs(err) / max(abs(val), eps)) # eps=1e-12 is to avoidthis blowing up if err is too close to zero
+
+    def bic_line_exp_vs_cosine(self, x, y, y_cos, tau_bounds=(1e-12, np.inf), maxfev=200000):
+        """
+        Uses curvefit instead of iminuit because this is just a quality cut, we don't extract science results.
+        Don't need anything fancy.
+
+        Compare cosine (provided as y_cos) vs:
+          - best-fit line  y = m*x + b
+          - best-fit exp   y = A*exp(-x/tau) + d
+
+        BIC used (Gaussian, unknown sigma):  BIC = n*ln(SSE/n) + k*ln(n)
+          k_line = 2, k_exp = 3, k_cos = 4 (number of parameters)
+
+        Inputs:
+          x, y     : raw data
+          y_cos    : cosine model prediction evaluated at x (e.g. I_fit or Q_fit)
+          tau_bounds: bounds for tau in exponential fit
+        Returns dict with BICs, deltas, winners, and fitted line/exp params.
+        """
+        # Data
+        x = np.asarray(x, float).ravel() # Gains
+        y = np.asarray(y, float).ravel() # I or Q amplitudes
+        # Cosine fit of the data (I or Q) provided by the user
+        y_cos = np.asarray(y_cos, float).ravel()
+
+        if not (x.size == y.size == y_cos.size):
+            raise ValueError("x, y, y_cos must have the same length.")
+
+        n = x.size # number of points
+
+        # sum of squared errors
+        # Smaller SSE = better fit
+        def sse(y_obs, y_hat):
+            r = y_obs - y_hat
+            return float(np.sum(r * r))
+
+        # Bayesian information criterion (BIC) or Schwarz information criterion formula
+        # This uses the "Gaussian errors, unknown variance" BIC form
+        def bic_from_sse(sse_val, k):
+            sse_val = max(float(sse_val), 1e-300)
+            return float(n * np.log(sse_val / n) + k * np.log(n))
+
+        # --- cosine SSE/BIC (no fitting; uses the user-provided cosine fit) ---
+        sse_cos = sse(y, y_cos)
+        bic_cos = bic_from_sse(sse_cos, k=4) # cosine has 4 params
+
+        # --- line fit ---
+        def line(x, m, b):
+            return m * x + b
+
+        # guess from polyfit
+        m0, b0 = np.polyfit(x, y, 1)
+        popt_line, pcov_line = curve_fit(line, x, y, p0=(m0, b0), maxfev=maxfev)
+        y_line = line(x, *popt_line)
+        sse_line = sse(y, y_line)
+        bic_line = bic_from_sse(sse_line, k=2)
+
+        # --- exponential fit ---
+        def exp_model(x, A, tau, d):
+            return A * np.exp(-x / tau) + d
+
+        span = max(float(x[-1] - x[0]), 1e-12)
+        A0 = float(y[0] - y[-1])
+        tau0 = span / 2.0
+        d0 = float(y[-1])
+
+        tau_lo, tau_hi = tau_bounds
+        if not np.isfinite(tau_hi):
+            tau_hi = 1e12
+        bounds_exp = ([-np.inf, tau_lo, -np.inf], [np.inf, tau_hi, np.inf])
+
+        popt_exp, pcov_exp = curve_fit(
+            exp_model, x, y, p0=(A0 if A0 != 0 else 1.0, tau0, d0),
+            bounds=bounds_exp, maxfev=maxfev
+        )
+        y_exp = exp_model(x, *popt_exp)
+        sse_exp = sse(y, y_exp)
+        bic_exp = bic_from_sse(sse_exp, k=3)
+
+        # --- comparisons (positive means cosine is better than the other) ---
+        # because small BIC = good
+        dBIC_line_minus_cos = bic_line - bic_cos
+        dBIC_exp_minus_cos = bic_exp - bic_cos
+
+        return {
+            "BIC": {
+                "cosine": round(bic_cos, 4),
+                "line": round(bic_line, 4),
+                "exp": round(bic_exp, 4),
+            },
+            "SSE": {
+                "cosine": round(sse_cos, 4),
+                "line": round(sse_line, 4),
+                "exp": round(sse_exp, 4),
+            },
+            "dBIC": {
+                "line_minus_cosine": round(dBIC_line_minus_cos, 4),
+                "exp_minus_cosine": round(dBIC_exp_minus_cos, 4),
+            },
+            "winner": {
+                "line_vs_cosine": "cosine" if bic_cos < bic_line else "line",
+                "exp_vs_cosine": "cosine" if bic_cos < bic_exp else "exp",
+            },
+            "params": {
+                "line": popt_line,
+                "exp": popt_exp,
+            },
+            "cov": {
+                "line": pcov_line,
+                "exp": pcov_exp,
+            },
+        }
+
+    def load_plot_save_rabis_Qtemps(self, list_of_all_qubits, run_num, save_figs = False, get_qtemp_data = False, filter_out_bad_amp_fits = False, use_png_timestamps = False, combine_IQ_signal = False):
+        """
+        Note: this code assumes that a single h5 file contains ONE dataset for EACH qubit inside.
+
+        Creates a dictionary called file_result with two keys: 'filename': a string, e.g. 'my_file.h5' and 'qubits': an empty dictionary, which you populate.
+        In other words, at the end of the script, you assign values inside 'qubits'.
+        """
+        if use_png_timestamps:
+            # This is a setting used to extract the timestamps in the png file names instead of using the ones
+            # stored inside the h5 files (which mark the time that the file was saved, not when the meas was done).
+            # --- loader for the h5–png map -----------------
+            map_loader = load_h5_png_map()
+        # -----------------------------------------Load/Plot/Save Rabi pop. meas. and qspec ---------------------------------------
+        p = Path(self.unique_folder_path)  # .../study_data or .../optimization
+        timestamp_dir = p.parent  # .../<date>
+
+        outerFolder_expt_qtemps = self.unique_folder_path+ "/Data_h5/q_temperatures/"
+        h5_files_qtemps = glob.glob(os.path.join(outerFolder_expt_qtemps, "*.h5"))
+        all_files_Qtemp_results = [] #to store qubit temperature results
+        cutoff_timestamp = datetime.datetime(2025, 4, 11, 19, 0).timestamp()  # when I started saving qubit freqs in the same files
+
+        if use_png_timestamps:
+            # --- load the mapping HDF5 for this timestamp_dir, if it exists ---
+            map_path = os.path.join(timestamp_dir, "documentation/h5_png_timestamp_map.h5")
+            if os.path.exists(map_path):
+                mapping_data = map_loader.load_map(map_path)
+
+            else:
+                print(f"[INFO] Mapping file not found at {map_path}.")
+                print(f"[INFO] Attempting to create a new mapping...")
+
+                # Instantiate mapping creator
+                mapper = create_h5_png_map()
+
+                try:
+                    # Run mapping creation for this timestamp_dir
+                    records = mapper.collect_matches(Path(timestamp_dir))
+
+                    # Save mapping to the expected path
+                    mapper.save_to_h5(Path(map_path), Path(timestamp_dir), records)
+
+                    # Load the newly created mapping
+                    mapping_data = map_loader.load_map(map_path)
+
+                    print(f"[INFO] Successfully created mapping at {map_path}.")
+
+                except Exception as e:
+                    print(f"[WARN] Failed to create mapping: {e}")
+                    # print("[WARN] Falling back to HDF5 timestamps instead.")
+                    mapping_data = None
+
+        alpha = None  # angle from ssf, will be replaced with real angle if combine_IQ_signal = True
+        if get_qtemp_data:
+            # --------------------------------------- load qspec data too ---------------------------------------------
+            # This function returns a list of dicts with keys like 'filename', 'q_key', 'qfreq_MHz', 'Qfreq_fit_err', etc.
+            extracted_qspec_results = self.load_plot_save_q_spec()
+
+            # Index QSpec results by timestamp and q_key
+            qspec_by_qkey_and_time = defaultdict(list)
+            for entry in extracted_qspec_results:
+                timestamp = self.extract_timestamp_from_filename(entry['filename']).timestamp()
+                q_key_qpsec = entry['q_key']
+                qspec_by_qkey_and_time[q_key_qpsec].append((timestamp, entry))
+
+            # Sort by timestamp for efficient matching
+            for qkey in qspec_by_qkey_and_time:
+                qspec_by_qkey_and_time[qkey].sort()
+            #-------------------------------------------- optionally load ssf data too --------------------------
+            if combine_IQ_signal:
+                # Load all SSF metadata records (your edited function returns {"records":[...]} )
+                ssf_meta = self.load_plot_save_ss(plot_ss_hist_only=True, plot_title="")  # or whatever args you want
+                ssf_records = ssf_meta.get("records", [])
+
+                # Index SSF results by qubit, then sort by timestamp for efficient closest-time matching
+                ssf_by_qkey_and_time = defaultdict(list)
+                for record in ssf_records:
+                    ssf_file_dt = self.extract_timestamp_from_filename(record['ssf_file']).timestamp()  # datetime
+                    q_key_ssf = record['q_key']
+                    ssf_by_qkey_and_time[q_key_ssf].append((ssf_file_dt, record))
+
+                for qkey in ssf_by_qkey_and_time:
+                    ssf_by_qkey_and_time[qkey].sort()
+            #---------------------------------------------------------------------------------------------
+
+        for h5_file in h5_files_qtemps:
+
+            save_round = h5_file.split('Num_per_batch')[-1].split('.')[0]
+            H5_class_instance = Data_H5(h5_file)
+            load_data = H5_class_instance.load_from_h5(data_type='q_temperatures', save_r=int(save_round))
+
+            file_result = {'filename': os.path.basename(h5_file), 'qubits': {}}
+            file_timestamp = self.extract_timestamp_from_filename(h5_file).timestamp() #extracts the timestamp in the h5 file name
+
+            populated_keys = []
+            for q_key in load_data['q_temperatures']:
+                # Access 'Dates' for the current q_key
+                dates_list = load_data['q_temperatures'][q_key].get('Dates', [[]])
+
+                # Check if any entry in 'Dates' is not NaN
+                if any(
+                        not np.isnan(date)
+                        for date in dates_list[0]  # Iterate over the first batch of dates
+                ):
+                    populated_keys.append(q_key)
+
+            # print('populated_keys ', populated_keys)
+
+            for q_key in populated_keys:
+                # print(f"Extracting data for QubitIndex: {q_key}")
+                for dataset in range(len(load_data['q_temperatures'][q_key].get('Dates', [])[0])):
+                    A_amp_IQ_Pe = None
+                    A_amp_IQ_Pg = None
+                    A_amp_IQ_err_Pe = None
+                    A_amp_IQ_err_Pg = None
+                    flagged = False
+                    date = datetime.datetime.fromtimestamp(load_data['q_temperatures'][q_key].get('Dates', [])[0][dataset])
+                    round_num = load_data['q_temperatures'][q_key].get('Round Num', [])[0][dataset]
+                    batch_num = load_data['q_temperatures'][q_key].get('Batch Num', [])[0][dataset]
+
+                    # Pe sequence
+                    I1 = self.process_h5_data(load_data['q_temperatures'][q_key].get('I1', [])[0][dataset].decode())
+                    Q1 = self.process_h5_data(load_data['q_temperatures'][q_key].get('Q1', [])[0][dataset].decode())
+                    gains1 = self.process_h5_data(load_data['q_temperatures'][q_key].get('Gains1', [])[0][dataset].decode())
+
+                    #Pg sequence
+                    I2 = self.process_h5_data(load_data['q_temperatures'][q_key].get('I2', [])[0][dataset].decode())
+                    Q2 = self.process_h5_data(load_data['q_temperatures'][q_key].get('Q2', [])[0][dataset].decode())
+                    gains2 = self.process_h5_data(load_data['q_temperatures'][q_key].get('Gains2', [])[0][dataset].decode())
+
+                    # syst_config = load_data['q_temperatures'][q_key].get('Syst Config', [])[0][dataset].decode()
+                    exp_config = load_data['q_temperatures'][q_key].get('Exp Config', [])[0][dataset].decode()
+                    safe_globals = {"np": np, "array": np.array, "__builtins__": {}}
+                    exp_config = eval(exp_config, safe_globals)
+                    rabi_cfg = exp_config['power_rabi_ef']
+
+                    # ----------------------- Inside your per-dataset loop (right after you set round_num / batch_num / file_timestamp) ----------
+                    if combine_IQ_signal and get_qtemp_data:
+                        alpha = None
+
+                        # Get SSF candidates for this qubit
+                        ssf_entries = ssf_by_qkey_and_time.get(int(q_key), [])
+
+                        if run_num == 7 or run_num == 8 or run_num == 4 or run_num == 5:
+                            MAX_TIME_DIFF_SSF_RPM = 10.0  # seconds
+                        elif run_num == 6:
+                            MAX_TIME_DIFF_SSF_RPM = 600
+                        else:
+                            MAX_TIME_DIFF_SSF_RPM = None # breaks code on purpose
+
+                        if not ssf_entries:
+                            print(f"No SSF entries found for Q{q_key + 1}", flush=True)
+                            continue
+
+                        closest_match = min(ssf_entries, key=lambda pair: abs(pair[0] - file_timestamp))
+                        time_diff = abs(closest_match[0] - file_timestamp)
+
+                        if time_diff > MAX_TIME_DIFF_SSF_RPM:
+                            print(
+                                f"[WARN] No SSF within {MAX_TIME_DIFF_SSF_RPM:.1f}s for Q{q_key + 1}. "
+                                f"Closest Δt={time_diff:.2f}s (ssf_file={closest_match[1].get('ssf_file')}, rpm_file={os.path.basename(h5_file)})",
+                                flush=True
+                            )
+                            continue
+
+                        matched_ssf = closest_match[1]
+                        alpha = matched_ssf.get("angle", None)
+
+                        print(
+                            f"Matched SSF for Q{q_key + 1}: angle={alpha} from {matched_ssf.get('ssf_file')} "
+                            f"(Δt={time_diff:.2f}s)",
+                            flush=True
+                        )
+
+                        if alpha is None:
+                            print(f"[WARN] SSF match found but angle is None for Q{q_key + 1}. Skipping.", flush=True)
+                            continue
+                    #---------------------------------------------------------------------------------------------
+                    # If we are saving filtered plots we don't want to save unfiltered ones
+                    # But sometimes we want to just look at unfiltered ones
+                    save_figs_nonfiltered = False
+                    if save_figs and not filter_out_bad_amp_fits:
+                        save_figs_nonfiltered = True
+
+                    if len(I1) > 0:
+                        rabi_class_instance = Temps_EFAmpRabiExperiment(q_key, self.number_of_qubits, list_of_all_qubits,
+                                                                      self.outerFolder_save_plots, round_num,
+                                                                      self.signal, save_figs = save_figs_nonfiltered)
+                        I1 = np.asarray(I1)
+                        Q1 = np.asarray(Q1)
+                        gains1 = np.asarray(gains1)
+                        A_amp_IQ_Pe, A_amp_IQ_err_Pe, fit_params_Pe = rabi_class_instance.plot_results_IQ_together_iminuit(I1, Q1, gains1, rabi_cfg, self.figure_quality, use_iminuit_instead = True,
+                                                                                                        filename_ext = "Pe_", rotate_using_ssf = combine_IQ_signal, ssf_angle = alpha)
+                
+                        del rabi_class_instance
+
+                    if len(I2) > 0:
+                        rabi_class_instance = Temps_EFAmpRabiExperiment(q_key, self.number_of_qubits,
+                                                                        list_of_all_qubits,
+                                                                        self.outerFolder_save_plots, round_num,
+                                                                        self.signal, save_figs = save_figs_nonfiltered)
+                        I2 = np.asarray(I2)
+                        Q2 = np.asarray(Q2)
+                        gains2 = np.asarray(gains2)
+                        A_amp_IQ_Pg, A_amp_IQ_err_Pg, fit_params_Pg= rabi_class_instance.plot_results_IQ_together_iminuit(I2, Q2, gains2, rabi_cfg, self.figure_quality, use_iminuit_instead = True,
+                                                                                                    filename_ext = "Pg_", rotate_using_ssf = combine_IQ_signal, ssf_angle = alpha)
+
+                        del rabi_class_instance
+
+                    #-------------------------------------------- to filter out bad fits --------------------------------------------
+                    if filter_out_bad_amp_fits and len(I1) > 0 and len(I2) > 0:
+                        print(f'\n inside filter_out_bad_amp_fits block for {q_key + 1}')
+
+                        # -------------------- pull fit outputs --------------------
+                        I_fit_Pe = fit_params_Pe.get("I_fit", None)
+                        Q_fit_Pe = fit_params_Pe.get("Q_fit", None)
+
+                        I_fit_Pg = fit_params_Pg.get("I_fit", None)
+                        Q_fit_Pg = fit_params_Pg.get("Q_fit", None)
+
+                        A_I_Pe = fit_params_Pe.get("A_I", None)
+                        sigma_A_I_Pe = fit_params_Pe.get("sigma_A_I", None)
+                        A_Q_Pe = fit_params_Pe.get("A_Q", None)
+                        sigma_A_Q_Pe = fit_params_Pe.get("sigma_A_Q", None)
+
+                        A_I_Pg = fit_params_Pg.get("A_I", None)
+                        sigma_A_I_Pg = fit_params_Pg.get("sigma_A_I", None)
+                        A_Q_Pg = fit_params_Pg.get("A_Q", None)
+                        sigma_A_Q_Pg = fit_params_Pg.get("sigma_A_Q", None)
+
+                        # -------------------- BIC filtering: cosine must beat line AND exp in at least one quadrature ------------
+                        BIC_THRESH_LINE = 12.0  # adjust as needed
+                        BIC_THRESH_EXP = 15.0  # adjust as needed. #20 worked well for QUIET run 8
+
+                        # Pe sequence
+                        res_bic_I_Pe = self.bic_line_exp_vs_cosine(gains1, I1, I_fit_Pe)
+                        res_bic_Q_Pe = self.bic_line_exp_vs_cosine(gains1, Q1, Q_fit_Pe)
+
+                        # Pg sequence
+                        res_bic_I_Pg = self.bic_line_exp_vs_cosine(gains2, I2, I_fit_Pg)
+                        res_bic_Q_Pg = self.bic_line_exp_vs_cosine(gains2, Q2, Q_fit_Pg)
+
+                        Pe_ok = (
+                                (res_bic_I_Pe["dBIC"]["line_minus_cosine"] > BIC_THRESH_LINE and
+                                 res_bic_I_Pe["dBIC"]["exp_minus_cosine"] > BIC_THRESH_EXP)
+                                or
+                                (res_bic_Q_Pe["dBIC"]["line_minus_cosine"] > BIC_THRESH_LINE and
+                                 res_bic_Q_Pe["dBIC"]["exp_minus_cosine"] > BIC_THRESH_EXP))
+
+                        Pg_ok = (
+                                (res_bic_I_Pg["dBIC"]["line_minus_cosine"] > BIC_THRESH_LINE and
+                                 res_bic_I_Pg["dBIC"]["exp_minus_cosine"] > BIC_THRESH_EXP)
+                                or
+                                (res_bic_Q_Pg["dBIC"]["line_minus_cosine"] > BIC_THRESH_LINE and
+                                 res_bic_Q_Pg["dBIC"]["exp_minus_cosine"] > BIC_THRESH_EXP))
+
+                        # Pairwise decision: flag if either sequence fails BIC
+                        flagged = not (Pe_ok and Pg_ok)
+
+                        # Check which scan failed, to include that info in the file names as we save them
+                        Pe_self_fail = not Pe_ok
+                        Pg_self_fail = not Pg_ok
+
+                        # Pe filename tag
+                        if Pe_self_fail:
+                            pe_tag = "Pe_SELF_FAIL_"
+                        elif flagged:
+                            pe_tag = "Pe_PAIR_FAIL_"
+                        else:
+                            pe_tag = "Pe_CLEAN_"
+
+                        # Pg filename tag
+                        if Pg_self_fail:
+                            pg_tag = "Pg_SELF_FAIL_"
+                        elif flagged:
+                            pg_tag = "Pg_PAIR_FAIL_"
+                        else:
+                            pg_tag = "Pg_CLEAN_"
+
+                        # -----------------------------------------------------------------------------------
+                        base_dir = os.path.join(self.outerFolder_save_plots, "filtering_bad_fits")
+                        out_dir = os.path.join(base_dir, "FLAGGED" if flagged else "CLEAN")
+                        msg = "Saving bad fit plots and skipping temperature calc." if flagged else "Saving clean fit plots."
+
+                        if self.save_figs:
+                            os.makedirs(out_dir, exist_ok=True)
+
+                        # Pe sequence (I1/Q1/gains1)
+                        saver1 = Temps_EFAmpRabiExperiment(
+                            q_key, self.number_of_qubits, list_of_all_qubits,
+                            out_dir, round_num, self.signal, save_figs=save_figs)
+                        saver1.plot_results_IQ_together_iminuit(I1, Q1, gains1, rabi_cfg, self.figure_quality,
+                                            use_iminuit_instead=True, filename_ext=pe_tag, rotate_using_ssf = combine_IQ_signal, ssf_angle = alpha)
+                        del saver1
+
+                        # Pg sequence (I2/Q2/gains2)
+                        saver2 = Temps_EFAmpRabiExperiment(
+                            q_key, self.number_of_qubits, list_of_all_qubits,
+                            out_dir, round_num, self.signal, save_figs=save_figs)
+                        saver2.plot_results_IQ_together_iminuit(I2, Q2, gains2, rabi_cfg, self.figure_quality,
+                                            use_iminuit_instead=True, filename_ext=pg_tag, rotate_using_ssf = combine_IQ_signal, ssf_angle = alpha)
+                        del saver2
+
+                        # Skip temperature calculation if flagged
+                        if flagged:
+                            reasons = []
+                            if not Pe_ok: reasons.append("BIC_fail_Pe")
+                            if not Pg_ok: reasons.append("BIC_fail_Pg")
+
+                            print(
+                                f"[FLAGGED] Q{q_key + 1}: "
+                                f"Pe dBIC(I): line={res_bic_I_Pe['dBIC']['line_minus_cosine']:.1f}, "
+                                f"exp={res_bic_I_Pe['dBIC']['exp_minus_cosine']:.1f} | "
+                                f"Pe dBIC(Q): line={res_bic_Q_Pe['dBIC']['line_minus_cosine']:.1f}, "
+                                f"exp={res_bic_Q_Pe['dBIC']['exp_minus_cosine']:.1f} | "
+                                f"Pg dBIC(I): line={res_bic_I_Pg['dBIC']['line_minus_cosine']:.1f}, "
+                                f"exp={res_bic_I_Pg['dBIC']['exp_minus_cosine']:.1f} | "
+                                f"Pg dBIC(Q): line={res_bic_Q_Pg['dBIC']['line_minus_cosine']:.1f}, "
+                                f"exp={res_bic_Q_Pg['dBIC']['exp_minus_cosine']:.1f} "
+                                f"Reasons: {', '.join(reasons)}",
+                                flush=True
+                            )
+                            continue
+                    #-----------------------------------------------------------------------------------------------------------------
+                    # Skip temperature calculation if not requested
+                    if not get_qtemp_data:
+                        continue
+                    # -----------------------Grabbing matching qubit frequency for this qubit---------------------------------
+                    # This uses the h5 file timestamp bc we just want to match rounds of data !!!
+                    if date.timestamp() > cutoff_timestamp and get_qtemp_data:
+                        # Files after this date contain the matching g-e qubit frequency already BUT the files do not contain the corresponding qspec fit errors.
+
+                        # The line below extracts the qfreq saved in each rabi pop. meas. file, but it does not extract the error of the qspec fit because that was not saved in the h5 files.
+                        qubit_freq_MHz_rpmfile = load_data['q_temperatures'][q_key].get('Qfreq_ge', [])[0][
+                            dataset]  # extract to compare with the 'matching' method
+                        print(f"\n QSpec from RPM file for Q{q_key + 1}: {qubit_freq_MHz_rpmfile} MHz", flush = True)  # print to compare
+
+                        # Get qspec candidates for this qubit
+                        qspec_entries = qspec_by_qkey_and_time.get(q_key, [])
+
+                        if not qspec_entries:
+                            print(f"No QSpec entries found for Q{q_key + 1}", flush = True)
+                            continue
+
+                        # Find closest match in timestamp from filename
+                        closest_match = min(qspec_entries, key=lambda pair: abs(pair[0] - file_timestamp))  # pair[0] is timestamp from qspec filename. pair = (timestamp, qspec_dict) and it is defined in this line
+                        # Note: closest_match = (timestamp_from_filename, qspec_entry_dict)
+                        # closest_match[0] is timestamp_from_filename (a float, in seconds since epoch)
+                        # closest_match[1] is the actual QSpec result dictionary with keys
+
+                        time_diff = abs(closest_match[0] - file_timestamp)
+                        matched_qspec = closest_match[1]  # dictionary containing qspec and its err
+
+                        qubit_freq_MHz = matched_qspec['qfreq_MHz']
+                        qfreq_err = matched_qspec['Qfreq_fit_err']
+
+                        print(f"Matched QSpec for Q{q_key + 1}: {qubit_freq_MHz} MHz "
+                              f"(Δt = {time_diff:.2f} s from filename timestamp)", flush = True)
+
+
+                    elif date.timestamp() <= cutoff_timestamp and get_qtemp_data:  # -----this looks through matching qspec file ONLY, does not extract qfreq from RPM h5 file----
+                        # Get qspec candidates for this qubit
+                        qspec_entries = qspec_by_qkey_and_time.get(q_key, [])
+
+                        if not qspec_entries:
+                            print(f"No QSpec entries found for Q{q_key + 1}", flush = True)
+                            continue
+
+                        # Find closest match in timestamp from filename
+                        closest_match = min(qspec_entries, key=lambda pair: abs(pair[0] - file_timestamp))  # pair[0] is timestamp from qspec filename (the first element in each tuple)
+
+                        time_diff = abs(closest_match[0] - file_timestamp)
+                        matched_qspec = closest_match[1]  # dictionary containing qspec and its err
+
+                        qubit_freq_MHz = matched_qspec['qfreq_MHz']
+                        qfreq_err = matched_qspec['Qfreq_fit_err']
+
+                        print(f"Matched QSpec for Q{q_key + 1}: {qubit_freq_MHz} MHz "
+                              f"(Δt = {time_diff:.2f} s from filename timestamp)", flush = True)
+
+                    # ---------------------------------------------------------------------------------------------
+                    if (A_amp_IQ_Pe is not None and A_amp_IQ_Pg is not None and
+                        A_amp_IQ_err_Pe is not None and A_amp_IQ_err_Pg is not None):
+                        A_e = A_amp_IQ_Pe
+                        A_g = A_amp_IQ_Pg
+
+                        results = self.Qubit_Temperature_Convert(A_e, A_g, qubit_freq_MHz)
+                        if results is None:
+                            continue  # Skip this dataset
+                        T_K, T_mK, P_e, qubit_freq_MHz = results
+                        print(f"Q{q_key + 1} calculated Temperature:{T_mK}, with P_e = {P_e}, and Qfreq {qubit_freq_MHz} MHz", flush = True)
+
+                        # Compute propagated 1-sigma error (std) on T_mK
+                        try:
+                            T_err, Pe_err = self.compute_temperature_error_RPM(
+                                A1=A_amp_IQ_Pe,
+                                A2=A_amp_IQ_Pg,
+                                Pe=P_e,
+                                T_mK=T_mK,
+                                qubit_freq_MHz=qubit_freq_MHz,
+                                sigma_A1=A_amp_IQ_err_Pe,
+                                sigma_A2=A_amp_IQ_err_Pg,
+                                sigma_qfreq_MHz=qfreq_err
+                            )
+                        except Exception as e:
+                            print(f"Error computing T_err for Q{q_key + 1}: {e}", flush = True)
+                            continue
+
+                        if use_png_timestamps:
+                            # --- use PNG filename timestamp from mapping if available ------
+                            # the reason for this is bc the png timestamp is more accurate than the h5 file ones
+                            if mapping_data is not None:
+                                # mapping uses experiment='t1_ge', qubit as 1-indexed
+                                qubit_in_map = q_key + 1
+                                subset = map_loader.filter_by(
+                                    mapping_data,
+                                    experiment="q_temperatures",
+                                    qubit=qubit_in_map,
+                                    round=round_num)
+
+                                if len(subset) > 0:
+                                    # pick the PNG with the latest timestamp (the second one, which corresponds to Pg)
+                                    latest_row = max(subset, key=lambda row: row["png_timestamp"])
+                                    png_ts = latest_row["png_timestamp"].decode()
+
+                                    try:
+                                        png_dt = datetime.datetime.strptime(png_ts, "%Y-%m-%d_%H-%M-%S")
+                                        date_time = png_dt.timestamp()  # from png
+                                    except Exception:
+                                        # in case of weird format, fall back
+                                        # date_time = date.timestamp()  # from h5 file
+                                        continue  # skip
+                                else:
+                                    # no mapping match for this qubit/round, fall back
+                                    # date_time = date.timestamp() # from h5 file
+                                    continue  # skip
+                            else:
+                                # no mapping file for this timestamp_dir, fall back
+                                # date_time = date.timestamp()  # from h5 file
+                                continue  # skip
+
+                        else:
+                            date_time = date.timestamp()  # og way, from h5 file
+
+                        if T_err is not None: # qubit index starts at zero
+                            file_result['qubits'][int(q_key)] = { # You're accessing the 'qubits' dictionary inside file_result and adding info for the qubit
+                                'A1': A_amp_IQ_Pe, # Ae, the rpm amplitude of the Pe sequence
+                                'A1_err': A_amp_IQ_err_Pe, # Ae error
+                                'A_I_1': A_I_Pe, # I-curve amplitude for Pe sequence
+                                'sigma_A_I_1': sigma_A_I_Pe, # I-curve amplitude error for Pe sequence
+                                'A_Q_1': A_Q_Pe, # Q-curve amplitude for Pe sequence
+                                'sigma_A_Q_1': sigma_A_Q_Pe, # Q-curve amplitude error for Pe sequence
+                                'A2': A_amp_IQ_Pg, # Ag, the rpm amplitude of the Pg sequence
+                                'A2_err': A_amp_IQ_err_Pg,  # Ag error
+                                'A_I_2': A_I_Pg,  # I-curve amplitude for Pe sequence
+                                'sigma_A_I_2': sigma_A_I_Pg,  # I-curve amplitude error for Pe sequence
+                                'A_Q_2': A_Q_Pg,  # Q-curve amplitude for Pe sequence
+                                'sigma_A_Q_2': sigma_A_Q_Pg,  # Q-curve amplitude error for Pe sequence
+                                'T_mK': T_mK,
+                                'T_mK_err': T_err,
+                                'P_e': P_e,
+                                'P_e_err_total': Pe_err,
+                                'qubit_freq_MHz': qubit_freq_MHz,
+                                "Qfreq_fit_err" : qfreq_err, #MHz,
+                                "ssf_angle": alpha, # will be None if you don't choose to combine IQ signal
+                                'date':date_time,
+                                'filepath': h5_file}
+                        else:
+                            print(f"Skipping Q{q_key + 1} entry because T_err was not calculated successfully.", flush = True)
+
+            if get_qtemp_data:
+                all_files_Qtemp_results.append(file_result)
+
+            del H5_class_instance
+
+        return all_files_Qtemp_results
+
+    def Qubit_Temperature_Convert(self, A_e, A_g, qubit_freq_MHz):
+        P_e = abs(A_e) / (abs(A_e) + abs(A_g))
+        P_g = (1 - P_e)
+        if P_e <= 0 or P_g <= 0: #if one of them is zero can't calculate the temp
+            print("Warning: Invalid population values encountered (<= 0). Skipping this dataset.")
+            return None
+
+        ratio = P_g / P_e
+        if ratio <= 1: #denominator would become zero at Pg=Pe
+            print(f"Warning: Non-physical ratio (P_g/P_e = {ratio:.3f} <= 1) encountered. Skipping this dataset.")
+            return None
+
+        qubit_freq_Hz = qubit_freq_MHz * 2 * np.pi * 1e6  # Omega_q in the unit Hz
+        k_B = 1.38 * 10 ** -23
+        hbar = 1.05 * 10 ** -34
+        T_K = hbar * qubit_freq_Hz / (k_B * np.log(P_g/ P_e))  # Temperature in the unit Kelvin
+        T_mK = T_K * 1000  # Convert to millikelvin
+        return T_K, T_mK, P_e, qubit_freq_MHz
+
+    def compute_temperature_error_RPM(
+            self,
+            A1, A2, Pe, T_mK, qubit_freq_MHz,
+            sigma_A1, sigma_A2, sigma_qfreq_MHz):
+        """
+        Error propagation formula (base):
+          sigma_T^2 = (dT/dA1 * sigma_A1)^2 + (dT/dA2 * sigma_A2)^2 + (dT/df_ge * sigma_f_ge)^2
+
+        Assumes:
+          Pe = |A1| / (|A1| + |A2|)
+          T = (h f_ge / kB) / ln((1-Pe)/Pe)
+        """
+
+        # --- dPe/dA1, dPe/dA2 for Pe = |A1|/(|A1|+|A2|) ---
+        sum_A = np.abs(A1) + np.abs(A2)
+        if np.any(sum_A == 0):
+            return np.nan, np.nan
+
+        dPe_dA1 = (np.abs(A2) / sum_A ** 2) * np.sign(A1)  # includes sgn from d|A|/dA
+        dPe_dA2 = (-np.abs(A1) / sum_A ** 2) * np.sign(A2)
+
+        # --- dT/dPe ---
+        if (Pe is None) or (not np.isfinite(Pe)) or (Pe <= 0.0) or (Pe >= 1.0):
+            return np.nan, np.nan
+
+        ln_term = np.log((1.0 - Pe) / Pe)
+        if (not np.isfinite(ln_term)) or (ln_term == 0.0):
+            return np.nan, np.nan
+
+        dT_dPe = T_mK / (ln_term * Pe * (1.0 - Pe))
+
+        # --- chain rule to get dT/dA1 and dT/dA2 ---
+        dT_dA1 = dT_dPe * dPe_dA1
+        dT_dA2 = dT_dPe * dPe_dA2
+
+        # --- frequency term: dT/df_ge = T / f_ge ---
+        f0_Hz = qubit_freq_MHz * 1e6
+        sigma_f0_Hz = sigma_qfreq_MHz * 1e6
+        if (not np.isfinite(f0_Hz)) or (f0_Hz <= 0):
+            return np.nan, np.nan
+        dT_df0 = T_mK / f0_Hz
+
+        # --- Base sigma_T from A1/A2 and freq ---
+        sigma_T_mK = np.sqrt(
+            (dT_dA1 * sigma_A1) ** 2 +
+            (dT_dA2 * sigma_A2) ** 2 +
+            (dT_df0 * sigma_f0_Hz) ** 2
+        )
+
+        # --- Base sigma_Pe from A1/A2 propagation ---
+        sigma_Pe_fit = np.sqrt(
+            (dPe_dA1 * sigma_A1) ** 2 +
+            (dPe_dA2 * sigma_A2) ** 2
+        )
+
+        sigma_Pe_total = float(sigma_Pe_fit)
+        sigma_T_mK_total = float(sigma_T_mK)
+
+        return sigma_T_mK_total, sigma_Pe_total
+
+    # Helper for fitting & plotting a line on `ax`
+    def do_linear_fit_and_plot_qtemps_RPM(self, ax, times_arr, temps_arr, initial_time, final_time, mask, color, label_prefix):
+        """
+        Perform a linear regression on the subset of (times_arr, temps_arr)
+        indicated by `mask` (which itself should already restrict times_arr
+        to be between initial_time and final_time).  Then plot the best‐fit
+        line onto `ax`, extending from initial_time to final_time.
+
+        The line is parameterized as
+            temperature (mK) = m * (hours since initial_time) + b,
+        and we compute an R² to indicate goodness of fit.  The x‐axis on the
+        plot is in actual datetime.
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes
+            The axes on which to draw the fit‐line.
+        times_arr : 1D np.array of floats
+            An array of POSIX timestamps (in seconds).  You still pass every
+            timestamp in here, even those outside [initial_time, final_time].
+        temps_arr : 1D np.array of floats
+            The matching temperatures (mK) at each timestamp.
+        initial_time : float
+            POSIX timestamp (seconds) marking the “start” of the fit window.
+        final_time : float
+            POSIX timestamp (seconds) marking the “end” of the fit window.
+        mask : 1D boolean np.array
+            A boolean mask the same length as times_arr, True for any index i
+            such that initial_time <= times_arr[i] <= final_time.  Only those
+            points will be used for the regression.
+        color : str
+            Color used for drawing the line.
+        label_prefix : str
+            A short label (e.g. “Full ramp” or “Up to 120 mK”) that will be
+            prepended to the slope and R² in the legend.
+        """
+        # Restrict to exactly the points the user passed (the mask should
+        # already enforce initial_time <= times_arr <= final_time)
+        x_sel = times_arr[mask]
+        y_sel = temps_arr[mask]
+        if len(x_sel) < 2:
+            # Not enough points to do a proper fit. skip drawing anything.
+            return
+
+        # Convert those timestamps into “hours since initial_time”
+        x_hours = (x_sel - initial_time) / 3600.0  # hrs
+
+        # Linear regression (y = m * x + b) on (x_hours, y_sel)
+        m, b = np.polyfit(x_hours, y_sel, 1)
+
+        # Compute R-squared for these selected points
+        y_fit_at_points = m * x_hours + b
+        residuals = y_sel - y_fit_at_points
+        ss_res = np.sum(residuals ** 2)
+        ss_tot = np.sum((y_sel - np.mean(y_sel)) ** 2)
+        r2 = (1 - ss_res / ss_tot) if ss_tot > 0 else np.nan
+
+        # Build a “fine” x‐grid that spans exactly from initial_time → final_time.
+        # In units of hours since initial_time, that means from t = 0 → t = (final_time - initial_time)/3600.
+        hours_start = 0.0
+        hours_end = (final_time - initial_time) / 3600.0
+
+        x_fit_line = np.linspace(hours_start, hours_end, 100)
+        y_fit_line = m * x_fit_line + b
+
+        # Convert those “hours since initial_time” back into real datetimes, so we can plot on ax.
+        dt_fit = [datetime.datetime.fromtimestamp(initial_time + (h * 3600.0)) for h in x_fit_line]
+
+        # draw the line on ax, with high zorder so it sits on top of the scatter.
+        ax.plot(
+            dt_fit,
+            y_fit_line,
+            linestyle='-',
+            linewidth=2,
+            color=color,
+            label=f"{label_prefix}: slope={m:.1f} mK/h, R²={r2:.2f}",
+            zorder=10)
+
+    def plot_qubit_temperatures_vs_time_RPMs(self, all_files_Qtemp_results, num_qubits=6, yaxis_min = 10, yaxis_max = 950, rel_err_cutoff = None, restrict_time_xaxis = False,
+                                             plot_extra_event_lines = False, rad_events_plot_lines = True, plot_error_bars=False, fit_to_line=False, average_per_heater_step=False):
+        """
+        Plots qubit temperatures vs. time for each qubit in a separate subplot (max 3 columns).
+
+        Parameters:
+        - all_files_Qtemp_results: list of dicts returned by `load_plot_save_rabis_Qtemps`
+        - num_qubits: total number of qubits to plot (default is 6)
+        - restrict_time_xaxis : do you want to plot only a certain region of time?
+        - plot_extra_event_lines: do you want to plot vertical dashed lines to mark extra events that happened (besides source instalation)?
+        - plot_error_bars: do you want to plot error bars?
+        - fit_to_line : do you want to perform linar fits? Right now it is set up to fit two linear fits: (1)full heater ramp up 2)and up to 120 mK)
+        """
+
+        # Define the colors you want for each qubit
+        colors = ["orange", "blue", "purple", "green", "brown", "pink"]
+        legend_handles = []
+        ncols = min(num_qubits, 3)
+        nrows = math.ceil(num_qubits / 3)
+
+        fig, axes = plt.subplots(nrows=nrows, ncols=ncols,
+                                 figsize=(4 * ncols, 4 * nrows),
+                                 sharex=False, constrained_layout=True)  # set sharex=False if you want each subplot to manage ticks independently
+        axes = axes.flatten() if isinstance(axes, (list, np.ndarray)) else [axes]
+
+        fig.suptitle("Qubit Temperatures vs. Time", fontsize=16)
+
+        # Optional: to plot radiation source events
+        events_radiation = [
+            (datetime.datetime(2025, 4, 21, 12, 35), "Co-60"),
+            (datetime.datetime(2025, 4, 23, 12, 53), "Cs-137"),
+            (datetime.datetime(2025, 4, 28, 9, 40), "Cs-137 Closer"),
+            (datetime.datetime(2025, 5, 4, 18, 20), "Cs-137 Removed"),
+            (datetime.datetime(2025, 5, 5, 11, 51), "Cs-137 Hot"),
+            (datetime.datetime(2025, 5, 5, 14, 40), "Cs-137 removed"),
+            (datetime.datetime(2025, 5, 6, 15, 28), "Cs-137 Hot"),
+            (datetime.datetime(2025, 5, 6, 16, 0), "Cs-137 removed"),
+            (datetime.datetime(2025, 5, 7, 10, 36), "Cs-137 Hot"),
+            (datetime.datetime(2025, 5, 7, 16, 20), "Cs-137 removed")
+        ]
+
+        # Optional: Now for other events. Only relevant if plot_extra_event_lines is set to True!!!
+        events_0418 = [
+            (datetime.datetime(2025, 4, 18, 11, 50), "Daniel Entry"),
+            (datetime.datetime(2025, 4, 18, 13, 30), "Daniel Exit"),
+            (datetime.datetime(2025, 4, 18, 14, 53), "Daniel Entry"),
+            (datetime.datetime(2025, 4, 18, 15, 0), "Door Intermission"),
+            (datetime.datetime(2025, 4, 18, 15, 6), "Exit/Re-entry Daniel"),
+            (datetime.datetime(2025, 4, 18, 15, 12), "Ryan Entry"),
+            (datetime.datetime(2025, 4, 18, 15, 40), "Door Intermission"),
+            (datetime.datetime(2025, 4, 18, 16, 11), "Daniel Exit"),
+            (datetime.datetime(2025, 4, 18, 16, 12), "Daniel Entry"),
+            (datetime.datetime(2025, 4, 18, 16, 16), "Daniel Exit")]
+
+        events_0423 = [
+            (datetime.datetime(2025, 4, 23, 12, 50), "Dan-Joyce Entry"),
+            (datetime.datetime(2025, 4, 23, 12, 54), "Dan-Joyce Exit"),
+            (datetime.datetime(2025, 4, 23, 13, 40), "Grace Entry"),
+            (datetime.datetime(2025, 4, 23, 13, 47), "Grace Exit"),
+            (datetime.datetime(2025, 4, 23, 16, 40), "Kester-Grace Entry"),
+            (datetime.datetime(2025, 4, 23, 16, 48), "Kester-Grace Exit")]
+
+        heater_events = [
+            (datetime.datetime(2025, 5, 8, 18, 50), "20mK step"),
+            (datetime.datetime(2025, 5, 9, 10, 24), "40mK step"),
+            (datetime.datetime(2025, 5, 10, 1, 39), "60mK step"),
+            (datetime.datetime(2025, 5, 10, 18, 31), "80mK step"),
+            (datetime.datetime(2025, 5, 11, 14, 46), "100mK step"),
+            (datetime.datetime(2025, 5, 12, 15, 11), "120mK step"),
+            (datetime.datetime(2025, 5, 13, 12, 2), "140mK step"),
+            (datetime.datetime(2025, 5, 14, 12, 31), "160mK step"),
+            (datetime.datetime(2025, 5, 14, 22, 50), "Heater Off")]
+
+        # Optional: Restrict plot to specific date and time window. Will only go into effect if restrict_time_xaxis = True
+        # date_to_plot = datetime.date(2025, 4, 17)
+        # start_datetime = datetime.time(0, 0)  # Start of the window
+        # end_datetime = datetime.time(23, 59)
+        start_datetime = datetime.datetime(2025, 5, 7, 16, 20)
+        end_datetime = datetime.datetime(2025, 5, 16, 23, 59)
+
+        for q in range(num_qubits):
+            times = []
+            temps = []
+            errs = []
+
+            for file_result in all_files_Qtemp_results:
+                qubit_data = file_result['qubits'].get(q)
+                if qubit_data:
+                    T_err = qubit_data['T_mK_err']
+                    T_mK = qubit_data['T_mK']
+
+                    # # Skip if relative error is ≥ rel_err_cutoff
+
+                    if rel_err_cutoff is not None:
+                        if T_err / T_mK >= rel_err_cutoff: # rel_err_cutoff is a decimal (0.8 = a relative error of 80% and so forth)
+                            continue
+
+                    # if T_err > 150:  # skip if error is too large (for example, larger than 300mK)
+                    #     continue
+                    #
+                    # if T_mK > 600:  # huge outliers that ruin plots and are not accurate
+                    #     continue
+
+                    errs.append(T_err)
+                    temps.append(T_mK)
+
+                    timestamp = qubit_data['date']
+                    times.append(datetime.datetime.fromtimestamp(timestamp))
+
+                    # if T_mK > 800:
+                    #     print(f"High Temperature ({T_mK:.1f} mK) in file {qubit_data['filepath']} for Q{q + 1}. A1={qubit_data['A1']}, A2={qubit_data['A2']}, Qfreq={qubit_data['qubit_freq_MHz']}.")
+
+            ax = axes[q]
+
+            if not times:
+                ax.set_visible(False)
+                continue
+
+            # ------------To average all of the points during each heater step to facilitate fitting the data to a line----------------------------------
+            if average_per_heater_step:
+                binned_times, binned_temps, binned_errs = [], [], []
+
+                # Extracting heater step times
+                step_events = [(dt, label) for dt, label in heater_events if "step" in label.lower()]
+                step_events.sort()
+                step_times = [dt for dt, _ in step_events]
+
+                # Adding start and end boundaries
+                pre_step_time = datetime.datetime.min
+                post_step_time = datetime.datetime(2025, 5, 14, 22, 50)  # Heater was turned Off
+
+                # Creating list of bin edges: [[start to 20mK], [20mK to 40mK], ..., [160mK to heater off]]
+                bin_edges = [pre_step_time] + step_times + [post_step_time, datetime.datetime.max]
+
+                times_np = np.array(times)
+                temps_np = np.array(temps)
+                errs_np = np.array(errs)
+
+                # Bin and average data
+                for i in range(len(bin_edges) - 1):
+                    start, end = bin_edges[i], bin_edges[i + 1]
+                    mask = (times_np >= start) & (times_np < end)
+
+                    if np.sum(mask) < 2:
+                        continue  # skip bins with too few points
+
+                    avg_time = np.mean([t.timestamp() for t in times_np[mask]])
+                    avg_time_dt = datetime.datetime.fromtimestamp(avg_time)
+                    avg_temp = np.mean(temps_np[mask])
+                    avg_err = np.sqrt(np.sum(errs_np[mask] ** 2)) / np.sum(mask) # propagating independent, uncorrelated, Gaussian uncertainties (standard deviations).
+
+                    binned_times.append(avg_time_dt)
+                    binned_temps.append(avg_temp)
+                    binned_errs.append(avg_err)
+
+                times, temps, errs = binned_times, binned_temps, binned_errs
+            # -----------------------------------------------------------------------------------------------------
+
+            if restrict_time_xaxis: # tweak format as needed for the x axis ticks
+                #for a single day
+                # start_time = datetime.datetime.combine(date_to_plot, start_datetime)
+                # end_time = datetime.datetime.combine(date_to_plot, end_datetime)
+                # #Use finer ticks with hour detail
+                # ax.xaxis.set_major_locator(mdates.AutoDateLocator())
+                # ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d-%H'))
+
+                # For multiple Days
+                ax.xaxis.set_major_locator(mdates.AutoDateLocator())
+                ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d-%H'))
+            else:
+                #Use coarse ticks with just date
+                # ax.xaxis.set_major_locator(mdates.DayLocator())
+                # ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d\n%H:%M'))
+                ax.xaxis.set_major_locator(mdates.AutoDateLocator())
+                ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d-%H'))
+
+            # plot with or without error bars
+            if plot_error_bars:
+                ax.errorbar(
+                    times,
+                    temps,
+                    yerr=errs,
+                    fmt='o',
+                    capsize=4,
+                    markersize=6,
+                    color=colors[q % len(colors)],
+                    label=f"Q{q + 1}"
+                )
+            else:
+                ax.scatter(
+                    times,
+                    temps,
+                    marker='o',
+                    color=colors[q % len(colors)],
+                    label=f"Q{q + 1}"
+                )
+
+            ax.set_title(f"Q{q + 1}", fontsize=14)
+            ax.set_ylabel("Temp (mK)", fontsize=12)
+            ax.grid(False)
+
+            # Format the x-axis to show dates in a nice format
+            # ax.set_ylim(yaxis_min, yaxis_max)
+            # ax.set_yticks(np.linspace(yaxis_min, yaxis_max, 10))
+
+            # start_time = datetime.datetime(2025, 4, 11, 12, 30)
+            # ax.set_xlim(left=start_time)
+
+            ax.tick_params(axis='x', labelrotation=45, labelsize=10)
+            ax.tick_params(axis='y', labelsize=10)
+
+            if rad_events_plot_lines:
+                for vtime, label in events_radiation:
+                    if not restrict_time_xaxis or (restrict_time_xaxis and start_datetime <= vtime <= end_datetime):
+                        ax.axvline(vtime, color='black', linestyle='--', linewidth=1)
+                        ax.text(vtime, ax.get_ylim()[1] * 0.95, label, rotation=90, verticalalignment='top',
+                                horizontalalignment='right', fontsize=10)
+
+
+            # Combine (conditionally) the extra events you want to plot
+            plot_0418_events = False
+            plot_0423_events = False
+            plot_heater_events = True
+
+            extra_events = []
+            if plot_0418_events:
+                extra_events += events_0418
+            if plot_0423_events:
+                extra_events += events_0423
+            if plot_heater_events:
+                extra_events += heater_events
+
+            if restrict_time_xaxis:
+                ax.set_xlim(start_datetime, end_datetime)
+                ax.set_autoscale_on(False)
+
+            if plot_extra_event_lines:
+                # Only keep events within the plot window if restrict_time_xaxis is True
+                if restrict_time_xaxis:
+                    extra_events = [(vtime, label) for vtime, label in extra_events if start_datetime <= vtime <= end_datetime]
+
+                # Map each unique label to a unique color
+                unique_labels = list(dict.fromkeys(label for _, label in extra_events))
+                # cmap = cm.get_cmap('tab20', len(unique_labels)) pastels
+                cmap = cm.get_cmap('Set1', len(unique_labels)) #dark colors
+                label_to_color = {label: mcolors.to_hex(cmap(i)) for i, label in enumerate(unique_labels)}
+
+                # Track which labels were already used in the legend
+                used_labels = set()
+
+                # Plot vertical lines for each event, reusing colors
+                for vtime, label in extra_events:
+                    color = label_to_color[label]
+                    ax.axvline(vtime, color=color, linestyle='--', linewidth=1)
+                    if label not in used_labels:
+                        legend_handles.append(Line2D([0], [0], color=color, linestyle='--', label=label, alpha=1.0))
+                        used_labels.add(label)
+
+            if fit_to_line:  # fit data to a line, choosing where to start and stop based on event time stamps
+                # pull out all three relevant heater events
+                for dt, label in heater_events:
+                    if label == "20mK step":
+                        t20_ts = dt.timestamp()
+                    elif label == "60mK step":
+                        t60_ts = dt.timestamp()
+                    elif label == "120mK step":
+                        t120_ts = dt.timestamp()
+                    elif label == "160mK step":
+                        t160_ts = dt.timestamp()
+                    elif label == "100mK step":
+                        t100_ts = dt.timestamp()
+
+                # turn existing lists of datetimes/temps into arrays of POSIX seconds
+                times_arr = np.array([t.timestamp() for t in times])
+                temps_arr = np.array(temps)
+
+                # for Q5, start at the first time stamp plotted and go all the way to 160 mK for the “full” fit,
+                # but only to 120 mK for the “up to 120 mK” fit
+
+                drop_some_pts = False # set this to true if you want to disregard points above/under a certain temperature.
+                # This introduces biases though because you are essentially selecting the data. Use only for tests.
+                if q == 4:
+                    start_ts = times_arr.min() # alternatively, you could start at t20_ts
+                    final_full_ts = t160_ts
+                    final_120_ts = t120_ts
+
+                    if drop_some_pts:
+                        drop_region = ((times_arr >= start_ts) & (times_arr <= t60_ts) & (temps_arr > 122.0))
+
+                        # basic time masks
+                        base_mask_full = (times_arr >= start_ts) & (times_arr <= final_full_ts)
+                        base_mask_to120 = (times_arr >= start_ts) & (times_arr <= final_120_ts)
+                        # now remove any points in drop_region
+                        mask_full = base_mask_full & (~drop_region)
+                        mask_to120 = base_mask_to120 & (~drop_region)
+                    else:
+                        mask_full = (times_arr >= start_ts) & (times_arr <= final_full_ts)
+                        mask_to120 = (times_arr >= start_ts) & (times_arr <= final_120_ts)
+
+                    color_full = "black"
+                    color_to120 = "green"
+                    prefix_full = "Full ramp"
+                    prefix_120 = "Up to 120 mK"
+
+                # for Q1, start at the first time stamp plotted and again go to 160 mK for the “full” fit,
+                # but only to 120 mK for the “up to 120 mK” fit
+                elif q == 0:
+                    start_ts = times_arr.min() # alternatively, you could start at t20_ts
+                    final_full_ts = t160_ts
+                    final_120_ts = t120_ts
+
+                    if drop_some_pts:
+                        drop_region1 = ((times_arr >= start_ts) & (times_arr <= t60_ts) & (temps_arr > 122.0))
+                        drop_region2 = (times_arr >= t60_ts) & (times_arr <= t100_ts) & (temps_arr > 176.0)
+
+                        drop_region = drop_region1 | drop_region2
+
+                        # basic time masks
+                        base_mask_full = (times_arr >= start_ts) & (times_arr <= final_full_ts)
+                        base_mask_to120 = (times_arr >= start_ts) & (times_arr <= final_120_ts)
+                        # remove any points in drop_region
+                        mask_full = base_mask_full & (~drop_region)
+                        mask_to120 = base_mask_to120 & (~drop_region)
+                    else:
+                        mask_full = (times_arr >= start_ts) & (times_arr <= final_full_ts)
+                        mask_to120 = (times_arr >= start_ts) & (times_arr <= final_120_ts)
+
+                    color_full = "black"
+                    color_to120 = "green"
+                    prefix_full = "Full ramp"
+                    prefix_120 = "Up to 120 mK"
+
+                else:
+                    # skipping other q’s:
+                    continue
+
+                # plot the full‐ramp line (20→160 mK or 60→160 mK)
+                self.do_linear_fit_and_plot_qtemps_RPM(
+                    ax=ax,
+                    times_arr=times_arr,
+                    temps_arr=temps_arr,
+                    initial_time=start_ts,
+                    final_time=final_full_ts,
+                    mask=mask_full,
+                    color=color_full,
+                    label_prefix=prefix_full
+                )
+
+                # plot the “up to 120 mK” line
+                self.do_linear_fit_and_plot_qtemps_RPM(
+                    ax=ax,
+                    times_arr=times_arr,
+                    temps_arr=temps_arr,
+                    initial_time=start_ts,
+                    final_time=final_120_ts,
+                    mask=mask_to120,
+                    color=color_to120,
+                    label_prefix=prefix_120
+                )
+
+                ax.legend(fontsize=9, loc="upper left")
+
+
+            # Add a combined legend (only once)
+            if q == 0 and legend_handles:
+                fig.legend(handles= legend_handles)
+
+        # Add a shared X label
+        for ax in axes:
+            ax.set_xlabel("Time")
+
+        # Save the figure
+        paramvstime_dir = os.path.join(self.outerFolder_save_plots, "params_vs_time")
+        os.makedirs(paramvstime_dir, exist_ok=True)
+
+        timestp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        save_path = os.path.join(paramvstime_dir, f"QubitTemps_vs_Time_{timestp}.png")
+        print("Plot saved to: ", save_path)
+        plt.savefig(save_path, dpi=self.figure_quality)
+        plt.close(fig)
+
+    def plot_qubit_temperature_histograms_RPMs(self, all_files_Qtemp_results, num_qubits, rel_err_cutoff = None):
+        """
+        Plots histograms for the temperature (T_mK) data of each qubit.
+
+        Parameters:
+        - all_files_Qtemp_results: list of dicts returned by load_plot_save_rabis_Qtemps
+        - num_qubits: total number of qubits to plot (default is 6)
+
+        # Note: All datetime objects are naive and assumed to be in Central Time (local system time).
+
+        The Gaussian's center and width are determined by the weighted statistics (so smaller-error points pull harder).
+        The histogram shows true counts of samples. The curve is scaled so it aligns visually with the histogram height (counts per bin).
+        """
+        # Set up the subplots grid (2 rows x 3 columns for 6 qubits)
+        ncols = min(num_qubits, 3)
+        nrows = math.ceil(num_qubits / 3)
+        fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(12, 8))
+        axes = axes.flatten() if isinstance(axes, (list, np.ndarray)) else [axes]
+        axes: List[Axes] = axes  # Explicitly tell the IDE that these are Axes objects
+
+        # Define font size and colors (same order as in your temperature-vs-time plots)
+        font = 14
+        colors = ['orange', 'blue', 'purple', 'green', 'brown', 'pink']
+        plt.suptitle("Qubit Temperature Histograms", fontsize=font)
+
+        # Titles for each subplot
+        titles = [f"Q{i + 1}" for i in range(num_qubits)]
+
+        # From Gaussian fit
+        mean_values = {}
+        std_values = {}
+
+        # Loop over each qubit / subplot
+        for i, ax in enumerate(axes):
+            # Gather all temperature data for qubit i across all files.
+            temp_vals = []
+            temp_errs = []
+            for file_result in all_files_Qtemp_results:
+                qubit_data = file_result['qubits'].get(i)
+                if not qubit_data:
+                    continue
+
+                T_mK = qubit_data.get('T_mK')
+                T_err = qubit_data.get('T_mK_err')
+
+                # skip if either is missing or relative error is larger than threshold
+                if T_mK is None or T_err is None:
+                    continue
+                if T_mK > 200: # huge outliers that ruin plots and are not accurate
+                    continue
+
+                if rel_err_cutoff is not None:
+                    if T_err / T_mK >= rel_err_cutoff: # rel_err_cutoff is a decimal (0.8 = a relative error of 80% and so forth)
+                        continue
+
+                temp_vals.append(T_mK)
+                temp_errs.append(T_err)
+
+            # If no data is present, hide the subplot.
+            if len(temp_vals) == 0:
+                plt.setp(ax, visible=False)
+                continue
+
+            # === Weighted mean with robust median-MAD clipping===
+            temps = np.asarray(temp_vals, dtype=float)
+            errs = np.asarray(temp_errs, dtype=float)
+            n_counts = len(temps)
+
+            # keep only finite pairs
+            finite = np.isfinite(temps) & np.isfinite(errs)
+            temps, errs = temps[finite], errs[finite]
+            if temps.size == 0:
+                mu_1, std_1 = np.nan, np.nan
+            else:
+                # robust outlier clip around the median
+                k = 2.0  # 2-4  is typical; lower = stricter
+                med = np.median(temps)
+                mad = np.median(np.abs(temps - med))
+                if mad == 0:
+                    mad = max(np.std(temps), 1e-12)
+                keep = np.abs(temps - med) < k * mad
+                temps, errs = temps[keep], errs[keep]
+
+                if temps.size == 0:
+                    mu_1, std_1 = np.nan, np.nan
+                else:
+                    # compute weights and weighted mean/std (using 1/err)
+                    err_floor = 1e-12
+                    safe_errs = np.clip(errs, err_floor, np.inf)
+                    weights = 1.0 / safe_errs
+
+                    w_sum = np.nansum(weights)
+                    mu_1 = float(np.nansum(weights * temps) / w_sum)
+
+                    var = float(np.nansum(weights * (temps - mu_1) ** 2) / w_sum)
+                    std_1 = float(np.sqrt(max(var, 0.0)))
+
+
+                mean_values[f"Qubit {i + 1}"] = mu_1
+                std_values[f"Qubit {i + 1}"] = std_1
+
+            # --- Histogram in raw counts ---
+            optimal_bin_num = 45
+            hist_data, bins = np.histogram(temp_vals, bins=optimal_bin_num)
+            bin_width = np.diff(bins)[0]
+            bin_centers = bins[:-1] + bin_width / 2
+
+            # --- Weighted Gaussian curve ---
+            x_vals = np.linspace(min(temp_vals), max(temp_vals), 400)
+            pdf_vals = norm.pdf(x_vals, mu_1, std_1)
+
+            # # Scale the Gaussian so its peak matches the histogram's maximum height
+            # scale_factor = np.max(hist_data) / np.max(pdf_vals)
+            # scaled_pdf = pdf_vals * scale_factor
+
+            # area-match scaling (robust to sparse/noisy peaks)
+            scale_factor = len(temp_vals) * bin_width  # total expected counts
+            scaled_pdf = pdf_vals * scale_factor
+
+            # --- Plot ---
+            ax.hist(temp_vals, bins=optimal_bin_num, alpha=0.7,
+                    color=colors[i % len(colors)], edgecolor='black', label="Counts")
+
+            ax.plot(x_vals, scaled_pdf, linestyle='--', linewidth=2,
+                    color='black', label=f"Weighted Gaussian fit")
+
+            ax.set_title(f"{titles[i]}  µ={mu_1:.2f} mK,  s={std_1:.2f} mK, c: {n_counts}", fontsize=font)
+            ax.set_xlabel("Temperature (mK)", fontsize=font)
+            ax.set_ylabel("Counts", fontsize=font)
+            # ax.legend(fontsize=font - 2)
+            ax.tick_params(axis='both', which='major', labelsize=font)
+
+        plt.tight_layout()
+
+        hist_dir = os.path.join(self.outerFolder_save_plots, "qtemps_hists")
+        os.makedirs(hist_dir, exist_ok=True)
+
+        timestp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        save_path = os.path.join(hist_dir, f"QubitTemps_Histograms_{timestp}.png")
+        print("Histogram plot saved to:", save_path)
+        plt.savefig(save_path, dpi=200)
+        plt.close(fig)
+
+    def plot_qubit_Pe_histograms_RPMs(self, all_files_Qtemp_results, num_qubits, rel_err_cutoff=None,
+            only_return_mu_and_sigma=False, make_plot=True, save_plot=True, optimal_bin_num=45, mad_k=2.0,
+            err_floor=1e-12, store_pdf_curve=False,  # set True if you want x_vals + scaled_pdf saved per qubit
+            ):
+        """
+        Build per-qubit histogram stats for RPM Pe and (optionally) plot histograms.
+
+        Returns
+        -------
+        results_by_qubit : dict
+            results_by_qubit[q] contains fields you can use later to build Pe error bars, e.g.
+            - Pe_vals_used, Pe_errs_used
+            - mu_w, sigma_w (your weighted mean/std)
+            - median, mad, mad_k, keep_mask
+            - n_raw, n_finite, n_kept
+            - hist_counts, hist_bins, bin_width, bin_centers
+            - (optional) pdf_x, pdf_scaled
+        """
+        # -------------------- Prepare plotting --------------------
+        fig = None
+        axes = None
+        if make_plot:
+            ncols = min(num_qubits, 3)
+            nrows = math.ceil(num_qubits / 3)
+            fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(12, 8))
+            axes = axes.flatten() if isinstance(axes, (list, np.ndarray)) else [axes]
+
+            font = 14
+            colors = ['orange', 'blue', 'purple', 'green', 'brown', 'pink']
+            plt.suptitle("Qubit Thermal Population", fontsize=font)
+            titles = [f"Q{i + 1}" for i in range(num_qubits)]
+        else:
+            font = 14
+            colors = ['orange', 'blue', 'purple', 'green', 'brown', 'pink']
+            titles = [f"Q{i + 1}" for i in range(num_qubits)]
+
+        # -------------------- Results dict --------------------
+        results_by_qubit = {}
+
+        # -------------------- Loop over qubits --------------------
+        for q in range(num_qubits):
+            # Gather Pe across all files for this qubit
+            Pe_vals = []
+            Pe_errs = []
+
+            for file_result in all_files_Qtemp_results:
+                qubit_data = file_result.get("qubits", {}).get(q)
+                if not qubit_data:
+                    continue
+
+                Pe = qubit_data.get("P_e", None)
+                Pe_err = qubit_data.get("P_e_err_total", None)
+
+                # basic validity
+                if Pe is None or Pe_err is None:
+                    continue
+                if (Pe <= 0.0) or (Pe >= 1.0):
+                    continue
+
+                # optional relative-error cutoff
+                if rel_err_cutoff is not None:
+                    if Pe == 0:
+                        continue
+                    if (Pe_err / Pe) >= rel_err_cutoff:
+                        continue
+
+                Pe_vals.append(Pe)
+                Pe_errs.append(Pe_err)
+
+            Pe_vals = np.asarray(Pe_vals, dtype=float)
+            Pe_errs = np.asarray(Pe_errs, dtype=float)
+
+            n_raw = int(Pe_vals.size)
+
+            # Default entry even if empty (so caller can see it failed)
+            entry = {
+                "qid": q,
+                "label": f"Q{q + 1}",
+                "n_raw": n_raw,
+                "n_finite": 0,
+                "n_kept": 0,
+                "rel_err_cutoff": rel_err_cutoff,
+                "mad_k": mad_k,
+                "err_floor": err_floor,
+                "Pe_vals_raw": Pe_vals.copy(),
+                "Pe_errs_raw": Pe_errs.copy(),
+                "Pe_vals_used": np.array([], dtype=float),
+                "Pe_errs_used": np.array([], dtype=float),
+                "median": np.nan,
+                "mad": np.nan,
+                "mu_w": np.nan,
+                "sigma_w": np.nan,
+                "weights_used": np.array([], dtype=float),
+                "hist_counts": None,
+                "hist_bins": None,
+                "bin_width": None,
+                "bin_centers": None,
+            }
+
+            # If no data, hide subplot (if plotting) and store entry
+            if n_raw == 0:
+                results_by_qubit[q] = entry
+                if make_plot:
+                    # find corresponding axis index in grid
+                    ax = axes[q] if q < len(axes) else None
+                    if ax is not None:
+                        plt.setp(ax, visible=False)
+                continue
+
+            # keep only finite pairs
+            finite = np.isfinite(Pe_vals) & np.isfinite(Pe_errs)
+            Pe_vals_f = Pe_vals[finite]
+            Pe_errs_f = Pe_errs[finite]
+            entry["n_finite"] = int(Pe_vals_f.size)
+
+            if Pe_vals_f.size == 0:
+                results_by_qubit[q] = entry
+                if make_plot:
+                    ax = axes[q] if q < len(axes) else None
+                    if ax is not None:
+                        plt.setp(ax, visible=False)
+                continue
+
+            # robust clipping around median using MAD
+            med = float(np.median(Pe_vals_f))
+            mad = float(np.median(np.abs(Pe_vals_f - med)))
+            if mad == 0.0:
+                mad = float(max(np.std(Pe_vals_f), 1e-12))
+
+            keep = np.abs(Pe_vals_f - med) < (mad_k * mad)
+
+            Pe_vals_k = Pe_vals_f[keep]
+            Pe_errs_k = Pe_errs_f[keep]
+
+            entry["median"] = med
+            entry["mad"] = mad
+            entry["n_kept"] = int(Pe_vals_k.size)
+
+            if Pe_vals_k.size == 0:
+                results_by_qubit[q] = entry
+                if make_plot:
+                    ax = axes[q] if q < len(axes) else None
+                    if ax is not None:
+                        plt.setp(ax, visible=False)
+                continue
+
+            # # weights: for 1/sigma choice (less sensitive to outliers with small errs)
+            # safe_errs = np.clip(Pe_errs_k, err_floor, np.inf)
+            # weights = 1.0 / safe_errs
+
+            # weights: inverse-variance (1/sigma^2)
+            safe_errs = np.clip(Pe_errs_k, err_floor, np.inf)
+            weights = 1.0 / (safe_errs ** 2)
+
+            w_sum = float(np.nansum(weights))
+            if (not np.isfinite(w_sum)) or (w_sum <= 0.0):
+                mu_w = np.nan
+                sigma_w = np.nan
+            else:
+                mu_w = float(np.nansum(weights * Pe_vals_k) / w_sum)
+                var_w = float(np.nansum(weights * (Pe_vals_k - mu_w) ** 2) / w_sum)
+                sigma_w = float(np.sqrt(max(var_w, 0.0)))
+
+            entry["Pe_vals_used"] = Pe_vals_k
+            entry["Pe_errs_used"] = Pe_errs_k
+            entry["weights_used"] = weights
+            entry["mu_w"] = mu_w
+            entry["sigma_w"] = sigma_w
+
+            # histogram stats
+            hist_counts, bins = np.histogram(Pe_vals_k, bins=optimal_bin_num)
+            bin_width = float(np.diff(bins)[0]) if len(bins) > 1 else np.nan
+            bin_centers = bins[:-1] + (bin_width / 2.0) if np.isfinite(bin_width) else None
+
+            entry["hist_counts"] = hist_counts
+            entry["hist_bins"] = bins
+            entry["bin_width"] = bin_width
+            entry["bin_centers"] = bin_centers
+
+            # optional pdf curve storage (for debugging / later plotting)
+            pdf_x = None
+            pdf_scaled = None
+            if store_pdf_curve and np.isfinite(mu_w) and np.isfinite(sigma_w) and sigma_w > 0 and Pe_vals_k.size > 1:
+                pdf_x = np.linspace(float(np.min(Pe_vals_k)), float(np.max(Pe_vals_k)), 400)
+                pdf_vals = norm.pdf(pdf_x, mu_w, sigma_w)
+                scale_factor = Pe_vals_k.size * bin_width if np.isfinite(bin_width) else Pe_vals_k.size
+                pdf_scaled = pdf_vals * scale_factor
+                entry["pdf_x"] = pdf_x
+                entry["pdf_scaled"] = pdf_scaled
+
+            results_by_qubit[q] = entry
+
+            # -------------------- Plot per qubit --------------------
+            if make_plot:
+                ax = axes[q] if q < len(axes) else None
+                if ax is None:
+                    continue
+
+                ax.hist(
+                    Pe_vals_k,
+                    bins=optimal_bin_num,
+                    alpha=0.7,
+                    color=colors[q % len(colors)],
+                    edgecolor="black",
+                    label="Counts",
+                )
+
+                # overlay gaussian using your weighted mu/sigma (if valid)
+                if np.isfinite(mu_w) and np.isfinite(sigma_w) and sigma_w > 0 and Pe_vals_k.size > 1:
+                    x_vals = np.linspace(float(np.min(Pe_vals_k)), float(np.max(Pe_vals_k)), 400)
+                    pdf_vals = norm.pdf(x_vals, mu_w, sigma_w)
+                    scale_factor = Pe_vals_k.size * bin_width if np.isfinite(bin_width) else Pe_vals_k.size
+                    scaled_pdf = pdf_vals * scale_factor
+                    ax.plot(
+                        x_vals,
+                        scaled_pdf,
+                        linestyle="--",
+                        linewidth=2,
+                        color="black",
+                        label="Weighted Gaussian",
+                    )
+
+                ax.set_title(
+                    f"{titles[q]}  µ={mu_w:.4f},  s={sigma_w:.4f}, n={entry['n_kept']}",
+                    fontsize=font,
+                )
+                ax.set_xlabel("Thermal Population (Pe)", fontsize=font)
+                ax.set_ylabel("Counts", fontsize=font)
+                ax.tick_params(axis="both", which="major", labelsize=font)
+
+        # -------------------- Finish plot --------------------
+        if make_plot:
+            plt.tight_layout()
+
+            if save_plot:
+                hist_dir = os.path.join(self.outerFolder_save_plots, "Pe_hists")
+                os.makedirs(hist_dir, exist_ok=True)
+                timestp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+                save_path = os.path.join(hist_dir, f"QubitPe_RPM__Histograms_{timestp}.png")
+                print("Histogram plot saved to:", save_path)
+                fig.savefig(save_path, dpi=200)
+            plt.close(fig)
+
+        # -------------------- Return --------------------
+        if only_return_mu_and_sigma:
+            # per-qubit return, short version
+            slim = {
+                q: {
+                    "mu_w": results_by_qubit[q]["mu_w"],
+                    "sigma_w": results_by_qubit[q]["sigma_w"],
+                    "n_kept": results_by_qubit[q]["n_kept"],
+                    "n_raw": results_by_qubit[q]["n_raw"],
+                }
+                for q in range(num_qubits)
+            }
+            return slim
+
+        return results_by_qubit
+
+    def plot_qubit_pe_vs_time_RPMs(self, all_files_Qtemp_results, num_qubits=6):
+        """
+        Plots qubit excited state populations (P_e) vs. time in a separate figure.
+
+        Parameters:
+        - all_files_Qtemp_results: list of dicts returned by `load_plot_save_rabis_Qtemps`
+        - num_qubits: number of qubits to include in the plot (default is 6)
+        """
+
+        colors = ["orange", "blue", "purple", "green", "brown", "pink"]
+        font = 14
+
+        ncols = min(num_qubits, 3)
+        nrows = math.ceil(num_qubits / 3)
+
+        fig, axes = plt.subplots(nrows=nrows, ncols=ncols,
+                                 figsize=(4 * ncols, 4 * nrows),
+                                 sharex=False, constrained_layout=True)
+
+        axes = axes.flatten() if isinstance(axes, (list, np.ndarray)) else [axes]
+
+        fig.suptitle("Qubit P_e vs. Time", fontsize=font + 2)
+
+        for q in range(num_qubits):
+            times = []
+            pe_values = []
+
+            for file_result in all_files_Qtemp_results:
+                qubit_data = file_result['qubits'].get(q)
+                if qubit_data:
+                    timestamp = qubit_data['date']
+                    P_e = qubit_data.get('P_e', None)
+                    if P_e is not None:
+                        times.append(datetime.datetime.fromtimestamp(timestamp))
+                        pe_values.append(P_e)
+
+            ax = axes[q]
+            ax.scatter(times, pe_values, marker='o', color=colors[q % len(colors)], label=f"Q{q + 1}")
+            ax.set_title(f"Q{q + 1}", fontsize=font)
+            ax.set_ylabel("$P_e$", fontsize=font)
+            ax.set_ylim(0, 0.6)
+
+            start_time = datetime.datetime(2025, 4, 11, 12, 30)
+            ax.set_xlim(left=start_time)
+
+            ax.xaxis.set_major_locator(mdates.AutoDateLocator())
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
+            ax.tick_params(axis='x', labelrotation=45, labelsize=12)
+            ax.tick_params(axis='y', labelsize=12)
+
+        for ax in axes:
+            ax.set_xlabel("Time", fontsize=font)
+
+        paramvstime_dir = os.path.join(self.outerFolder_save_plots, "params_vs_time")
+        os.makedirs(paramvstime_dir, exist_ok=True)
+
+        timestp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        save_path = os.path.join(paramvstime_dir, f"QubitPe_vs_Time_{timestp}.png")
+        print("Plot saved to:", save_path)
+        plt.savefig(save_path, dpi=self.figure_quality)
+        plt.close(fig)
+        # plt.show()
+
+    def plot_qubit_temp_and_pe_vs_time_RPMs(self, all_files_Qtemp_results, num_qubits=6):
+        """
+        Plots qubit temperature (T_mK) and P_e vs. time using scatter points for each qubit (dual y-axes).
+        """
+        colors = ["orange", "blue", "purple", "green", "brown", "pink"]
+        font = 14
+
+        ncols = min(num_qubits, 3)
+        nrows = math.ceil(num_qubits / 3)
+
+        fig, axes = plt.subplots(nrows=nrows, ncols=ncols,
+                                 figsize=(4 * ncols, 4 * nrows),
+                                 constrained_layout=True)
+
+        axes = axes.flatten() if isinstance(axes, (list, np.ndarray)) else [axes]
+        fig.suptitle("Qubit Temperature and $P_e$ vs. Time", fontsize=font + 2)
+
+        for q in range(num_qubits):
+            times = []
+            temps = []
+            pe_values = []
+
+            for file_result in all_files_Qtemp_results:
+                qubit_data = file_result['qubits'].get(q)
+                if qubit_data:
+                    timestamp = qubit_data['date']
+                    times.append(datetime.datetime.fromtimestamp(timestamp))
+                    temps.append(qubit_data['T_mK'])
+                    pe_values.append(qubit_data.get('P_e', None))
+
+            if not times:
+                axes[q].set_visible(False)
+                continue
+
+
+            ax1 = axes[q]
+            ax2 = ax1.twinx()
+
+            ax1.set_title(f"Q{q + 1}", fontsize=font)
+            ax1.set_xlabel("Time", fontsize=font)
+
+            # Temperature (left axis)
+            ax1.set_ylabel("Temp (mK)", color=colors[q % len(colors)], fontsize=font)
+            ax1.scatter(times, temps, color=colors[q % len(colors)], marker='o')
+            ax1.tick_params(axis='y', labelcolor=colors[q % len(colors)])
+            ax1.set_ylim(80, 400)
+
+            # Pe (right axis)
+            start_time = datetime.datetime(2025, 4, 11, 12, 30)
+            ax1.set_xlim(left=start_time)
+
+            ax2.set_ylabel("$P_e$", color="black", fontsize=font)
+            ax2.scatter(times, pe_values, color="black", marker='x')
+            ax2.tick_params(axis='y', labelcolor="black")
+            ax2.set_ylim(0, 0.6)
+
+            # Format x-axis
+            ax1.xaxis.set_major_locator(mdates.AutoDateLocator())
+            ax1.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
+            ax1.tick_params(axis='x', rotation=45, labelsize=10)
+
+        paramvstime_dir = os.path.join(self.outerFolder_save_plots, "params_vs_time")
+        os.makedirs(paramvstime_dir, exist_ok=True)
+
+        timestp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        save_path = os.path.join(paramvstime_dir, f"QubitTemps_and_Pe_vs_Time_{timestp}.png")
+        print("Combined plot saved to:", save_path)
+        plt.savefig(save_path, dpi=self.figure_quality)
+        plt.close(fig)
+        # plt.show()
+
+    def plot_qubit_temp_pe_freq_vs_time_RPMs(self, all_files_Qtemp_results, num_qubits=6):
+        """
+        Plots qubit temperature (T_mK), P_e, and qubit frequency vs. time using triple y-axes.
+        """
+        colors = ["orange", "blue", "purple", "green", "brown", "pink"]
+        font = 14
+
+        ncols = min(num_qubits, 3)
+        nrows = math.ceil(num_qubits / 3)
+
+        fig, axes = plt.subplots(nrows=nrows, ncols=ncols,
+                                 figsize=(5 * ncols, 4.5 * nrows),
+                                 constrained_layout=True)
+
+        axes = axes.flatten() if isinstance(axes, (list, np.ndarray)) else [axes]
+        fig.suptitle("Qubit Temp, $P_e$, and Freq vs. Time", fontsize=font + 2)
+
+        for q in range(num_qubits):
+            times, temps, pe_values, freqs = [], [], [], []
+            yaxis_limit = 700
+
+            for file_result in all_files_Qtemp_results:
+                qubit_data = file_result['qubits'].get(q)
+                if qubit_data:
+                    T_mK = qubit_data['T_mK']
+                    if T_mK <= yaxis_limit:
+                        timestamp = qubit_data['date']
+                        times.append(datetime.datetime.fromtimestamp(timestamp))
+                        temps.append(T_mK)
+                        pe_values.append(qubit_data['P_e'])
+                        freqs.append(qubit_data.get('qubit_freq_MHz'))
+
+                    # P_e = pe_values[-1]
+                    # if 0.4 <= P_e <= 0.55:
+                    #     print(
+                    #         f"Q{q}  |  P_e = {P_e:.3f}  |  T_mK = {qubit_data['T_mK']:.2f}  |  Freq = {qubit_data['qubit_freq_MHz']:.3f} MHz  |  Timestamp = {datetime.datetime.fromtimestamp(qubit_data['date'])}")
+
+            if not times:
+                axes[q].set_visible(False)
+                continue
+
+            ax1 = axes[q]
+            ax2 = ax1.twinx()  # Right y-axis for P_e
+            ax3 = ax1.twinx()  # New outer-right axis for qubit frequency
+            ax3.spines.right.set_position(("outward", 60))  # offset third axis
+
+            # Temp (left axis)
+            ax1.set_ylabel("Temp (mK)", color=colors[q % len(colors)], fontsize=font)
+            ax1.scatter(times, temps, color=colors[q % len(colors)], marker='o')
+            ax1.tick_params(axis='y', labelcolor=colors[q % len(colors)])
+            # ax1.set_ylim(100, 400)
+
+            # Pe (middle right axis)
+            ax2.set_ylabel("$P_e$", color="black", fontsize=font)
+            ax2.scatter(times, pe_values, color="black", marker='x')
+            ax2.tick_params(axis='y', labelcolor="black")
+            ax2.set_ylim(0, 0.6)
+
+            # Freq (outer right axis)
+            ax3.set_ylabel("Qubit Freq (MHz)", color="gray", fontsize=font)
+            ax3.scatter(times, freqs, color="gray", marker='^')
+            ax3.tick_params(axis='y', labelcolor="gray")
+            ax3.set_ylim(min(freqs) * 0.998, max(freqs) * 1.002)  # dynamic range
+
+            # Time axis (x)
+            start_time = datetime.datetime(2025, 4, 11, 12, 30)
+            ax1.set_xlim(left=start_time)
+            ax1.set_xlabel("Time", fontsize=font)
+            ax1.set_title(f"Q{q + 1} Temp, Qfreq & P_e vs. Time", fontsize=font)
+
+            # Add vertical dashed lines for experiment events
+            experiment_date = datetime.date(2025, 4, 11)
+            event_info = [
+                ("13:11", "DC Bias Sweep", "red"),
+                ("14:51", "Pump Freq Sweep (early)", "blue"),
+                ("15:20", "Pump Freq Sweep", "blue"),
+                ("15:43", "Pump Freq Sweep", "blue"),
+                ("16:19", "Pump Power Sweep", "green"),
+                ("16:53", "Pump Power Sweep", "green"),
+                ("17:10", "DC Bias Sweep", "red")
+            ]
+
+            plotted_labels = set()
+
+            for time_str, label, color in event_info:
+                dt = datetime.datetime.strptime(f"{experiment_date} {time_str}", "%Y-%m-%d %H:%M")
+                label_to_use = label if label not in plotted_labels else None
+                ax1.axvline(x=dt, color=color, linestyle='--', linewidth=1.5, label=label_to_use)
+                if label_to_use:
+                    plotted_labels.add(label)
+
+            # Only show legend on first subplot (optional)
+            if q == 0:
+                ax1.legend(loc='upper left', fontsize=10)
+
+            ax1.xaxis.set_major_locator(mdates.AutoDateLocator())
+            ax1.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
+            ax1.tick_params(axis='x', rotation=45, labelsize=10)
+
+        paramvstime_dir = os.path.join(self.outerFolder_save_plots, "params_vs_time")
+        os.makedirs(paramvstime_dir, exist_ok=True)
+
+        timestp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+        save_path = os.path.join(paramvstime_dir, f"QubitTemps_Pe_Freq_vs_Time_{timestp}.png")
+        print("Combined plot saved to:", save_path)
+        plt.savefig(save_path, dpi=self.figure_quality)
+        plt.close(fig)
+
+
+    def load_qfreqs_resfreqs_qtemps(self, list_of_all_qubits, run_num, save_figs = False, get_data = False):
+        """
+        This function returns a Dataframe and excel file containing useful data for london penetration calculations such as:
+        - Effective qubit temperatures
+        - resonator frequencies (from res spec)
+
+        Note: this code assumes that a single h5 file contains ONE dataset for EACH qubit inside.
+
+        Creates a dictionary called file_result with two keys: 'filename': a string, e.g. 'my_file.h5' and 'qubits': an empty dictionary, which you populate.
+        In other words, at the end of the script, you assign values inside 'qubits'.
+        """
+        # ------------------------------------------------Load/Plot/Save res freqs and qtemps---------------------------------------
+        outerFolder_expt_qtemps = self.unique_folder_path + "/Data_h5/q_temperatures/"
+        h5_files_qtemps = glob.glob(os.path.join(outerFolder_expt_qtemps, "*.h5"))
+        all_files_qfreqs_resfreqs_qtemps = []  # to store results
+
+        # Extract Resonator Spectroscopy Data and sort by qubit index (starts at zero) and time stamp in the file name
+        # This function returns a list of dicts with keys like 'h5_file', 'q_key', 'resfreq_MHz', etc.
+        extracted_res_spec_results = self.load_plot_save_res_spec()
+        # Index res spec results by timestamp and q_key
+        res_spec_by_qkey_and_time = defaultdict(list)
+        for entry in extracted_res_spec_results:
+            timestamp = self.extract_timestamp_from_filename(entry['filename']).timestamp()
+            q_key = entry['q_key']
+            res_spec_by_qkey_and_time[q_key].append((timestamp, entry))
+        # Sort by timestamp for efficient matching
+        for qkey in res_spec_by_qkey_and_time:
+            res_spec_by_qkey_and_time[qkey].sort()
+
+        # Extract Qubit Spectroscopy Data and sort by qubit index (starts at zero) and time stamp in the file name
+            # This function returns a list of dicts with keys like 'h5_file', 'q_key', 'qfreq_MHz', 'Qfreq_fit_err', etc.
+            extracted_qspec_results = self.load_plot_save_q_spec()
+            # Index QSpec results by timestamp and q_key
+            qspec_by_qkey_and_time = defaultdict(list)
+            for entry in extracted_qspec_results:
+                timestamp = self.extract_timestamp_from_filename(entry['filename']).timestamp()
+                q_key = entry['q_key']
+                qspec_by_qkey_and_time[q_key].append((timestamp, entry))
+            # Sort by timestamp for efficient matching
+            for qkey in qspec_by_qkey_and_time:
+                qspec_by_qkey_and_time[qkey].sort()
+
+        # start looping through the rabi pop. meas. files and match them with res spec files and qspec files
+        cutoff_timestamp = datetime.datetime(2025, 4, 11, 19,0).timestamp()  # when I started saving qubit freqs in the same files
+
+        for h5_file in h5_files_qtemps:
+
+            save_round = h5_file.split('Num_per_batch')[-1].split('.')[0]
+            H5_class_instance = Data_H5(h5_file)
+            load_data = H5_class_instance.load_from_h5(data_type='q_temperatures', save_r=int(save_round))
+
+            file_result = {'filename': os.path.basename(h5_file), 'qubits': {}}
+            file_timestamp = self.extract_timestamp_from_filename(
+                h5_file).timestamp()  # extracts the timestamp in the h5 file name
+
+            populated_keys = []
+            for q_key in load_data['q_temperatures']:
+                # Access 'Dates' for the current q_key
+                dates_list = load_data['q_temperatures'][q_key].get('Dates', [[]])
+
+                # Check if any entry in 'Dates' is not NaN
+                if any(
+                        not np.isnan(date)
+                        for date in dates_list[0]  # Iterate over the first batch of dates
+                ):
+                    populated_keys.append(q_key)
+
+            A_amp_IQ_Pe = None
+            A_amp_IQ_Pg = None
+            A_amp_IQ_err_Pe = None
+            A_amp_IQ_err_Pg = None
+
+            # print('populated_keys ', populated_keys)
+
+            for q_key in populated_keys:
+                # print(f"Extracting data for QubitIndex: {q_key}")
+                for dataset in range(len(load_data['q_temperatures'][q_key].get('Dates', [])[0])):
+                    date = datetime.datetime.fromtimestamp(load_data['q_temperatures'][q_key].get('Dates', [])[0][dataset])
+                    round_num = load_data['q_temperatures'][q_key].get('Round Num', [])[0][dataset]
+                    batch_num = load_data['q_temperatures'][q_key].get('Batch Num', [])[0][dataset]
+
+                    # -----------------------Grabbing matching resonator frequency for this qubit---------------------------------
+                    if get_data:
+                        # Get res spec candidates for this qubit
+                        res_spec_entries = res_spec_by_qkey_and_time.get(q_key, [])
+
+                        if not res_spec_entries:
+                            print(f"No res pec entries found for Q{q_key + 1}")
+                            continue
+
+                        # Find closest match in timestamp from filename
+                        # closest_match[0] is the timestamp, closest_match[1] is the dictionary.
+                        closest_res_match = min(res_spec_entries, key=lambda pair: abs(pair[0] - file_timestamp))  # pair[0] is timestamp from res spec filename (the first element in each tuple)
+
+                        time_diff = abs(closest_res_match[0] - file_timestamp)
+                        matched_res_spec = closest_res_match[1] # dictionary containing res spec
+
+                        res_freq_MHz = matched_res_spec['resfreq_MHz']
+
+                        print(f"\n Matched res spec for Q{q_key + 1}: {res_freq_MHz} MHz "
+                              f"(Δt = {time_diff:.2f} s from filename timestamp)")
+
+                    # -----------------------Grabbing matching qubit frequency for this qubit---------------------------------
+                    if date.timestamp() > cutoff_timestamp and get_data:
+                        # Files after this date contain the matching g-e qubit frequency already BUT the files do not contain the corresponding qspec fit errors.
+
+                        # The line below extracts the qfreq saved in each rabi pop. meas. file, but it does not extract the error of the qspec fit because that was not saved in the h5 files.
+                        qubit_freq_MHz_rpmfile = load_data['q_temperatures'][q_key].get('Qfreq_ge', [])[0][
+                            dataset]  # extract to compare with the 'matching' method
+                        print(f"QSpec from RPM file for Q{q_key + 1}: {qubit_freq_MHz_rpmfile} MHz)")  # print to compare
+
+                        # Get qspec candidates for this qubit
+                        qspec_entries = qspec_by_qkey_and_time.get(q_key, [])
+
+                        if not qspec_entries:
+                            print(f"No QSpec entries found for Q{q_key + 1}")
+                            continue
+
+                        # Find closest match in timestamp from filename
+                        closest_match = min(qspec_entries, key=lambda pair: abs(pair[0] - file_timestamp))  # pair[0] is timestamp from qspec filename. pair = (timestamp, qspec_dict) and it is defined in this line
+                        # Note: closest_match = (timestamp_from_filename, qspec_entry_dict)
+                        # closest_match[0] is timestamp_from_filename (a float, in seconds since epoch)
+                        # closest_match[1] is the actual QSpec result dictionary with keys
+
+                        time_diff = abs(closest_match[0] - file_timestamp)
+                        matched_qspec = closest_match[1] # dictionary containing qspec and its err
+
+                        qubit_freq_MHz = matched_qspec['qfreq_MHz']
+                        qfreq_err = matched_qspec['Qfreq_fit_err']
+
+                        print(f"Matched QSpec for Q{q_key + 1}: {qubit_freq_MHz} MHz "
+                              f"(Δt = {time_diff:.2f} s from filename timestamp)")
+
+                    elif date.timestamp() <= cutoff_timestamp and get_data:  # -----this looks through matching qspec file ONLY, does not extract qfreq from RPM h5 file----
+                        # Get qspec candidates for this qubit
+                        qspec_entries = qspec_by_qkey_and_time.get(q_key, [])
+
+                        if not qspec_entries:
+                            print(f"No QSpec entries found for Q{q_key + 1}")
+                            continue
+
+                        # Find closest match in timestamp from filename
+                        closest_match = min(qspec_entries, key=lambda pair: abs(pair[0] - file_timestamp))  # pair[0] is timestamp from qspec filename (the first element in each tuple)
+
+                        time_diff = abs(closest_match[0] - file_timestamp)
+                        matched_qspec = closest_match[1] # dictionary containing qspec and its err
+
+                        qubit_freq_MHz = matched_qspec['qfreq_MHz']
+                        qfreq_err = matched_qspec['Qfreq_fit_err']
+
+                        print(f"Matched QSpec for Q{q_key + 1}: {qubit_freq_MHz} MHz "
+                              f"(Δt = {time_diff:.2f} s from filename timestamp)")
+
+                    # ---------------------------------------------------------------------------------------------
+
+                    I1 = self.process_h5_data(load_data['q_temperatures'][q_key].get('I1', [])[0][dataset].decode())
+                    Q1 = self.process_h5_data(load_data['q_temperatures'][q_key].get('Q1', [])[0][dataset].decode())
+                    gains1 = self.process_h5_data(
+                        load_data['q_temperatures'][q_key].get('Gains1', [])[0][dataset].decode())
+
+                    I2 = self.process_h5_data(load_data['q_temperatures'][q_key].get('I2', [])[0][dataset].decode())
+                    Q2 = self.process_h5_data(load_data['q_temperatures'][q_key].get('Q2', [])[0][dataset].decode())
+                    gains2 = self.process_h5_data(
+                        load_data['q_temperatures'][q_key].get('Gains2', [])[0][dataset].decode())
+
+                    # syst_config = load_data['q_temperatures'][q_key].get('Syst Config', [])[0][dataset].decode()
+                    exp_config = load_data['q_temperatures'][q_key].get('Exp Config', [])[0][dataset].decode()
+                    safe_globals = {"np": np, "array": np.array, "__builtins__": {}}
+                    exp_config = eval(exp_config, safe_globals)
+                    rabi_cfg = exp_config['power_rabi_ef']
+                    if len(I1) > 0:
+                        rabi_class_instance = Temps_EFAmpRabiExperiment(q_key, self.number_of_qubits,
+                                                                        list_of_all_qubits,
+                                                                        self.outerFolder_save_plots, round_num,
+                                                                        self.signal, save_figs)
+                        I1 = np.asarray(I1)
+                        Q1 = np.asarray(Q1)
+                        gains1 = np.asarray(gains1)
+                        best_signal_fit_Pe, pi_amp_Pe, A_amp_IQ_Pe, A_amp_IQ_err_Pe, amp_fit_Pe = rabi_class_instance.plot_results(I1, Q1, gains1, rabi_cfg, self.figure_quality)
+                        del rabi_class_instance
+
+                    if len(I2) > 0:
+                        rabi_class_instance = Temps_EFAmpRabiExperiment(q_key, self.number_of_qubits,
+                                                                        list_of_all_qubits,
+                                                                        self.outerFolder_save_plots, round_num,
+                                                                        self.signal, save_figs)
+                        I2 = np.asarray(I2)
+                        Q2 = np.asarray(Q2)
+                        gains2 = np.asarray(gains2)
+                        best_signal_fit_Pg, pi_amp_Pg, A_amp_IQ_Pg, A_amp_IQ_err_Pg, amp_fit_Pg = rabi_class_instance.plot_results(
+                            I2, Q2, gains2, rabi_cfg, self.figure_quality)
+                        del rabi_class_instance
+
+                    if not get_data:
+                        continue  # Skip the rest of this block if not returning data
+
+                    if (A_amp_IQ_Pe is not None and A_amp_IQ_Pg is not None and
+                            A_amp_IQ_err_Pe is not None and A_amp_IQ_err_Pg is not None):
+                        A_e = A_amp_IQ_Pe
+                        A_g = A_amp_IQ_Pg
+
+                        results = self.Qubit_Temperature_Convert(A_e, A_g, qubit_freq_MHz)
+                        if results is None:
+                            continue  # Skip this dataset
+                        T_K, T_mK, P_e, qubit_freq_MHz = results
+                        print(
+                            f"Q{q_key + 1} calculated Temperature:{T_mK}, with P_e = {P_e}, and Qfreq {qubit_freq_MHz} MHz")
+
+                        # Compute propagated 1-sigma error (std) on T_mK
+                        try:
+                            T_err, Pe_err = self.compute_temperature_error_RPM(
+                                A1=A_amp_IQ_Pe,
+                                A2=A_amp_IQ_Pg,
+                                Pe=P_e,
+                                T_mK=T_mK,
+                                qubit_freq_MHz=qubit_freq_MHz,
+                                sigma_A1=A_amp_IQ_err_Pe,
+                                sigma_A2=A_amp_IQ_err_Pg,
+                                sigma_qfreq_MHz=qfreq_err
+                            )
+                        except Exception as e:
+                            print(f"Error computing T_err for Q{q_key + 1}: {e}")
+                            continue
+
+                        if T_err is not None and qubit_freq_MHz is not None and res_freq_MHz is not None : # You're accessing the 'qubits' dictionary inside file_result and adding info for the qubit
+                            file_result['qubits'][int(q_key)] = { # qubits index starts at zero
+                                'A1': A_amp_IQ_Pe,
+                                'A1_err': A_amp_IQ_err_Pe,
+                                'A2_err': A_amp_IQ_err_Pg,
+                                'A2': A_amp_IQ_Pg,
+                                'T_mK': T_mK,
+                                'T_mK_err': T_err,
+                                'P_e': P_e,
+                                'qubit_freq_MHz': qubit_freq_MHz,
+                                "Qfreq_fit_err": qfreq_err,
+                                "res_freq_MHz": res_freq_MHz,
+                                'date': date.timestamp(),
+                                'filepath': h5_file}
+                        else:
+                            print(f"Skipping Q{q_key + 1} entry because T_err was not calculated successfully.")
+
+            if get_data and file_result['qubits']:
+                all_files_qfreqs_resfreqs_qtemps.append(file_result)
+
+            del H5_class_instance
+
+        return all_files_qfreqs_resfreqs_qtemps
+
+
+    def save_RPM_qtemp_data_to_excel(self, all_files_qfreqs_resfreqs_qtemps, output_folder_path, run_num, fridge):
+        """
+        Saves RPM qubit temperature and (qspec and res spec) frequency data to an Excel file.
+        all_files_qfreqs_resfreqs_qtemps (dict): Output from run_RPMqtemps(), which calls on PlotRR_noqick.load_qfreqs_resfreqs_qtemps()
+        """
+        from datetime import datetime
+        os.makedirs(output_folder_path, exist_ok=True)
+        rows = []
+
+        for file_result in all_files_qfreqs_resfreqs_qtemps:
+            for q_key, data in file_result.get("qubits", {}).items():
+                rows.append({
+                    "Qubit Index": int(q_key),
+                    "Qubit Freq (MHz)": data.get("qubit_freq_MHz"),
+                    "Qubit Freq Fit Err (MHz)": data.get("Qfreq_fit_err"),
+                    "Resonator Freq (MHz)": data.get("res_freq_MHz"),
+                    "Qubit Effective Temperature (mK)": data.get("T_mK"),
+                    "Qubit Effective Temperature Error (mK)": data.get("T_mK_err"),
+                    "Date": datetime.fromtimestamp(data.get("date")).strftime('%Y-%m-%d %H:%M:%S'),
+                    "Effective Qubit Temperature Filepaths": data.get("filepath")
+                })
+
+        # Extract timestamps for filename date range
+        timestamps = [
+            data.get("date")
+            for file_result in all_files_qfreqs_resfreqs_qtemps
+            for data in file_result.get("qubits", {}).values()
+            if data.get("date") is not None
+        ]
+
+        if timestamps:
+            min_date_str = datetime.fromtimestamp(min(timestamps)).strftime("%Y-%m-%d")
+            max_date_str = datetime.fromtimestamp(max(timestamps)).strftime("%Y-%m-%d")
+            date_range_str = f"from_{min_date_str}_to_{max_date_str}"
+        else:
+            date_range_str = "no_dates_stored"
+
+        # Build filename
+        output_filename = f"{fridge}_run{run_num}_RPMqtemps_resfreqs_qfreqs_{date_range_str}.xlsx"
+        output_path = os.path.join(output_folder_path, output_filename)
+
+        # Create DataFrame and save to Excel
+        df = pd.DataFrame(rows)
+        df.sort_values(["Qubit Index", "Date"], inplace=True)
+        df.to_excel(output_path, index=False)
+
+        print(f"Excel sheet saved to {output_path}")

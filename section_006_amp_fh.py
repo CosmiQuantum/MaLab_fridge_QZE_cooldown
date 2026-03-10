@@ -292,7 +292,7 @@ class FH_AmplitudeRabiProgram(AveragerProgramV2):
         self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
 
         self.add_readoutconfig(ch=ro_chs, name="myro",
-                               freq=cfg['res_freq_ef'],
+                               freq=cfg['res_freq_ef'][cfg["list_of_all_qubits"][0]],
                                gen_ch=gen_ch,
                                outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
@@ -300,7 +300,7 @@ class FH_AmplitudeRabiProgram(AveragerProgramV2):
         self.add_pulse(ch=gen_ch, name="res_pulse", ro_ch=ro_chs,
                        style="const",
                        length=cfg["res_length"],
-                       freq=cfg['res_freq_ef'],
+                       freq=cfg['res_freq_ef'][cfg["list_of_all_qubits"][0]],
                        phase=cfg['ro_phase'],
                        gain=cfg['res_gain_ef']
                        )

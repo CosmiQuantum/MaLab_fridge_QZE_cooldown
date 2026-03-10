@@ -23,7 +23,7 @@ class PunchOut:
         self.experiment = experiment
         self.exp_cfg = expt_cfg[self.expt_name]
         self.Q_list = Q_list
-        #self.reset.gens()
+        self.experiment.reset.gens()
         if unmasking_resgain:
             self.exp_cfg["list_of_all_qubits"] = [self.QubitIndex]
 
@@ -72,7 +72,7 @@ class PunchOut:
             return float(np.abs(I + 1j * Q))
         except Exception:
             return float(np.abs(arr).mean())
-
+        
     def sweep_power(self, soccfg, soc, fpts, fcenter, start_gain, stop_gain, num_points):
         power_sweep = np.linspace(start_gain, stop_gain, num_points)
         qlist = self.Q_list

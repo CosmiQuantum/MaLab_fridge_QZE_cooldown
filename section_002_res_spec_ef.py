@@ -81,7 +81,7 @@ class ResonanceSpectroscopyEF:
             self.config["res_freq_ge"] = fcenter + f
             prog = SingleToneSpectroscopyProgram(self.experiment.soccfg, reps=self.exp_cfg["reps"], final_delay=0.5,
                                                  cfg=self.config)
-            iq_list = prog.acquire(self.experiment.soc, rounds=self.exp_cfg["rounds"], progress=self.qick_verbose)
+            iq_list = prog.acquire(self.experiment.soc, progress=self.qick_verbose)
             amp = np.abs(iq_list[0][0][0] + 1j * iq_list[0][0][1])
             amps.append(amp)
         amps = np.array(amps)

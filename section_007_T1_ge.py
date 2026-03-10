@@ -8,6 +8,7 @@ import copy
 import visdom
 import logging
 
+
 class T1Program(AveragerProgramV2):
     def _initialize(self, cfg):
         ro_ch = cfg['ro_ch']
@@ -42,6 +43,56 @@ class T1Program(AveragerProgramV2):
         self.add_loop("waitloop", cfg["steps"])
 
     def _body(self, cfg):
+        self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)  # play probe pulse
+        print('wait_time',cfg['wait_time'])
+        self.delay_auto(cfg['wait_time'] + 0.01, tag='wait')  # wait_time after last pulse
+        self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+
+
+class T1Program_test(AveragerProgramV2):
+    def _initialize(self, cfg):
+        ro_ch = cfg['ro_ch']
+        res_ch = cfg['res_ch']
+        qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
+        self.add_readoutconfig(ch=ro_ch, name="myro",
+                               freq=cfg['res_freq_ge'],
+                               gen_ch=res_ch,
+                               outsel='product')
+        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
+        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
+                       style="const",
+                       length=cfg["res_length"],
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
+                       )
+        self.add_pulse(ch=res_ch, name="res_pulse_test", ro_ch=ro_ch,
+                       style="const",
+                       length=cfg["res_length"],
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge_test']
+                       )
+        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
+        self.add_gauss(ch=qubit_ch, name="ramp", sigma=cfg['sigma'], length=cfg['sigma'] * 4, even_length=False)
+        self.add_pulse(ch=qubit_ch, name="qubit_pulse",
+                       style="arb",
+                       envelope="ramp",
+                       freq=cfg['qubit_freq_ge'],
+                       phase=cfg['qubit_phase'],
+                       gain=cfg['pi_amp'],
+                       )
+        print('t1 config in the program', cfg)
+        self.add_loop("waitloop", cfg["steps"])
+
+    def _body(self, cfg):
+        self.pulse(ch=cfg['res_ch'], name="res_pulse_test", t=0)
+        self.delay_auto(cfg['relax_delay_test'])
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)  # play probe pulse
         print('wait_time',cfg['wait_time'])
         self.delay_auto(cfg['wait_time'] + 0.01, tag='wait')  # wait_time after last pulse
@@ -94,6 +145,7 @@ class T1Measurement:
     def run(self, thresholding=False, scaling=False):
         now = datetime.datetime.now()
         t1 = T1Program(self.experiment.soccfg, reps=self.config['reps'], final_delay=self.config['relax_delay'], cfg=self.config)
+        # t1_test = T1Program_test(self.experiment.soccfg, reps=self.config['reps'], final_delay=self.config['relax_delay'], cfg=self.config)
 
         if self.live_plot:
             I, Q, delay_times = self.live_plotting(t1, thresholding)
@@ -110,7 +162,9 @@ class T1Measurement:
             Q = (iq_list[1])
 
             delay_times = t1.get_time_param('wait', "t", as_array=True)
-
+            print(delay_times)
+            #crash1= crasher1
+            
         if scaling:
             from section_005_single_shot_ge import SingleShotProgram_g, SingleShotProgram_e
             q_config = all_qubit_state(self.experiment, self.number_of_qubits)
@@ -153,6 +207,74 @@ class T1Measurement:
 
             else:
                 return  T1_est, T1_err, I, Q, delay_times, q1_fit_exponential, self.config
+
+    # def run_test(self, thresholding=False, scaling=False):
+    #     print('config',self.config)
+    #     now = datetime.datetime.now()
+    #     #t1_test = T1Program_test(self.experiment.soccfg, reps=self.config['reps'], final_delay=self.config['relax_delay'], cfg=self.config) # 
+    #     t1_test = T1Program_test(self.experiment.soccfg, reps=self.config['reps'], final_delay=self.config['relax_delay'], cfg=self.config)
+        
+
+    #     if self.live_plot:
+    #         I, Q, delay_times = self.live_plotting(t1_test, thresholding)
+    #     else:
+    #         if thresholding:
+    #             iq_list = t1_test.acquire(self.experiment.soc, rounds=self.config['rounds'],
+    #                                        threshold=self.experiment.readout_cfg["threshold"],
+    #                                        angle=self.experiment.readout_cfg["ro_phase"], progress=True)
+    #         else:
+                
+    #             iq_list = t1_test.acquire(self.experiment.soc,  progress=True)
+
+    #         iq_list = iq_list[0][0].T
+    #         I = (iq_list[0])
+    #         Q = (iq_list[1])
+
+    #         delay_times = t1_test.get_time_param('wait', "t", as_array=True)
+
+        # if scaling:
+        #     from section_005_single_shot_ge import SingleShotProgram_g, SingleShotProgram_e
+        #     q_config = all_qubit_state(self.experiment, self.number_of_qubits)
+        #     ss_exp_cfg = add_qubit_experiment(expt_cfg, 'Readout_Optimization', self.QubitIndex)
+        #     ss_config = {**q_config[self.Qubit], **ss_exp_cfg}
+        #     print('performing single shot for g-e calibration')
+
+        #     ssp_g = SingleShotProgram_g(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'], cfg=ss_config)
+        #     iq_list_g = ssp_g.acquire(self.experiment.soc, rounds=1, progress=True)
+
+        #     ssp_e = SingleShotProgram_e(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'], cfg=ss_config)
+        #     iq_list_e = ssp_e.acquire(self.experiment.soc, rounds=1, progress=True)
+
+        #     ss_I_g = iq_list_g[0][0].T[0]
+        #     ss_Q_g = iq_list_g[0][0].T[1]
+        #     ss_I_e = iq_list_e[0][0].T[0]
+        #     ss_Q_e = iq_list_e[0][0].T[1]
+        #     if self.fit_data:
+        #         q1_fit_exponential, T1_err, T1_est, plot_sig = self.t1_fit(I, Q, delay_times)
+        #     else:
+        #         q1_fit_exponential, T1_est, T1_err = None, None, None
+
+        #     if self.plot_results:
+        #         self.plot_results(I, Q, delay_times, now, scaling=scaling, Ie = ss_I_e, Ig = ss_I_g, Qe = ss_Q_e, Qg = ss_Q_g)
+        #     return  T1_est, T1_
+        #err, I, Q, delay_times, q1_fit_exponential, self.config, ss_Q_e, ss_Q_g, ss_I_e, ss_I_g
+        #else:
+        if self.fit_data:
+            q1_fit_exponential, T1_err, T1_est, plot_sig = self.t1_fit(I, Q, delay_times)
+        else:
+            q1_fit_exponential, T1_est, T1_err = None, None, None
+
+        if self.plot_results:
+            self.plot_results( I, Q, delay_times, now)
+
+        if self.save_shots:
+            raw_0 = t1.get_raw()  # I,Q data without normalizing to readout window, subtracting readout offset, or rotation/thresholding
+            Ishots = raw_0[self.QubitIndex][:, :, 0, 0]
+            Qshots = raw_0[self.QubitIndex][:, :, 0, 1]
+            return T1_est, T1_err, Ishots, Qshots, delay_times, q1_fit_exponential, self.config
+
+        else:
+            return  T1_est, T1_err, I, Q, delay_times, q1_fit_exponential, self.config
 
     def live_plotting(self, t1, thresholding):
         I = Q = expt_mags = expt_phases = expt_pop = None
@@ -320,7 +442,7 @@ class T1Measurement:
                 # Add title, centered on the plot area
                 if config is not None:
                     fig.text(plot_middle, 0.98,
-                             f"Q{self.QubitIndex + 1} " + f"T1={T1_est:.2f} us" + f", {float(config['reps'])}*{float(config['rounds'])} avgs,",
+                             f"Q{self.QubitIndex + 1} " + f"T1={T1_est:.2f} us" + f", {float(config['reps'])}*{float(config['rounds'])} avgs,\n {config['res_gain_ge_test']}",
                              fontsize=24, ha='center',
                              va='top')  # , pi gain %.2f" % float(config['pi_amp']) + f", {float(config['sigma']) * 1000} ns sigma
                 else:
@@ -336,7 +458,7 @@ class T1Measurement:
                              va='top')  # , pi gain %.2f" % float(config['pi_amp']) + f", {float(config['sigma']) * 1000} ns sigma"   you can put this back once you save configs properly for when replotting
                 else:
                     fig.text(plot_middle, 0.98,
-                             f"T1 Q{self.QubitIndex + 1}",
+                             "T1 Q{self.QubitIndex + 1}",
                              fontsize=24, ha='center', va='top')
                 q1_fit_exponential = None
                 T1_est = None

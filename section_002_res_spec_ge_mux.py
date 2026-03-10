@@ -6,12 +6,14 @@ from expt_config import *
 import copy
 import datetime
 import logging
+import numpy as np
 
 
 class SingleToneSpectroscopyProgram(AveragerProgramV2):
     def _initialize(self, cfg):
         ro_chs = cfg['ro_ch']
         res_ch = cfg['res_ch']
+        #self.reset_gens()
         print(cfg['res_length'],cfg['res_freq_ge'],cfg['res_gain_ge'],cfg['ro_phase'])
         self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
         self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
@@ -29,7 +31,67 @@ class SingleToneSpectroscopyProgram(AveragerProgramV2):
                        phase=cfg['ro_phase'],
                        gain=cfg['res_gain_ge']
                        )
+        
+        self.add_gauss(ch=res_ch, name='ramp2', sigma = 0.01, length = 0.02, even_length=True)
+        self.add_pulse(ch=res_ch, name= "Ramp", ro_ch=ro_chs,
+                       style="flat_top",
+                       envelope = 'ramp2',
+                       length = cfg['res_length'],
+                       freq = cfg['res_freq_ge'],
+                       phase = cfg['ro_phase'],
+                       gain = cfg['res_gain_ge']
+                       )
 
+
+        
+        v_smag = 16383  ## Max Power for arb signal
+        sigma = 0.01  ## Sam Suggest 0.01, TOF plots suggest 0.02 looks a lot smoother                          
+
+        alpha = 0.4   ### Normal Gain Units ## With this setup alpha + beta cannot be more than 0.5
+        beta = 0.1    ### Normal Gain units  ## sneaking around this is tough so we will ignore for n
+        l_two = 0.03     ##Length of initial peak
+        l_base = 0.85     ##Dominated Readout length  
+
+
+
+        stepsmall = 10000  ##This is probably over kill but it looks nice                                       
+        ti = 4*sigma #0 + StartTime
+        deslen = l_base+ti+ (4*sigma)
+        alpha =alpha*4
+        beta = beta * 4
+        fs_gen = self.soccfg['gens'][res_ch]['fs']
+        stepscorr = (((int(fs_gen * deslen)) + 15) // 16) * 16
+
+        t_new = np.linspace(0, deslen, stepscorr)
+
+        # Defining the piecewise flat-top Gaussian function f(t, sigma, ti, L)                              
+        def f_flat(t_new, sigma, ti, L):
+            # Gaussian Rise                                                                                           
+            rise = np.exp(-((t_new - ti)**2) / (2 * sigma**2))
+            # Flat Top                                                                                                  
+            top = np.ones_like(t_new)
+            # Gaussian Fall                                                                                       
+            fall = np.exp(-((t_new - (ti + L))**2) / (2 * sigma**2))
+            # Use np.select to apply conditions element-wise                            
+            return np.select(
+                [t_new < ti, (t_new >= ti) & (t_new < ti + L), t_new >= ti + L],
+                [rise, top, fall]
+            )
+        pulse_shape = v_smag  * (beta * f_flat(t_new, sigma, ti, l_base) + alpha * f_flat(t_new, sigma, ti, l_two))
+
+        self.add_envelope(ch=res_ch, name="TwoStep",idata = pulse_shape)
+        self.add_pulse(ch=res_ch, name="two_step", ro_ch=ro_chs,
+                       style="arb",
+                       envelope='TwoStep',
+                       freq= cfg['res_freq_ge'],#cfg['res_freq_ge'],                                            
+                       phase=cfg['ro_phase'],
+                       gain= 1.0#cfg['res_gain_ge']+0.6                                                         
+                       )
+
+        self.delay(100.0)
+
+
+        
     def _body(self, cfg):
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'], ddr4=True)
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
@@ -47,7 +109,7 @@ class ResonanceSpectroscopy:
         self.round_num = round_num
         self.save_figs = save_figs
         self.experiment = experiment
-
+        
         self.exp_cfg = expt_cfg[self.expt_name]
         if unmasking_resgain:
             self.exp_cfg["list_of_all_qubits"] = [QubitIndex]
@@ -55,6 +117,14 @@ class ResonanceSpectroscopy:
         self.verbose = verbose
         self.logger = logger if logger is not None else logging.getLogger("custom_logger_for_rr_only")
 
+        print(self.exp_cfg["reps"])
+        print(self.exp_cfg["reps"])
+        print(self.exp_cfg["reps"])
+        print(self.exp_cfg["reps"])
+        print(self.exp_cfg["reps"])
+
+
+        
         if experiment is not None:
             self.q_config = all_qubit_state(experiment, self.number_of_qubits)
             self.config = {**self.q_config[self.Qubit], **self.exp_cfg}
@@ -69,6 +139,12 @@ class ResonanceSpectroscopy:
         for index,f in enumerate(tqdm(fpts)):
             self.config["res_freq_ge"] = fcenter + f
             prog = SingleToneSpectroscopyProgram(self.experiment.soccfg, reps=self.exp_cfg["reps"], final_delay=0.5, cfg=self.config)
+            print(self.exp_cfg["reps"])
+            print(self.exp_cfg["reps"])
+            print(self.exp_cfg["reps"])
+            print(self.exp_cfg["reps"])
+            print(self.exp_cfg["reps"])
+
             iq_list = prog.acquire(self.experiment.soc, progress=self.qick_verbose)
             amp = np.abs(iq_list[0][0][0] + 1j * iq_list[0][0][1])
             amps.append(amp)
@@ -89,6 +165,14 @@ class ResonanceSpectroscopy:
             'legend.fontsize': 14,
         })
 
+        print(self.exp_cfg["reps"])
+        print(self.exp_cfg["reps"])
+        print(self.exp_cfg["reps"])
+        print(self.exp_cfg["reps"])
+        print(self.exp_cfg["reps"])
+
+
+        
 
         plt.subplot(2, 3, 1)
         #plt.plot(fpts + fcenter[i], amps[i], '-', linewidth=1.5)

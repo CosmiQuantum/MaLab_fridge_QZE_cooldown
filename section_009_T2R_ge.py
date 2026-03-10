@@ -197,6 +197,65 @@ class T2RProgram(AveragerProgramV2):
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 
+class T2RProgram_test(AveragerProgramV2):
+    def _initialize(self, cfg):
+        ro_ch = cfg['ro_ch']
+        res_ch = cfg['res_ch']
+        qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
+        self.add_readoutconfig(ch=ro_ch, name="myro",
+                               freq=cfg['res_freq_ge'],
+                               gen_ch=res_ch,
+                               outsel='product')
+        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
+        self.add_pulse(ch=res_ch, name="res_pulse",ro_ch=ro_ch,
+                       style="const",
+                       length=cfg["res_length"],
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
+                       )
+        self.add_pulse(ch=res_ch, name="res_pulse_test",ro_ch=ro_ch,
+                       style="const",
+                       length=cfg["res_length"],
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge_test']
+                       )
+
+        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
+        self.add_gauss(ch=qubit_ch, name="ramp", sigma=cfg['sigma'], length=cfg['sigma'] * 4, even_length=False)
+        self.add_pulse(ch=qubit_ch, name="qubit_pulse1",
+                       style="arb",
+                       envelope="ramp",
+                       freq=cfg['qubit_freq_ge'] ,
+                       phase=cfg['qubit_phase'],
+                       gain=cfg['pi_amp'] / 2,
+                       )
+
+        self.add_pulse(ch=qubit_ch, name="qubit_pulse2",
+                       style="arb",
+                       envelope="ramp",
+                       freq=cfg['qubit_freq_ge'],
+                       phase=cfg['qubit_phase'] + cfg['wait_time']*360*cfg['ramsey_freq'], # current phase + time * 2pi * ramsey freq
+                       gain=cfg['pi_amp'] / 2,
+                      )
+
+        self.add_loop("waitloop", cfg["steps"])
+
+    def _body(self, cfg):
+        # self.pulse(ch=cfg['res_ch'], name="res_pulse_test", t=0)
+        # self.delay_auto(cfg['relax_delay_test'])
+        self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse1", t=0)  # play probe pulse
+        self.delay_auto(cfg['wait_time'] + 0.01, tag='wait')  # wait_time after last pulse
+        self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse2", t=0)  # play probe pulse
+        self.delay_auto(0.01)  # wait_time after last pulse
+        self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+
 class T2RMeasurement:
     def __init__(self, QubitIndex, number_of_qubits, outerFolder, round_num, signal, save_figs, experiment = None,
                  live_plot = None, fit_data = None, increase_qubit_reps = False, qubit_to_increase_reps_for = None,
@@ -399,7 +458,7 @@ class T2RMeasurement:
 
     def run(self, thresholding=False,correction=False, scaling=False):
         now = datetime.datetime.now()
-        ramsey = T2RProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay=self.config['relax_delay'],
+        ramsey = T2RProgram(self.experiment.soccfg, reps=self.config['reps'] , final_delay=self.config['relax_delay'],
                          cfg=self.config)
 
         # for live plotting open http://localhost:8097/ on firefox
@@ -411,7 +470,7 @@ class T2RMeasurement:
                                          threshold=self.experiment.readout_cfg["threshold"],
                                          angle=self.experiment.readout_cfg["ro_phase"], progress=self.qick_verbose)
             else:
-                iq_list = ramsey.acquire(self.experiment.soc, rounds=self.config['rounds'], progress=self.qick_verbose)
+                iq_list = ramsey.acquire(self.experiment.soc, progress=self.qick_verbose)
             iq_list = iq_list[0][0].T
             I = (iq_list[0])
             Q = (iq_list[1])
@@ -448,6 +507,57 @@ class T2RMeasurement:
 
             return  t2r_est, t2r_err, I, Q, delay_times, fit, self.config
 
+
+    def run_test(self, thresholding=False,correction=False, scaling=False):
+        now = datetime.datetime.now()
+        ramsey = T2RProgram_test(self.experiment.soccfg, reps=self.config['reps'] , final_delay=self.config['relax_delay'],
+                         cfg=self.config)
+
+        # for live plotting open http://localhost:8097/ on firefox
+        if self.live_plot:
+            I, Q, delay_times = self.live_plotting(ramsey, thresholding)
+        else:
+            if thresholding:
+                iq_list = ramsey.acquire(self.experiment.soc, rounds=self.config['rounds'],
+                                         threshold=self.experiment.readout_cfg["threshold"],
+                                         angle=self.experiment.readout_cfg["ro_phase"], progress=self.qick_verbose)
+            else:
+                iq_list = ramsey.acquire(self.experiment.soc, progress=self.qick_verbose)
+            iq_list = iq_list[0][0].T
+            I = (iq_list[0])
+            Q = (iq_list[1])
+            delay_times = ramsey.get_time_param('wait', "t", as_array=True)
+        if scaling:
+            from section_005_single_shot_ge import SingleShotProgram_g, SingleShotProgram_e
+            q_config = all_qubit_state(self.experiment, self.number_of_qubits)
+            ss_exp_cfg = add_qubit_experiment(expt_cfg, 'Readout_Optimization', self.QubitIndex)
+            ss_config = {**q_config[self.Qubit], **ss_exp_cfg}
+            print('performing single shot for g-e calibration')
+
+            ssp_g = SingleShotProgram_g(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'], cfg=ss_config)
+            iq_list_g = ssp_g.acquire(self.experiment.soc, rounds=1, progress=True)
+
+            ssp_e = SingleShotProgram_e(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'], cfg=ss_config)
+            iq_list_e = ssp_e.acquire(self.experiment.soc, rounds=1, progress=True)
+
+            ss_I_g = iq_list_g[0][0].T[0]
+            ss_Q_g = iq_list_g[0][0].T[1]
+            ss_I_e = iq_list_e[0][0].T[0]
+            ss_Q_e = iq_list_e[0][0].T[1]
+
+            fit, t2r_est, t2r_err, plot_sig = None, None, None, None
+            self.plot_results(I, Q, delay_times, now, fit, t2r_est, t2r_err, plot_sig,scaling=scaling, Ie = ss_I_e, Ig = ss_I_g, Qe = ss_Q_e, Qg = ss_Q_g)
+            return  t2r_est, t2r_err, I, Q, delay_times, fit, self.config, ss_Q_e, ss_Q_g, ss_I_e, ss_I_g
+        else:
+            if self.fit_data:
+                fit, t2r_est, t2r_err, plot_sig = self.t2_fit(delay_times, I, Q)
+            else:
+                fit, t2r_est, t2r_err, plot_sig = None, None, None, None
+
+            if self.save_figs:
+                self.plot_results(I, Q, delay_times, now, fit, t2r_est, t2r_err, plot_sig)
+
+            return  t2r_est, t2r_err, I, Q, delay_times, fit, self.config
     def adjust_qspec(self, thresholding=False,correction=False):
         now = datetime.datetime.now()
         ramsey = T2RProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay=self.config['relax_delay'],
