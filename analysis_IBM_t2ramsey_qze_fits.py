@@ -11,12 +11,12 @@ figure_quality = 100
 final_figure_quality = 200
 FRIDGE = "QUIET"
 qubits = [5]
-path = '2d_test'#'2d_less_reps_more_qspec_steps'#
+path = '2d_test_lower_res2'#'2d_test_lower_res'
 ramsey_nbar_path=''#'/bob_run_started_Feb_11/squill/2d_test/run/'
 
 for qubit in qubits:
     run_name = f'bob_run_started_Feb_11/squill/{path}/all_qubits/'
-    top_folder_dates = [f'qubit_{qubit}round{round}' for round in range(0,10)]
+    top_folder_dates = [f'qubit_{qubit}round{round}' for round in range(0,47)]
     
     # QSpec analysis
     q_vs_time = QubitFreqsVsTime(figure_quality, final_figure_quality, 6, top_folder_dates, save_figs,
@@ -51,7 +51,7 @@ for qubit in qubits:
 
     t1_vs_time.fit_and_save_t1_slices_new_format(amps_t1, gains_t1, rounds_t1, delay_times_t1,
                                                   f'M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/all_qubits/analysis_new_fwhm_qspec_nbar/',
-                                                  n_bar=n_bars)
+                                                  n_bar=n_bars)#,nbar_max=6.5
     t1_vs_time.plot_all_t1_heatmaps_new_format(amps_t1, gains_t1, rounds_t1, delay_times_t1,
                                                 f'M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/all_qubits/analysis_new_fwhm_qspec_nbar/',
                                                 n_bar=n_bars, use_linear_x=True)
@@ -63,7 +63,7 @@ for qubit in qubits:
 
     t2_vs_time.plot_all_t2_heatmaps_new_format(amps_t2, gains_t2, rounds_t2, delay_times_t2,
                                                 f'M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/all_qubits/analysis_new_fwhm_qspec_nbar/',
-                                                n_bar=n_bars, use_linear_x=False)
+                                                n_bar=n_bars)
 
     t2_vs_time.plot_all_t2_curves(amps_t2, gains_t2, rounds_t2, delay_times_t2,
                                    f'M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/all_qubits/analysis_new_fwhm_qspec_nbar/',

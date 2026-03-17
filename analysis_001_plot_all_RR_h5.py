@@ -408,7 +408,6 @@ class PlotAllRR:
         ef_entries = _collect_entries(ef_ext)
         fh_entries = _collect_entries(fh_ext)
 
-        # Include fh_entries in the union of keys
         all_q_keys = sorted(set(ge_entries.keys()) | set(ef_entries.keys()) | set(fh_entries.keys()))
         print("q_keys found:", all_q_keys)
 
@@ -417,29 +416,15 @@ class PlotAllRR:
             ge_list = ge_entries.get(q_key, [])
             ef_list = ef_entries.get(q_key, [])
             fh_list = fh_entries.get(q_key, [])
+
             if not ge_list or not ef_list:
                 continue
 
-            ef_used = [False] * len(ef_list)
-            fh_used = [False] * len(fh_list)
-
-            for ge_item in ge_list:
-                ge_ts = ge_item["ts"]
-
-                for q_key in all_q_keys:
-                    ge_list = ge_entries.get(q_key, [])
-                    ef_list = ef_entries.get(q_key, [])
-                    fh_list = fh_entries.get(q_key, [])
-
-                    if not ge_list or not ef_list:
-                        continue
-
-                    n = min(len(ge_list), len(ef_list))
-                    for i in range(n):
-                        ge_item = ge_list[i]
-                        ef_item = ef_list[i]
-                        fh_item = fh_list[i] if i < len(fh_list) else None
-
+            n = min(len(ge_list), len(ef_list))
+            for i in range(n):
+                ge_item = ge_list[i]
+                ef_item = ef_list[i]
+                fh_item = fh_list[i] if i < len(fh_list) else None
 
                 # Extract configs
                 try:
@@ -471,7 +456,6 @@ class PlotAllRR:
                     label_ef="Qubit in e",
                     ge_date=ge_item["date"],
                     ef_date=ef_item["date"],
-                    # FH data — pass None gracefully if no match was found
                     fh_freq_pts=fh_item["freq_pts"] if fh_item else None,
                     fh_freq_center=fh_item["freq_center"] if fh_item else None,
                     fh_amps=fh_item["amps"] if fh_item else None,

@@ -3813,6 +3813,7 @@ class T1VsTime:
             figure_size=(6.0, 4.0),
             # NEW:
             n_bar=None,  # list/np.array OR dict[str]->(list or {"lorentzian"/"gaussian"})
+            nbar_max=None,  # optional upper cutoff for plotting Γ vs n̄; only n̄ <= nbar_max are plotted
     ):
         """
         For each round and each gain, fit an exponential T1 curve vs delay and save
@@ -3823,6 +3824,8 @@ class T1VsTime:
           - n_bar can be a single list/array aligned to the round's sorted gains,
           - or a dict mapping round_id -> list, or -> {"gains":..., "lorentzian":..., "gaussian":...}
             (prefers 'lorentzian' if present, else 'gaussian').
+
+        If nbar_max is provided, the saved Γ vs n̄ plots only include points with n̄ <= nbar_max.
         """
         import numpy as np
         import matplotlib.pyplot as plt
@@ -3961,8 +3964,10 @@ class T1VsTime:
             bounds = ([-np.inf, -np.inf, 0.0, -np.inf], [np.inf, np.inf, np.inf, np.inf])
 
             try:
-                popt, pcov = curve_fit(self.exponential, t, y, p0=p0, bounds=bounds,
-                                       method='trf', maxfev=10000)
+                popt, pcov = curve_fit(
+                    self.exponential, t, y, p0=p0, bounds=bounds,
+                    method='trf', maxfev=10000
+                )
                 yfit = self.exponential(t, *popt)
                 T1 = popt[2]
                 T1_err = float(np.sqrt(pcov[2][2])) if pcov.shape == (4, 4) and pcov[2][2] >= 0 else float('inf')
@@ -4028,9 +4033,11 @@ class T1VsTime:
 
                 # annotate T1
                 if ok and np.isfinite(T1):
-                    ax.text(0.02, 0.98,
-                            f"T1 = {T1:.3g} ± {T1_err:.2g}",
-                            transform=ax.transAxes, va='top', ha='left')
+                    ax.text(
+                        0.02, 0.98,
+                        f"T1 = {T1:.3g} ± {T1_err:.2g}",
+                        transform=ax.transAxes, va='top', ha='left'
+                    )
 
                 ax.legend()
                 fig.tight_layout()
@@ -4070,7 +4077,13 @@ class T1VsTime:
                             idx = gain_to_idx.get(g_val)
                             if idx is None:
                                 continue
-                            xs_list.append(float(nbar_vec[idx]))
+                            nbar_val = float(nbar_vec[idx])
+
+                            # apply optional n̄ cutoff
+                            if nbar_max is not None and nbar_val > nbar_max:
+                                continue
+
+                            xs_list.append(nbar_val)
                             # use already-computed Gamma & Gamma_err for this same ordering
                             g_mask = (gs == g_val)
                             Gamma_list.append(float(Gamma[g_mask][0]))
@@ -4080,33 +4093,38 @@ class T1VsTime:
                         ys = np.asarray(Gamma_list, float)
                         es = np.asarray(Gamma_err_list, float)
 
-                        # sort by n̄
-                        order = np.argsort(xs)
-                        xs, ys, es = xs[order], ys[order], es[order]
+                        if xs.size == 0:
+                            print(f"[q{q} round {r_id}] No Γ vs n̄ points remain after applying nbar_max={nbar_max}.")
+                        else:
+                            # sort by n̄
+                            order = np.argsort(xs)
+                            xs, ys, es = xs[order], ys[order], es[order]
 
-                        # ---- Single linear Γ vs n̄ plot ----
-                        fig2, ax_lin = plt.subplots(
-                            figsize=(figure_size[0], figure_size[1])
-                        )
+                            # ---- Single linear Γ vs n̄ plot ----
+                            fig2, ax_lin = plt.subplots(
+                                figsize=(figure_size[0], figure_size[1])
+                            )
 
-                        ax_lin.errorbar(xs, ys, yerr=es, fmt='o', capsize=3,
-                                        label=r"$\Gamma = 1/T_1$")
-                        ax_lin.set_title(f"Qubit {q + 1} — Round {r_id} — Γ vs n̄")
-                        ax_lin.set_xlabel(r"$\bar{n}$")
-                        ax_lin.set_ylabel(r"$\Gamma$ (1/ms)")
-                        ax_lin.grid(True, alpha=0.25)
-                        ax_lin.legend()
+                            ax_lin.errorbar(xs, ys, yerr=es, fmt='o', capsize=3,
+                                            label=r"$\Gamma = 1/T_1$")
+                            title = f"Qubit {q + 1} — Round {r_id} — Γ vs n̄"
+                            if nbar_max is not None:
+                                title += f" (n̄ ≤ {nbar_max:g})"
+                            ax_lin.set_title(title)
+                            ax_lin.set_xlabel(r"$\bar{n}$")
+                            ax_lin.set_ylabel(r"$\Gamma$ (1/ms)")
+                            ax_lin.grid(True, alpha=0.25)
+                            ax_lin.legend()
 
-                        fig2.tight_layout()
-                        # Save to common gamma_vs_nbar folder instead of round-specific folder
-                        gamma_folder = os.path.join(save_path, f"gamma_vs_nbar_q{q}")
-                        self.create_folder_if_not_exists(gamma_folder)
-                        f_vs = os.path.join(gamma_folder, f"Gamma_vs_nbar_round{r_id}.png")
-                        fig2.savefig(f_vs, dpi=self.final_figure_quality)
-                        plt.close(fig2)
+                            fig2.tight_layout()
+                            # Save to common gamma_vs_nbar folder instead of round-specific folder
+                            gamma_folder = os.path.join(save_path, f"gamma_vs_nbar_q{q}")
+                            self.create_folder_if_not_exists(gamma_folder)
+                            f_vs = os.path.join(gamma_folder, f"Gamma_vs_nbar_round{r_id}.png")
+                            fig2.savefig(f_vs, dpi=self.final_figure_quality)
+                            plt.close(fig2)
 
-                        print(f"Saved Γ vs n̄ (linear x) for round {r_id} to: {gamma_folder}")
-
+                            print(f"Saved Γ vs n̄ (linear x) for round {r_id} to: {gamma_folder}")
 
                     else:
                         fig2, ax2 = plt.subplots(figsize=figure_size)
@@ -4117,8 +4135,10 @@ class T1VsTime:
                         ax2.grid(True, alpha=0.25)
                         ax2.legend()
                         fig2.tight_layout()
-
-                        f_vs = os.path.join(round_dir, f"Gamma_vs_gain_round{r_id}.png")
+                        gamma_folder = os.path.join(save_path, f"gamma_vs_gain_q{q}")
+                        self.create_folder_if_not_exists(gamma_folder)
+                        f_vs = os.path.join(gamma_folder, f"Gamma_vs_gain_round{r_id}.png")
+                        # f_vs = os.path.join(round_dir, f"Gamma_vs_gain_round{r_id}.png")
                         fig2.savefig(f_vs, dpi=self.final_figure_quality)
                         plt.close(fig2)
                         print(f"Saved Γ vs Gain (with error bars) for round {r_id} to: {round_dir}")

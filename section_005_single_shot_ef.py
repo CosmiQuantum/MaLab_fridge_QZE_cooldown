@@ -519,7 +519,7 @@ class SingleShot_ef:
         fid_ge, fid_ef, theta_ef, ig_new, qg_new, ie_new, qe_new, if_new, qf_new, threshold_ge, threshold_ef = self.plot_results_gef(
             self.outerFolder, iq_list_g, iq_list_e, iq_list_f, self.QubitIndex)
 
-        return iq_list_e, iq_list_f, ie_new, if_new, theta_ef, threshold_ef, self.config, fid_ge, fid_ef
+        return iq_list_g, iq_list_e, iq_list_f, ie_new, if_new, theta_ef, threshold_ef, self.config, fid_ge, fid_ef
 
     def plot_results_gef(self, outerfolder_plots, iq_list_g, iq_list_e, iq_list_f, QubitIndex, fig_quality=100):
         I_g = iq_list_g[0][0].T[0]

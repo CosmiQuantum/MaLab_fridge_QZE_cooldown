@@ -10,13 +10,13 @@ nbar_from_ramsey = False
 figure_quality = 100
 final_figure_quality = 200
 FRIDGE = "QUIET"
-qubits = [4]
-path = '2d_less_reps_more_qspec_steps'#
+qubits = [5]
+path = '2d_test_high_res'#
 ramsey_nbar_path='/bob_run_started_Feb_11/squill/ramsey_n_bar_calibration_more_fringes/run/'
 
 for qubit in qubits:
     run_name = f'bob_run_started_Feb_11/squill/{path}/all_qubits/'
-    top_folder_dates = [f'qubit_{qubit}round{round}' for round in [9]]
+    top_folder_dates = [f'qubit_{qubit}round{round}' for round in [0]]
     
     # QSpec analysis
     q_vs_time = QubitFreqsVsTime(figure_quality, final_figure_quality, 6, top_folder_dates, save_figs,
@@ -25,7 +25,7 @@ for qubit in qubits:
 
     # Calculate nbar (no plotting)
     if nbar_from_ramsey:
-        top_folder_dates_ramsey_nbar=['2025-12-19_13-29-47']#'2025-12-25_22-10-45'
+        top_folder_dates_ramsey_nbar=['2025-12-10_13-20-47']#'2025-12-25_22-10-45'
         t2_vs_time = T2rVsTime(figure_quality, final_figure_quality, 6, top_folder_dates_ramsey_nbar, save_figs, False,
                                'None', ramsey_nbar_path, fridge=FRIDGE, exp_name='ge', qubit=qubit)
         n_bars=t2_vs_time.run_ramsey_nbar(exp_name='StarkRamsey', save_path=f'M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/all_qubits/analysis_extracted_t2/',
@@ -42,9 +42,9 @@ for qubit in qubits:
     t2_out=q_vs_time.plot_all_q_heatmaps_new_format_return_t2(amps_qspec, gains_qspec, rounds_qspec, freqs_qspec,
                                               f'M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/all_qubits/analysis_extracted_t2/',
                                               n_bar=n_bars, save_individual_plots=save_individual_qspec)
-    g_t2 = t2_out["9"]["gains"]  # gain per column
-    t2_us = t2_out["9"]["T2_us"]  # T2 per gain (microseconds)
-    fwhm = t2_out["9"]["fwhm_MHz"]  # FWHM per gain (MHz) used to compute it
+    g_t2 = t2_out["0"]["gains"]  # gain per column
+    t2_us = t2_out["0"]["T2_us"]  # T2 per gain (microseconds)
+    fwhm = t2_out["0"]["fwhm_MHz"]  # FWHM per gain (MHz) used to compute it
 
     # T1 analysis
     t1_vs_time = T1VsTime(figure_quality, final_figure_quality, 6, top_folder_dates, save_figs, False,
@@ -57,13 +57,13 @@ for qubit in qubits:
     t1_out=t1_vs_time.plot_all_t1_heatmaps_new_format(amps_t1, gains_t1, rounds_t1, delay_times_t1,
                                                 f'M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/all_qubits/analysis_extracted_t2/',
                                                 n_bar=n_bars, use_linear_x=True)
-    g_t1 = t1_out["9"]["gains"]
-    t1_us = t1_out["9"]["T1_us"]
+    g_t1 = t1_out["0"]["gains"]
+    t1_us = t1_out["0"]["T1_us"]
 
     import numpy as np
 
     save_dir = f"M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/all_qubits/analysis_extracted_t2/"
-    round_id=9
+    round_id=0
     # t_phi now
     g_t2 = np.asarray(t2_out[str(round_id)]["gains"], float)
     t2_us = np.asarray(t2_out[str(round_id)]["T2_us"], float)
@@ -101,7 +101,7 @@ for qubit in qubits:
 
         # tolerance: small fraction of gain span, with an absolute floor
         span = float(np.nanmax(np.r_[g_t1, g_t2]) - np.nanmin(np.r_[g_t1, g_t2]))
-        tol = max(1e-9, 1e-6 * span)
+        tol = max(1e-0, 1e-6 * span)
 
         for g, t2v in zip(g_t2, t2_us):
             j = int(np.argmin(np.abs(g_t1 - g)))

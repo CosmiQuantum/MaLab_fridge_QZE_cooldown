@@ -326,7 +326,6 @@ class FH_AmplitudeRabiProgram(AveragerProgramV2):
                        gain=cfg['pi_ef_amp'],
                        )
 
-        print("cfg['sigma_fh']",cfg['sigma_fh'])
         self.add_gauss(ch=qubit_ch, name="ramp", sigma=cfg['sigma_fh'], length=cfg['sigma_fh'] * 4, even_length=False)
         self.add_pulse(ch=qubit_ch, name="qubit_pulse",
                        style="arb",

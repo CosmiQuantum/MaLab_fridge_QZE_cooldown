@@ -1436,6 +1436,181 @@ class T2rVsTime:
                 plt.close(fig)
                 print(f"Saved T2 curve to: {out_file}")
 
+    def fit_t2r_and_return(
+            self,
+            amps,
+            gains,
+            rounds,
+            delay_times,
+            save_path=None,
+            n_bar=None,
+            save_individual_plots=False,
+    ):
+        """
+        Fit T2R (Ramsey) vs delay for each gain and return results in the same
+        style as the T1 / qspec return dicts:
+
+            out[str(round_id)] = {
+                "gains": [...],
+                "T2_us": [...],
+                "T2_err_us": [...],
+            }
+
+        Optionally saves per-gain fit plots.
+        """
+        import os
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from collections import defaultdict
+
+        q = self.qubit
+        gains_q = gains.get(q, [])
+        amps_q = amps.get(q, [])
+        rounds_q = rounds.get(q, [])
+        delay_q = delay_times.get(q, [])
+
+        n = min(len(amps_q), len(gains_q), len(rounds_q), len(delay_q))
+        if n == 0 or not (len(amps_q) == len(gains_q) == len(rounds_q) == len(delay_q)):
+            print(f"No usable T2R data for qubit {q}.")
+            return {}
+
+        all_points = []
+        for i in range(n):
+            r_id = str(rounds_q[i])
+
+            a_samples = np.asarray(amps_q[i], dtype=float).ravel()
+            if a_samples.size == 0:
+                continue
+
+            g_i = gains_q[i]
+            g_arr = np.asarray(g_i, dtype=float).ravel() if isinstance(g_i, (list, tuple, np.ndarray)) else None
+            if g_arr is None or g_arr.size == 1:
+                try:
+                    g_scalar = float(g_i)
+                except Exception:
+                    continue
+                g_arr = np.full(a_samples.shape, g_scalar, dtype=float)
+            elif g_arr.size != a_samples.size:
+                continue
+
+            d_i = delay_q[i]
+            d_arr = np.asarray(d_i, dtype=float).ravel() if isinstance(d_i, (list, tuple, np.ndarray)) else None
+            if d_arr is None or d_arr.size == 1:
+                try:
+                    d_scalar = float(d_i)
+                except Exception:
+                    continue
+                d_arr = np.full(a_samples.shape, d_scalar, dtype=float)
+            elif d_arr.size != a_samples.size:
+                continue
+
+            mask = np.isfinite(a_samples) & np.isfinite(g_arr) & np.isfinite(d_arr)
+            if not np.any(mask):
+                continue
+
+            for g, d, a in zip(g_arr[mask], d_arr[mask], a_samples[mask]):
+                all_points.append((r_id, float(g), float(d), float(a)))
+
+        if not all_points:
+            print(f"No numeric T2R points for qubit {q}.")
+            return {}
+
+        def build_grid(points_for_round):
+            gains_r = sorted({g for (g, _, __) in points_for_round})
+            delays_r = sorted({d for (_, d, __) in points_for_round})
+
+            gi_map = {g: i for i, g in enumerate(gains_r)}
+            di_map = {d: i for i, d in enumerate(delays_r)}
+
+            bucket = defaultdict(list)
+            for g, d, a in points_for_round:
+                bucket[(di_map[d], gi_map[g])].append(a)
+
+            C = np.full((len(delays_r), len(gains_r)), np.nan, dtype=float)
+            for (iy, ix), vals in bucket.items():
+                C[iy, ix] = float(np.nanmean(vals))
+
+            return gains_r, delays_r, C
+
+        out = {}
+
+        out_root = None
+        if save_individual_plots and save_path is not None:
+            out_root = os.path.join(save_path, "t2r_fits")
+            self.create_folder_if_not_exists(out_root)
+
+        unique_rounds = sorted({r for (r, _, __, ___) in all_points})
+        for r_id in unique_rounds:
+            pts = [(g, d, a) for (r, g, d, a) in all_points if r == r_id]
+            if not pts:
+                continue
+
+            gains_r, delays_r, C = build_grid(pts)
+
+            fit_gains = []
+            fit_t2 = []
+            fit_t2_err = []
+
+            for ix, g_val in enumerate(gains_r):
+                x = np.asarray(delays_r, float)
+                y = C[:, ix]
+
+                finite = np.isfinite(x) & np.isfinite(y)
+                x_fit = x[finite]
+                y_fitdata = y[finite]
+
+                if x_fit.size < 3:
+                    fit_gains.append(float(g_val))
+                    fit_t2.append(np.nan)
+                    fit_t2_err.append(np.nan)
+                    continue
+
+                try:
+                    I0 = np.zeros_like(y_fitdata)
+                    Q0 = np.zeros_like(y_fitdata)
+
+                    y_fit, t2_est, t2_err, _ = self.t2_fit(
+                        x_data=x_fit,
+                        I=I0,
+                        Q=Q0,
+                        verbose=False,
+                        guess=None,
+                        plot=False,
+                        amp=y_fitdata,
+                    )
+
+                    fit_gains.append(float(g_val))
+                    fit_t2.append(float(t2_est))
+                    fit_t2_err.append(float(t2_err))
+
+                    if save_individual_plots and out_root is not None:
+                        fig, ax = plt.subplots(figsize=(6.0, 4.0))
+                        ax.plot(x_fit, y_fitdata, ".", label="data")
+                        ax.plot(x_fit, y_fit, "-", label=f"fit: T2 = {t2_est:.2f} ± {t2_err:.2f} us")
+                        ax.set_title(f"Qubit {self.qubit + 1} — Round {r_id} — Gain {g_val:g}")
+                        ax.set_xlabel("Delay time")
+                        ax.set_ylabel("Qubit Population")
+                        ax.legend(loc="best")
+                        fig.tight_layout()
+
+                        gain_str = str(g_val).replace(".", "p").replace("-", "m")
+                        out_file = os.path.join(out_root, f"t2r_fit_q{self.qubit}_round{r_id}_gain{gain_str}.png")
+                        fig.savefig(out_file, transparent=False, dpi=self.final_figure_quality)
+                        plt.close(fig)
+
+                except Exception as e:
+                    print(f"[q{self.qubit}] Round {r_id}, gain {g_val}: T2R fit failed ({e})")
+                    fit_gains.append(float(g_val))
+                    fit_t2.append(np.nan)
+                    fit_t2_err.append(np.nan)
+
+            out[str(r_id)] = {
+                "gains": fit_gains,
+                "T2_us": fit_t2,
+                "T2_err_us": fit_t2_err,
+            }
+
+        return out
     def plot_all_t2_heatmaps_new_format(
             self,
             amps,
@@ -1444,7 +1619,8 @@ class T2rVsTime:
             delay_times,
             save_path,
             max_ylabels=6,
-            n_bar=None,  # list/np.array OR dict[str]->(list or {"lorentzian"/"gaussian"/"nbar"/"values"})
+            n_bar=None,  # optional n̄ data source
+            use_nbar_x=False,  # NEW: choose whether x-axis uses n̄ or gain
             use_linear_x=True,  # if False, use equal column spacing in x
     ):
         """
@@ -1453,7 +1629,7 @@ class T2rVsTime:
         Changes vs your original:
           - Y-axis shows at most `max_ylabels` delay_time tick labels (evenly spaced).
           - Color scale (z) is fixed across rounds using the global min/max amplitude.
-          - If n_bar is provided, x-axis uses n̄ instead of gain (sorted ascending).
+          - If `use_nbar_x=True` and n_bar is provided, x-axis uses n̄ instead of gain.
           - `use_linear_x=True` => x spacing follows numeric values (gain/n̄).
             `use_linear_x=False` => columns equally spaced, labels still show gain/n̄.
 
@@ -1559,16 +1735,19 @@ class T2rVsTime:
         def get_nbar_for_round(r_id_str, gains_sorted):
             if n_bar is None:
                 return None
+
             # direct list/array: assume aligned to sorted gains for this round
             if isinstance(n_bar, (list, tuple, np.ndarray)):
                 nb = np.asarray(n_bar, float).ravel()
                 return nb if nb.size == len(gains_sorted) else None
+
             # dict-like
             if isinstance(n_bar, dict):
                 key = r_id_str if r_id_str in n_bar else str(r_id_str)
                 entry = n_bar.get(key, None)
                 if entry is None:
                     return None
+
                 if isinstance(entry, dict):
                     candidate = (
                             entry.get("lorentzian")
@@ -1580,9 +1759,11 @@ class T2rVsTime:
                         return None
                     nb = np.asarray(candidate, float).ravel()
                     return nb if nb.size == len(gains_sorted) else None
+
                 if isinstance(entry, (list, tuple, np.ndarray)):
                     nb = np.asarray(entry, float).ravel()
                     return nb if nb.size == len(gains_sorted) else None
+
             return None
 
         for r_id in unique_rounds:
@@ -1609,7 +1790,8 @@ class T2rVsTime:
 
             # Decide x-axis values & label (gain or n̄) and reorder columns accordingly
             nbar_vec = get_nbar_for_round(str(r_id), gains_r)
-            if nbar_vec is not None:
+
+            if use_nbar_x and (nbar_vec is not None):
                 x_vals = np.asarray(nbar_vec, float)
                 x_label = "n̄"
             else:
@@ -1640,14 +1822,13 @@ class T2rVsTime:
                 C_sorted,
                 shading='flat',
                 vmin=global_vmin,
-                vmax=global_vmax,  # fixed z scale
+                vmax=global_vmax,
             )
             cbar = fig.colorbar(mesh, ax=ax, pad=0.02)
             cbar.set_label("Qubit Population")
 
             ax.set_title(f"Qubit {self.qubit + 1} — Round {r_id}")
             ax.set_xlabel(x_label)
-            # y-axis in microseconds
             ax.set_ylabel(r"Delay time ($\mu$s)")
 
             # X ticks: differ for linear vs equal-spacing mode
@@ -1655,8 +1836,8 @@ class T2rVsTime:
                 ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=7, prune=None))
                 plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
             else:
-                # Only label a subset of (rounded) bars
-                max_xticks = 10  # tweak as desired
+                # Only label a subset of bars
+                max_xticks = 10
                 if Nx <= max_xticks:
                     xticks_idx = list(range(Nx))
                 else:
@@ -1669,22 +1850,24 @@ class T2rVsTime:
                 ax.set_xticks(xtick_positions)
                 ax.set_xticklabels([f"{v:.3f}" for v in xtick_values], rotation=45, ha='right')
 
-            # only label a subset of delay times on Y
+            # Only label a subset of delay times on Y
             if Ny > 0:
                 if Ny <= max_ylabels:
                     yticks_idx = list(range(Ny))
                 else:
                     yticks_idx = np.linspace(0, Ny - 1, num=max_ylabels, dtype=int).tolist()
                     yticks_idx = sorted(set(yticks_idx))
+
                 yticks_vals = [delays_r[i] for i in yticks_idx]
                 ax.set_yticks(yticks_vals)
                 ax.set_yticklabels([f"{v:.0f}" for v in yticks_vals])
 
             fig.tight_layout()
-            if n_bar is not None:
-                outfile = (save_path + f"t2_heatmap_q{self.qubit}_round{r_id}_nbar.png")
+
+            if use_nbar_x and (n_bar is not None):
+                outfile = save_path + f"t2_heatmap_q{self.qubit}_round{r_id}_nbar.png"
             else:
-                outfile = (save_path + f"t2_heatmap_q{self.qubit}_round{r_id}.png")
+                outfile = save_path + f"t2_heatmap_q{self.qubit}_round{r_id}.png"
 
             fig.savefig(outfile, transparent=False, dpi=self.final_figure_quality)
             plt.close(fig)

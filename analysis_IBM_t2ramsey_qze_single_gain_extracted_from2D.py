@@ -3,32 +3,85 @@ from analysis_007_T2R_vs_time_plots import T2rVsTime
 from analysis_008_T2E_vs_time_plots import T2eVsTime
 from analysis_003_q_freqs_vs_time_plots import QubitFreqsVsTime
 
+import os
+import numpy as np
+import matplotlib.pyplot as plt
+from pathlib import Path
+from collections import defaultdict
+
 # Configuration
 save_figs = True
 save_individual_qspec = False
 figure_quality = 100
 final_figure_quality = 200
 FRIDGE = "QUIET"
-qubits = [5]
-path = '2d_test'
+qubits = [4]
+path = '2d_higher_n_bar'
+CHI_MHZ = -0.137
 
 for qubit in qubits:
-    # run_name = f'M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/all_qubits/'
-    # top_folder_dates = [f'qubit_{qubit}round{round}' for round in range(113)]
-    run_name = f'bob_run_started_Feb_11/squill/{path}/all_qubits/'
-    from pathlib import Path
+    run_name = f'bob_run_started_Aug_23/squill/{path}/all_qubits/'
 
     p = Path('M:/_Data/20250822 - Olivia/' + run_name)
     top_folder_dates = [item.name for item in p.iterdir() if item.is_dir() and "qubit" in item.name]
 
+    # ============================================================
+    # 1) Run QSpec analysis to get nbar for each round
+    # ============================================================
+    q_vs_time = QubitFreqsVsTime(figure_quality, final_figure_quality, 6, top_folder_dates, save_figs,
+                                 False, 'None', run_name, fridge=FRIDGE, exp_name='ge', qubit=qubit)
+    _, _, amps_qspec, gains_qspec, rounds_qspec, freqs_qspec = q_vs_time.run_q_sweep_new(exp_extension='_ge', scaling=True)
 
-    # # T1 Analysis
+    # calculate_nbar returns:
+    #   {round_id_str: {"gains": [g1, g2, ...], "lorentzian": [nbar1, nbar2, ...], "gaussian": None}}
+    n_bars = q_vs_time.calculate_nbar(amps_qspec, gains_qspec, rounds_qspec, freqs_qspec, chi_MHz=CHI_MHZ)
+
+    # Build gain -> list of nbar values across all rounds
+    # Then average to get gain -> mean_nbar
+    gain_to_nbars = defaultdict(list)
+    for r_id, entry in n_bars.items():
+        gains_list_r = entry.get("gains", [])
+        nbar_list_r = entry.get("lorentzian", None)
+        if nbar_list_r is None:
+            continue
+        for g_val, nb_val in zip(gains_list_r, nbar_list_r):
+            if np.isfinite(g_val) and np.isfinite(nb_val):
+                gain_to_nbars[round(g_val, 6)].append(nb_val)
+
+    # Mean nbar per gain
+    gain_to_mean_nbar = {}
+    for g_val, nb_list in gain_to_nbars.items():
+        gain_to_mean_nbar[g_val] = float(np.mean(nb_list))
+
+    print("\n=== Gain -> Mean nbar mapping ===")
+    for g in sorted(gain_to_mean_nbar.keys()):
+        print(f"  gain={g:.6f}  ->  mean nbar={gain_to_mean_nbar[g]:.4f}  (from {len(gain_to_nbars[g])} rounds)")
+
+    # ============================================================
+    # 2) Run T1 analysis (same as original script 1)
+    # ============================================================
     t1_vs_time = T1VsTime(figure_quality, final_figure_quality, 6, top_folder_dates, save_figs, False,
                          'None', run_name, FRIDGE, exp_name='ge', qubit=qubit, t1_slice='10us')
     _, _, amps_t1, gains_t1, rounds_t1, delay_times_t1 = t1_vs_time.run_t1_sweep_new(exp_extension='_ge', scaling=True, weighted_mean=True)
 
-    import numpy as np
+    # ============================================================
+    # Helper: map gain values to nbar using the calibration
+    # ============================================================
+    def gain_to_nbar_lookup(gain_val, mapping, atol=1e-3):
+        """Look up nbar for a gain value using the gain_to_mean_nbar mapping."""
+        gain_val = float(gain_val)
+        for g_key, nb in mapping.items():
+            if abs(gain_val - g_key) < atol:
+                return nb
+        return np.nan
 
+    def make_nbar_labels(gain_labels, mapping, atol=1e-3):
+        """Convert a list of gain labels to nbar labels."""
+        return [gain_to_nbar_lookup(g, mapping, atol=atol) for g in gain_labels]
+
+    # ============================================================
+    # 3) All the helper functions from original script 1
+    # ============================================================
 
     def unique_gains_raw(gains_dict, q_key, round_to=6):
         """Get unique gain values present for a qubit (rounded)."""
@@ -48,14 +101,9 @@ for qubit in qubits:
             amps, gains, rounds, delay_times,
             gains_keep,
             *,
-            atol=1e-3,  # <-- IMPORTANT: allow matching like 0.0800000002
+            atol=1e-3,
             rtol=1e-6,
     ):
-        """
-        Same as your filter_by_gains_same_format, but with a default tolerance
-        that will actually match float-ish gain values.
-        """
-
         def _as_1d_float_array(x):
             return np.asarray(x, dtype=float).ravel()
 
@@ -153,10 +201,6 @@ for qubit in qubits:
             atol=1e-3,
             rtol=1e-6,
     ):
-        """
-        Split filtered dicts into list-of-dicts, one per gain, so the plotting function
-        can truly plot multiple gains.
-        """
         gains_list = np.asarray(gains_list, float).ravel()
 
         amps_by_gain, delay_by_gain, rounds_by_gain, labels = [], [], [], []
@@ -204,16 +248,7 @@ for qubit in qubits:
         return amps_by_gain, delay_by_gain, rounds_by_gain, labels
 
 
-    import os
-    import numpy as np
-    import matplotlib.pyplot as plt
-
-
     def _flatten_finite_amp_samples_for_qubit(amps_g_dict, q_key):
-        """
-        amps_g_dict: dict like amps_g[q] = [array1, array2, ...] (per dataset)
-        Returns 1D array of all finite samples for the qubit across datasets.
-        """
         vals = []
         for entry in amps_g_dict.get(q_key, []):
             a = np.asarray(entry, float).ravel()
@@ -225,106 +260,385 @@ for qubit in qubits:
         return np.concatenate(vals)
 
 
-    def save_gain_summary_stats_plot(
-            amps_by_gain_list,
+    def _collect_vals_for_gain(amps_g: dict, q_key):
+        if q_key is None:
+            if isinstance(amps_g, dict) and len(amps_g) == 1:
+                q_use = next(iter(amps_g.keys()))
+            else:
+                return None, None
+        else:
+            q_use = q_key
+
+        arr_list = amps_g.get(q_use, [])
+        if not arr_list:
+            return q_use, None
+
+        vals = []
+        for a in arr_list:
+            a = np.asarray(a, float).ravel()
+            a = a[np.isfinite(a)]
+            if a.size:
+                vals.append(a)
+
+        if not vals:
+            return q_use, None
+
+        return q_use, np.concatenate(vals)
+
+
+    # ============================================================
+    # 4) MODIFIED plotting functions: x-axis = nbar instead of gain
+    # ============================================================
+
+    def plot_t1_boxplot_by_nbar(
+            amps_list,
             gain_labels,
+            nbar_labels,
+            *,
             q_key,
-            save_dir,
-            filename=None,
+            save_path,
+            filename="t1_boxplot_by_nbar.png",
+            title=None,
+            ylabel=r"$T_1$ ($\mu$s)",
     ):
         """
-        Creates and saves a plot with:
-          - mean with ±1 std error bars
-          - median markers
-        for each gain, using amplitude samples aggregated across datasets.
+        Recreates the T1 distribution boxplot but with average nbar on the x-axis
+        instead of gain. Includes overlaid scatter points colored per gain/nbar.
         """
-        os.makedirs(save_dir, exist_ok=True)
+        os.makedirs(save_path, exist_ok=True)
 
-        means, stds, medians, gains_used = [], [], [], []
+        gains = np.asarray(gain_labels, dtype=float).ravel()
+        nbars = np.asarray(nbar_labels, dtype=float).ravel()
+        order = np.argsort(nbars)
 
-        for amps_g, g in zip(amps_by_gain_list, gain_labels):
-            a = _flatten_finite_amp_samples_for_qubit(amps_g, q_key)
-            if a.size == 0:
+        # Default color cycle matching the original plot
+        default_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
+                          '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+
+        data_for_box = []
+        nbar_tick_labels = []
+        colors_used = []
+
+        for idx, j in enumerate(order):
+            nb = nbars[j]
+            amps_g = amps_list[j]
+            _, v = _collect_vals_for_gain(amps_g, q_key=q_key)
+            if v is None or v.size == 0:
                 continue
-            gains_used.append(float(g))
-            means.append(float(np.mean(a)))
-            stds.append(float(np.std(a, ddof=1)) if a.size > 1 else 0.0)
-            medians.append(float(np.median(a)))
+            data_for_box.append(v)
+            nbar_tick_labels.append(f"{nb:.4g}")
+            colors_used.append(default_colors[idx % len(default_colors)])
 
-        if not gains_used:
-            print(f"[summary plot] No finite amplitude data found for q_key={q_key}. Nothing saved.")
-            return
+        if not data_for_box:
+            print("No data for nbar boxplot.")
+            return None
 
-        x = np.asarray(gains_used, float)
-        means = np.asarray(means, float)
-        stds = np.asarray(stds, float)
-        medians = np.asarray(medians, float)
+        fig, ax = plt.subplots(figsize=(8, 6))
 
-        # Sort by gain so the plot reads nicely
-        order = np.argsort(x)
-        x, means, stds, medians = x[order], means[order], stds[order], medians[order]
+        # Draw boxplots
+        positions = list(range(1, len(data_for_box) + 1))
+        bp = ax.boxplot(data_for_box, positions=positions, widths=0.5,
+                        patch_artist=False, showfliers=False,
+                        medianprops=dict(color='orange', linewidth=2))
+
+        # Overlay scatter points colored per nbar group
+        for i, (pos, vals, color) in enumerate(zip(positions, data_for_box, colors_used)):
+            ax.scatter(np.full(vals.size, pos), vals, alpha=0.5, s=20, color=color,
+                       edgecolors='none', zorder=3, label=f"$\\bar{{n}}$ = {nbar_tick_labels[i]}")
+        ax.set_xticks(positions)
+        ax.set_xticklabels(nbar_tick_labels)
+        ax.set_xlabel(r"$\bar{n}$")
+        ax.set_ylabel(ylabel)
+
+        if title is None:
+            title = f"$T_1$ distribution by $\\bar{{n}}$"
+        ax.set_title(title)
+
+        ax.legend(loc="upper right", title=r"$\bar{n}$", fontsize=9)
+        #ax.grid(True, alpha=0.3, axis='y')
+        fig.tight_layout()
+
+        out = os.path.join(save_path, filename)
+        fig.savefig(out, dpi=500)
+        plt.close(fig)
+        print(f"Saved nbar boxplot: {out}")
+        return out
+
+
+    def plot_histograms_by_gain(
+            amps_list,
+            gain_labels,
+            nbar_labels,
+            *,
+            title_prefix,
+            xlabel,
+            save_path,
+            filename_prefix,
+            q_key=None,
+            bins="auto",
+            xlim=None,
+    ):
+        """
+        Saves one histogram per gain, with mean/median/±1σ marked.
+        Also saves a relative error (CV = σ/mean) vs nbar summary plot.
+        """
+        os.makedirs(save_path, exist_ok=True)
+        gains = np.asarray(gain_labels, dtype=float).ravel()
+        nbars = np.asarray(nbar_labels, dtype=float).ravel()
+        order = np.argsort(nbars)
+        nbars_s = nbars[order]
+        gains_s = gains[order]
+        outs = []
+        q_use_final = None
+
+        nbars_for_summary = []
+        means_for_summary = []
+        stds_for_summary = []
+        rel_errors_for_summary = []
+
+        for j, (nb, g) in enumerate(zip(nbars_s, gains_s)):
+            amps_g = amps_list[order[j]]
+            q_use, v = _collect_vals_for_gain(amps_g, q_key=q_key)
+            if q_use is None or v is None or v.size == 0:
+                continue
+            q_use_final = q_use
+            mean = float(np.mean(v))
+            median = float(np.median(v))
+            std = float(np.std(v, ddof=1)) if v.size > 1 else 0.0
+            rel_err = (std / abs(mean)) if abs(mean) > 0 else np.nan
+
+            nbars_for_summary.append(nb)
+            means_for_summary.append(mean)
+            stds_for_summary.append(std)
+            rel_errors_for_summary.append(rel_err)
+
+            fig, ax = plt.subplots(figsize=(12, 6))
+            ax.hist(v, bins=bins, alpha=0.6, edgecolor="black", label=f"N = {v.size}")
+            ax.axvspan(mean - std, mean + std, color="red", alpha=0.10)
+            ax.axvline(mean, color="red", linewidth=3, label=f"Mean = {mean:.4g}")
+            ax.axvline(median, color="orange", linestyle="--", linewidth=3, label=f"Median = {median:.4g}")
+            ax.axvline(mean - std, color="red", linestyle=":", linewidth=3, label=f"Mean − 1σ = {(mean - std):.4g}")
+            ax.axvline(mean + std, color="red", linestyle=":", linewidth=3, label=f"Mean + 1σ = {(mean + std):.4g}")
+            ax.set_xlabel(xlabel)
+            ax.set_ylabel("Count")
+            ax.set_title(
+                f"{title_prefix} — nbar = {nb:.4g}\n"
+                f"Qubit: {q_use}    |    "
+                f"σ = {std:.4g}    |    "
+                f"Relative Error (σ/mean) = {rel_err:.2%}"
+            )
+            ax.grid(True, alpha=0.3)
+            if xlim is not None:
+                ax.set_xlim(xlim)
+            ax.legend(loc="upper right")
+            fig.tight_layout()
+            out = os.path.join(save_path, f"{filename_prefix}_nbar_{nb:.4f}_q{q_use}.png")
+            fig.savefig(out, dpi=300)
+            plt.close(fig)
+            outs.append(out)
+
+        # Relative error vs nbar summary plot
+        if len(nbars_for_summary) > 0:
+            nbars_arr = np.asarray(nbars_for_summary, float)
+            rel_arr = np.asarray(rel_errors_for_summary, float)
+
+            fig_re, ax_re = plt.subplots(figsize=(8, 5))
+            ax_re.plot(nbars_arr, rel_arr * 100, 'o-', color='steelblue', markersize=8, linewidth=2)
+
+            for nv, rv in zip(nbars_arr, rel_arr):
+                ax_re.annotate(f"{rv:.1%}", (nv, rv * 100),
+                               textcoords="offset points", xytext=(0, 10),
+                               ha='center', fontsize=9)
+
+            ax_re.set_xlabel(r"$\bar{n}$")
+            ax_re.set_ylabel("Relative Error σ/mean (%)")
+            ax_re.set_title(
+                f"{title_prefix}: Relative Error vs nbar\n"
+                f"Qubit: {q_use_final}"
+            )
+            ax_re.grid(True, alpha=0.3)
+            fig_re.tight_layout()
+
+            out_re = os.path.join(save_path, f"{filename_prefix}_relative_error_vs_nbar_q{q_use_final}.png")
+            fig_re.savefig(out_re, dpi=300)
+            plt.close(fig_re)
+            outs.append(out_re)
+
+        return outs
+
+
+    def plot_histograms_by_gain_logscale(
+            amps_list,
+            gain_labels,
+            nbar_labels,
+            *,
+            title_prefix,
+            xlabel,
+            save_path,
+            filename_prefix,
+            q_key=None,
+            bins="auto",
+            xlim=None,
+    ):
+        """
+        Same as plot_histograms_by_gain but takes ln() of values first.
+        X-axis labels use nbar.
+        """
+        os.makedirs(save_path, exist_ok=True)
+        gains = np.asarray(gain_labels, dtype=float).ravel()
+        nbars = np.asarray(nbar_labels, dtype=float).ravel()
+        order = np.argsort(nbars)
+        nbars_s = nbars[order]
+        gains_s = gains[order]
+        outs = []
+        q_use_final = None
+
+        nbars_for_summary = []
+        stds_log_for_summary = []
+
+        for j, (nb, g) in enumerate(zip(nbars_s, gains_s)):
+            amps_g = amps_list[order[j]]
+            q_use, v = _collect_vals_for_gain(amps_g, q_key=q_key)
+            if q_use is None or v is None or v.size == 0:
+                continue
+
+            v = v[v > 0]
+            if v.size == 0:
+                continue
+
+            q_use_final = q_use
+            lnv = np.log(v)
+
+            mean_log = float(np.mean(lnv))
+            median_log = float(np.median(lnv))
+            std_log = float(np.std(lnv, ddof=1)) if lnv.size > 1 else 0.0
+
+            geom_mean = np.exp(mean_log)
+            exp_median = np.exp(median_log)
+            exp_upper = np.exp(mean_log + std_log)
+            exp_lower = np.exp(mean_log - std_log)
+
+            nbars_for_summary.append(nb)
+            stds_log_for_summary.append(std_log)
+
+            fig, ax = plt.subplots(figsize=(12, 6))
+
+            ax.hist(lnv, bins=bins, alpha=0.6, edgecolor="black", label=f"N = {v.size}")
+            ax.axvspan(mean_log - std_log, mean_log + std_log, color="red", alpha=0.10)
+            ax.axvline(mean_log, color="red", linewidth=3,
+                       label=f"Mean(ln) = {mean_log:.4g}  →  e^mean = {geom_mean:.4g}")
+            ax.axvline(median_log, color="orange", linestyle="--", linewidth=3,
+                       label=f"Median(ln) = {median_log:.4g}  →  e^med = {exp_median:.4g}")
+            ax.axvline(mean_log - std_log, color="red", linestyle=":", linewidth=3,
+                       label=f"Mean−1σ = {mean_log - std_log:.4g}  →  e^ = {exp_lower:.4g}")
+            ax.axvline(mean_log + std_log, color="red", linestyle=":", linewidth=3,
+                       label=f"Mean+1σ = {mean_log + std_log:.4g}  →  e^ = {exp_upper:.4g}")
+
+            ax.set_xlabel(f"ln({xlabel})")
+            ax.set_ylabel("Count")
+            ax.set_title(
+                f"ln({title_prefix}) — nbar = {nb:.4g}\n"
+                f"Qubit: {q_use}    |    "
+                f"σ_log = {std_log:.4g}"
+            )
+            ax.grid(True, alpha=0.3)
+            if xlim is not None:
+                ax.set_xlim(xlim)
+            ax.legend(loc="upper right", fontsize=8)
+            fig.tight_layout()
+
+            out = os.path.join(save_path, f"{filename_prefix}_logscale_nbar_{nb:.4f}_q{q_use}.png")
+            fig.savefig(out, dpi=300)
+            plt.close(fig)
+            outs.append(out)
+
+        # σ_log vs nbar summary plot
+        if len(nbars_for_summary) > 0:
+            nbars_arr = np.asarray(nbars_for_summary, float)
+            std_arr = np.asarray(stds_log_for_summary, float)
+
+            fig_s, ax_s = plt.subplots(figsize=(8, 5))
+            ax_s.plot(nbars_arr, std_arr, 'o-', color='steelblue', markersize=8, linewidth=2)
+
+            for nv, sv in zip(nbars_arr, std_arr):
+                ax_s.annotate(f"{sv:.4f}", (nv, sv),
+                              textcoords="offset points", xytext=(0, 10),
+                              ha='center', fontsize=9)
+
+            ax_s.set_xlabel(r"$\bar{n}$")
+            ax_s.set_ylabel("σ in log-space")
+            ax_s.set_title(
+                f"ln({title_prefix}): σ_log vs nbar\n"
+                f"Qubit: {q_use_final}\n"
+                f"(This should be identical for T1 and Γ)"
+            )
+            ax_s.grid(True, alpha=0.3)
+            fig_s.tight_layout()
+
+            out_s = os.path.join(save_path, f"{filename_prefix}_logscale_sigma_vs_nbar_q{q_use_final}.png")
+            fig_s.savefig(out_s, dpi=300)
+            plt.close(fig_s)
+            outs.append(out_s)
+
+        return outs
+
+
+    def plot_mean_median_std_by_gain(
+            amps_list,
+            gain_labels,
+            nbar_labels,
+            *,
+            title,
+            save_path,
+            filename,
+            q_key=None,
+            ylabel="Amplitude (a.u.)",
+    ):
+        gains = np.asarray(gain_labels, dtype=float).ravel()
+        nbars = np.asarray(nbar_labels, dtype=float).ravel()
+
+        means = np.full(nbars.shape, np.nan, dtype=float)
+        medians = np.full(nbars.shape, np.nan, dtype=float)
+        stds = np.full(nbars.shape, np.nan, dtype=float)
+
+        for j, amps_g in enumerate(amps_list):
+            q_use, v = _collect_vals_for_gain(amps_g, q_key=q_key)
+            if q_use is None or v is None or v.size == 0:
+                continue
+
+            means[j] = np.mean(v)
+            medians[j] = np.median(v)
+            stds[j] = np.std(v, ddof=1) if v.size > 1 else 0.0
+
+        order = np.argsort(nbars)
+        nbars_s = nbars[order]
+        means_s = means[order]
+        medians_s = medians[order]
+        stds_s = stds[order]
+
+        os.makedirs(save_path, exist_ok=True)
 
         plt.figure()
-        plt.errorbar(x, means, yerr=stds, fmt='o', capsize=4, label='Mean ± 1σ')
-        plt.plot(x, medians, 'x', label='Median')
-
-        plt.xlabel("Gain")
-        plt.ylabel("Amplitude")
-        plt.title(f"{q_key}: Mean/Median amplitude vs Gain (±1σ)")
+        plt.errorbar(nbars_s, means_s, yerr=stds_s, fmt="o", capsize=4, label="Mean ± 1σ")
+        plt.plot(nbars_s, medians_s, marker="s", linestyle="-", label="Median")
+        plt.xlabel(r"$\bar{n}$")
+        plt.ylabel(ylabel)
+        plt.title(title if q_key is None else f"{title}\nQubit: {q_key}")
+        plt.grid(True, alpha=0.3)
         plt.legend()
         plt.tight_layout()
 
-        if filename is None:
-            filename = f"{q_key}_gain_summary_mean_median_std.png"
-        out_path = os.path.join(save_dir, filename)
-        plt.savefig(out_path, dpi=200)
+        out = os.path.join(save_path, filename)
+        plt.savefig(out, dpi=300)
         plt.close()
-        print(f"[summary plot] Saved: {out_path}")
-
-
-    # -------------------- USE IT --------------------
-
-    q = qubits[0]
-
-    print("Unique gains present in RAW data for this qubit:")
-    print(unique_gains_raw(gains_t1, q, round_to=6))
-
-    # Re-filter with tolerance
-    amps_f, gains_f, rounds_f, delay_f = filter_by_gains_same_format_tol(
-        amps_t1, gains_t1, rounds_t1, delay_times_t1,
-        gains_keep=[0.0,0.01,0.02, 0.03, 0.039],
-        atol=1e-3, rtol=1e-6
-    )
-
-    print("Unique gains present AFTER filtering:")
-    print(unique_gains_raw(gains_f, q, round_to=6))
-
-    # Split per gain for plotting
-    amps_list, delay_list, rounds_list, gain_labels = split_same_format_by_gain(
-        amps_f, gains_f, rounds_f, delay_f,
-        gains_list=[0.0,0.01,0.02, 0.03, 0.039],
-        atol=1e-3, rtol=1e-6
-    )
-
-    # Plot (multi-gain) — note: plotting function doesn't use gains_f dict; it uses labels
-    fig, ax, amps_list_g, amps_list_t1_fit, gain_labels = t1_vs_time.plot_t1_scatter_multi_gain_by_dataset_index(
-        amps_list,
-        delay_list,
-        gain_labels,
-        f'M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/all_qubits/analysis_gain/',
-        q_key=q,
-        return_distributions=True
-    )
-
-    import os
-    import numpy as np
-    import matplotlib.pyplot as plt
+        return out
 
 
     def plot_mean_median_std_multi_gain_by_dataset_index(
             amps_list,
             *,
             gains,
+            nbar_labels,
             save_path,
             q_key,
             colors,
@@ -332,21 +646,13 @@ for qubit in qubits:
             title_prefix="",
     ):
         """
-        For each gain (amps_list[k]), plot per-dataset-index summary stats of amps:
-          - mean with ±1 std error bars
-          - median as a line/marker
-        Saves one figure to: save_path/{filename_prefix}_{q_key}.png
-
-        amps_list format (as produced by split_same_format_by_gain):
-          amps_list[gain_idx][q_key] -> list of 1D arrays, one per dataset index
+        Per-dataset-index summary stats, with legend labels showing nbar instead of gain.
         """
         os.makedirs(save_path, exist_ok=True)
 
-        # Basic validation
         if colors is None or len(colors) < len(amps_list):
             raise ValueError(
                 f"`colors` must be a list with >= number of gains ({len(amps_list)}). "
-                "Use the same colors list you used for the boxplot."
             )
 
         fig, ax = plt.subplots(figsize=(10, 5))
@@ -378,18 +684,16 @@ for qubit in qubits:
             stds = np.asarray(stds, float)
 
             c = colors[k]
-            label = f"gain={gains[k]:.6g}" if gains is not None else f"gain_idx={k}"
+            label = f"nbar={nbar_labels[k]:.4g}"
 
-            # Mean ± 1σ
             ax.errorbar(
                 xs, means, yerr=stds,
-                fmt="o-",  # markers + line
+                fmt="o-",
                 capsize=3,
                 color=c,
                 label=label + " (mean±1σ)"
             )
 
-            # Median (same color, different marker/linestyle)
             ax.plot(
                 xs, meds,
                 linestyle="--",
@@ -416,322 +720,79 @@ for qubit in qubits:
         return out
 
 
-    import os
-    import numpy as np
-    import matplotlib.pyplot as plt
+    # ============================================================
+    # 5) Filter, split, and plot (same pipeline as original)
+    # ============================================================
 
+    q = qubits[0]
 
-    def _collect_vals_for_gain(amps_g: dict, q_key):
-        """Flatten all samples for this (gain, qubit) across dataset indices."""
-        if q_key is None:
-            if isinstance(amps_g, dict) and len(amps_g) == 1:
-                q_use = next(iter(amps_g.keys()))
-            else:
-                return None, None
-        else:
-            q_use = q_key
+    print("\nUnique gains present in RAW data for this qubit:")
+    print(unique_gains_raw(gains_t1, q, round_to=6))
 
-        arr_list = amps_g.get(q_use, [])
-        if not arr_list:
-            return q_use, None
+    gains_keep = [0, 0.034243, 0.054386, 0.080571, 0.0987]
 
-        vals = []
-        for a in arr_list:
-            a = np.asarray(a, float).ravel()
-            a = a[np.isfinite(a)]
-            if a.size:
-                vals.append(a)
+    # Re-filter with tolerance
+    amps_f, gains_f, rounds_f, delay_f = filter_by_gains_same_format_tol(
+        amps_t1, gains_t1, rounds_t1, delay_times_t1,
+        gains_keep=gains_keep,
+        atol=1e-3, rtol=1e-6
+    )
 
-        if not vals:
-            return q_use, None
+    print("Unique gains present AFTER filtering:")
+    print(unique_gains_raw(gains_f, q, round_to=6))
 
-        return q_use, np.concatenate(vals)
+    # Split per gain for plotting
+    amps_list, delay_list, rounds_list, gain_labels = split_same_format_by_gain(
+        amps_f, gains_f, rounds_f, delay_f,
+        gains_list=gains_keep,
+        atol=1e-3, rtol=1e-6
+    )
 
+    # Convert gain_labels to nbar_labels
+    nbar_labels = make_nbar_labels(gain_labels, gain_to_mean_nbar)
+    print("\n=== Gain labels -> nbar labels ===")
+    for g, nb in zip(gain_labels, nbar_labels):
+        print(f"  gain={g:.6f}  ->  nbar={nb:.4f}" if np.isfinite(nb) else f"  gain={g:.6f}  ->  nbar=NaN (no calibration!)")
 
-    def plot_histograms_by_gain(
-            amps_list,
-            gain_labels,
-            *,
-            title_prefix,
-            xlabel,
-            save_path,
-            filename_prefix,
-            q_key=None,
-            bins="auto",
-            xlim=None,
-    ):
-        """
-        Saves one histogram per gain, with mean/median/±1σ marked like the reference image.
-        Also saves a relative error (CV = σ/mean) vs gain summary plot.
-        Returns list of saved file paths (one per gain that had data).
-        """
-        os.makedirs(save_path, exist_ok=True)
-        gains = np.asarray(gain_labels, dtype=float).ravel()
-        order = np.argsort(gains)
-        gains_s = gains[order]
-        outs = []
-        q_use_final = None
+    # Plot (multi-gain) — note: the scatter plot still uses gain internally,
+    # but the histograms/summary plots below will use nbar on x-axis
+    fig, ax, amps_list_g, amps_list_t1_fit, gain_labels = t1_vs_time.plot_t1_scatter_multi_gain_by_dataset_index(
+        amps_list,
+        delay_list,
+        gain_labels,
+        f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis_gain_nbar/',
+        q_key=q,
+        return_distributions=True
+    )
 
-        # Collect stats across all gains for the relative error summary plot
-        gains_for_summary = []
-        means_for_summary = []
-        stds_for_summary = []
-        rel_errors_for_summary = []
+    # Recompute nbar_labels in case gain_labels was modified by the plotting function
+    nbar_labels = make_nbar_labels(gain_labels, gain_to_mean_nbar)
 
-        for j, g in enumerate(gains_s):
-            amps_g = amps_list[order[j]]
-            q_use, v = _collect_vals_for_gain(amps_g, q_key=q_key)
-            if q_use is None or v is None or v.size == 0:
-                continue
-            q_use_final = q_use
-            mean = float(np.mean(v))
-            median = float(np.median(v))
-            std = float(np.std(v, ddof=1)) if v.size > 1 else 0.0
-            rel_err = (std / abs(mean)) if abs(mean) > 0 else np.nan
+    save_dir = f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis_gain_nbar/'
 
-            # Store for summary plot
-            gains_for_summary.append(g)
-            means_for_summary.append(mean)
-            stds_for_summary.append(std)
-            rel_errors_for_summary.append(rel_err)
+    # ============================================================
+    # 6) NEW: T1 boxplot with nbar on x-axis (replaces gain x-axis)
+    # ============================================================
+    plot_t1_boxplot_by_nbar(
+        amps_list_t1_fit,
+        gain_labels,
+        nbar_labels,
+        q_key=q,
+        save_path=save_dir,
+        filename=f"t1_boxplot_by_nbar_Q{q}.pdf",
+        title=f"$T_1$ distribution by $\\bar{{n}}$",
+        ylabel=r"$T_1$ ($\mu$s)",
+    )
 
-            fig, ax = plt.subplots(figsize=(12, 6))
-            # Histogram
-            ax.hist(v, bins=bins, alpha=0.6, edgecolor="black", label=f"N = {v.size}")
-            # ±1σ shaded region
-            ax.axvspan(mean - std, mean + std, color="red", alpha=0.10)
-            # Mean / median / ±1σ lines
-            ax.axvline(mean, color="red", linewidth=3, label=f"Mean = {mean:.4g}")
-            ax.axvline(median, color="orange", linestyle="--", linewidth=3, label=f"Median = {median:.4g}")
-            ax.axvline(mean - std, color="red", linestyle=":", linewidth=3, label=f"Mean − 1σ = {(mean - std):.4g}")
-            ax.axvline(mean + std, color="red", linestyle=":", linewidth=3, label=f"Mean + 1σ = {(mean + std):.4g}")
-            ax.set_xlabel(xlabel)
-            ax.set_ylabel("Count")
-            ax.set_title(
-                f"{title_prefix} — Gain = {g:.4g}\n"
-                f"Qubit: {q_use}    |    "
-                f"σ = {std:.4g}    |    "
-                f"Relative Error (σ/mean) = {rel_err:.2%}"
-            )
-            ax.grid(True, alpha=0.3)
-            if xlim is not None:
-                ax.set_xlim(xlim)
-            ax.legend(loc="upper right")
-            fig.tight_layout()
-            out = os.path.join(save_path, f"{filename_prefix}_gain_{g:.6f}_q{q_use}.png")
-            fig.savefig(out, dpi=300)
-            plt.close(fig)
-            outs.append(out)
+    # ============================================================
+    # 7) Histogram and summary plots with nbar x-axis
+    # ============================================================
 
-        # ---- Relative error vs gain summary plot ----
-        if len(gains_for_summary) > 0:
-            gains_arr = np.asarray(gains_for_summary, float)
-            rel_arr = np.asarray(rel_errors_for_summary, float)
-
-            fig_re, ax_re = plt.subplots(figsize=(8, 5))
-            ax_re.plot(gains_arr, rel_arr * 100, 'o-', color='steelblue', markersize=8, linewidth=2)
-
-            for gv, rv in zip(gains_arr, rel_arr):
-                ax_re.annotate(f"{rv:.1%}", (gv, rv * 100),
-                               textcoords="offset points", xytext=(0, 10),
-                               ha='center', fontsize=9)
-
-            ax_re.set_xlabel("Gain")
-            ax_re.set_ylabel("Relative Error σ/mean (%)")
-            ax_re.set_title(
-                f"{title_prefix}: Relative Error vs Gain\n"
-                f"Qubit: {q_use_final}"
-            )
-            ax_re.grid(True, alpha=0.3)
-            fig_re.tight_layout()
-
-            out_re = os.path.join(save_path, f"{filename_prefix}_relative_error_vs_gain_q{q_use_final}.png")
-            fig_re.savefig(out_re, dpi=300)
-            plt.close(fig_re)
-            outs.append(out_re)
-
-        return outs
-
-
-    # (Optional) small tweak: let your summary plot use custom ylabel
-    def plot_mean_median_std_by_gain(
-            amps_list,
-            gain_labels,
-            *,
-            title,
-            save_path,
-            filename,
-            q_key=None,
-            ylabel="Amplitude (a.u.)",
-    ):
-        gains = np.asarray(gain_labels, dtype=float).ravel()
-
-        means = np.full(gains.shape, np.nan, dtype=float)
-        medians = np.full(gains.shape, np.nan, dtype=float)
-        stds = np.full(gains.shape, np.nan, dtype=float)
-
-        for j, amps_g in enumerate(amps_list):
-            q_use, v = _collect_vals_for_gain(amps_g, q_key=q_key)
-            if q_use is None or v is None or v.size == 0:
-                continue
-
-            means[j] = np.mean(v)
-            medians[j] = np.median(v)
-            stds[j] = np.std(v, ddof=1) if v.size > 1 else 0.0
-
-        order = np.argsort(gains)
-        gains_s = gains[order]
-        means_s = means[order]
-        medians_s = medians[order]
-        stds_s = stds[order]
-
-        os.makedirs(save_path, exist_ok=True)
-
-        plt.figure()
-        plt.errorbar(gains_s, means_s, yerr=stds_s, fmt="o", capsize=4, label="Mean ± 1σ")
-        plt.plot(gains_s, medians_s, marker="s", linestyle="-", label="Median")
-        plt.xlabel("Gain")
-        plt.ylabel(ylabel)
-        plt.title(title if q_key is None else f"{title}\nQubit: {q_key}")
-        plt.grid(True, alpha=0.3)
-        plt.legend()
-        plt.tight_layout()
-
-        out = os.path.join(save_path, filename)
-        plt.savefig(out, dpi=300)
-        plt.close()
-        return out
-
-
-    def plot_histograms_by_gain_logscale(
-            amps_list,
-            gain_labels,
-            *,
-            title_prefix,
-            xlabel,
-            save_path,
-            filename_prefix,
-            q_key=None,
-            bins="auto",
-            xlim=None,
-    ):
-        """
-        Same inputs as plot_histograms_by_gain, but takes ln() of all values first.
-        Plots histograms of ln(values), marks mean/median/±1σ in log-space,
-        and shows the exponentiated (real-unit) equivalents in the legend.
-        Also saves a relative error (σ_logspace) vs gain summary plot.
-        Returns list of saved file paths.
-        """
-        os.makedirs(save_path, exist_ok=True)
-        gains = np.asarray(gain_labels, dtype=float).ravel()
-        order = np.argsort(gains)
-        gains_s = gains[order]
-        outs = []
-        q_use_final = None
-
-        gains_for_summary = []
-        stds_log_for_summary = []
-
-        for j, g in enumerate(gains_s):
-            amps_g = amps_list[order[j]]
-            q_use, v = _collect_vals_for_gain(amps_g, q_key=q_key)
-            if q_use is None or v is None or v.size == 0:
-                continue
-
-            # Remove non-positive values (can't take log of 0 or negative)
-            v = v[v > 0]
-            if v.size == 0:
-                continue
-
-            q_use_final = q_use
-            lnv = np.log(v)
-
-            # Stats in log-space
-            mean_log = float(np.mean(lnv))
-            median_log = float(np.median(lnv))
-            std_log = float(np.std(lnv, ddof=1)) if lnv.size > 1 else 0.0
-
-            # Exponentiated back to real units
-            geom_mean = np.exp(mean_log)
-            exp_median = np.exp(median_log)
-            exp_upper = np.exp(mean_log + std_log)
-            exp_lower = np.exp(mean_log - std_log)
-
-            gains_for_summary.append(g)
-            stds_log_for_summary.append(std_log)
-
-            fig, ax = plt.subplots(figsize=(12, 6))
-
-            # Histogram of log values
-            ax.hist(lnv, bins=bins, alpha=0.6, edgecolor="black", label=f"N = {v.size}")
-
-            # ±1σ shaded region in log-space
-            ax.axvspan(mean_log - std_log, mean_log + std_log, color="red", alpha=0.10)
-
-            # Mean / median / ±1σ lines
-            ax.axvline(mean_log, color="red", linewidth=3,
-                       label=f"Mean(ln) = {mean_log:.4g}  →  e^mean = {geom_mean:.4g}")
-            ax.axvline(median_log, color="orange", linestyle="--", linewidth=3,
-                       label=f"Median(ln) = {median_log:.4g}  →  e^med = {exp_median:.4g}")
-            ax.axvline(mean_log - std_log, color="red", linestyle=":", linewidth=3,
-                       label=f"Mean−1σ = {mean_log - std_log:.4g}  →  e^ = {exp_lower:.4g}")
-            ax.axvline(mean_log + std_log, color="red", linestyle=":", linewidth=3,
-                       label=f"Mean+1σ = {mean_log + std_log:.4g}  →  e^ = {exp_upper:.4g}")
-
-            ax.set_xlabel(f"ln({xlabel})")
-            ax.set_ylabel("Count")
-            ax.set_title(
-                f"ln({title_prefix}) — Gain = {g:.4g}\n"
-                f"Qubit: {q_use}    |    "
-                f"σ_log = {std_log:.4g}"
-            )
-            ax.grid(True, alpha=0.3)
-            if xlim is not None:
-                ax.set_xlim(xlim)
-            ax.legend(loc="upper right", fontsize=8)
-            fig.tight_layout()
-
-            out = os.path.join(save_path, f"{filename_prefix}_logscale_gain_{g:.6f}_q{q_use}.png")
-            fig.savefig(out, dpi=300)
-            plt.close(fig)
-            outs.append(out)
-
-        # ---- σ_log vs gain summary plot ----
-        if len(gains_for_summary) > 0:
-            gains_arr = np.asarray(gains_for_summary, float)
-            std_arr = np.asarray(stds_log_for_summary, float)
-
-            fig_s, ax_s = plt.subplots(figsize=(8, 5))
-            ax_s.plot(gains_arr, std_arr, 'o-', color='steelblue', markersize=8, linewidth=2)
-
-            for gv, sv in zip(gains_arr, std_arr):
-                ax_s.annotate(f"{sv:.4f}", (gv, sv),
-                              textcoords="offset points", xytext=(0, 10),
-                              ha='center', fontsize=9)
-
-            ax_s.set_xlabel("Gain")
-            ax_s.set_ylabel("σ in log-space")
-            ax_s.set_title(
-                f"ln({title_prefix}): σ_log vs Gain\n"
-                f"Qubit: {q_use_final}\n"
-                f"(This should be identical for T1 and Γ)"
-            )
-            ax_s.grid(True, alpha=0.3)
-            fig_s.tight_layout()
-
-            out_s = os.path.join(save_path, f"{filename_prefix}_logscale_sigma_vs_gain_q{q_use_final}.png")
-            fig_s.savefig(out_s, dpi=300)
-            plt.close(fig_s)
-            outs.append(out_s)
-
-        return outs
-
-    save_dir=f'M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/all_qubits/analysis_gain/'
-
-    # NEW: histograms for T1 (one image per gain)
+    # T1 histograms (one per nbar)
     plot_histograms_by_gain(
         amps_list_t1_fit,
         gain_labels,
+        nbar_labels,
         title_prefix="T1 Distribution",
         xlabel=r"$T_1$ ($\mu$s)",
         save_path=save_dir,
@@ -742,6 +803,7 @@ for qubit in qubits:
     plot_histograms_by_gain_logscale(
         amps_list_t1_fit,
         gain_labels,
+        nbar_labels,
         title_prefix="T1 Distribution",
         xlabel=r"$T_1$ ($\mu$s)",
         save_path=save_dir,
@@ -750,10 +812,11 @@ for qubit in qubits:
         bins="auto",
     )
 
-    # NEW: histograms for Gamma (one image per gain)
+    # Gamma histograms (one per nbar)
     plot_histograms_by_gain(
         amps_list_g,
         gain_labels,
+        nbar_labels,
         title_prefix="Gamma (1/T1) Distribution",
         xlabel=r"$\Gamma_1$ (1/$\mu$s)",
         save_path=save_dir,
@@ -764,6 +827,7 @@ for qubit in qubits:
     plot_histograms_by_gain_logscale(
         amps_list_g,
         gain_labels,
+        nbar_labels,
         title_prefix="Gamma (1/T1) Distribution",
         xlabel=r"$\Gamma_1$ (1/$\mu$s)",
         save_path=save_dir,
@@ -771,20 +835,22 @@ for qubit in qubits:
         q_key=q,
         bins="auto",
     )
+
+    # Mean/median/std vs nbar
     plot_mean_median_std_by_gain(
-        amps_list, gain_labels,
+        amps_list_t1_fit, gain_labels, nbar_labels,
         title="T1: Mean / Median with ±1σ",
         save_path=save_dir,
-        filename=f"t1_mean_median_std_{q}.png",
+        filename=f"t1_mean_median_std_vs_nbar_{q}.png",
         q_key=q,
         ylabel=r"$T_1$ ($\mu$s)",
     )
 
     plot_mean_median_std_by_gain(
-        amps_list_g, gain_labels,
+        amps_list_g, gain_labels, nbar_labels,
         title="Gamma: Mean / Median with ±1σ",
         save_path=save_dir,
-        filename=f"gamma_mean_median_std_{q}.png",
+        filename=f"gamma_mean_median_std_vs_nbar_{q}.png",
         q_key=q,
         ylabel=r"$\Gamma_1$ (1/$\mu$s)",
     )

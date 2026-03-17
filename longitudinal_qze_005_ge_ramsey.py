@@ -52,7 +52,7 @@ run_name = 'bob_run_started_Feb_11'
 device_name = 'squill'
 substudy_txt_notes = ('script longitudinal_qze_005_ge_ramsey.py')
 
-study = '2d_test'
+study = '2d_high_res_echo'
 
 ################################################ optimization outputs ##################################################
 # Optimization parameters for resonator spectroscopy
@@ -190,6 +190,7 @@ for QubitIndex in Qs_to_look_at:
     offset = freq_offsets[
         QubitIndex]  # use optimized offset values or whats set at top of script based on pre_optimize flag
     offset_res_freqs = [r + offset for r in res_freqs]# [experiment.readout_cfg['res_freq_ge']]]#res_freqs]
+    bare_non_offset_res_freq=offset_res_freqs[0]
     experiment.readout_cfg['res_freq_ge'] = offset_res_freqs[0]
     del res_spec
 
@@ -608,7 +609,7 @@ for QubitIndex in Qs_to_look_at:
         ############################################## Start IBM like experiment ###########################################
         exp = deepcopy(experiment) #before updating for qze
         # exp.readout_cfg['res_gain_qze'] = gain
-        exp.readout_cfg['res_freq_qze'] = exp.readout_cfg['res_freq_ge']
+        exp.readout_cfg['res_freq_qze'] = bare_non_offset_res_freq #exp.readout_cfg['res_freq_ge']
         exp.readout_cfg['res_phase_qze'] = exp.readout_cfg['res_phase']
 
 

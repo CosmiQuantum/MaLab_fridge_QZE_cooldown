@@ -288,16 +288,33 @@ class ResonatorFreqVsTime:
         ge_color = "tab:blue"
         fe_color = "tab:orange"
         fh_color = "tab:green"
-
-        fig, axes = plt.subplots(2, 3, figsize=(12, 8))
-        axes = axes.flatten()
-
         ext = exp_extension.split("_")[0]
-        fig.suptitle(f"Resonator centers vs Time {ext} (GE & FE & FH)", fontsize=font)
 
-        for i, ax in enumerate(axes[: self.number_of_qubits]):
-            ax.set_title(f"Res {i + 1}", fontsize=font)
+        # ---------- figure out which qubits have data ----------
+        qubits_with_data = []
+        for i in range(self.number_of_qubits):
+            has_ge = len(date_times_ge[i]) > 0 and len(resonator_centers_ge[i]) > 0
+            has_fe = (date_times_fe is not None and resonator_centers_fe is not None
+                      and len(date_times_fe[i]) > 0 and len(resonator_centers_fe[i]) > 0)
+            has_fh = (date_times_fh is not None and resonator_centers_fh is not None
+                      and len(date_times_fh[i]) > 0 and len(resonator_centers_fh[i]) > 0)
+            if has_ge or has_fe or has_fh:
+                qubits_with_data.append(i)
 
+        single_qubit = len(qubits_with_data) == 1
+
+        # ---------- create figure ----------
+        if single_qubit:
+            fig, ax_single = plt.subplots(1, 1, figsize=(10, 7))
+            axes_map = {qubits_with_data[0]: ax_single}
+        else:
+            fig, axes = plt.subplots(2, 3, figsize=(12, 8))
+            axes = axes.flatten()
+            axes_map = {i: axes[i] for i in range(self.number_of_qubits)}
+
+        # ---------- plot each qubit ----------
+        for i in (qubits_with_data if single_qubit else range(self.number_of_qubits)):
+            ax = axes_map[i]
             locator = mdates.AutoDateLocator()
             formatter = mdates.ConciseDateFormatter(locator)
 
@@ -305,11 +322,13 @@ class ResonatorFreqVsTime:
             if x_ge.size:
                 ax.scatter(x_ge, y_ge, s=14, label="GE", color=ge_color)
 
+            x_fe, y_fe = np.array([]), np.array([])
             if date_times_fe is not None and resonator_centers_fe is not None:
                 x_fe, y_fe = _sorted_xy(date_times_fe[i], resonator_centers_fe[i])
                 if x_fe.size:
                     ax.scatter(x_fe, y_fe, s=20, label="FE", color=fe_color)
 
+            x_fh, y_fh = np.array([]), np.array([])
             if date_times_fh is not None and resonator_centers_fh is not None:
                 x_fh, y_fh = _sorted_xy(date_times_fh[i], resonator_centers_fh[i])
                 if x_fh.size:
@@ -322,12 +341,49 @@ class ResonatorFreqVsTime:
             plt.setp(ax.get_xticklabels(), rotation=45, ha="right")
             ax.set_xlabel("Time", fontsize=font - 2)
             ax.set_ylabel("Resonator Center (MHz)", fontsize=font - 2)
-
             if show_legends:
                 ax.legend(edgecolor="black", fontsize=8)
 
-        for j in range(self.number_of_qubits, len(axes)):
-            axes[j].set_visible(False)
+            # ---------- single-qubit title with averages & chi shifts ----------
+            if single_qubit:
+                avg_ge = np.mean(y_ge) if y_ge.size else None
+                avg_fe = np.mean(y_fe) if y_fe.size else None
+                avg_fh = np.mean(y_fh) if y_fh.size else None
+
+                title_lines = [f"Res {i + 1} — Resonator Centers vs Time {ext}"]
+
+                avg_parts = []
+                if avg_ge is not None:
+                    avg_parts.append(f"GE avg: {avg_ge:.3f} MHz")
+                if avg_fe is not None:
+                    avg_parts.append(f"FE avg: {avg_fe:.3f} MHz")
+                if avg_fh is not None:
+                    avg_parts.append(f"FH avg: {avg_fh:.3f} MHz")
+                if avg_parts:
+                    title_lines.append("  |  ".join(avg_parts))
+
+                chi_parts = []
+                if avg_ge is not None and avg_fe is not None:
+                    chi_ge_fe = (avg_fe - avg_ge) * 1e3  # MHz → kHz
+                    chi_parts.append(f"χ(GE→FE): {chi_ge_fe:+.1f} kHz")
+                if avg_fe is not None and avg_fh is not None:
+                    chi_fe_fh = (avg_fh - avg_fe) * 1e3
+                    chi_parts.append(f"χ(FE→FH): {chi_fe_fh:+.1f} kHz")
+                if avg_ge is not None and avg_fh is not None:
+                    chi_ge_fh = (avg_fh - avg_ge) * 1e3
+                    chi_parts.append(f"χ(GE→FH): {chi_ge_fh:+.1f} kHz")
+                if chi_parts:
+                    title_lines.append("  |  ".join(chi_parts))
+
+                ax.set_title("\n".join(title_lines), fontsize=font - 1)
+            else:
+                ax.set_title(f"Res {i + 1}", fontsize=font)
+
+        # ---------- hide unused axes in multi-qubit layout ----------
+        if not single_qubit:
+            fig.suptitle(f"Resonator centers vs Time {ext} (GE & FE & FH)", fontsize=font)
+            for j in range(self.number_of_qubits, len(axes)):
+                axes[j].set_visible(False)
 
         plt.tight_layout(rect=(0, 0, 1, 0.96))
         plt.savefig(

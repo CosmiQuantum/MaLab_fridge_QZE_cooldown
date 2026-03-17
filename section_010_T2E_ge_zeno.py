@@ -552,7 +552,7 @@ class T2EMeasurementZeno:
                 ss_Q_e_all.append(ss_Q_e)
 
             delay_times = echo.get_pulse_param(pulsename='qze_pulse', parname='length', as_array=True) * 2
-            delay_times = delay_times - self.config['readout_pulse_delay'] - self.experiment.qubit_cfg["sigma"][self.QubitIndex] * 4
+            delay_times = delay_times - 2*self.config['readout_pulse_delay'] - self.experiment.qubit_cfg["sigma"][self.QubitIndex] * 4
 
             gains = echo.get_pulse_param('qze_pulse', "gain", as_array=True)
             self.plot_results_interweaved_cal(Is_all, Qs_all, delay_times, gains=gains, scaling=scaling, Ie=ss_I_e_all

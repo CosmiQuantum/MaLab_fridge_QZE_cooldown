@@ -62,14 +62,14 @@ Qs_to_look_at = [5]     # only list the qubits you want to do the RR for
 run_name = 'bob_run_started_Feb_11'
 device_name = 'squill'
 substudy_txt_notes = ('track res and q spec')
-study ='find_best_reps_rounds_post_amp_removal'
-sub_study = f'feb_17'
+study ='resonator_tracking_gef'
+sub_study = f'overnight_test'
 data_set = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 # set which of the following you'd like to run to 'True'
-run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss":  True, "rabi": True, "len_rabi": False, "ss_gef": True, "test_act": False, "fh_rabi": True,
-             "t1":  False, "t2r": False, "t2r_correction":True, "t2e":  False, "ef_res_spec": True, "ef_q_spec": True, "fh_q_spec": True,
-             "rabi_pop_meas": False, "ef_Rabi": True, "ef_ss": True, "res_spec_fh":True}
+run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss":  False, "rabi": True, "len_rabi": False, "ss_gef": False, "test_act": False, "fh_rabi": False,
+             "t1":  False, "t2r": False, "t2r_correction":False, "t2e":  False, "ef_res_spec": True, "ef_q_spec": True, "fh_q_spec":False,
+             "rabi_pop_meas": False, "ef_Rabi": True, "ef_ss": False, "res_spec_fh":True}
 
 
 # optimization outputs from qick board, unmasking set to true
@@ -144,7 +144,7 @@ qspec_keys = ['Dates', 'I', 'Q', 'Frequencies', 'I Fit', 'Q Fit', 'Round Num', '
 rabi_keys = ['Dates', 'I', 'Q', 'Gains', 'Fit', 'Round Num', 'Batch Num', 'Exp Config', 'Syst Config']
 ss_keys = ['Fidelity', 'Angle', 'Dates', 'I_g', 'Q_g', 'I_e', 'Q_e', 'Round Num', 'Batch Num', 'Exp Config',
            'Syst Config']
-ss_ef_keys = ['Fidelity', 'Angle', 'Dates', 'I_e', 'Q_e', 'I_f', 'Q_f', 'Round Num', 'Batch Num', 'Exp Config',
+ss_ef_keys = ['Fidelity', 'Angle', 'Dates', 'I_g', 'Q_g','I_e', 'Q_e', 'I_f', 'Q_f', 'Round Num', 'Batch Num', 'Exp Config',
            'Syst Config']
 t1_keys = ['T1', 'Errors', 'Dates', 'I', 'Q', 'Delay Times', 'Fit', 'Round Num', 'Batch Num', 'Exp Config',
            'Syst Config']
@@ -365,6 +365,12 @@ if pre_optimize:
             with open(log_file, "a", encoding="utf-8") as file:
                 file.write("\n" + f'g-e Pi Amplitude Used for optimization: {float(stored_pi_amp)}')
 
+            if 0.61 < stored_pi_amp or stored_pi_amp < 0.55:
+                rr_logger.info(f"Tune-up: g-e 0.61 < stored_pi_amp or stored_pi_amp < 0.55: {float(stored_pi_amp)}")
+                with open(log_file, "a", encoding="utf-8") as file:
+                    file.write("\n" + f'g-e 0.61 < stored_pi_amp or stored_pi_amp < 0.55: {float(stored_pi_amp)}')
+
+                continue
 
             rabi_data[Q]['Dates'][0] = (
                 time.mktime(datetime.datetime.now().timetuple()))
@@ -437,9 +443,10 @@ while j < n:
 
         # experiment.readout_cfg['res_freq_ge'] = freq_offsets[QubitIndex] + 7267.56
         # experiment.readout_cfg['res_freq_ef'] = 7267.56-0.2
-        # experiment.qubit_cfg['qubit_freq_ef'] = float(2929.36)
-        # experiment.qubit_cfg['qubit_freq_ge'] = float(3095.45)
-        # experiment.qubit_cfg['pi_amp'] =  experiment.qubit_cfg['pi_amp'][QubitIndex]
+        experiment.qubit_cfg['qubit_freq_ef'] = float(2929.37)
+        experiment.qubit_cfg['qubit_freq_ge'] = float(3095.44)
+        experiment.qubit_cfg['pi_amp'] =  experiment.qubit_cfg['pi_amp'][QubitIndex]
+        experiment.qubit_cfg['pi_ef_amp'] = experiment.qubit_cfg['pi_ef_amp'][QubitIndex]
         ###################################################### TOF #####################################################
         if run_flags["tof"]:
             tof        = TOFExperiment(QubitIndex, studyDocumentationFolder, experiment, j, save_figs, unmasking_resgain = unmask)
@@ -607,10 +614,10 @@ while j < n:
             ss = SingleShot(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j, save_figs, experiment = experiment,
                             verbose = verbose, logger = rr_logger, unmasking_resgain = unmask)
             fid, angle, iq_list_g, iq_list_e, sys_config_ss = ss.run()
-            I_g = iq_list_g[0][0].T[0]
-            Q_g = iq_list_g[0][0].T[1]
-            I_e = iq_list_e[0][0].T[0]
-            Q_e = iq_list_e[0][0].T[1]
+            I_g_ss_ge = iq_list_g[0][0].T[0]
+            Q_g_ss_ge = iq_list_g[0][0].T[1]
+            I_e_ss_ge = iq_list_e[0][0].T[0]
+            Q_e_ss_ge = iq_list_e[0][0].T[1]
 
             # fid, threshold, angle, ig_new, ie_new = ss.hist_ssf(
             #     data=[I_g, Q_g, I_e, Q_e], cfg=ss.config, plot=save_figs)
@@ -879,12 +886,14 @@ while j < n:
                 ss_ef = SingleShot_ef(QubitIndex, number_of_qubits, studyDocumentationFolder, j,
                                                  save_figs, experiment=experiment, unmasking_resgain=unmask)
 
-                iq_list_e, iq_list_f, ie_new, if_new, theta_ef,  threshold_ef,  sys_config_ss_ef, fid, fid_ef = ss_ef.run_gef()
+                iq_list_g, iq_list_e, iq_list_f, ie_new, if_new, theta_ef,  threshold_ef,  sys_config_ss_ef, fid, fid_ef = ss_ef.run_gef()
                 # iq_list_g, iq_list_e, iq_list_f, ie_new, qe_new, if_new, qf_new, theta_ef, threshold_ef, self.config
-                I_e = iq_list_e[0][0].T[0]
-                Q_e = iq_list_e[0][0].T[1]
-                I_f = iq_list_f[0][0].T[0]
-                Q_f = iq_list_f[0][0].T[1]
+                I_g_ss_gef = iq_list_g[0][0].T[0]
+                Q_g_ss_gef = iq_list_g[0][0].T[1]
+                I_e_ss_gef = iq_list_e[0][0].T[0]
+                Q_e_ss_gef = iq_list_e[0][0].T[1]
+                I_f_ss_gef = iq_list_f[0][0].T[0]
+                Q_f_ss_gef = iq_list_f[0][0].T[1]
 
                 # fid_ef, theta_ef, ie_new, if_new, threshold_ef = ss_ef.hist_ssf(
                 #     data=[I_e, Q_e, I_f, Q_f], cfg=sys_config_ss_ef, plot=save_figs)
@@ -968,14 +977,14 @@ while j < n:
             try:
                 ss = SingleShot_ef(QubitIndex, number_of_qubits, studyDocumentationFolder, j, save_figs, experiment)
 
-                iq_list_e, iq_list_f, ie_new,  if_new,  theta_ef, theta_fh, threshold_ef,threshold_fh , sys_config_ss_gef, fid, fid_fh = ss.run()
+                iq_list_g, iq_list_e, iq_list_f, ie_new,  if_new,  theta_ef, theta_fh, threshold_ef,threshold_fh , sys_config_ss_gef, fid, fid_fh = ss.run()
 
-                I_g = iq_list_g[0][0].T[0]
-                Q_g = iq_list_g[0][0].T[1]
-                I_e = iq_list_e[0][0].T[0]
-                Q_e = iq_list_e[0][0].T[1]
-                I_f = iq_list_f[0][0].T[0]
-                Q_f = iq_list_f[0][0].T[1]
+                I_g_ss_gef = iq_list_g[0][0].T[0]
+                Q_g_ss_gef = iq_list_g[0][0].T[1]
+                I_e_ss_gef = iq_list_e[0][0].T[0]
+                Q_e_ss_gef = iq_list_e[0][0].T[1]
+                I_f_ss_gef = iq_list_f[0][0].T[0]
+                Q_f_ss_gef = iq_list_f[0][0].T[1]
 
                 if run_flags["ss_gef"]:  # currently saves figs and h5 files every time this is run
                     provided_sigma_num = None  # de state circle radius = sigma_num * sigma. Set as None if you want the code to choose an appropriate one for you.
@@ -1107,10 +1116,10 @@ while j < n:
                 ss_data[QubitIndex]['Angle'][j - batch_num * save_r - 1] = angle
                 ss_data[QubitIndex]['Dates'][j - batch_num * save_r - 1] = (
                     time.mktime(datetime.datetime.now().timetuple()))
-                ss_data[QubitIndex]['I_g'][j - batch_num * save_r - 1] = I_g
-                ss_data[QubitIndex]['Q_g'][j - batch_num * save_r - 1] = Q_g
-                ss_data[QubitIndex]['I_e'][j - batch_num * save_r - 1] = I_e
-                ss_data[QubitIndex]['Q_e'][j - batch_num * save_r - 1] = Q_e
+                ss_data[QubitIndex]['I_g'][j - batch_num * save_r - 1] = I_g_ss_ge
+                ss_data[QubitIndex]['Q_g'][j - batch_num * save_r - 1] = Q_g_ss_ge
+                ss_data[QubitIndex]['I_e'][j - batch_num * save_r - 1] = I_e_ss_ge
+                ss_data[QubitIndex]['Q_e'][j - batch_num * save_r - 1] = Q_e_ss_ge
                 ss_data[QubitIndex]['Round Num'][j - batch_num * save_r - 1] = j
                 ss_data[QubitIndex]['Batch Num'][j - batch_num * save_r - 1] = batch_num
                 ss_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = expt_cfg
@@ -1267,10 +1276,12 @@ while j < n:
                 ef_ss_data[QubitIndex]['Angle'][j - batch_num * save_r - 1] = theta_ef
                 ef_ss_data[QubitIndex]['Dates'][j - batch_num * save_r - 1] = (
                     time.mktime(datetime.datetime.now().timetuple()))
-                ef_ss_data[QubitIndex]['I_g'][j - batch_num * save_r - 1] = I_e
-                ef_ss_data[QubitIndex]['Q_g'][j - batch_num * save_r - 1] = Q_e
-                ef_ss_data[QubitIndex]['I_e'][j - batch_num * save_r - 1] = I_f
-                ef_ss_data[QubitIndex]['Q_e'][j - batch_num * save_r - 1] = Q_f
+                ef_ss_data[QubitIndex]['I_g'][j - batch_num * save_r - 1] = I_g_ss_gef
+                ef_ss_data[QubitIndex]['Q_g'][j - batch_num * save_r - 1] = Q_g_ss_gef
+                ef_ss_data[QubitIndex]['I_e'][j - batch_num * save_r - 1] = I_e_ss_gef
+                ef_ss_data[QubitIndex]['Q_e'][j - batch_num * save_r - 1] = Q_e_ss_gef
+                ef_ss_data[QubitIndex]['I_f'][j - batch_num * save_r - 1] = I_f_ss_gef
+                ef_ss_data[QubitIndex]['Q_f'][j - batch_num * save_r - 1] = Q_f_ss_gef
                 ef_ss_data[QubitIndex]['Round Num'][j - batch_num * save_r - 1] = j
                 ef_ss_data[QubitIndex]['Batch Num'][j - batch_num * save_r - 1] = batch_num
                 ef_ss_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = expt_cfg
@@ -1281,12 +1292,12 @@ while j < n:
                 ss_data_gef[QubitIndex]['Angle_ef'][j - batch_num * save_r - 1] = theta_ef
                 ss_data_gef[QubitIndex]['Dates'][j - batch_num * save_r - 1] = (
                     time.mktime(datetime.datetime.now().timetuple()))
-                ss_data_gef[QubitIndex]['I_g'][j - batch_num * save_r - 1] = I_g
-                ss_data_gef[QubitIndex]['Q_g'][j - batch_num * save_r - 1] = Q_g
-                ss_data_gef[QubitIndex]['I_e'][j - batch_num * save_r - 1] = I_e
-                ss_data_gef[QubitIndex]['Q_e'][j - batch_num * save_r - 1] = Q_e
-                ss_data_gef[QubitIndex]['I_f'][j - batch_num * save_r - 1] = I_f
-                ss_data_gef[QubitIndex]['Q_f'][j - batch_num * save_r - 1] = Q_f
+                ss_data_gef[QubitIndex]['I_g'][j - batch_num * save_r - 1] = I_g_ss_gef
+                ss_data_gef[QubitIndex]['Q_g'][j - batch_num * save_r - 1] = Q_g_ss_gef
+                ss_data_gef[QubitIndex]['I_e'][j - batch_num * save_r - 1] = I_e_ss_gef
+                ss_data_gef[QubitIndex]['Q_e'][j - batch_num * save_r - 1] = Q_e_ss_gef
+                ss_data_gef[QubitIndex]['I_f'][j - batch_num * save_r - 1] = I_f_ss_gef
+                ss_data_gef[QubitIndex]['Q_f'][j - batch_num * save_r - 1] = Q_f_ss_gef
                 ss_data_gef[QubitIndex]['Round Num'][j - batch_num * save_r - 1] = j
                 ss_data_gef[QubitIndex]['Batch Num'][j - batch_num * save_r - 1] = batch_num
                 ss_data_gef[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = expt_cfg

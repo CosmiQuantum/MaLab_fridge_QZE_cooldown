@@ -68,7 +68,7 @@ class ResonanceSpectroscopy:
         amps = []
         for index,f in enumerate(tqdm(fpts)):
             self.config["res_freq_ge"] = fcenter + f
-            prog = SingleToneSpectroscopyProgram(self.experiment.soccfg, reps=self.exp_cfg["reps"], final_delay=0.5, cfg=self.config)
+            prog = SingleToneSpectroscopyProgram(self.experiment.soccfg, reps=self.exp_cfg["reps"], final_delay=self.config['relax_delay'], cfg=self.config)
             iq_list = prog.acquire(self.experiment.soc, rounds=self.exp_cfg["rounds"], progress=self.qick_verbose)
             amp = np.abs(iq_list[0][0][0] + 1j * iq_list[0][0][1])
             amps.append(amp)
@@ -245,6 +245,8 @@ class ResonanceSpectroscopy:
             label_fh="Qubit in f",
             fh_date=None,
     ):
+        from scipy.optimize import curve_fit
+
         plt.rcParams.update({
             "font.size": 16,
             "axes.titlesize": 16,
@@ -253,51 +255,148 @@ class ResonanceSpectroscopy:
             "ytick.labelsize": 16,
             "legend.fontsize": 16,
         })
+
+        # ---- Lorentzian model (dip): offset - A / (1 + ((f - f0) / (kappa/2))^2) ----
+        def lorentzian_dip(f, f0, kappa, A, offset):
+            return offset - A / (1.0 + ((f - f0) / (kappa / 2.0)) ** 2)
+
+        def fit_lorentzian(freqs, amps_1d):
+            """Fit a Lorentzian dip. Returns (f0, kappa, A, offset, fit_curve) or Nones."""
+            freqs = np.asarray(freqs, dtype=float)
+            amps_1d = np.asarray(amps_1d, dtype=float)
+            try:
+                offset0 = np.max(amps_1d)
+                idx_min = np.argmin(amps_1d)
+                f0_guess = freqs[idx_min]
+                A_guess = offset0 - amps_1d[idx_min]
+                # guess kappa as FWHM: width where amp drops to half-depth
+                half_depth = offset0 - A_guess / 2.0
+                below = np.where(amps_1d <= half_depth)[0]
+                if len(below) >= 2:
+                    kappa_guess = abs(freqs[below[-1]] - freqs[below[0]])
+                else:
+                    kappa_guess = (freqs[-1] - freqs[0]) / 10.0
+                kappa_guess = max(kappa_guess, (freqs[1] - freqs[0]) * 2)  # floor
+
+                p0 = [f0_guess, kappa_guess, A_guess, offset0]
+                bounds_lo = [freqs[0], 0, 0, -np.inf]
+                bounds_hi = [freqs[-1], freqs[-1] - freqs[0], np.inf, np.inf]
+
+                popt, _ = curve_fit(
+                    lorentzian_dip, freqs, amps_1d,
+                    p0=p0, bounds=(bounds_lo, bounds_hi), maxfev=10000,
+                )
+                f0_fit, kappa_fit, A_fit, offset_fit = popt
+                fit_curve = lorentzian_dip(freqs, *popt)
+                return f0_fit, kappa_fit, A_fit, offset_fit, fit_curve
+            except Exception as e:
+                print(f"Lorentzian fit failed: {e}")
+                return None, None, None, None, None
+
         fig, ax = plt.subplots(figsize=(14, 10))
 
-        ge_x = [f + ge_fcenter[0] for f in ge_fpts]
-        ef_x = [f + ef_fcenter[0] for f in ef_fpts]
-        ax.plot(ge_x, ge_amps[0], "-", linewidth=2, label=label_ge)
-        ax.plot(ef_x, ef_amps[0], "-", linewidth=2, label=label_ef)
+        # ---- build x-axes ----
+        ge_x = np.array([f + ge_fcenter[0] for f in ge_fpts])
+        ef_x = np.array([f + ef_fcenter[0] for f in ef_fpts])
 
-        # optional FH trace
+        # ---- plot data ----
+        ax.plot(ge_x, ge_amps[0], "-", linewidth=2, label=label_ge, alpha=0.7)
+        ax.plot(ef_x, ef_amps[0], "-", linewidth=2, label=label_ef, alpha=0.7)
+
         fh_x = None
         if fh_freq_pts is not None and fh_freq_center is not None and fh_amps is not None:
-            fh_x = [f + fh_freq_center[0] for f in fh_freq_pts]
-            ax.plot(fh_x, fh_amps[0], "-", linewidth=2, label=label_fh)
+            fh_x = np.array([f + fh_freq_center[0] for f in fh_freq_pts])
+            ax.plot(fh_x, fh_amps[0], "-", linewidth=2, label=label_fh, alpha=0.7)
 
-        # resonance markers
-        try:
-            ge_freq_r = ge_fpts[np.argmin(ge_amps[0])] + ge_fcenter[0]
-            ax.axvline(ge_freq_r, linestyle="--", linewidth=1.5)
-        except Exception:
-            ge_freq_r = None
-        try:
-            ef_freq_r = ef_fpts[np.argmin(ef_amps[0])] + ef_fcenter[0]
-            ax.axvline(ef_freq_r, linestyle="--", linewidth=1.5)
-        except Exception:
-            ef_freq_r = None
-        fh_freq_r = None
+        # ---- fit Lorentzians ----
+        ge_f0, ge_kappa, _, _, ge_fit = fit_lorentzian(ge_x, ge_amps[0])
+        ef_f0, ef_kappa, _, _, ef_fit = fit_lorentzian(ef_x, ef_amps[0])
+        fh_f0, fh_kappa, fh_fit = None, None, None
         if fh_x is not None:
+            fh_f0, fh_kappa, _, _, fh_fit = fit_lorentzian(fh_x, fh_amps[0])
+
+        # ---- plot fits ----
+        if ge_fit is not None:
+            ax.plot(ge_x, ge_fit, "--", linewidth=2, color="tab:blue", label=f"{label_ge} fit")
+        if ef_fit is not None:
+            ax.plot(ef_x, ef_fit, "--", linewidth=2, color="tab:orange", label=f"{label_ef} fit")
+        if fh_fit is not None:
+            ax.plot(fh_x, fh_fit, "--", linewidth=2, color="tab:green", label=f"{label_fh} fit")
+
+        # ---- resonance markers (from fit if available, else argmin) ----
+        ge_freq_r = ge_f0 if ge_f0 is not None else None
+        ef_freq_r = ef_f0 if ef_f0 is not None else None
+        fh_freq_r = fh_f0 if fh_f0 is not None else None
+        if ge_freq_r is None:
+            try:
+                ge_freq_r = ge_fpts[np.argmin(ge_amps[0])] + ge_fcenter[0]
+            except Exception:
+                pass
+        if ef_freq_r is None:
+            try:
+                ef_freq_r = ef_fpts[np.argmin(ef_amps[0])] + ef_fcenter[0]
+            except Exception:
+                pass
+        if fh_freq_r is None and fh_x is not None:
             try:
                 fh_freq_r = fh_freq_pts[np.argmin(fh_amps[0])] + fh_freq_center[0]
-                ax.axvline(fh_freq_r, linestyle="--", linewidth=1.5)
             except Exception:
-                fh_freq_r = None
+                pass
 
-        # --- stacked title: each resonance on its own line ---
-        title_lines = [f"Resonator {self.QubitIndex + 1}"]
         if ge_freq_r is not None:
-            title_lines.append(f"g: {ge_freq_r:.4f} MHz")
+            ax.axvline(ge_freq_r, linestyle="--", linewidth=1.5, color="tab:blue", alpha=0.5)
         if ef_freq_r is not None:
-            title_lines.append(f"e: {ef_freq_r:.4f} MHz")
+            ax.axvline(ef_freq_r, linestyle="--", linewidth=1.5, color="tab:orange", alpha=0.5)
         if fh_freq_r is not None:
-            title_lines.append(f"f: {fh_freq_r:.4f} MHz")
-        ax.set_title("\n".join(title_lines), pad=14, linespacing=1.6)
+            ax.axvline(fh_freq_r, linestyle="--", linewidth=1.5, color="tab:green", alpha=0.5)
+
+        # ---- compute chi shifts (MHz → kHz) ----
+        chi_ge_ef = (ef_freq_r - ge_freq_r) * 1e3 if (ge_freq_r and ef_freq_r) else None
+        chi_ef_fh = (fh_freq_r - ef_freq_r) * 1e3 if (ef_freq_r and fh_freq_r) else None
+        chi_ge_fh = (fh_freq_r - ge_freq_r) * 1e3 if (ge_freq_r and fh_freq_r) else None
+
+        # ---- build title ----
+        title_lines = [f"Resonator {self.QubitIndex + 1}"]
+
+        # Line 2: resonance frequencies
+        freq_parts = []
+        if ge_freq_r is not None:
+            freq_parts.append(f"g: {ge_freq_r:.4f} MHz")
+        if ef_freq_r is not None:
+            freq_parts.append(f"e: {ef_freq_r:.4f} MHz")
+        if fh_freq_r is not None:
+            freq_parts.append(f"f: {fh_freq_r:.4f} MHz")
+        if freq_parts:
+            title_lines.append("  |  ".join(freq_parts))
+
+        # Line 3: kappa values (in kHz)
+        kappa_parts = []
+        if ge_kappa is not None:
+            kappa_parts.append(f"κ_g: {ge_kappa * 1e3:.1f} kHz")
+        if ef_kappa is not None:
+            kappa_parts.append(f"κ_e: {ef_kappa * 1e3:.1f} kHz")
+        if fh_kappa is not None:
+            kappa_parts.append(f"κ_f: {fh_kappa * 1e3:.1f} kHz")
+        if kappa_parts:
+            title_lines.append("  |  ".join(kappa_parts))
+
+        # Line 4: chi shifts
+        chi_parts = []
+        if chi_ge_ef is not None:
+            chi_parts.append(f"χ(g→e): {chi_ge_ef:+.1f} kHz")
+        if chi_ef_fh is not None:
+            chi_parts.append(f"χ(e→f): {chi_ef_fh:+.1f} kHz")
+        if chi_ge_fh is not None:
+            chi_parts.append(f"χ(g→f): {chi_ge_fh:+.1f} kHz")
+        if chi_parts:
+            title_lines.append("  |  ".join(chi_parts))
+
+        ax.set_title("\n".join(title_lines), pad=14, linespacing=1.6, fontsize=14)
 
         ax.set_xlabel("Frequency (MHz)")
         ax.set_ylabel("Amplitude (a.u.)")
         ax.legend()
+
         yl = ax.get_ylim()
         ax.set_ylim(yl[0] - 0.05 * (yl[1] - yl[0]), yl[1])
 
@@ -326,6 +425,7 @@ class ResonanceSpectroscopy:
             )
             plt.savefig(file_name + ".png", dpi=fig_quality, bbox_inches="tight")
             plt.savefig(file_name + ".pdf", dpi=fig_quality, bbox_inches="tight")
+
         plt.close()
 
     def create_folder_if_not_exists(self, folder):

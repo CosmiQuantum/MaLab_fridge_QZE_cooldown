@@ -5,8 +5,8 @@ FRIDGE = "BOB"
 if FRIDGE == "QUIET" or FRIDGE == "BOB":
     VNA_res = np.array([7149,7171,7204,7228.9, 7264.4,7287.54])#[7148.588, 7170.546, 7203.351, 7228.059, 7263.744 ,7286.719])#*1000  # run 5
     VNA_qubit = np.array([2764, 2980, 2876, 3096, 3043.32, 3095.44]) #[2766, 2980, 2873, 3096, 3043, 3093] # Freqs of Qubit g/e Transition
-    ef_freqs = np.array([2616, 2830, 2723, 2946, 2893, 2929.25]) # Freqs of Qubit e/f Transition, updated for run 7
-    fh_freqs = np.array([2466, 2680, 2573, 2796, 2900, 2745])
+    ef_freqs = np.array([2616, 2830, 2723, 2946, 2893, 2929.37]) # Freqs of Qubit e/f Transition, updated for run 7
+    fh_freqs = np.array([2466, 2680, 2573, 2796, 2900, 2744])
     # Set this for your experiment
     tot_num_of_qubits = 6
 
@@ -26,29 +26,29 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
 
         "res_spec": {
             "reps": 1, #shots at one freq
-            "rounds": 200, #sweeps through each freq and average
+            "rounds": 300, #sweeps through each freq and average
             "start": -0.7, #[MHz]
             "step_size": 0.01,  # [MHz]
             "steps": 150,
-            "relax_delay": 5,  # [us]
+            "relax_delay": 100,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
 
         "res_spec_ef": {
             "reps": 1,#shots at one freq
-            "rounds": 200, #sweeps through each freq and average
+            "rounds": 300, #sweeps through each freq and average
             "start": -0.7, #[MHz]
             "step_size": 0.01,  # [MHz]
             "steps": 150,#,200,#70
-            "relax_delay": 5,  # [us]
+            "relax_delay": 1000,  # [us]
         },
         "res_spec_fh": {
             "reps": 1,
-            "rounds": 200,
+            "rounds": 300,
             "start": -2,  # [MHz]
             "step_size": 0.02,  # [MHz]
             "steps": 150,
-            "relax_delay": 10,  # [us]
+            "relax_delay": 2000,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
         # "qubit_spec_ge": {
@@ -70,20 +70,20 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "list_of_all_qubits": list_of_all_qubits,
         },
         "qubit_spec_ef": {
-            "reps": 20,
-            "rounds": 60,  # 3
-            "start": list(ef_freqs - 0.8),  # [MHz] -30
-            "stop": list(ef_freqs + 0.8),  # [MHz] +15
+            "reps": 200,
+            "rounds": 40,  # 3
+            "start": list(ef_freqs - 0.5),  # [MHz] -30
+            "stop": list(ef_freqs + 0.5),  # [MHz] +15
             "steps": 100,
             "relax_delay": 4000,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
         "qubit_spec_fh": {
-            "reps": 20,  # 300
-            "rounds": 100,  # 10
-            "start": list(fh_freqs - 5),  # [MHz] #-300 #-6
-            "stop": list(fh_freqs + 5),  # [MHz] #6
-            "steps": 500,  # 450,  # 1000 #450
+            "reps": 300,  # 300
+            "rounds": 20,  # 10
+            "start": list(fh_freqs - 4),  # [MHz] #-300 #-6
+            "stop": list(fh_freqs + 4),  # [MHz] #6
+            "steps": 100,  # 450,  # 1000 #450
             "relax_delay": 4000,  # 4000,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
@@ -256,7 +256,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         "power_rabi_ef": {
             "reps": 200,
             "reps2": 850, #this is only used for the experiment that uses e-f rabi to calculate qubit temperatures.
-            "rounds": 1,
+            "rounds": 20,
             "start": 0.0,  # [DAC units]
             "stop": 1.0,  # [DAC units]
             "steps": 30,
@@ -297,11 +297,11 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "T1_IBM_qze_loop": {
-            "reps": 100,#100,
+            "reps": 600,#100,
             "rounds": 1,#20,
             "start": 0.01,  # [us]
             "stop": 100,  # [250.0] * 6,  # [us] ### Should be ~10x T1! Should change this per qubit.
-            "steps": 50,#200
+            "steps": 30,#200
             "relax_delay": 4000,  # [us] ### Should be >10x T1!
             "wait_time": 30,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
@@ -459,11 +459,11 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "Ramsey_ge_zeno": {
-            "reps": 100,
+            "reps": 600,
             "rounds": 1,
             "start": 0.01,  # [us]
             "stop": 20,  # [us]
-            "steps": 100,
+            "steps": 200,
             "ramsey_freq": 0.5,  #.15 [MHz]
             "relax_delay": 4000,
             # [us] the time to wait to let the qubit to relax to gnd again after exciting it (make it way above T1)
@@ -513,11 +513,11 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "list_of_all_qubits": list_of_all_qubits,
         },
         "SpinEcho_ge_zeno": {
-            "reps": 100,  # 20,
+            "reps": 600,  # 20,
             "rounds": 1,
             "start": 0.01,  # [us]
             "stop": 20,  # [us]
-            "steps": 100,
+            "steps": 400,
             "ramsey_freq": 0.5,  # 0.12 [MHz]
             "relax_delay": 4000,  # [us]
             "wait_time": 0.0,  # [us]
