@@ -854,3 +854,8 @@ for qubit in qubits:
         q_key=q,
         ylabel=r"$\Gamma_1$ (1/$\mu$s)",
     )
+    print("\n=== Total datapoints per nbar ===")
+    for k, (g, nb) in enumerate(zip(gain_labels, nbar_labels)):
+        _, v = _collect_vals_for_gain(amps_list_t1_fit[k], q_key=q)
+        count = v.size if v is not None else 0
+        print(f"  nbar={nb:.4f}  (gain={g:.6f})  ->  {count} datapoints")

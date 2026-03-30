@@ -656,7 +656,7 @@ class PulseProbeSpectroscopyProgram(AveragerProgramV2):
                        style="const",
                        length=cfg['qubit_length_ge'],
                        freq=cfg['qubit_freq_ge'],
-                       phase=0,
+                       phase=cfg['ro_phase'],
                        gain=cfg['qubit_gain_ge'],
                        )
 
@@ -664,7 +664,7 @@ class PulseProbeSpectroscopyProgram(AveragerProgramV2):
         #            style="const",
         #            length=10,
         #            freq=cfg['qubit_freq_ge'],
-        #            phase=0,
+        #            phase=cfg['ro_phase'],
         #            gain=cfg['qubit_gain_ge'],
         #            mode='periodic'
         #            )
@@ -704,7 +704,7 @@ class PulseProbeSpectroscopyProgram_WithStark(AveragerProgramV2):
                        style="const",
                        length=cfg['qubit_length_ge']-0.11,#
                        freq=cfg['qubit_freq_ge'],
-                       phase=0,
+                       phase=cfg['ro_phase'],
                        gain=cfg['qubit_gain_ge'],
                        )
 
@@ -751,7 +751,7 @@ class PulseProbeSpectroscopyProgram_WithStark_WaitForRingUp(AveragerProgramV2):
                        style="const",
                        length=cfg['qubit_length_ge'] - cfg['qubit_pi_len'],  #
                        freq=cfg['qubit_freq_ge'],
-                       phase=0,
+                       phase=cfg['ro_phase'],
                        gain=cfg['qubit_gain_ge'],
                        )
 
@@ -1146,7 +1146,7 @@ class ResStarkShift2DProgram(AveragerProgramV2):
                        style="const",
                        length=cfg['qubit_length_ge'],
                        freq=QickSweep1D("qubit_pulse_loop", cfg['qubit_freq_ge'] + cfg["start_freq"], cfg['qubit_freq_ge'] + cfg["end_freq"]),
-                       phase=0,
+                       phase=cfg['ro_phase'],
                        gain=cfg['qubit_gain_ge'],
                        )
 

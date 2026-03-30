@@ -6,13 +6,13 @@ from analysis_003_q_freqs_vs_time_plots import QubitFreqsVsTime
 # Configuration
 save_figs = True
 save_individual_qspec = False  # Set to False to skip saving individual qspec plots
-nbar_from_ramsey = False
+nbar_from_ramsey = True
 figure_quality = 100
 final_figure_quality = 200
 FRIDGE = "QUIET"
 qubits = [5]
-path = '2d_test_lower_res2'#'2d_test_lower_res'
-ramsey_nbar_path=''#'/bob_run_started_Feb_11/squill/2d_test/run/'
+path = '2d_high_res_echo'#'2d_test_lower_res'
+ramsey_nbar_path='/bob_run_started_Feb_11/squill/2d_test/run/'
 
 for qubit in qubits:
     run_name = f'bob_run_started_Feb_11/squill/{path}/all_qubits/'
@@ -55,25 +55,25 @@ for qubit in qubits:
     t1_vs_time.plot_all_t1_heatmaps_new_format(amps_t1, gains_t1, rounds_t1, delay_times_t1,
                                                 f'M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/all_qubits/analysis_new_fwhm_qspec_nbar/',
                                                 n_bar=n_bars, use_linear_x=True)
-
-    # T2R analysis
-    t2_vs_time = T2rVsTime(figure_quality, final_figure_quality, 6, top_folder_dates, save_figs, False,
-                           'None', run_name, fridge=FRIDGE, exp_name='ge', qubit=qubit)
-    _, _, amps_t2, gains_t2, rounds_t2, delay_times_t2 = t2_vs_time.run_t2_sweep_new(exp_extension='_ge', scaling=True)
-
-    t2_vs_time.plot_all_t2_heatmaps_new_format(amps_t2, gains_t2, rounds_t2, delay_times_t2,
-                                                f'M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/all_qubits/analysis_new_fwhm_qspec_nbar/',
-                                                n_bar=n_bars)
-
-    t2_vs_time.plot_all_t2_curves(amps_t2, gains_t2, rounds_t2, delay_times_t2,
-                                   f'M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/all_qubits/analysis_new_fwhm_qspec_nbar/',
-                                   n_bar=n_bars)
-
-    # T2E analysis
-    t2e_vs_time = T2eVsTime(figure_quality, final_figure_quality, 6, top_folder_dates, save_figs,
-                           False, 'None', run_name, fridge=FRIDGE, exp_name='ge', qubit=qubit)
-    _, _, amps_t2e, gains_t2e, rounds_t2e, delay_times_t2e = t2e_vs_time.run_t2_sweep_new(exp_extension='_ge', scaling=True)
-
-    t2e_vs_time.plot_all_t2_heatmaps_new_format(amps_t2e, gains_t2e, rounds_t2e, delay_times_t2e,
-                                               f'M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/all_qubits/analysis_new_fwhm_qspec_nbar/',
-                                               n_bar=n_bars, save_individual_plots=save_individual_qspec)
+    #
+    # # T2R analysis
+    # t2_vs_time = T2rVsTime(figure_quality, final_figure_quality, 6, top_folder_dates, save_figs, False,
+    #                        'None', run_name, fridge=FRIDGE, exp_name='ge', qubit=qubit)
+    # _, _, amps_t2, gains_t2, rounds_t2, delay_times_t2 = t2_vs_time.run_t2_sweep_new(exp_extension='_ge', scaling=True)
+    #
+    # t2_vs_time.plot_all_t2_heatmaps_new_format(amps_t2, gains_t2, rounds_t2, delay_times_t2,
+    #                                             f'M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/all_qubits/analysis_new_fwhm_qspec_nbar/',
+    #                                             n_bar=n_bars)
+    #
+    # t2_vs_time.plot_all_t2_curves(amps_t2, gains_t2, rounds_t2, delay_times_t2,
+    #                                f'M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/all_qubits/analysis_new_fwhm_qspec_nbar/',
+    #                                n_bar=n_bars)
+    #
+    # # T2E analysis
+    # t2e_vs_time = T2eVsTime(figure_quality, final_figure_quality, 6, top_folder_dates, save_figs,
+    #                        False, 'None', run_name, fridge=FRIDGE, exp_name='ge', qubit=qubit)
+    # _, _, amps_t2e, gains_t2e, rounds_t2e, delay_times_t2e = t2e_vs_time.run_t2_sweep_new(exp_extension='_ge', scaling=True)
+    #
+    # t2e_vs_time.plot_all_t2_heatmaps_new_format(amps_t2e, gains_t2e, rounds_t2e, delay_times_t2e,
+    #                                            f'M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/all_qubits/analysis_new_fwhm_qspec_nbar/',
+    #                                            n_bar=n_bars, save_individual_plots=save_individual_qspec)

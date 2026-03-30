@@ -307,7 +307,7 @@ class FHPulseProbeSpectroscopyProgram(AveragerProgramV2):
                        style="const",
                        length=cfg['qubit_length_fh'],
                        freq=cfg['qubit_freq_fh'],
-                       phase=0,
+                       phase=cfg['ro_phase'],
                        gain=cfg['qubit_gain_fh'],
                        )
 

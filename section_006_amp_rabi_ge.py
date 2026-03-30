@@ -166,6 +166,71 @@ class AmplitudeRabiExperiment:
             else:
                 return I, Q, gains, q1_fit_cosine, pi_amp, self.config, I_shots, Q_shots
 
+    def run_active_reset(self, scaling=True, keep_long_relax_delay=False):
+        if keep_long_relax_delay:
+            amp_rabi = RabiWithActiveReset(self.experiment.soccfg, reps=self.config['reps'],
+                                           final_delay=self.config['relax_delay'], cfg=self.config)
+        else:
+            amp_rabi = RabiWithActiveReset(self.experiment.soccfg, reps=self.config['reps'],
+                                           final_delay=5, cfg=self.config)
+
+
+        iq_list = amp_rabi.acquire(self.experiment.soc, rounds=self.config["rounds"],
+                                   progress=self.qick_verbose)
+
+        raw = amp_rabi.get_raw()
+        print("raw[0] shape:", raw[0].shape)
+
+        # raw[0] shape: (reps, steps, n_resets+1, 2)
+        # Take only the last read (the measurement), average over reps
+        measurement_raw = raw[0][:, :, -1, :]  # (reps, steps, 2)
+
+        # Normalize by readout length to match iq_list units
+        ro_length_cycles = amp_rabi.us2cycles(ro_ch=self.config['ro_ch'], us=self.config['res_length'])
+
+        I = np.mean(measurement_raw[:, :, 0], axis=0) / ro_length_cycles
+        Q = np.mean(measurement_raw[:, :, 1], axis=0) / ro_length_cycles
+
+        I_shots = measurement_raw[:, :, 0]
+        Q_shots = measurement_raw[:, :, 1]
+
+        gains = amp_rabi.get_pulse_param('qubit_pulse', "gain", as_array=True)
+
+        if scaling:
+            from section_005_single_shot_ge import SingleShotProgram_g, SingleShotProgram_e
+            q1_fit_cosine_no_calibration, pi_amp_fit_no_calibration = self.plot_results(I, Q, gains, config=self.config)
+            try:
+                self.experiment.qubit_cfg['pi_amp'] = float(pi_amp_fit_no_calibration)
+            except:
+                print('pi fit didnt work')
+
+            q_config = all_qubit_state(self.experiment, self.number_of_qubits)
+            ss_exp_cfg = add_qubit_experiment(expt_cfg, 'Readout_Optimization', self.QubitIndex)
+            ss_config = {**q_config[self.Qubit], **ss_exp_cfg}
+            print('performing single shot for g-e calibration')
+
+            ssp_g = SingleShotProgram_g(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'],
+                                        cfg=ss_config)
+            iq_list_g = ssp_g.acquire(self.experiment.soc, rounds=1, progress=True)
+
+            ssp_e = SingleShotProgram_e(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'],
+                                        cfg=ss_config)
+            iq_list_e = ssp_e.acquire(self.experiment.soc, rounds=1, progress=True)
+
+            ss_I_g = iq_list_g[0][0].T[0]
+            ss_Q_g = iq_list_g[0][0].T[1]
+            ss_I_e = iq_list_e[0][0].T[0]
+            ss_Q_e = iq_list_e[0][0].T[1]
+
+            q1_fit_cosine, pi_amp = self.plot_results(I, Q, gains, config=self.config,
+                                                      scaling=scaling, Ie=ss_I_e, Ig=ss_I_g, Qe=ss_Q_e, Qg=ss_Q_g)
+        else:
+            q1_fit_cosine, pi_amp = self.plot_results(I, Q, gains, config=self.config)
+
+        if scaling:
+            return I, Q, gains, q1_fit_cosine, pi_amp, self.config, ss_Q_e, ss_Q_g, ss_I_e, ss_I_g, I_shots, Q_shots
+        else:
+            return I, Q, gains, q1_fit_cosine, pi_amp, self.config, I_shots, Q_shots
     def live_plotting(self, amp_rabi, thresholding):
         I = Q = expt_mags = expt_phases = expt_pop = None
         viz = visdom.Visdom()
@@ -1892,6 +1957,87 @@ class AmplitudeRabiProgram(AveragerProgramV2):
         # # self.delay_auto()#(self.cfg['sigma'] * 4)  # ????
         # self.jump("Readout and check conditions")
         # self.label('skip everything')
+class RabiWithActiveReset(AveragerProgramV2):
+    def _initialize(self, cfg):
+        ro_ch = cfg['ro_ch']
+        res_ch = cfg['res_ch']
+        qubit_ch = cfg['qubit_ch']
+
+        # Declare generators and readout
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
+        self.declare_readout(ch=ro_ch, length=cfg['res_length'])
+
+        # Readout config
+        self.add_readoutconfig(ch=ro_ch, name="myro",
+                               freq=cfg['res_freq_ge'],
+                               gen_ch=res_ch,
+                               outsel='product')
+        self.send_readoutconfig(ch=ro_ch, name="myro", t=0)
+
+        # Resonator pulse
+        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
+                       style="const",
+                       length=cfg["res_length"],
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge'])
+
+        # Gaussian envelope for qubit pulses
+        self.add_gauss(ch=qubit_ch, name="ramp",
+                       sigma=cfg['sigma'],
+                       length=cfg['sigma'] * 4,
+                       even_length=False)
+        #longer sigma for more rabi curves
+        self.add_gauss(ch=qubit_ch, name="ramp_rabi",
+                       sigma=cfg['active_reset_test_sigma'],
+                       length=cfg['active_reset_test_sigma'] * 4,
+                       even_length=False)
+
+        # Qubit pulse with swept gain (for Rabi)
+        self.add_pulse(ch=qubit_ch, name="qubit_pulse",
+                       style="arb",
+                       envelope="ramp_rabi",
+                       freq=cfg['qubit_freq_ge'],
+                       phase=cfg['qubit_phase'],
+                       gain=cfg['qubit_gain_ge'])
+
+        # Pi pulse (fixed gain, used for active reset)
+        self.add_pulse(ch=qubit_ch, name="pi_pulse",
+                       style="arb",
+                       envelope="ramp",
+                       freq=cfg['qubit_freq_ge'],
+                       phase=cfg['qubit_phase'],
+                       gain=cfg['pi_amp'])
+
+        # Sweep loop for Rabi
+        self.add_loop("gainloop", cfg["steps"])
+
+    def _body(self, cfg):
+        n_resets = cfg.get('n_resets', 0)
+        for i in range(n_resets):
+            self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+            self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+            # Wait longer for readout to fully accumulate
+            self.wait_auto(t=cfg['res_length'], ros=True)
+            # Longer delay to ensure data is available at tProc input
+            self.delay_auto(t=cfg['res_length'] + 0.05)
+            self.read_and_jump(
+                ro_ch=cfg['ro_ch'],
+                component="I",
+                threshold=cfg['threshold'],
+                test="<",
+                label=f"RESET_DONE_{i}",
+            )
+            self.pulse(ch=cfg['qubit_ch'], name="pi_pulse", t=0)
+            self.label(f"RESET_DONE_{i}")
+            self.delay_auto(t=0.05)
+
+        # Actual Rabi experiment
+        self.pulse(ch=cfg['qubit_ch'], name="qubit_pulse", t=0)
+        self.delay_auto(t=0.0, tag='waiting')
+        self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 class AmplitudeRabiChevronProgram(AveragerProgramV2):
     def _initialize(self, cfg):
         ro_ch = cfg['ro_ch']

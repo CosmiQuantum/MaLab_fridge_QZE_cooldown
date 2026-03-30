@@ -98,6 +98,7 @@ class QICK_experiment:
             # [-0.1006 *360/np.pi, -2.412527*360/np.pi, -1.821284*360/np.pi, -1.90962*360/np.pi, -0.566479*360/np.pi, -0.5941687*360/np.pi], # Rotation Angle From QICK Function, is the ang of 10 ss angles per qubit
             # "res_phase": [0]*6,#[-0.1006 *360/np.pi, -2.412527*360/np.pi, -1.821284*360/np.pi, -1.90962*360/np.pi, -0.566479*360/np.pi, -0.5941687*360/np.pi], # Rotation Angle From QICK Function, is the ang of 10 ss angles per qubit
             "ro_phase": 0,  # Rotation Angle From QICK Function
+            "n_resets": 3,
             "threshold": 0, #Joyce 3/11
             #"threshold": [7.3961, -12.5812, 4.8613, -7.5323, 7.0689, 4.6805], # Threshold for Distinguish g/e, from QICK Function
             "res_ring_up_time": 4,  # Olivia May 17th
@@ -134,6 +135,7 @@ class QICK_experiment:
             #"sigma": [0.15]*6,  # [us] for Gaussian Pulse (5+10 DAC atten for qubit)
             "sigma_ampl": [0.03, 0.03, 0.05, 0.04, 0.05, 0.05], #DAC 0 04/07
             "sigma": [0.39, 0.27, 0.3, 0.10, 0.19, 0.12],  # DAC 2 04/07 [us] for Gaussian Pulse (5+10 DAC atten for qubit). Updated on 7/17 by Arianna
+            "active_reset_test_sigma": 0.19*1.8,
             #"sigma": [0.05, 0.09, 0.07, 0.065, 0.09, 0.3],  # Goal: cut sigma in half [us] for Gaussian Pulse (5+4 DAC atten for qubit)
             # "pi_amp": [0.92, 0.87, 0.75, 0.73, 0.77, 0.78], # old RR values
             "sigma_ef": [0.28, 0.25, 0.22, 0.25, 0.15, 0.09],  # [us] for Gaussian Pulse, #Arianna 3/27

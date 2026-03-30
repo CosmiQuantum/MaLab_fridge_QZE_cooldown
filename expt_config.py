@@ -26,7 +26,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
 
         "res_spec": {
             "reps": 1, #shots at one freq
-            "rounds": 300, #sweeps through each freq and average
+            "rounds": 600, #sweeps through each freq and average
             "start": -0.7, #[MHz]
             "step_size": 0.01,  # [MHz]
             "steps": 150,
@@ -36,19 +36,19 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
 
         "res_spec_ef": {
             "reps": 1,#shots at one freq
-            "rounds": 300, #sweeps through each freq and average
+            "rounds": 600, #sweeps through each freq and average
             "start": -0.7, #[MHz]
             "step_size": 0.01,  # [MHz]
             "steps": 150,#,200,#70
-            "relax_delay": 1000,  # [us]
+            "relax_delay": 2000,  # [us]
         },
         "res_spec_fh": {
             "reps": 1,
-            "rounds": 300,
+            "rounds": 600,
             "start": -2,  # [MHz]
             "step_size": 0.02,  # [MHz]
             "steps": 150,
-            "relax_delay": 2000,  # [us]
+            "relax_delay": 4000,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
         # "qubit_spec_ge": {
@@ -155,14 +155,15 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "power_rabi_ge": {
-            "reps": 200,#300,
-            "rounds": 1,#10,
-            "start": 0, # [DAC units]
+            "reps": 200,  # 300,
+            "rounds": 3,  # 10,
+            "start": 0,  # [DAC units]
             "stop": 0.8,  # [DAC units]
-            "steps": 30,
-            "relax_delay": 4000,# [us]
+            "steps": 100,
+            "relax_delay": 4000,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
+
 
         "power_rabi_ge_chevron": {
             "reps": 200,
@@ -513,11 +514,11 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "list_of_all_qubits": list_of_all_qubits,
         },
         "SpinEcho_ge_zeno": {
-            "reps": 600,  # 20,
+            "reps": 300,  # 20,
             "rounds": 1,
             "start": 0.01,  # [us]
             "stop": 20,  # [us]
-            "steps": 400,
+            "steps": 100,
             "ramsey_freq": 0.5,  # 0.12 [MHz]
             "relax_delay": 4000,  # [us]
             "wait_time": 0.0,  # [us]
@@ -595,7 +596,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
     # #
 
         "Readout_Optimization":{
-            "steps": 5000, # shots
+            "steps": 6000, # shots
             "py_avg": 1,
             "gain_start" : [0, 0, 0, 0],
             "gain_stop" : [1, 0, 0, 0],

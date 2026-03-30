@@ -188,7 +188,7 @@ class SingleShot:
 
         return fidelity
 
-    def run(self):
+    def run(self,return_thres_raw=False):
         ssp_g = SingleShotProgram_g(self.experiment.soccfg, reps=1, final_delay=self.config['relax_delay'], cfg=self.config)
         iq_list_g = ssp_g.acquire(self.experiment.soc, rounds=1, progress=True)
         g_shots= ssp_g.get_raw()
@@ -198,11 +198,19 @@ class SingleShot:
         e_shots= ssp_e.get_raw()
         # print('e_shots[0]',e_shots[0])
 
-        fid, angle = self.plot_results(iq_list_g, iq_list_e, self.QubitIndex)
-        #fid, angle = self.plot_results(g_shots, e_shots, self.QubitIndex)
-        return fid, angle, iq_list_g, iq_list_e, self.config
+        if return_thres_raw:
+            fid, angle, thresh = self.plot_results(iq_list_g, iq_list_e, self.QubitIndex, return_thres=return_thres_raw)
+            # Convert threshold from averaged IQ units to raw tProc accumulated units
+            # Use the program object to convert readout length to cycles
+            ro_length_cycles = ssp_g.us2cycles(ro_ch=self.config['ro_ch'], us=self.config['res_length'])
+            threshold_raw = int(thresh * ro_length_cycles)
 
-    def plot_results(self, iq_list_g, iq_list_e, QubitIndex,  fig_quality=100):
+            return fid, angle, iq_list_g, iq_list_e, self.config, threshold_raw
+        else:
+            fid, angle = self.plot_results(iq_list_g, iq_list_e, self.QubitIndex)
+            return fid, angle, iq_list_g, iq_list_e, self.config
+
+    def plot_results(self, iq_list_g, iq_list_e, QubitIndex,  fig_quality=100, return_thres=False):
         I_g = iq_list_g[0][0].T[0]
         Q_g = iq_list_g[0][0].T[1]
         I_e = iq_list_e[0][0].T[0]
@@ -218,7 +226,10 @@ class SingleShot:
         if self.verbose: print('Optimal angle after rotation = %f' % angle)
         self.logger.info('Optimal fidelity after rotation = %.3f' % fid)
         self.logger.info('Optimal angle after rotation = %f' % angle)
-        return fid, angle
+        if return_thres:
+            return fid, angle, threshold
+        else:
+            return fid, angle
 
     def hist_ssf(self, data=None, cfg=None, plot=True,  fig_quality = 100):
 

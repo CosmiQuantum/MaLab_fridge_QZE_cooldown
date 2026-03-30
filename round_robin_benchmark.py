@@ -62,8 +62,8 @@ Qs_to_look_at = [5]     # only list the qubits you want to do the RR for
 run_name = 'bob_run_started_Feb_11'
 device_name = 'squill'
 substudy_txt_notes = ('track res and q spec')
-study ='resonator_tracking_gef'
-sub_study = f'overnight_test'
+study ='resonator_tracking_gef_shorter_pulse_len'
+sub_study = f'pulse_len_test'
 data_set = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 # set which of the following you'd like to run to 'True'
@@ -73,7 +73,7 @@ run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss":  False, "rabi
 
 
 # optimization outputs from qick board, unmasking set to true
-res_leng_vals = [9]*6
+res_leng_vals = [3]*6
 res_gain = [0.25,0.25,0.25,0.25,0.24,0.2133]
 freq_offsets = [0,0,0,0,-0.25,-0.16]
 

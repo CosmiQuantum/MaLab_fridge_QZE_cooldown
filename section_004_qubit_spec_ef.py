@@ -416,7 +416,7 @@ class EFPulseProbeSpectroscopyProgram(AveragerProgramV2):
                        style="const",
                        length=cfg['qubit_length_ef'],
                        freq=cfg['qubit_freq_ef'],
-                       phase=0,
+                       phase=cfg['ro_phase'],
                        gain=cfg['qubit_gain_ef'],
                        )
 
