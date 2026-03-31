@@ -199,10 +199,6 @@ class AmplitudeRabiExperiment:
         if scaling:
             from section_005_single_shot_ge import SingleShotProgram_g, SingleShotProgram_e
             q1_fit_cosine_no_calibration, pi_amp_fit_no_calibration = self.plot_results(I, Q, gains, config=self.config)
-            try:
-                self.experiment.qubit_cfg['pi_amp'] = float(pi_amp_fit_no_calibration)
-            except:
-                print('pi fit didnt work')
 
             q_config = all_qubit_state(self.experiment, self.number_of_qubits)
             ss_exp_cfg = add_qubit_experiment(expt_cfg, 'Readout_Optimization', self.QubitIndex)
@@ -2013,14 +2009,49 @@ class RabiWithActiveReset(AveragerProgramV2):
         # Sweep loop for Rabi
         self.add_loop("gainloop", cfg["steps"])
 
+    # def _body(self, cfg):
+    #     n_resets = cfg.get('n_resets', 0)
+    #     for i in range(n_resets):
+    #         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+    #         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+    #         # Wait longer for readout to fully accumulate
+    #         self.wait_auto(t=cfg['res_length'], ros=True)
+    #         # Longer delay to ensure data is available at tProc input
+    #         self.delay_auto(t=cfg['res_length'] + 0.05)
+    #         self.read_and_jump(
+    #             ro_ch=cfg['ro_ch'],
+    #             component="I",
+    #             threshold=cfg['threshold'],
+    #             test="<",
+    #             label=f"RESET_DONE_{i}",
+    #         )
+    #         self.pulse(ch=cfg['qubit_ch'], name="pi_pulse", t=0)
+    #         self.label(f"RESET_DONE_{i}")
+    #         self.delay_auto(t=0.05)
+    #
+    #     # Actual Rabi experiment
+    #     self.pulse(ch=cfg['qubit_ch'], name="qubit_pulse", t=0)
+    #     self.delay_auto(t=0.0, tag='waiting')
+    #     self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+    #     self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+    # def _body(self, cfg):
+    #     n_resets = cfg.get('n_resets', 0)
+    #     for i in range(n_resets):
+    #         # UNCONDITIONAL pi pulse — no readout, no threshold, just always apply pi
+    #         self.pulse(ch=cfg['qubit_ch'], name="pi_pulse", t=0)
+    #         self.delay_auto(t=0.05)
+    #
+    #     # Actual Rabi experiment
+    #     self.pulse(ch=cfg['qubit_ch'], name="qubit_pulse", t=0)
+    #     self.delay_auto(t=0.0, tag='waiting')
+    #     self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+    #     self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
     def _body(self, cfg):
         n_resets = cfg.get('n_resets', 0)
         for i in range(n_resets):
             self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
             self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
-            # Wait longer for readout to fully accumulate
             self.wait_auto(t=cfg['res_length'], ros=True)
-            # Longer delay to ensure data is available at tProc input
             self.delay_auto(t=cfg['res_length'] + 0.05)
             self.read_and_jump(
                 ro_ch=cfg['ro_ch'],
@@ -2033,7 +2064,6 @@ class RabiWithActiveReset(AveragerProgramV2):
             self.label(f"RESET_DONE_{i}")
             self.delay_auto(t=0.05)
 
-        # Actual Rabi experiment
         self.pulse(ch=cfg['qubit_ch'], name="qubit_pulse", t=0)
         self.delay_auto(t=0.0, tag='waiting')
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
