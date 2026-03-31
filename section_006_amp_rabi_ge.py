@@ -2069,7 +2069,7 @@ class RabiWithActiveReset(AveragerProgramV2):
                 ro_ch=cfg['ro_ch'],
                 component="I",
                 threshold=cfg['threshold'],
-                test="<",
+                test=">=",
                 label=f"RESET_DONE_{i}",
             )
             self.pulse(ch=cfg['qubit_ch'], name="pi_pulse", t=0)
