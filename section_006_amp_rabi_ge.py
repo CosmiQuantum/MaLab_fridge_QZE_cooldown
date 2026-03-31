@@ -177,7 +177,13 @@ class AmplitudeRabiExperiment:
 
         iq_list = amp_rabi.acquire(self.experiment.soc, rounds=self.config["rounds"],
                                    progress=self.qick_verbose)
-
+        if self.experiment.readout_cfg['n_resets'] > 0:
+            dmem = self.experiment.soc.read_mem(length=2, mem_sel='dmem', addr=0)
+            dmem_I = dmem[0]
+            dmem_Q = dmem[1]
+            print(f"tProc saw I={dmem_I}, Q={dmem_Q}")
+            print(f"Threshold is: {self.config['threshold']}")
+            print(f"Test is '<', so skip pi pulse if I < {self.config['threshold']}")
         raw = amp_rabi.get_raw()
         print("raw[0] shape:", raw[0].shape)
 
@@ -2053,6 +2059,12 @@ class RabiWithActiveReset(AveragerProgramV2):
             self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
             self.wait_auto(t=cfg['res_length'], ros=True)
             self.delay_auto(t=cfg['res_length'] + 0.05)
+
+            # DEBUG: read the input and store to data memory so we can inspect
+            self.read_input(ro_ch=cfg['ro_ch'])
+            self.write_dmem(addr=0, src='s_port_l')  # I value
+            self.write_dmem(addr=1, src='s_port_h')  # Q value
+
             self.read_and_jump(
                 ro_ch=cfg['ro_ch'],
                 component="I",
