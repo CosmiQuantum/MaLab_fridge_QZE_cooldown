@@ -195,15 +195,12 @@ class SingleShot:
 
         ssp_e = SingleShotProgram_e(self.experiment.soccfg, reps=1, final_delay=self.config['relax_delay'], cfg=self.config)
         iq_list_e = ssp_e.acquire(self.experiment.soc, rounds=1, progress=True)
-        e_shots= ssp_e.get_raw()
-        # print('e_shots[0]',e_shots[0])
 
         if return_thres_raw:
             fid, angle, thresh = self.plot_results(iq_list_g, iq_list_e, self.QubitIndex, return_thres=return_thres_raw)
-            # Convert threshold from averaged IQ units to raw tProc accumulated units
-            # Use the program object to convert readout length to cycles
-            ro_length_cycles = ssp_g.us2cycles(ro_ch=self.config['ro_ch'], us=self.config['res_length'])
-            threshold_raw = int(thresh * ro_length_cycles)
+            raw_g = ssp_g.get_raw()
+            raw_e = ssp_e.get_raw()
+            threshold_raw = int((np.mean(raw_g[0][:, :, 0]) + np.mean(raw_e[0][:, :, 0])) / 2)
 
             return fid, angle, iq_list_g, iq_list_e, self.config, threshold_raw
         else:

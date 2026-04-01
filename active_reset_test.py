@@ -461,13 +461,13 @@ for QubitIndex in Qs_to_look_at:
     ss_data = create_data_dict(ss_keys, save_r, list_of_all_qubits)
     ss = SingleShot(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j, save_figs, experiment=experiment,
                     verbose=verbose, logger=rr_logger, unmasking_resgain=unmask)
-    fid, angle, iq_list_g, iq_list_e, sys_config_ss, thresh = ss.run(return_thres_raw=True)
+    fid, angle, iq_list_g, iq_list_e, sys_config_ss, thresh_raw = ss.run(return_thres_raw=True)
     I_g = iq_list_g[0][0].T[0]
     Q_g = iq_list_g[0][0].T[1]
     I_e = iq_list_e[0][0].T[0]
     Q_e = iq_list_e[0][0].T[1]
 
-    experiment.readout_cfg['threshold'] = thresh
+    experiment.readout_cfg['threshold'] = thresh_raw
 
     ss_data[QubitIndex]['Fidelity'][j - batch_num * save_r - 1] = fid
     ss_data[QubitIndex]['Angle'][j - batch_num * save_r - 1] = angle
