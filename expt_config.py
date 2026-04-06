@@ -155,11 +155,11 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "power_rabi_ge": {
-            "reps": 200,  # 300,
-            "rounds": 3,  # 10,
+            "reps": 300,  # 300,
+            "rounds": 10,  # 10,
             "start": 0,  # [DAC units]
             "stop": 0.8,  # [DAC units]
-            "steps": 100,
+            "steps": 50,
             "relax_delay": 4000,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
@@ -596,7 +596,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
     # #
 
         "Readout_Optimization":{
-            "steps": 6000, # shots
+            "steps": 2000, # shots
             "py_avg": 1,
             "gain_start" : [0, 0, 0, 0],
             "gain_stop" : [1, 0, 0, 0],

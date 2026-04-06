@@ -188,21 +188,21 @@ class SingleShot:
 
         return fidelity
 
-    def run(self,return_thres_raw=False):
+    def run(self,return_thres=False):
         ssp_g = SingleShotProgram_g(self.experiment.soccfg, reps=1, final_delay=self.config['relax_delay'], cfg=self.config)
         iq_list_g = ssp_g.acquire(self.experiment.soc, rounds=1, progress=True)
-        g_shots= ssp_g.get_raw()
 
         ssp_e = SingleShotProgram_e(self.experiment.soccfg, reps=1, final_delay=self.config['relax_delay'], cfg=self.config)
         iq_list_e = ssp_e.acquire(self.experiment.soc, rounds=1, progress=True)
 
-        if return_thres_raw:
-            fid, angle, thresh = self.plot_results(iq_list_g, iq_list_e, self.QubitIndex, return_thres=return_thres_raw)
+        if return_thres:
             raw_g = ssp_g.get_raw()
             raw_e = ssp_e.get_raw()
-            threshold_raw = int((np.mean(raw_g[0][:, :, 0]) + np.mean(raw_e[0][:, :, 0])) / 2)
+            #thresh = int((np.mean(raw_g[0][:, :, 0]) + np.mean(raw_e[0][:, :, 0])) / 2)
+            #fid, angle = self.plot_results(iq_list_g, iq_list_e, self.QubitIndex)
+            fid, angle, thresh = self.plot_results(iq_list_g, iq_list_e, self.QubitIndex, return_thres=return_thres)
 
-            return fid, angle, iq_list_g, iq_list_e, self.config, threshold_raw
+            return fid, angle, iq_list_g, iq_list_e, self.config, thresh
         else:
             fid, angle = self.plot_results(iq_list_g, iq_list_e, self.QubitIndex)
             return fid, angle, iq_list_g, iq_list_e, self.config
