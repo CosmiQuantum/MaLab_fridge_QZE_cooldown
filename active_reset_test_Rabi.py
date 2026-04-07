@@ -641,7 +641,7 @@ for QubitIndex in Qs_to_look_at:
     # del rabi
 
     ##################### active reset Rabi with 5 corrections ########################
-    experiment.readout_cfg['n_resets'] = 15
+    experiment.readout_cfg['n_resets'] = 5
     rabi_data = create_data_dict(rabi_keys, save_r, list_of_all_qubits)
     rabi = AmplitudeRabiExperiment(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j, signal,
                                    save_figs=save_figs, save_shots=False,
@@ -689,7 +689,7 @@ for QubitIndex in Qs_to_look_at:
         (0, rabi_I_corrected0, rabi_Q_corrected0, rabi_gains_corrected0, ss_I_e20, ss_I_g20, ss_Q_e20, ss_Q_g20, 'No reset'),
         # (1, rabi_I_corrected1, rabi_Q_corrected1, rabi_gains_corrected1, ss_I_e21, ss_I_g21, ss_Q_e21, ss_Q_g21, '1 active reset'),
         # (2, rabi_I_corrected2, rabi_Q_corrected2, rabi_gains_corrected2, ss_I_e22, ss_I_g22, ss_Q_e22, ss_Q_g22, '2 active resets'),
-        (3, rabi_I_corrected5, rabi_Q_corrected5, rabi_gains_corrected5, ss_I_e25, ss_I_g25, ss_Q_e25, ss_Q_g25, '15 active resets'),
+        (3, rabi_I_corrected5, rabi_Q_corrected5, rabi_gains_corrected5, ss_I_e25, ss_I_g25, ss_Q_e25, ss_Q_g25, '5 active resets'),
 
     ]
 
