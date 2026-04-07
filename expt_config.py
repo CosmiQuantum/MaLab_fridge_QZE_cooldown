@@ -596,7 +596,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
     # #
 
         "Readout_Optimization":{
-            "steps": 2000, # shots
+            "steps": 1000, # shots
             "py_avg": 1,
             "gain_start" : [0, 0, 0, 0],
             "gain_stop" : [1, 0, 0, 0],
@@ -604,7 +604,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "freq_start" : [6176.0, 0, 0, 0],
             "freq_stop" : [6178.0, 0, 0, 0],
             "freq_step" : 0.1,
-            "relax_delay": 4000,#600, # [us]
+            "relax_delay": 1000,#600, # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
 
