@@ -2068,149 +2068,164 @@ class RabiWithActiveReset(AveragerProgramV2):
         self.add_loop("gainloop", cfg["steps"])
 
     def _active_reset_block(self, cfg, prefix, max_retries=6):
+        # Active reset
         n_resets = cfg.get('n_resets', 0)
-        g_I_center = cfg["g_center"]
-        e_I_center = cfg["e_center"]
-
-        g_thresh = int(np.round(g_I_center * self.soccfg.us2cycles(cfg['res_length'], ro_ch=cfg['ro_ch'])))
-        e_thresh = int(np.round(e_I_center * self.soccfg.us2cycles(cfg['res_length'], ro_ch=cfg['ro_ch'])))
-
         for i in range(n_resets):
-            done_label = f"{prefix}_reset_done_{i}"
-
-            for attempt in range(max_retries):
-                middle_label = f"{prefix}_middle_{i}_{attempt}"
-                retry_label = f"{prefix}_retry_{i}_{attempt}"
-
-                # where to go if this attempt does not finish successfully
-                if attempt < max_retries - 1:
-                    next_attempt_label = f"{prefix}_attempt_{i}_{attempt + 1}"
-                else:
-                    next_attempt_label = done_label
-
-                # label the start of each attempt except the first one
-                if attempt > 0:
-                    self.label(f"{prefix}_attempt_{i}_{attempt}")
-
-                ############ First measurement ###########
-                self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
-                self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
-                self.wait_auto(0.01, gens=True, ros=True)
-                self.resync()
-                self.delay_auto(t=0.01)
-
-                # Region 1: confidently g -> done
-                self.read_and_jump(
-                    ro_ch=cfg['ro_ch'],
-                    component='I',
-                    threshold=g_thresh,
-                    test="<",
-                    label=done_label
-                )
-
-                # Region 2: middle -> middle handling
-                self.read_and_jump(
-                    ro_ch=cfg['ro_ch'],
-                    component='I',
-                    threshold=e_thresh,
-                    test="<",
-                    label=middle_label
-                )
-
-                ############ Right of e: apply pi, then recheck ###########
-                self.pulse(ch=self.cfg["qubit_ch"], name="pi_pulse", t=0)
-                self.delay_auto(t=10)
-
-                self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
-                self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
-                self.wait_auto(0.01, gens=True, ros=True)
-                self.resync()
-                self.delay_auto(t=0.01)
-
-                # after pi+measure:
-                #   if < g  -> done
-                #   if middle -> go to retry label
-                self.read_and_jump(
-                    ro_ch=cfg['ro_ch'],
-                    component='I',
-                    threshold=g_thresh,
-                    test="<",
-                    label=done_label
-                )
-                self.read_and_jump(
-                    ro_ch=cfg['ro_ch'],
-                    component='I',
-                    threshold=e_thresh,
-                    test="<",
-                    label=retry_label
-                )
-
-                # if still right of e here, go to next attempt or done
-                self.jump(next_attempt_label)
-
-                ############ Middle handling ###########
-                self.label(middle_label)
-
-                # measure again without immediately applying pi
-                self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
-                self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
-                self.wait_auto(0.01, gens=True, ros=True)
-                self.resync()
-                self.delay_auto(t=0.01)
-
-                # after remeasure:
-                #   if < g -> done
-                #   if still middle -> retry on next attempt
-                self.read_and_jump(
-                    ro_ch=cfg['ro_ch'],
-                    component='I',
-                    threshold=g_thresh,
-                    test="<",
-                    label=done_label
-                )
-                self.read_and_jump(
-                    ro_ch=cfg['ro_ch'],
-                    component='I',
-                    threshold=e_thresh,
-                    test="<",
-                    label=retry_label
-                )
-
-                # now right of e after the middle recheck -> apply pi once
-                self.pulse(ch=self.cfg["qubit_ch"], name="pi_pulse", t=0)
-                self.delay_auto(t=10)
-
-                # then go to next attempt or done
-                self.jump(next_attempt_label)
-
-                ############ Retry landing pad ###########
-                self.label(retry_label)
-                self.jump(next_attempt_label)
-
-            self.label(done_label)
+            self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+            self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+            self.wait_auto(0.01, gens=True, ros=True)
+            self.resync()
+            self.delay_auto(t=0.01)
+            self.read_and_jump(ro_ch=cfg['ro_ch'],
+                               component='I',
+                               threshold=int(np.round(
+                                   cfg["threshold"] * self.soccfg.us2cycles(cfg['res_length'], ro_ch=cfg['ro_ch']))),
+                               test="<", label=f'skip_reset_{i}')
+            self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)
+            self.delay_auto(t=6)
+            self.label(f'skip_reset_{i}')
+        # n_resets = cfg.get('n_resets', 0)
+            # g_I_center = cfg["g_center"]
+            # e_I_center = cfg["e_center"]
+            #
+            # g_thresh = int(np.round(g_I_center * self.soccfg.us2cycles(cfg['res_length'], ro_ch=cfg['ro_ch'])))
+            # e_thresh = int(np.round(e_I_center * self.soccfg.us2cycles(cfg['res_length'], ro_ch=cfg['ro_ch'])))
+            #
+            # for i in range(n_resets):
+            #     done_label = f"{prefix}_reset_done_{i}"
+            #
+            #     for attempt in range(max_retries):
+            #         middle_label = f"{prefix}_middle_{i}_{attempt}"
+            #         retry_label = f"{prefix}_retry_{i}_{attempt}"
+            #
+            #         # where to go if this attempt does not finish successfully
+            #         if attempt < max_retries - 1:
+            #             next_attempt_label = f"{prefix}_attempt_{i}_{attempt + 1}"
+            #         else:
+            #             next_attempt_label = done_label
+            #
+            #         # label the start of each attempt except the first one
+            #         if attempt > 0:
+            #             self.label(f"{prefix}_attempt_{i}_{attempt}")
+            #
+            #         ############ First measurement ###########
+            #         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+            #         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+            #         self.wait_auto(0.01, gens=True, ros=True)
+            #         self.resync()
+            #         self.delay_auto(t=0.01)
+            #
+            #         # Region 1: confidently g -> done
+            #         self.read_and_jump(
+            #             ro_ch=cfg['ro_ch'],
+            #             component='I',
+            #             threshold=g_thresh,
+            #             test="<",
+            #             label=done_label
+            #         )
+            #
+            #         # Region 2: middle -> middle handling
+            #         self.read_and_jump(
+            #             ro_ch=cfg['ro_ch'],
+            #             component='I',
+            #             threshold=e_thresh,
+            #             test="<",
+            #             label=middle_label
+            #         )
+            #
+            #         ############ Right of e: apply pi, then recheck ###########
+            #         self.pulse(ch=self.cfg["qubit_ch"], name="pi_pulse", t=0)
+            #         self.delay_auto(t=10)
+            #
+            #         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+            #         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+            #         self.wait_auto(0.01, gens=True, ros=True)
+            #         self.resync()
+            #         self.delay_auto(t=0.01)
+            #
+            #         # after pi+measure:
+            #         #   if < g  -> done
+            #         #   if middle -> go to retry label
+            #         self.read_and_jump(
+            #             ro_ch=cfg['ro_ch'],
+            #             component='I',
+            #             threshold=g_thresh,
+            #             test="<",
+            #             label=done_label
+            #         )
+            #         self.read_and_jump(
+            #             ro_ch=cfg['ro_ch'],
+            #             component='I',
+            #             threshold=e_thresh,
+            #             test="<",
+            #             label=retry_label
+            #         )
+            #
+            #         # if still right of e here, go to next attempt or done
+            #         self.jump(next_attempt_label)
+            #
+            #         ############ Middle handling ###########
+            #         self.label(middle_label)
+            #
+            #         # measure again without immediately applying pi
+            #         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+            #         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+            #         self.wait_auto(0.01, gens=True, ros=True)
+            #         self.resync()
+            #         self.delay_auto(t=0.01)
+            #
+            #         # after remeasure:
+            #         #   if < g -> done
+            #         #   if still middle -> retry on next attempt
+            #         self.read_and_jump(
+            #             ro_ch=cfg['ro_ch'],
+            #             component='I',
+            #             threshold=g_thresh,
+            #             test="<",
+            #             label=done_label
+            #         )
+            #         self.read_and_jump(
+            #             ro_ch=cfg['ro_ch'],
+            #             component='I',
+            #             threshold=e_thresh,
+            #             test="<",
+            #             label=retry_label
+            #         )
+            #
+            #         # now right of e after the middle recheck -> apply pi once
+            #         self.pulse(ch=self.cfg["qubit_ch"], name="pi_pulse", t=0)
+            #         self.delay_auto(t=10)
+            #
+            #         # then go to next attempt or done
+            #         self.jump(next_attempt_label)
+            #
+            #         ############ Retry landing pad ###########
+            #         self.label(retry_label)
+            #         self.jump(next_attempt_label)
+            #
+            #     self.label(done_label)
 
     def _body(self, cfg):
         # reset before rabi so we can use a tiny final_delay and still make sure to reset
-        # self._active_reset_block(cfg, prefix="pre", max_retries=3)
+        self._active_reset_block(cfg, prefix="pre", max_retries=3)
+
+        # self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+        # self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+        # self.wait_auto(0.01, gens=True, ros=True)
         # self.resync()
-        # self.delay_auto(t=10)
-
-        self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
-        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
-        self.wait_auto(0.01, gens=True, ros=True)
-        self.resync()
-        self.delay_auto(t=5)
-
-        self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
-        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
-        self.wait_auto(0.01, gens=True, ros=True)
-        self.resync()
-
-        self.delay_auto(t=5)
+        # self.delay_auto(t=5)
+        #
+        # self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+        # self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+        # self.wait_auto(0.01, gens=True, ros=True)
+        # self.resync()
+        #
+        # self.delay_auto(t=5)
         # Rabi pulse
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)
         self.delay_auto(t=0.0, tag='waiting')
 
+        self._active_reset_block(cfg, prefix="pre", max_retries=3)
         # reset after rabi drive to try to drive to 0
         #self._emit_capped_active_reset_block(cfg, prefix="post", max_retries=5)
 

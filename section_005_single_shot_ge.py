@@ -89,7 +89,63 @@ class SingleShotProgram_g(AveragerProgramV2):
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)  # play probe pulse
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
         # relax delay ...
+class SingleShotProgram_g_active_reset(AveragerProgramV2):
+    def _initialize(self, cfg):
+        ro_chs = cfg['ro_ch']
+        res_ch = cfg['res_ch']
+        qubit_ch = cfg['qubit_ch']
 
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
+        self.add_readoutconfig(ch=ro_chs, name="myro",
+                               freq=cfg['res_freq_ge'],
+                               gen_ch=res_ch,
+                               outsel='product')
+        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
+        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_chs,
+                       style="const",
+                       length=cfg["res_length"],
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
+                       )
+        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
+
+        self.add_gauss(ch=qubit_ch, name="ramp", sigma=cfg['sigma'], length=cfg['sigma'] * 4, even_length=False)
+
+        self.add_pulse(ch=qubit_ch, name="qubit_pulse",
+                       style="arb",
+                       envelope="ramp",
+                       freq=cfg['qubit_freq_ge'],
+                       phase=cfg['qubit_phase'],
+                       gain=cfg['pi_amp'],
+                       )
+
+        self.add_loop("shotloop", cfg["steps"])  # number of total shots
+
+    def _active_reset_block(self, cfg):
+        # Active reset
+        n_resets = cfg.get('n_resets', 0)
+        for i in range(n_resets):
+            self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+            self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+            self.wait_auto(0.01, gens=True, ros=True)
+            self.resync()
+            self.delay_auto(t=0.01)
+            self.read_and_jump(ro_ch=cfg['ro_ch'],
+                               component='I',
+                               threshold=int(np.round(
+                                   cfg["threshold"] * self.soccfg.us2cycles(cfg['res_length'], ro_ch=cfg['ro_ch']))),
+                               test="<", label=f'skip_reset_{i}')
+            self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)
+            self.delay_auto(t=6)
+            self.label(f'skip_reset_{i}')
+    def _body(self, cfg):
+        self._active_reset_block(cfg)
+        self.delay_auto(0.01)
+        self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)  # play probe pulse
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 class SingleShotProgram_e(AveragerProgramV2):
     def _initialize(self, cfg):
@@ -124,10 +180,7 @@ class SingleShotProgram_e(AveragerProgramV2):
                        phase=cfg['qubit_phase'],
                        gain=cfg['pi_amp'],
                        )
-        print('cfg[pi_amp]',cfg['pi_amp'])
-        print('cfg[qubit_freq_ge]', cfg['qubit_freq_ge'])
-        print('cfg[res_freq_ge]', cfg['res_freq_ge'])
-        print('cfg[res_gain_ge]', cfg['res_gain_ge'])
+
         self.add_loop("shotloop", cfg["steps"])  # number of total shots
 
     def _body(self, cfg):
@@ -169,40 +222,36 @@ class SingleShotProgram_e_active_reset(AveragerProgramV2):
                        phase=cfg['qubit_phase'],
                        gain=cfg['pi_amp'],
                        )
-        print('cfg[pi_amp]',cfg['pi_amp'])
-        print('cfg[qubit_freq_ge]', cfg['qubit_freq_ge'])
-        print('cfg[res_freq_ge]', cfg['res_freq_ge'])
-        print('cfg[res_gain_ge]', cfg['res_gain_ge'])
         self.add_loop("shotloop", cfg["steps"])  # number of total shots
-
-    def _body(self, cfg):
+    def _active_reset_block(self, cfg, label_addition=''):
         # Active reset
-        n_resets = cfg.get('n_resets', 0)
-        for i in range(n_resets):
-            self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
-            self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
-            self.wait_auto(0.01, gens=True, ros=True)
-            self.resync()
-            self.delay_auto(t=0.01)
-            self.read_and_jump(ro_ch=cfg['ro_ch'],
-                               component='I',
-                               threshold=int(np.round(cfg["threshold"] * self.soccfg.us2cycles(cfg['res_length'], ro_ch=cfg['ro_ch']))),
-                               test="<", label=f'skip_reset_{i}')
-            self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)
-            self.delay_auto(t=6)
-            self.label(f'skip_reset_{i}')
+        self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+        self.wait_auto(0.01, gens=True, ros=True)
+        self.resync()
+        # self.delay_auto(t=0.01)
+        self.read_and_jump(ro_ch=cfg['ro_ch'],
+                           component='I',
+                           threshold=int(np.round(
+                               cfg["threshold"] * self.soccfg.us2cycles(cfg['res_length'], ro_ch=cfg['ro_ch']))),
+                           test="<", label=f'skip_reset_{label_addition}')
+
+        self.label(f'skip_reset_{label_addition}')
+
+        self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)
+        self.delay_auto(t=6)
+    def _body(self, cfg):
+        #self._active_reset_block(cfg)
+        # self.delay_auto(0.01)
 
         # ssf e state
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)
-        self.delay_auto(0.01)
 
-        ################### final readout ##################
+        self.delay_auto(0.01)
+        self._active_reset_block(cfg, label_addition='post')
+
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
-        # self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)  # play pulse
-        # self.delay_auto(0.0)
-        # self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)  # play probe pulse
-        # self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 class SingleShot:
     def __init__(self, QubitIndex, number_of_qubits,  outerFolder, round_num, save_figs=False, experiment = None,
@@ -257,16 +306,22 @@ class SingleShot:
         return fidelity
 
     def run(self,return_thres=False,active_reset=False):
-        ssp_g = SingleShotProgram_g(self.experiment.soccfg, reps=1, final_delay=self.config['relax_delay'], cfg=self.config)
-        iq_list_g = ssp_g.acquire(self.experiment.soc, rounds=1, progress=True)
 
         if active_reset:
-            ssp_e = SingleShotProgram_e_active_reset(self.experiment.soccfg, reps=1, final_delay=50,
+            ssp_g = SingleShotProgram_g_active_reset(self.experiment.soccfg, reps=1, final_delay=1000,
+                                        cfg=self.config)
+            iq_list_g = ssp_g.acquire(self.experiment.soc, rounds=1, progress=True)
+
+            ssp_e = SingleShotProgram_e_active_reset(self.experiment.soccfg, reps=1, final_delay=1000,
                                         cfg=self.config)
             iq_list_e = ssp_e.acquire(self.experiment.soc, rounds=1, progress=True)
             arr = np.asarray(iq_list_e)
             print('iq_list_e shape with active reset: ', arr.shape)
         else:
+            ssp_g = SingleShotProgram_g(self.experiment.soccfg, reps=1, final_delay=self.config['relax_delay'],
+                                        cfg=self.config)
+            iq_list_g = ssp_g.acquire(self.experiment.soc, rounds=1, progress=True)
+
             ssp_e = SingleShotProgram_e(self.experiment.soccfg, reps=1, final_delay=self.config['relax_delay'], cfg=self.config)
             iq_list_e = ssp_e.acquire(self.experiment.soc, rounds=1, progress=True)
             arr=np.asarray(iq_list_e)
@@ -384,8 +439,13 @@ class SingleShot:
             self.create_folder_if_not_exists(outerFolder_expt)
             now = datetime.datetime.now()
             formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
-            file_name = os.path.join(outerFolder_expt,
-                                     f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" + self.expt_name+ f"{formatted_datetime}_"  + f"_q{self.QubitIndex + 1}.png")
+            if active_reset:
+                file_name = os.path.join(outerFolder_expt,
+                                         f"Reset_" + f"Q_{self.QubitIndex + 1}_" + self.expt_name + f"{formatted_datetime}_" + f"_q{self.QubitIndex + 1}.png")
+
+            else:
+                file_name = os.path.join(outerFolder_expt,
+                                         f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" + self.expt_name+ f"{formatted_datetime}_"  + f"_q{self.QubitIndex + 1}.png")
 
             axs[2].set_title(f"Fidelity = {fid * 100:.2f}%")
             fig.savefig(file_name,  dpi=fig_quality, bbox_inches='tight')
