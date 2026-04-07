@@ -46,6 +46,67 @@ class T1Program(AveragerProgramV2):
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
+class T1ProgramActiveReset(AveragerProgramV2):
+    def _initialize(self, cfg):
+        ro_ch = cfg['ro_ch']
+        res_ch = cfg['res_ch']
+        qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
+        self.add_readoutconfig(ch=ro_ch, name="myro",
+                               freq=cfg['res_freq_ge'],
+                               gen_ch=res_ch,
+                               outsel='product')
+        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
+        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
+                       style="const",
+                       length=cfg["res_length"],
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
+                       )
+        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
+        self.add_gauss(ch=qubit_ch, name="ramp", sigma=cfg['sigma'], length=cfg['sigma'] * 4, even_length=False)
+        self.add_pulse(ch=qubit_ch, name="qubit_pulse",
+                       style="arb",
+                       envelope="ramp",
+                       freq=cfg['qubit_freq_ge'],
+                       phase=cfg['qubit_phase'],
+                       gain=cfg['pi_amp'],
+                       )
+        self.add_loop("waitloop", cfg["steps"])
+
+    def _body(self, cfg):
+        # active reset to prep the ground state
+        n_resets = cfg.get('n_resets', 0)
+        for i in range(n_resets):
+            self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+            self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+            self.wait_auto(0.01, gens=True, ros=True)
+            self.resync()
+            self.delay_auto(t=0.01)
+            self.read_and_jump(ro_ch=cfg['ro_ch'],
+                               component='I',
+                               threshold=int(np.round(
+                                   cfg["threshold"] * self.soccfg.us2cycles(cfg['res_length'], ro_ch=cfg['ro_ch']))),
+                               test="<", label=f'skip_reset_{i}')
+            self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)
+            self.delay_auto(t=6)
+            self.label(f'skip_reset_{i}')
+
+        ################# normal T1, excite the qubit ###################
+        self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)
+
+        #wait some delay time
+        self.delay_auto(cfg['wait_time'] + 0.01, tag='wait')
+
+        # readout
+        self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+
+
 class T1Measurement:
     def __init__(self, QubitIndex, number_of_qubits,  outerFolder, round_num, signal, save_figs, experiment = None,
                  live_plot = None, fit_data = None, increase_qubit_reps = False, qubit_to_increase_reps_for = None,
@@ -89,9 +150,14 @@ class T1Measurement:
                 self.config['relax_delay'] = relax_delay
                 print(f'set t1 relax delay to {relax_delay} us')
 
-    def run(self, thresholding=False, scaling=False):
+    def run(self, thresholding=False, scaling=False,active_reset=False):
         now = datetime.datetime.now()
-        t1 = T1Program(self.experiment.soccfg, reps=self.config['reps'], final_delay=self.config['relax_delay'], cfg=self.config)
+        if active_reset:
+            t1 = T1ProgramActiveReset(self.experiment.soccfg, reps=self.config['reps'], final_delay=50,
+                           cfg=self.config)
+
+        else:
+            t1 = T1Program(self.experiment.soccfg, reps=self.config['reps'], final_delay=self.config['relax_delay'], cfg=self.config)
 
         if self.live_plot:
             I, Q, delay_times = self.live_plotting(t1, thresholding)
@@ -103,9 +169,14 @@ class T1Measurement:
             else:
                 iq_list = t1.acquire(self.experiment.soc, rounds=self.config['rounds'], progress=True)
 
-            iq_list = iq_list[0][0].T
-            I = (iq_list[0])
-            Q = (iq_list[1])
+            if active_reset:
+                iq_list = np.array(iq_list[0])
+                I = iq_list[-1, :, 0]
+                Q = iq_list[-1, :, 1]
+            else:
+                iq_list = iq_list[0][0].T
+                I = (iq_list[0])
+                Q = (iq_list[1])
 
             raw_0 = t1.get_raw()  # I,Q data without normalizing to readout window, subtracting readout offset, or rotation/thresholding
             A = np.squeeze(raw_0[0])
@@ -137,7 +208,11 @@ class T1Measurement:
                 q1_fit_exponential, T1_est, T1_err = None, None, None
 
             if self.plot_results:
-                self.plot_results(I, Q, delay_times, now, scaling=scaling, Ie = ss_I_e, Ig = ss_I_g, Qe = ss_Q_e, Qg = ss_Q_g)
+                if active_reset:
+                    self.plot_results(I, Q, delay_times, now, scaling=scaling, Ie=ss_I_e, Ig=ss_I_g, Qe=ss_Q_e,
+                                      Qg=ss_Q_g, active_reset=active_reset)
+                else:
+                    self.plot_results(I, Q, delay_times, now, scaling=scaling, Ie = ss_I_e, Ig = ss_I_g, Qe = ss_Q_e, Qg = ss_Q_g)
             return  T1_est, T1_err, I, Q, delay_times, q1_fit_exponential, self.config, ss_Q_e, ss_Q_g, ss_I_e, ss_I_g, I_shots, Q_shots
         else:
             if self.fit_data:
@@ -239,7 +314,7 @@ class T1Measurement:
         return q1_fit_exponential, T1_err, T1_est, plot_sig
 
     def plot_results(self, I, Q, delay_times, now, config=None, fig_quality=100, scaling=False, Ie=None, Ig=None,
-                     Qe=None, Qg=None):
+                     Qe=None, Qg=None, active_reset=False):
 
         if scaling:
             e = np.mean((Ie + 1j * Qe))
@@ -297,7 +372,10 @@ class T1Measurement:
             # Adjust the top margin to make room for the title
             plt.subplots_adjust(top=0.93)
             if self.save_figs:
-                outerFolder_expt = os.path.join(self.outerFolder, self.expt_name)
+                if active_reset:
+                    outerFolder_expt = os.path.join(self.outerFolder, self.expt_name + 'active_reset')
+                else:
+                    outerFolder_expt = os.path.join(self.outerFolder, self.expt_name)
                 self.create_folder_if_not_exists(outerFolder_expt)
                 now = datetime.datetime.now()
                 formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")

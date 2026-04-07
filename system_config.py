@@ -99,6 +99,8 @@ class QICK_experiment:
             # "res_phase": [0]*6,#[-0.1006 *360/np.pi, -2.412527*360/np.pi, -1.821284*360/np.pi, -1.90962*360/np.pi, -0.566479*360/np.pi, -0.5941687*360/np.pi], # Rotation Angle From QICK Function, is the ang of 10 ss angles per qubit
             "ro_phase": 0,  # Rotation Angle From QICK Function
             "n_resets": 3,
+            "g_center":0,
+            "e_center":0,
             "threshold": 0, #Joyce 3/11
             #"threshold": [7.3961, -12.5812, 4.8613, -7.5323, 7.0689, 4.6805], # Threshold for Distinguish g/e, from QICK Function
             "res_ring_up_time": 4,  # Olivia May 17th

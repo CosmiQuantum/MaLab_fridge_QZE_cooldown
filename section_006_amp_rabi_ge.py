@@ -190,14 +190,14 @@ class AmplitudeRabiExperiment:
                                            final_delay=self.config['relax_delay'], cfg=self.config)
         else:
             amp_rabi = RabiWithActiveReset(self.experiment.soccfg, reps=self.config['reps'],
-                                           final_delay=6, cfg=self.config)#self.config['relax_delay']
+                                           final_delay=50, cfg=self.config)#self.config['relax_delay']
 
         iq_list = amp_rabi.acquire(self.experiment.soc, rounds=self.config["rounds"],
                                    progress=self.qick_verbose)
         iq_list = np.array(iq_list[0])
-        print(iq_list.shape)
-        I = iq_list[-1,:, 0] #iq_list[-1, :, 0]
-        Q = iq_list[-1,:, 1] #iq_list[-1, :, 1]
+
+        I = iq_list[-1,:, 0]
+        Q = iq_list[-1,:, 1]
 
         raw = amp_rabi.get_raw()
         measurement_raw = raw[0][:, :, -1, :]  # (reps, steps, 2) — always the last read
@@ -1979,7 +1979,7 @@ class RabiWithActiveResetControlTest(AveragerProgramV2):
 
         self.add_pulse(ch=qubit_ch, name="qubit_pulse",
                        style="arb",
-                       envelope="ramp_rabi",
+                       envelope="ramp",#_rabi
                        freq=cfg['qubit_freq_ge'],
                        phase=cfg['qubit_phase'],
                        gain=cfg['qubit_gain_ge'])
@@ -2039,7 +2039,7 @@ class RabiWithActiveReset(AveragerProgramV2):
 
         self.add_pulse(ch=qubit_ch, name="qubit_pulse",
                        style="arb",
-                       envelope="ramp_rabi",
+                       envelope="ramp",#_rabi
                        freq=cfg['qubit_freq_ge'],
                        phase=cfg['qubit_phase'],
                        gain=cfg['qubit_gain_ge'])
@@ -2050,94 +2050,382 @@ class RabiWithActiveReset(AveragerProgramV2):
                        freq=cfg['qubit_freq_ge'],
                        phase=cfg['qubit_phase'],
                        gain=cfg['pi_amp'])
-        print(f"threshold being used: {cfg['threshold']}")
         self.add_loop("gainloop", cfg["steps"])
 
     def _body(self, cfg):
+
+        n_resets = cfg.get('n_resets', 0)
+        g_I_center = cfg["g_center"]
+        e_I_center = cfg["e_center"]
+
+        # Convert blob-center I values into the same integrated units used by read_and_jump
+        g_thresh = int(np.round(g_I_center * self.soccfg.us2cycles(cfg['res_length'], ro_ch=cfg['ro_ch'])))
+        e_thresh = int(np.round(e_I_center * self.soccfg.us2cycles(cfg['res_length'], ro_ch=cfg['ro_ch'])))
+
+        for i in range(n_resets):
+            # first measurement
+            self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+            self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+            self.wait_auto(0.01, gens=True, ros=True)
+            self.resync()
+            self.delay_auto(t=0.01)
+
+            # Region 1: left of |g> center --> skip everything
+            # if I < g_thresh: jump to done
+            self.read_and_jump(
+                ro_ch=cfg['ro_ch'],
+                component='I',
+                threshold=g_thresh,
+                test="<",
+                label=f"reset_done_completely_1{i}"
+            )
+
+            # If we are here, then I >= g_thresh.
+            # Now check whether we are between g and e, or to the right of e.
+
+            # Region 2: between g center and e center --> measure again, then redo logic
+            # Region 3: right of e center --> pi, then measure again, then redo logic
+            #
+            # We detect Region 2 by testing I < e_thresh.
+            self.read_and_jump(
+                ro_ch=cfg['ro_ch'],
+                component='I',
+                threshold=e_thresh,
+                test="<",
+                label=f"middle_region_1{i}"
+            )
+
+            # -------- Right of |e> center --------
+            # I >= e_thresh
+            self.pulse(ch=self.cfg["qubit_ch"], name="pi_pulse", t=0)
+            self.delay_auto(t=5)
+
+            # measure again
+            self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+            self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+            self.wait_auto(0.01, gens=True, ros=True)
+            self.resync()
+            self.delay_auto(t=0.01)
+
+            # redo read_and_jump from this new measurement:
+            # if now < g center, we're done
+            self.read_and_jump(
+                ro_ch=cfg['ro_ch'],
+                component='I',
+                threshold=g_thresh,
+                test="<",
+                label=f"reset_done_completely_1{i}"
+            )
+            # if now between g and e, go to middle handling
+            self.read_and_jump(
+                ro_ch=cfg['ro_ch'],
+                component='I',
+                threshold=e_thresh,
+                test="<",
+                label=f"middle_region_retry_1{i}"
+            )
+
+            # still right of e after retry: do another pi+measure+check sequence
+            self.pulse(ch=self.cfg["qubit_ch"], name="pi_pulse", t=0)
+            self.delay_auto(t=5)
+
+            self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+            self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+            self.wait_auto(0.01, gens=True, ros=True)
+            self.resync()
+            self.delay_auto(t=0.01)
+
+            self.read_and_jump(
+                ro_ch=cfg['ro_ch'],
+                component='I',
+                threshold=g_thresh,
+                test="<",
+                label=f"reset_done_completely_1{i}"
+            )
+            self.read_and_jump(
+                ro_ch=cfg['ro_ch'],
+                component='I',
+                threshold=e_thresh,
+                test="<",
+                label=f"middle_region_retry_1{i}"
+            )
+
+            # if still right of e after the second retry, give up and continue
+            self.jump(label=f"reset_done_completely_1{i}")
+
+            # -------- Between |g> center and |e> center --------
+            self.label(f"middle_region_1{i}")
+            # only measure again
+            self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+            self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+            self.wait_auto(0.01, gens=True, ros=True)
+            self.resync()
+            self.delay_auto(t=0.01)
+
+            # redo read_and_jump from this new measurement
+            self.read_and_jump(
+                ro_ch=cfg['ro_ch'],
+                component='I',
+                threshold=g_thresh,
+                test="<",
+                label=f"reset_done_completely_1{i}"
+            )
+            self.read_and_jump(
+                ro_ch=cfg['ro_ch'],
+                component='I',
+                threshold=e_thresh,
+                test="<",
+                label=f"additional_reset_1{i}"
+            )
+
+            # if now right of e after the extra measurement, apply pi once
+            self.pulse(ch=self.cfg["qubit_ch"], name="pi_pulse", t=0)
+            self.delay_auto(t=5)
+            self.jump(label=f"reset_done_completely_1{i}")
+
+            # -------- Came from right branch and landed in middle after retry --------
+            self.label(f"middle_region_retry_1{i}")
+
+            # additional reset block for "still in the middle"
+            self.label(f"additional_reset_1{i}")
+
+            # do one more reset action
+            self.pulse(ch=self.cfg["qubit_ch"], name="pi_pulse", t=0)
+            self.delay_auto(t=5)
+
+            # measure again after additional reset
+            self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+            self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+            self.wait_auto(0.01, gens=True, ros=True)
+            self.resync()
+            self.delay_auto(t=0.01)
+
+            # final recheck after the additional reset
+            self.read_and_jump(
+                ro_ch=cfg['ro_ch'],
+                component='I',
+                threshold=g_thresh,
+                test="<",
+                label=f"reset_done_completely_1{i}"
+            )
+
+            self.read_and_jump(
+                ro_ch=cfg['ro_ch'],
+                component='I',
+                threshold=e_thresh,
+                test="<",
+                label=f"reset_done_completely_1{i}"
+            )
+
+            # if still to the right after the additional reset, just move on
+            self.label(f"reset_done_completely_1{i}")
+
+        # do the rabi pulse
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)
         self.delay_auto(t=0.0, tag='waiting')
+
+        for i in range(n_resets):
+            # first measurement
+            self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+            self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+            self.wait_auto(0.01, gens=True, ros=True)
+            self.resync()
+            self.delay_auto(t=0.01)
+
+            # Region 1: left of |g> center --> skip everything
+            # if I < g_thresh: jump to done
+            self.read_and_jump(
+                ro_ch=cfg['ro_ch'],
+                component='I',
+                threshold=g_thresh,
+                test="<",
+                label=f"reset_done_completely_{i}"
+            )
+
+            # If we are here, then I >= g_thresh.
+            # Now check whether we are between g and e, or to the right of e.
+
+            # Region 2: between g center and e center --> measure again, then redo logic
+            # Region 3: right of e center --> pi, then measure again, then redo logic
+            #
+            # We detect Region 2 by testing I < e_thresh.
+            self.read_and_jump(
+                ro_ch=cfg['ro_ch'],
+                component='I',
+                threshold=e_thresh,
+                test="<",
+                label=f"middle_region_{i}"
+            )
+
+            # -------- Right of |e> center --------
+            # I >= e_thresh
+            self.pulse(ch=self.cfg["qubit_ch"], name="pi_pulse", t=0)
+            self.delay_auto(t=5)
+
+            # measure again
+            self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+            self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+            self.wait_auto(0.01, gens=True, ros=True)
+            self.resync()
+            self.delay_auto(t=0.01)
+
+            # redo read_and_jump from this new measurement:
+            # if now < g center, we're done
+            self.read_and_jump(
+                ro_ch=cfg['ro_ch'],
+                component='I',
+                threshold=g_thresh,
+                test="<",
+                label=f"reset_done_completely_{i}"
+            )
+            # if now between g and e, go to middle handling
+            self.read_and_jump(
+                ro_ch=cfg['ro_ch'],
+                component='I',
+                threshold=e_thresh,
+                test="<",
+                label=f"middle_region_retry_{i}"
+            )
+
+            # still right of e after retry: do another pi+measure+check sequence
+            self.pulse(ch=self.cfg["qubit_ch"], name="pi_pulse", t=0)
+            self.delay_auto(t=5)
+
+            self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+            self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+            self.wait_auto(0.01, gens=True, ros=True)
+            self.resync()
+            self.delay_auto(t=0.01)
+
+            self.read_and_jump(
+                ro_ch=cfg['ro_ch'],
+                component='I',
+                threshold=g_thresh,
+                test="<",
+                label=f"reset_done_completely_{i}"
+            )
+            self.read_and_jump(
+                ro_ch=cfg['ro_ch'],
+                component='I',
+                threshold=e_thresh,
+                test="<",
+                label=f"middle_region_retry_{i}"
+            )
+
+            # if still right of e after the second retry, give up and continue
+            self.jump(label=f"reset_done_completely_{i}")
+
+            # -------- Between |g> center and |e> center --------
+            self.label(f"middle_region_{i}")
+            # only measure again
+            self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+            self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+            self.wait_auto(0.01, gens=True, ros=True)
+            self.resync()
+            self.delay_auto(t=0.01)
+
+            # redo read_and_jump from this new measurement
+            self.read_and_jump(
+                ro_ch=cfg['ro_ch'],
+                component='I',
+                threshold=g_thresh,
+                test="<",
+                label=f"reset_done_completely_{i}"
+            )
+            self.read_and_jump(
+                ro_ch=cfg['ro_ch'],
+                component='I',
+                threshold=e_thresh,
+                test="<",
+                label=f"additional_reset_{i}"
+            )
+
+            # if now right of e after the extra measurement, apply pi once
+            self.pulse(ch=self.cfg["qubit_ch"], name="pi_pulse", t=0)
+            self.delay_auto(t=5)
+            self.jump(label=f"reset_done_completely_{i}")
+
+            # -------- Came from right branch and landed in middle after retry --------
+            self.label(f"middle_region_retry_{i}")
+
+            # additional reset block for "still in the middle"
+            self.label(f"additional_reset_{i}")
+
+            # do one more reset action
+            self.pulse(ch=self.cfg["qubit_ch"], name="pi_pulse", t=0)
+            self.delay_auto(t=5)
+
+            # measure again after additional reset
+            self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+            self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+            self.wait_auto(0.01, gens=True, ros=True)
+            self.resync()
+            self.delay_auto(t=0.01)
+
+            # final recheck after the additional reset
+            self.read_and_jump(
+                ro_ch=cfg['ro_ch'],
+                component='I',
+                threshold=g_thresh,
+                test="<",
+                label=f"reset_done_completely_{i}"
+            )
+
+            self.read_and_jump(
+                ro_ch=cfg['ro_ch'],
+                component='I',
+                threshold=e_thresh,
+                test="<",
+                label=f"reset_done_completely_{i}"
+            )
+
+            # if still to the right after the additional reset, just move on
+            self.label(f"reset_done_completely_{i}")
+
+        # final measurement
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
-        self.wait_auto(6, gens=True, ros=True) #6us for res to ring down completely
-        self.resync()
-        self.read_and_jump(ro_ch=cfg['ro_ch'],
-                           component='I',
-                           threshold=int(np.round(cfg["threshold"]*self.soccfg.us2cycles(cfg['res_length'], ro_ch=cfg['ro_ch']))),
-                           test="<", label='skip everything')
-
-        self.pulse(ch=self.cfg["qubit_ch"], name="pi_pulse", t=0)
-        self.delay_auto(t=0)
-        self.label('skip everything')
-
-        self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)  # play probe pulse
-        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
     # def _body(self, cfg):
-    #     # Here we define a sequence of operations that we will use for each iteration of the loop
-    #     # Drive the qubit:
-    #     self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)
-    #     # Delay
-    #     self.delay_auto(t=0.0, tag='waiting')
-    #     # Readout pulse to look at qubit state
-    #     self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
-    #     self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
-    #
-    #     for i in range(cfg['n_resets']):
-    #         ##################################################
-    #         self.wait_auto(cfg['res_length'] * 2)
-    #         # self.delay_auto(cfg['relax_delay'])
-    #         ########################################################################
+    #     #one reset before the pi pulse to bring to 0 for this experiment
+    #     n_resets1 = 3
+    #     for n in range(n_resets1):
+    #         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+    #         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+    #         self.wait_auto(0.01, gens=True, ros=True)
+    #         self.resync()
+    #         self.delay_auto(t=0.01)
     #         self.read_and_jump(ro_ch=cfg['ro_ch'],
     #                            component='I',
-    #                            threshold=int(cfg['threshold'] * (cfg['res_length'] / 0.026)),
-    #                            test="<", label='skip everything')
-    #
+    #                            threshold=int(np.round(
+    #                                cfg["threshold"] * self.soccfg.us2cycles(cfg['res_length'], ro_ch=cfg['ro_ch']))),
+    #                            test="<", label=f'skip_reset_before_pi{n}')
     #         self.pulse(ch=self.cfg["qubit_ch"], name="pi_pulse", t=0)
-    #         # If more resets, do another readout to check again
-    #         if i < cfg['n_resets'] - 1:
-    #             self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
-    #             self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
-    #     self.label('skip everything')
-    #     ##################################################
-    #     self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)  # play probe pulse
-    #     self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
-
-
-    # def _body(self, cfg):
-    #     n_resets = cfg.get('n_resets', 0)
+    #         self.delay_auto(t=5)
+    #         self.label(f'skip_reset_before_pi{n}')
     #
-    #     self.pulse(ch=cfg['qubit_ch'], name="qubit_pulse", t=0)
-    #     self.delay_auto(t=0.05)
+    #     #do the rabi pulse
+    #     self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)
+    #     self.delay_auto(t=0.0, tag='waiting')
+    #
+    #     #reset it
+    #     n_resets = cfg.get('n_resets', 0)
+    #     for i in range(n_resets):
+    #         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+    #         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+    #         self.wait_auto(0.01, gens=True, ros=True)
+    #         self.resync()
+    #         self.delay_auto(t=0.01)
+    #         self.read_and_jump(ro_ch=cfg['ro_ch'],
+    #                            component='I',
+    #                            threshold=int(np.round(cfg["threshold"] * self.soccfg.us2cycles(cfg['res_length'], ro_ch=cfg['ro_ch']))),
+    #                            test="<", label=f'skip_reset_{i}')
+    #         self.pulse(ch=self.cfg["qubit_ch"], name="pi_pulse", t=0)
+    #         self.delay_auto(t=5)
+    #         self.label(f'skip_reset_{i}')
     #     self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
     #     self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
-    #
-    #     for i in range(n_resets):
-    #         self.wait_auto(t=cfg['res_length']+5)
-    #         #self.delay_auto(t=cfg['res_length'] + 5)
-    #
-    #         self.read_and_jump(
-    #             ro_ch=cfg['ro_ch'],
-    #             component="I",
-    #             threshold=cfg['threshold'],
-    #             test="<",
-    #             label="RESET_DONE",
-    #         )
-    #         self.pulse(ch=cfg['qubit_ch'], name="pi_pulse", t=0)
-    #
-    #         # If more resets, do another readout to check again
-    #         if i < n_resets - 1:
-    #             self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
-    #             self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
-    #
-    #     self.label("RESET_DONE")
-    #
-    #     # self.wait_auto(t=cfg['res_length']+5)
-    #     # self.delay_auto(t=0)
-    #     #self.delay_auto(t=cfg['res_length'] + 5) #wait extra 5 us for resonator ring down
-    #
-    #     # Final measurement readout
-    #     self.pulse(ch=cfg['res_ch'], name="res_pulse") #, t=0
-    #     self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+
 class AmplitudeRabiChevronProgram(AveragerProgramV2):
     def _initialize(self, cfg):
         ro_ch = cfg['ro_ch']

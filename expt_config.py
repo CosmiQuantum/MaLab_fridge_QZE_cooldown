@@ -155,8 +155,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "power_rabi_ge": {
-            "reps": 300,  # 300,
-            "rounds": 10,  # 10,
+            "reps": 200,  # 300,
+            "rounds": 3,  # 10,
             "start": 0,  # [DAC units]
             "stop": 0.8,  # [DAC units]
             "steps": 50,
