@@ -53,7 +53,8 @@ class CKPProgram_g(AveragerProgramV2):
         self.pulse(ch=cfg['qubit_ch'], name="qubit_pulse", t=cfg['qubit_pulse_delay'])  # play qubit pulse with delay
         self.delay(t=cfg['ckp_length'] + cfg[
             'readout_pulse_delay'])  # wait for stark tone to finish and for resonator to reach vacuum
-        self.pulse(ch=cfg['res_ch'], name="readout_pulse", t=cfg['qubit_pulse_delay']) #wait for resonator to reach vacc again
+        self.delay_auto(t=0)
+        self.pulse(ch=cfg['res_ch'], name="res_pulse")
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 class CKPProgram_e(AveragerProgramV2):
@@ -96,6 +97,7 @@ class CKPProgram_e(AveragerProgramV2):
                        gain=cfg['qubit_gain_ge'],
                        )
 
+        self.add_gauss(ch=qubit_ch, name="ramp", sigma=cfg['sigma'], length=cfg['sigma'] * 4, even_length=False)
         self.add_pulse(ch=qubit_ch, name="pi_pulse",
                        style="arb",
                        envelope="ramp",
@@ -109,12 +111,12 @@ class CKPProgram_e(AveragerProgramV2):
     def _body(self, cfg):
         self.pulse(ch=cfg['qubit_ch'], name="pi_pulse") # put qubit in e
         self.delay_auto()
-        self.pulse(ch=self.cfg['res_ch'], name="stark_tone", t=0)  # play stark tone
+        self.pulse(ch=self.cfg['res_ch'], name="stark_tone")  # play stark tone
         self.pulse(ch=cfg['qubit_ch'], name="qubit_pulse", t=cfg['qubit_pulse_delay'])  # play qubit pulse with delay
         self.delay(t=cfg['ckp_length'] + cfg[
             'readout_pulse_delay'])  # wait for stark tone to finish and for resonator to reach vacuum
-        self.pulse(ch=cfg['res_ch'], name="readout_pulse",
-                   t=cfg['qubit_pulse_delay'])  # wait for resonator to reach vacc again
+        self.delay_auto(t=0)
+        self.pulse(ch=cfg['res_ch'], name="res_pulse")
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 class CKPMeasurement:
@@ -184,23 +186,23 @@ class CKPMeasurement:
                     cfg=self.config
                 )
 
-                # acquire |g>
                 iq_list_g = ckp_g.acquire(
                     self.experiment.soc,
                     rounds=self.config['rounds'],
                     progress=self.qick_verbose
                 )
-                i0_g = iq_list_g[self.QubitIndex][0, :, 0]
-                q0_g = iq_list_g[self.QubitIndex][0, :, 1]
+                iqg = iq_list_g[0][0].T
+                i0_g = iqg[0]
+                q0_g = iqg[1]
 
-                # acquire |e>
                 iq_list_e = ckp_e.acquire(
                     self.experiment.soc,
                     rounds=self.config['rounds'],
                     progress=self.qick_verbose
                 )
-                i0_e = iq_list_e[self.QubitIndex][0, :, 0]
-                q0_e = iq_list_e[self.QubitIndex][0, :, 1]
+                iqe = iq_list_e[0][0].T
+                i0_e = iqe[0]
+                q0_e = iqe[1]
 
                 # append IQ vectors (over qubit-freq sweep) at the innermost level
                 Ig_per_gain.append(i0_g)
@@ -221,15 +223,96 @@ class CKPMeasurement:
             I_e_nested.append(Ie_per_gain)
             Q_e_nested.append(Qe_per_gain)
 
-        # I_g_nested[g_idx][f_idx] -> np.array of I over qubit-freq points
-        # Q_g_nested[g_idx][f_idx] -> np.array of Q over qubit-freq points
-        # I_e_nested[g_idx][f_idx] -> np.array of I over qubit-freq points
-        # Q_e_nested[g_idx][f_idx] -> np.array of Q over qubit-freq points
-        # qu_freq_sweep            -> np.array of the qubit frequency axis (innermost)
-        # sweep_points             -> list of (gain, res_freq) for each (g,f) in iteration order
+        if self.save_figs:
+            mid_gain_index = len(gain_sweep) // 2
+            save_path = os.path.join(
+                self.outerFolder,
+                f"Q{self.QubitIndex + 1}_ckp_slice_gain_{mid_gain_index}.png"
+            )
+            self.plot_ckp_slice(
+                I_g_nested, Q_g_nested, I_e_nested, Q_e_nested,
+                qu_freq_sweep, gain_sweep, res_freq_sweep,
+                gain_index=mid_gain_index,
+                save_path=save_path,
+                show=False
+            )
 
         return (I_g_nested, Q_g_nested, I_e_nested, Q_e_nested, qu_freq_sweep, gain_sweep, res_freq_sweep, sweep_points, self.config)
 
+    def plot_ckp_slice(self, I_g_nested, Q_g_nested, I_e_nested, Q_e_nested,
+                       qu_freq_sweep, gain_sweep, res_freq_sweep,
+                       gain_index=0, save_path=None, show=False):
+        """
+        Plot one CKP slice at a fixed resonator gain.
+        x-axis: qubit spectroscopy frequency
+        y-axis: resonator CKP drive frequency
+        color: magnitude sqrt(I^2 + Q^2)
+        """
+
+        import os
+        import numpy as np
+        import matplotlib.pyplot as plt
+
+        # shape: [res_freq_idx][qubit_freq_idx]
+        Ig = np.array(I_g_nested[gain_index])
+        Qg = np.array(Q_g_nested[gain_index])
+        Ie = np.array(I_e_nested[gain_index])
+        Qe = np.array(Q_e_nested[gain_index])
+
+        mag_g = np.sqrt(Ig ** 2 + Qg ** 2)
+        mag_e = np.sqrt(Ie ** 2 + Qe ** 2)
+        mag_diff = mag_e - mag_g
+
+        fig, axes = plt.subplots(1, 3, figsize=(16, 4), constrained_layout=True)
+
+        extent = [
+            qu_freq_sweep[0], qu_freq_sweep[-1],
+            res_freq_sweep[0], res_freq_sweep[-1]
+        ]
+
+        im0 = axes[0].imshow(
+            mag_g,
+            aspect='auto',
+            origin='lower',
+            extent=extent
+        )
+        axes[0].set_title(f'|g> prep, gain={gain_sweep[gain_index]:.3f}')
+        axes[0].set_xlabel('Qubit probe frequency')
+        axes[0].set_ylabel('Resonator CKP frequency')
+        fig.colorbar(im0, ax=axes[0])
+
+        im1 = axes[1].imshow(
+            mag_e,
+            aspect='auto',
+            origin='lower',
+            extent=extent
+        )
+        axes[1].set_title(f'|e> prep, gain={gain_sweep[gain_index]:.3f}')
+        axes[1].set_xlabel('Qubit probe frequency')
+        axes[1].set_ylabel('Resonator CKP frequency')
+        fig.colorbar(im1, ax=axes[1])
+
+        im2 = axes[2].imshow(
+            mag_diff,
+            aspect='auto',
+            origin='lower',
+            extent=extent
+        )
+        axes[2].set_title('|e|-|g| contrast')
+        axes[2].set_xlabel('Qubit probe frequency')
+        axes[2].set_ylabel('Resonator CKP frequency')
+        fig.colorbar(im2, ax=axes[2])
+
+        if save_path is not None:
+            folder = os.path.dirname(save_path)
+            if folder:
+                self.create_folder_if_not_exists(folder)
+            plt.savefig(save_path, dpi=200, bbox_inches='tight')
+
+        if show:
+            plt.show()
+        else:
+            plt.close(fig)
     def set_res_gain_ge(self, QUBIT_INDEX, num_qubits=6):
         """Sets the gain for the selected qubit to 1, others to 0."""
         res_gain_ge = [0] * num_qubits  # Initialize all gains to 0

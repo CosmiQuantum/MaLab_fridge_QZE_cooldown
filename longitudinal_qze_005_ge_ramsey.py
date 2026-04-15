@@ -52,7 +52,7 @@ run_name = 'bob_run_started_Feb_11'
 device_name = 'squill'
 substudy_txt_notes = ('script longitudinal_qze_005_ge_ramsey.py')
 
-study = '2d_more_stats'
+study = '2d_more_stats2'
 
 ################################################ optimization outputs ##################################################
 # Optimization parameters for resonator spectroscopy

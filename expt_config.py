@@ -333,26 +333,33 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "wait_time": 0.0,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
-        "ckp_nbar_calibration":{
-            "reps": 20,
-            "rounds": 300,
+        "ckp_nbar_calibration": {
+            "reps": 30,
+            "rounds": 1,
             "list_of_all_qubits": list_of_all_qubits,
-            "qubit_pulse_delay": 5,  # [us] time to wait for qubit pulse after stark tone is sent
-            "stark_length": 19,  # [us] stark tone length for 2D scan, overlaps qubit pulse
-            "gain_steps": 20,
+            "qubit_pulse_delay": 5,
+            "ckp_length": 10,
+
+            "gain_steps": 8,
             "start_gain": 0.00,
-            "end_gain": 1.0,  # res gain values between -1 and 1
-            "qubit_pulse_steps": 500,
-            "res_freq_steps": 20,
+            "end_gain": 1.0,
+
+            "qubit_pulse_steps": 150,
+
+            "res_freq_steps": 8,
             "res_freq_start": 0.00,
             "res_freq_stop": 1.0,
-            "start_freq": -55,  # -35, #[MHz] from qubit freq
-            "end_freq": 4,  # 3, # [MHz] from qubit freq
-            "readout_pulse_delay": 5,  # 2/kappa
+
+            "start_freq": -55,
+            "end_freq": 4,
+
+            "readout_pulse_delay": 5,
             "ckp_gain": [],
             "res_freq_ckp": [],
             "res_phase_ckp": [],
             "ckp_mask": [],
+
+            "relax_delay": 500,
         },
         "res_stark_shift_2D": {
             "reps": 30,
