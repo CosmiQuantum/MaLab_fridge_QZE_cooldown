@@ -338,7 +338,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "rounds": 1,
             "list_of_all_qubits": list_of_all_qubits,
             "qubit_pulse_delay": 5,
-            "ckp_length": 10,
+            "ckp_length": 25,
 
             "gain_steps": 8,
             "start_gain": 0.00,

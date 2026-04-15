@@ -51,9 +51,9 @@ class CKPProgram_g(AveragerProgramV2):
     def _body(self, cfg):
         self.pulse(ch=self.cfg['res_ch'], name="stark_tone", t=0)  # play stark tone
         self.pulse(ch=cfg['qubit_ch'], name="qubit_pulse", t=cfg['qubit_pulse_delay'])  # play qubit pulse with delay
-        self.delay(t=cfg['ckp_length'] + cfg[
-            'readout_pulse_delay'])  # wait for stark tone to finish and for resonator to reach vacuum
         self.delay_auto(t=0)
+        self.delay_auto(t=cfg[
+            'readout_pulse_delay'])  # wait for stark tone to finish and for resonator to reach vacuum
         self.pulse(ch=cfg['res_ch'], name="res_pulse")
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
@@ -113,9 +113,9 @@ class CKPProgram_e(AveragerProgramV2):
         self.delay_auto()
         self.pulse(ch=self.cfg['res_ch'], name="stark_tone")  # play stark tone
         self.pulse(ch=cfg['qubit_ch'], name="qubit_pulse", t=cfg['qubit_pulse_delay'])  # play qubit pulse with delay
-        self.delay(t=cfg['ckp_length'] + cfg[
-            'readout_pulse_delay'])  # wait for stark tone to finish and for resonator to reach vacuum
         self.delay_auto(t=0)
+        self.delay_auto(t=cfg[
+            'readout_pulse_delay'])
         self.pulse(ch=cfg['res_ch'], name="res_pulse")
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
