@@ -87,7 +87,7 @@ class CKPProgram_e(AveragerProgramV2):
                        )
 
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
-
+        self.add_gauss(ch=qubit_ch, name="ramp", sigma=cfg['sigma'], length=cfg['sigma'] * 4, even_length=False)
         self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch,
                        style="const",
                        length=cfg['qubit_length_ge'],
@@ -97,7 +97,6 @@ class CKPProgram_e(AveragerProgramV2):
                        gain=cfg['qubit_gain_ge'],
                        )
 
-        self.add_gauss(ch=qubit_ch, name="ramp", sigma=cfg['sigma'], length=cfg['sigma'] * 4, even_length=False)
         self.add_pulse(ch=qubit_ch, name="pi_pulse",
                        style="arb",
                        envelope="ramp",
@@ -110,7 +109,7 @@ class CKPProgram_e(AveragerProgramV2):
 
     def _body(self, cfg):
         self.pulse(ch=cfg['qubit_ch'], name="pi_pulse") # put qubit in e
-        self.delay_auto()
+        self.delay_auto(t=0)
         self.pulse(ch=self.cfg['res_ch'], name="stark_tone")  # play stark tone
         self.pulse(ch=cfg['qubit_ch'], name="qubit_pulse", t=cfg['qubit_pulse_delay'])  # play qubit pulse with delay
         self.delay_auto(t=0)
@@ -151,8 +150,29 @@ class CKPMeasurement:
     def run(self):
         now = datetime.datetime.now()
 
+        from section_005_single_shot_ge import SingleShotProgram_g, SingleShotProgram_e
+        q_config = all_qubit_state(self.experiment, self.number_of_qubits)
+        ss_exp_cfg = add_qubit_experiment(expt_cfg, 'Readout_Optimization', self.QubitIndex)
+        ss_config = {**q_config[self.Qubit], **ss_exp_cfg}
+        print('performing single shot for g-e calibration')
+
+        ssp_g = SingleShotProgram_g(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'], cfg=ss_config)
+        iq_list_g = ssp_g.acquire(self.experiment.soc, rounds=1, progress=True)
+
+        ssp_e = SingleShotProgram_e(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'], cfg=ss_config)
+        iq_list_e = ssp_e.acquire(self.experiment.soc, rounds=1, progress=True)
+
+        ss_I_g = iq_list_g[0][0].T[0]
+        ss_Q_g = iq_list_g[0][0].T[1]
+        ss_I_e = iq_list_e[0][0].T[0]
+        ss_Q_e = iq_list_e[0][0].T[1]
+
         gain_sweep = np.linspace(self.config["start_gain"], self.config["end_gain"],num=self.config["gain_steps"])
         res_freq_sweep = np.linspace(self.config["res_freq_start"], self.config["res_freq_stop"], num=self.config["res_freq_steps"])
+
+        self.config["qubit_length_ge"] = 0.1
+        self.config["qubit_gain_ge"] = 0.6
+        self.config["ckp_length"] = self.config["qubit_pulse_delay"] + self.config["ckp_length"]
 
         I_g_nested = []  # [gain][res_freq][IQ over qubit-freq sweep]
         Q_g_nested = []
@@ -224,24 +244,119 @@ class CKPMeasurement:
             Q_e_nested.append(Qe_per_gain)
 
         if self.save_figs:
-            mid_gain_index = len(gain_sweep) // 2
-            save_path = os.path.join(
-                self.outerFolder,
-                f"Q{self.QubitIndex + 1}_ckp_slice_gain_{mid_gain_index}.png"
-            )
-            self.plot_ckp_slice(
+            ro_gain = self.config['res_gain_ge']
+            if isinstance(ro_gain, (list, tuple, np.ndarray)):
+                ro_gain = ro_gain[self.QubitIndex]
+            ro_gain = float(ro_gain)
+            gain_index = int(np.argmin(np.abs(gain_sweep - ro_gain)))
+
+            self.plot_ckp_debug_curves(
                 I_g_nested, Q_g_nested, I_e_nested, Q_e_nested,
                 qu_freq_sweep, gain_sweep, res_freq_sweep,
-                gain_index=mid_gain_index,
-                save_path=save_path,
+                gain_index=gain_index,
+                save_path=os.path.join(self.outerFolder, f"Q{self.QubitIndex + 1}_ckp_debug_curves.png"),
                 show=False
+            )
+            save_path = os.path.join(
+                self.outerFolder,
+                f"Q{self.QubitIndex + 1}_ckp_fig2_style.png"
+            )
+            self.plot_ckp_fig2_style(
+                I_g_nested, Q_g_nested, I_e_nested, Q_e_nested,
+                qu_freq_sweep, gain_sweep, res_freq_sweep,
+                ss_I_g=ss_I_g, ss_Q_g=ss_Q_g,
+                ss_I_e=ss_I_e, ss_Q_e=ss_Q_e,
+                gain_index=gain_index,
+                save_path=save_path,
+                show=False,
+                target_gain=ro_gain
             )
 
         return (I_g_nested, Q_g_nested, I_e_nested, Q_e_nested, qu_freq_sweep, gain_sweep, res_freq_sweep, sweep_points, self.config)
 
+    def iq_to_pe(self, I, Q, g_ref, e_ref, clip=True):
+        """
+        Convert IQ data to calibrated excited-state probability using
+        projection onto the g->e axis in IQ space.
+        """
+        Z = np.asarray(I) + 1j * np.asarray(Q)
+        denom = np.abs(e_ref - g_ref) ** 2
+
+        if denom == 0:
+            pe = np.zeros_like(np.asarray(I), dtype=float)
+        else:
+            pe = np.real(((Z - g_ref) * np.conj(e_ref - g_ref)) / denom)
+
+        if clip:
+            pe = np.clip(pe, 0.0, 1.0)
+
+        return pe
+
+    def extract_peak_centers(self, flip_map, qu_freq_sweep):
+        """
+        For each resonator-frequency row, find the qubit frequency where
+        flip probability is largest. Uses a small quadratic interpolation
+        around the max when possible.
+        """
+        centers = []
+        x = np.asarray(qu_freq_sweep, dtype=float)
+
+        for row in np.asarray(flip_map):
+            idx = int(np.argmax(row))
+
+            if 0 < idx < len(x) - 1:
+                xs = x[idx - 1: idx + 2]
+                ys = row[idx - 1: idx + 2]
+
+                try:
+                    a, b, c = np.polyfit(xs, ys, 2)
+                    if abs(a) > 1e-15:
+                        xv = -b / (2 * a)
+                        if xs[0] <= xv <= xs[-1]:
+                            centers.append(xv)
+                        else:
+                            centers.append(x[idx])
+                    else:
+                        centers.append(x[idx])
+                except Exception:
+                    centers.append(x[idx])
+            else:
+                centers.append(x[idx])
+
+        return np.array(centers)
+
+    def lorentzian_dip(self, x, x0, depth, width, offset):
+        return offset - depth / (1.0 + ((x - x0) / width) ** 2)
+
+    def fit_branch_curve(self, x, y):
+        """
+        Smooth fit for extracted branch centers vs resonator drive frequency.
+        """
+        try:
+            p0 = [x[np.argmin(y)], np.max(y) - np.min(y), 0.002, np.max(y)]
+            popt, _ = curve_fit(self.lorentzian_dip, x, y, p0=p0, maxfev=10000)
+            return self.lorentzian_dip(x, *popt)
+        except Exception:
+            return None
+    def get_closest_gain_index(self, gain_sweep):
+        """
+        Find the CKP sweep gain closest to the normal readout gain for this qubit.
+        """
+        ro_gain = self.config['res_gain_ge']
+
+        # handle either scalar or per-qubit list/array
+        if isinstance(ro_gain, (list, tuple, np.ndarray)):
+            ro_gain = ro_gain[self.QubitIndex]
+
+        ro_gain = float(ro_gain)
+        gain_sweep = np.array(gain_sweep, dtype=float)
+
+        gain_index = int(np.argmin(np.abs(gain_sweep - ro_gain)))
+        return gain_index, ro_gain
+
     def plot_ckp_slice(self, I_g_nested, Q_g_nested, I_e_nested, Q_e_nested,
                        qu_freq_sweep, gain_sweep, res_freq_sweep,
-                       gain_index=0, save_path=None, show=False):
+                       gain_index=0, save_path=None, show=False, target_gain=None):
         """
         Plot one CKP slice at a fixed resonator gain.
         x-axis: qubit spectroscopy frequency
@@ -302,6 +417,199 @@ class CKPMeasurement:
         axes[2].set_xlabel('Qubit probe frequency')
         axes[2].set_ylabel('Resonator CKP frequency')
         fig.colorbar(im2, ax=axes[2])
+
+        selected_gain = gain_sweep[gain_index]
+
+        if target_gain is None:
+            gain_label = f"{selected_gain:.3f}"
+        else:
+            gain_label = f"{selected_gain:.3f} (closest to ro gain {target_gain:.3f})"
+
+        axes[0].set_title(f'|g> prep, gain={gain_label}')
+        axes[1].set_title(f'|e> prep, gain={gain_label}')
+        axes[2].set_title('|e|-|g| contrast')
+
+
+
+        if save_path is not None:
+            folder = os.path.dirname(save_path)
+            if folder:
+                self.create_folder_if_not_exists(folder)
+            plt.savefig(save_path, dpi=200, bbox_inches='tight')
+
+        if show:
+            plt.show()
+        else:
+            plt.close(fig)
+
+    def plot_ckp_fig2_style(self, I_g_nested, Q_g_nested, I_e_nested, Q_e_nested,
+                            qu_freq_sweep, gain_sweep, res_freq_sweep,
+                            ss_I_g, ss_Q_g, ss_I_e, ss_Q_e,
+                            gain_index=0, save_path=None, show=False, target_gain=None):
+
+        import os
+        import numpy as np
+        import matplotlib.pyplot as plt
+
+        # fixed-gain slice: shape [res_freq_idx, qubit_freq_idx]
+        Ig = np.array(I_g_nested[gain_index], dtype=float)
+        Qg = np.array(Q_g_nested[gain_index], dtype=float)
+        Ie = np.array(I_e_nested[gain_index], dtype=float)
+        Qe = np.array(Q_e_nested[gain_index], dtype=float)
+
+        # single-shot calibration points
+        g_ref = np.mean(np.asarray(ss_I_g) + 1j * np.asarray(ss_Q_g))
+        e_ref = np.mean(np.asarray(ss_I_e) + 1j * np.asarray(ss_Q_e))
+
+        # calibrated excited-state probability
+        pe_gprep = self.iq_to_pe(Ig, Qg, g_ref, e_ref, clip=True)
+        pe_eprep = self.iq_to_pe(Ie, Qe, g_ref, e_ref, clip=True)
+
+        # convert to flip probability
+        # start in |0> -> flip means ending in |1>
+        flip_g = pe_gprep
+
+        # start in |1> -> flip means ending in |0>
+        flip_e = 1.0 - pe_eprep
+        flip_e = np.clip(flip_e, 0.0, 1.0)
+
+        # extract branch centers row-by-row
+        g_centers = self.extract_peak_centers(flip_g, qu_freq_sweep)
+        e_centers = self.extract_peak_centers(flip_e, qu_freq_sweep)
+
+        # smooth curves
+        g_fit = self.fit_branch_curve(res_freq_sweep, g_centers)
+        e_fit = self.fit_branch_curve(res_freq_sweep, e_centers)
+
+        fig = plt.figure(figsize=(7.0, 8.6))
+        gs = fig.add_gridspec(
+            4, 1,
+            height_ratios=[0.16, 1.0, 1.0, 0.9],
+            hspace=0.12
+        )
+
+        cax = fig.add_subplot(gs[0])
+        ax0 = fig.add_subplot(gs[1])
+        ax1 = fig.add_subplot(gs[2], sharex=ax0)
+        ax2 = fig.add_subplot(gs[3], sharex=ax0)
+
+        extent = [
+            res_freq_sweep[0], res_freq_sweep[-1],
+            qu_freq_sweep[0], qu_freq_sweep[-1]
+        ]
+
+        # top panel: |0>
+
+        ax0.plot(res_freq_sweep, g_centers, 'o', ms=4, mfc='white', mec='white')
+        # if g_fit is not None:
+        #     ax0.plot(res_freq_sweep, g_fit, '-', lw=2.5, color='tab:orange')
+        ax0.text(0.16, 0.18, r'$|0\rangle$', transform=ax0.transAxes, fontsize=18, color='blue')
+
+        X, Y = np.meshgrid(res_freq_sweep, qu_freq_sweep)
+
+        im0 = ax0.pcolormesh(
+            X, Y, flip_g.T,
+            shading='nearest',
+            vmin=0.0,
+            vmax=1.0
+        )
+
+        im1 = ax1.pcolormesh(
+            X, Y, flip_e.T,
+            shading='nearest',
+            vmin=0.0,
+            vmax=1.0
+        )
+
+        ax1.plot(res_freq_sweep, e_centers, 'o', ms=4, mfc='white', mec='white')
+        # if e_fit is not None:
+        #     ax1.plot(res_freq_sweep, e_fit, '-', lw=2.5, color='tab:orange')
+        ax1.text(0.16, 0.18, r'$|1\rangle$', transform=ax1.transAxes, fontsize=18, color='red')
+
+        # bottom panel: extracted branches
+        ax2.plot(res_freq_sweep, g_centers, 'o-', lw=2, ms=4, color='blue', label=r'$|0\rangle$')
+        ax2.plot(res_freq_sweep, e_centers, 'o-', lw=2, ms=4, color='red', label=r'$|1\rangle$')
+        ax2.legend(loc='lower left', fontsize=12)
+
+        # labels
+        ax1.set_ylabel("Qubit pulse frequency")
+        ax2.set_ylabel("Qubit pulse frequency")
+        ax2.set_xlabel("Resonator drive frequency")
+
+        plt.setp(ax0.get_xticklabels(), visible=False)
+        plt.setp(ax1.get_xticklabels(), visible=False)
+
+        # shared colorbar on top
+        cbar = fig.colorbar(im0, cax=cax, orientation='horizontal')
+        cax.xaxis.set_ticks_position('top')
+        cax.xaxis.set_label_position('top')
+        cbar.set_label("Flip probability")
+
+        selected_gain = gain_sweep[gain_index]
+        if target_gain is None:
+            fig.suptitle(f"CKP slice at gain = {selected_gain:.3f}", y=0.995)
+        else:
+            fig.suptitle(
+                f"CKP slice at gain = {selected_gain:.3f} (closest to ro gain {target_gain:.3f})",
+                y=0.995
+            )
+
+        if save_path is not None:
+            folder = os.path.dirname(save_path)
+            if folder:
+                self.create_folder_if_not_exists(folder)
+            fig.savefig(save_path, dpi=200, bbox_inches='tight')
+
+        if show:
+            plt.show()
+        else:
+            plt.close(fig)
+
+    def plot_ckp_debug_curves(self, I_g_nested, Q_g_nested, I_e_nested, Q_e_nested,
+                              qu_freq_sweep, gain_sweep, res_freq_sweep,
+                              gain_index=0, res_indices=None, save_path=None, show=False):
+        import os
+        import numpy as np
+        import matplotlib.pyplot as plt
+
+        if res_indices is None:
+            n = len(res_freq_sweep)
+            res_indices = sorted(set([0, n // 2, n - 1]))
+
+        fig, axes = plt.subplots(2, 3, figsize=(15, 8), sharex=True)
+        axes = np.array(axes)
+
+        for ridx in res_indices:
+            Ig = np.array(I_g_nested[gain_index][ridx], dtype=float)
+            Qg = np.array(Q_g_nested[gain_index][ridx], dtype=float)
+            Ie = np.array(I_e_nested[gain_index][ridx], dtype=float)
+            Qe = np.array(Q_e_nested[gain_index][ridx], dtype=float)
+
+            Mg = np.sqrt(Ig ** 2 + Qg ** 2)
+            Me = np.sqrt(Ie ** 2 + Qe ** 2)
+
+            label = f"f_res={res_freq_sweep[ridx]:.4f}"
+
+            axes[0, 0].plot(qu_freq_sweep, Ig, label=label)
+            axes[0, 1].plot(qu_freq_sweep, Qg, label=label)
+            axes[0, 2].plot(qu_freq_sweep, Mg, label=label)
+
+            axes[1, 0].plot(qu_freq_sweep, Ie, label=label)
+            axes[1, 1].plot(qu_freq_sweep, Qe, label=label)
+            axes[1, 2].plot(qu_freq_sweep, Me, label=label)
+
+        axes[0, 0].set_title("|0> prep: I")
+        axes[0, 1].set_title("|0> prep: Q")
+        axes[0, 2].set_title("|0> prep: |IQ|")
+        axes[1, 0].set_title("|1> prep: I")
+        axes[1, 1].set_title("|1> prep: Q")
+        axes[1, 2].set_title("|1> prep: |IQ|")
+
+        for ax in axes.ravel():
+            ax.set_xlabel("Qubit probe frequency")
+            ax.legend(fontsize=8)
+
+        plt.tight_layout()
 
         if save_path is not None:
             folder = os.path.dirname(save_path)

@@ -408,9 +408,76 @@ for QubitIndex in Qs_to_look_at:
         #
         # # if verbose: print('corrected g-e Pi amplitude for qubit ', QubitIndex + 1, ' is: ', float(pi_amp))
         # del rabi
+        ##################### g-e Single Shot Measurement, get the rotation angle and update config ########################
+        ss_data = create_data_dict(ss_keys, save_r, list_of_all_qubits)
+        ss = SingleShot(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j, save_figs, experiment=experiment,
+                        verbose=verbose, logger=rr_logger, unmasking_resgain=unmask)
+        fid, angle, iq_list_g, iq_list_e, sys_config_ss = ss.run()
+        I_g = iq_list_g[0][0].T[0]
+        Q_g = iq_list_g[0][0].T[1]
+        I_e = iq_list_e[0][0].T[0]
+        Q_e = iq_list_e[0][0].T[1]
 
+        theta = -np.arctan2(np.median(Q_e) - np.median(Q_g),
+                            np.median(I_e) - np.median(I_g))
 
-        ################### calibrate ################
+        # update config ro_phase to rotate blobs onto I  for future experiments below this
+        experiment.readout_cfg['ro_phase'] = np.degrees(theta)
+
+        ss_data[QubitIndex]['Fidelity'][j - batch_num * save_r - 1] = fid
+        ss_data[QubitIndex]['Angle'][j - batch_num * save_r - 1] = angle
+        ss_data[QubitIndex]['Dates'][j - batch_num * save_r - 1] = (
+            time.mktime(datetime.datetime.now().timetuple()))
+        ss_data[QubitIndex]['I_g'][j - batch_num * save_r - 1] = I_g
+        ss_data[QubitIndex]['Q_g'][j - batch_num * save_r - 1] = Q_g
+        ss_data[QubitIndex]['I_e'][j - batch_num * save_r - 1] = I_e
+        ss_data[QubitIndex]['Q_e'][j - batch_num * save_r - 1] = Q_e
+        ss_data[QubitIndex]['Round Num'][j - batch_num * save_r - 1] = j
+        ss_data[QubitIndex]['Batch Num'][j - batch_num * save_r - 1] = batch_num
+        ss_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = expt_cfg
+        ss_data[QubitIndex]['Syst Config'][j - batch_num * save_r - 1] = sys_config_ss
+
+        saver_ss = Data_H5(subStudyDataFolder, ss_data, batch_num, save_r)
+        saver_ss.save_to_h5('ss_ge_unpre_rotated')
+        del saver_ss
+        del ss_data
+        del ss
+
+        ##################### g-e Single Shot Measurement, should be rotated all into I ########################
+        ss_data = create_data_dict(ss_keys, save_r, list_of_all_qubits)
+        ss = SingleShot(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j, save_figs, experiment=experiment,
+                        verbose=verbose, logger=rr_logger, unmasking_resgain=unmask)
+        fid, angle, iq_list_g, iq_list_e, sys_config_ss, thresh, g_center, e_center = ss.run(return_thres=True)
+        I_g = iq_list_g[0][0].T[0]
+        Q_g = iq_list_g[0][0].T[1]
+        I_e = iq_list_e[0][0].T[0]
+        Q_e = iq_list_e[0][0].T[1]
+
+        experiment.readout_cfg['threshold'] = thresh
+        experiment.readout_cfg['g_center'] = g_center[0]  # 0 is I, 1 is Q
+        experiment.readout_cfg['e_center'] = e_center[0]
+        print(thresh, e_center, g_center)
+
+        ss_data[QubitIndex]['Fidelity'][j - batch_num * save_r - 1] = fid
+        ss_data[QubitIndex]['Angle'][j - batch_num * save_r - 1] = angle
+        ss_data[QubitIndex]['Dates'][j - batch_num * save_r - 1] = (
+            time.mktime(datetime.datetime.now().timetuple()))
+        ss_data[QubitIndex]['I_g'][j - batch_num * save_r - 1] = I_g
+        ss_data[QubitIndex]['Q_g'][j - batch_num * save_r - 1] = Q_g
+        ss_data[QubitIndex]['I_e'][j - batch_num * save_r - 1] = I_e
+        ss_data[QubitIndex]['Q_e'][j - batch_num * save_r - 1] = Q_e
+        ss_data[QubitIndex]['Round Num'][j - batch_num * save_r - 1] = j
+        ss_data[QubitIndex]['Batch Num'][j - batch_num * save_r - 1] = batch_num
+        ss_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = expt_cfg
+        ss_data[QubitIndex]['Syst Config'][j - batch_num * save_r - 1] = sys_config_ss
+
+        saver_ss = Data_H5(subStudyDataFolder, ss_data, batch_num, save_r)
+        saver_ss.save_to_h5('ss_ge_phase_fixed')
+        del saver_ss
+        del ss_data
+        del ss
+
+        ################### ckp ################
         ckp_keys = ['Dates', 'I_e', 'Q_e','I_g', 'Q_g', 'Qu Frequency Sweep', 'Res Gain Sweep', 'Res Freq Sweep in order', 'Round Num', 'Batch Num',
                         'Exp Config',
                         'Syst Config']

@@ -334,32 +334,33 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "list_of_all_qubits": list_of_all_qubits,
         },
         "ckp_nbar_calibration": {
-            "reps": 30,
+            "reps": 300,#500,
             "rounds": 1,
             "list_of_all_qubits": list_of_all_qubits,
-            "qubit_pulse_delay": 5,
-            "ckp_length": 25,
 
-            "gain_steps": 8,
-            "start_gain": 0.00,
-            "end_gain": 1.0,
+            "gain_steps": 1,#10,
+            "start_gain": 0,#0.0001,
+            "end_gain": 0,#0.15,
 
-            "qubit_pulse_steps": 150,
+            "res_freq_steps": 10,#30,
+            "res_freq_start": 7287.57+1,#0.9,
+            "res_freq_stop": 7287.57-1,#0.9,
 
-            "res_freq_steps": 8,
-            "res_freq_start": 0.00,
-            "res_freq_stop": 1.0,
+            "start_freq": -50, #-6.5,
+            "end_freq": 10, #5,
+            "qubit_pulse_steps": 50,#600,
 
-            "start_freq": -55,
-            "end_freq": 4,
 
-            "readout_pulse_delay": 5,
+            "qubit_pulse_delay": 15,
+            "ckp_length": 20,
+            "readout_pulse_delay": 15,
+
             "ckp_gain": [],
             "res_freq_ckp": [],
             "res_phase_ckp": [],
             "ckp_mask": [],
 
-            "relax_delay": 500,
+            "relax_delay": 1000,
         },
         "res_stark_shift_2D": {
             "reps": 30,
