@@ -46,7 +46,7 @@ run_name = 'bob_run_started_Feb_11'
 device_name = 'squill'
 substudy_txt_notes = ('ckp test')
 
-study = 'QZE_IBM'
+study = 'ckp_nbar_calibration'
 
 ################################################ optimization outputs ##################################################
 # Optimization parameters for resonator spectroscopy
@@ -101,7 +101,7 @@ res_data = create_data_dict(res_keys, save_r, list_of_all_qubits)
 qspec_data = create_data_dict(qspec_keys, save_r, list_of_all_qubits)
 rabi_data = create_data_dict(rabi_keys, save_r, list_of_all_qubits)
 
-sub_study = 'junk'#f'n_bar_calibration'
+sub_study = 'q5'#f'n_bar_calibration'
 data_set = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 # set which of the following you'd like to run to 'True'
@@ -483,13 +483,12 @@ for QubitIndex in Qs_to_look_at:
                         'Syst Config']
 
 
-        qubitFolder = os.path.join(studyDocumentationFolder, f'Q{QubitIndex}/ckp')
         ckp_data = create_data_dict(ckp_keys, save_r, list_of_all_qubits)
 
         res_freq_ckp = copy.deepcopy(experiment.readout_cfg['res_freq_ge'])
         res_phase_ckp = copy.deepcopy(experiment.readout_cfg['res_phase'])
 
-        ckp = CKPMeasurement(QubitIndex, tot_num_of_qubits, qubitFolder, j, signal, save_figs, res_freq_ckp, res_phase_ckp,
+        ckp = CKPMeasurement(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j, signal, save_figs, res_freq_ckp, res_phase_ckp,
                                   experiment=experiment, fit_data=True, verbose=verbose, logger=logging)
         ckp_I_g, ckp_Q_g, ckp_I_e, ckp_Q_e, ckp_qu_freq_sweep, ckp_gain_sweep, res_freq_sweep, sweep_in_order, sys_config_ckp = ckp.run()
 
@@ -506,7 +505,7 @@ for QubitIndex in Qs_to_look_at:
         ckp_data[QubitIndex]['Exp Config'][0] = expt_cfg
         ckp_data[QubitIndex]['Syst Config'][0] = sys_config_ckp
 
-        saver_spec = Data_H5(qubitFolder, ckp_data, batch_num, save_r)
+        saver_spec = Data_H5(subStudyDataFolder, ckp_data, batch_num, save_r)
         saver_spec.save_to_h5('ckp_calibration')
         ckp_data = create_data_dict(ckp_keys, n, list_of_all_qubits)
         del saver_spec

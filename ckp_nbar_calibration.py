@@ -37,12 +37,15 @@ class CKPProgram_g(AveragerProgramV2):
 
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
 
+        self.add_gauss(ch=qubit_ch, name="ramp", sigma=cfg['sigma'], length=cfg['sigma'] * 4, even_length=False)
+        self.add_gauss(ch=qubit_ch, name="ramp_ckz", sigma=cfg['sigma_ckz'], length=cfg['sigma_ckz'] * 4,
+                       even_length=False)
         self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch,
-                       style="const",
-                       length=cfg['qubit_length_ge'],
+                       style="arb",
+                       envelope="ramp_ckz",
                        freq=QickSweep1D("qubit_pulse_loop", cfg['qubit_freq_ge'] + cfg["start_freq"],
                                         cfg['qubit_freq_ge'] + cfg["end_freq"]),
-                       phase=cfg['ro_phase'],
+                       phase=cfg['qubit_phase'],
                        gain=cfg['qubit_gain_ge'],
                        )
 
@@ -88,12 +91,13 @@ class CKPProgram_e(AveragerProgramV2):
 
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
         self.add_gauss(ch=qubit_ch, name="ramp", sigma=cfg['sigma'], length=cfg['sigma'] * 4, even_length=False)
+        self.add_gauss(ch=qubit_ch, name="ramp_ckz", sigma=cfg['sigma_ckz'], length=cfg['sigma_ckz'] * 4, even_length=False)
         self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch,
-                       style="const",
-                       length=cfg['qubit_length_ge'],
+                       style="arb",
+                       envelope="ramp_ckz",
                        freq=QickSweep1D("qubit_pulse_loop", cfg['qubit_freq_ge'] + cfg["start_freq"],
                                         cfg['qubit_freq_ge'] + cfg["end_freq"]),
-                       phase=cfg['ro_phase'],
+                       phase=cfg['qubit_phase'],
                        gain=cfg['qubit_gain_ge'],
                        )
 
@@ -170,9 +174,10 @@ class CKPMeasurement:
         gain_sweep = np.linspace(self.config["start_gain"], self.config["end_gain"],num=self.config["gain_steps"])
         res_freq_sweep = np.linspace(self.config["res_freq_start"], self.config["res_freq_stop"], num=self.config["res_freq_steps"])
 
-        self.config["qubit_length_ge"] = 0.1
-        self.config["qubit_gain_ge"] = 0.6
-        self.config["ckp_length"] = self.config["qubit_pulse_delay"] + self.config["ckp_length"]
+        # self.config["qubit_length_ge"] = 0.1
+        self.config["sigma_ckz"] = 0.12
+        self.config["qubit_gain_ge"] = 0.5787
+        self.config["ckp_length"] = self.config["qubit_pulse_delay"] + self.config["sigma_ckz"]*4#self.config["ckp_length"]
 
         I_g_nested = []  # [gain][res_freq][IQ over qubit-freq sweep]
         Q_g_nested = []
@@ -511,14 +516,16 @@ class CKPMeasurement:
             X, Y, flip_g.T,
             shading='nearest',
             vmin=0.0,
-            vmax=1.0
+            vmax=1.0,
+            cmap='viridis_r'
         )
 
         im1 = ax1.pcolormesh(
             X, Y, flip_e.T,
             shading='nearest',
             vmin=0.0,
-            vmax=1.0
+            vmax=1.0,
+            cmap='viridis_r'
         )
 
         ax1.plot(res_freq_sweep, e_centers, 'o', ms=4, mfc='white', mec='white')
@@ -541,6 +548,7 @@ class CKPMeasurement:
 
         # shared colorbar on top
         cbar = fig.colorbar(im0, cax=cax, orientation='horizontal')
+        cax.invert_xaxis()
         cax.xaxis.set_ticks_position('top')
         cax.xaxis.set_label_position('top')
         cbar.set_label("Flip probability")
