@@ -478,10 +478,10 @@ for QubitIndex in Qs_to_look_at:
         del ss
 
         ################### ckp ################
-        ckp_keys = ['Dates', 'I_e', 'Q_e','I_g', 'Q_g', 'Qu Frequency Sweep', 'Res Gain Sweep', 'Res Freq Sweep in order', 'Round Num', 'Batch Num',
-                        'Exp Config',
-                        'Syst Config']
-
+        ckp_keys = ['Dates', 'I_e', 'Q_e', 'I_g', 'Q_g',
+                    'Qu Frequency Sweep', 'Res Gain Sweep', 'Res Freq Sweep',
+                    'ss_I_g', 'ss_Q_g', 'ss_I_e', 'ss_Q_e',
+                    'Round Num', 'Batch Num', 'Exp Config', 'Syst Config']
 
         ckp_data = create_data_dict(ckp_keys, save_r, list_of_all_qubits)
 
@@ -490,7 +490,9 @@ for QubitIndex in Qs_to_look_at:
 
         ckp = CKPMeasurement(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j, signal, save_figs, res_freq_ckp, res_phase_ckp,
                                   experiment=experiment, fit_data=True, verbose=verbose, logger=logging)
-        ckp_I_g, ckp_Q_g, ckp_I_e, ckp_Q_e, ckp_qu_freq_sweep, ckp_gain_sweep, res_freq_sweep, sweep_in_order, sys_config_ckp = ckp.run()
+        (ckp_I_g, ckp_Q_g, ckp_I_e, ckp_Q_e,
+         ckp_qu_freq_sweep, ckp_gain_sweep, res_freq_sweep, sys_config_ckp,
+         ckp_ss_I_g, ckp_ss_Q_g, ckp_ss_I_e, ckp_ss_Q_e) = ckp.run()
 
         ckp_data[QubitIndex]['Dates'][0] = time.mktime(datetime.datetime.now().timetuple())
         ckp_data[QubitIndex]['I_e'][0] = ckp_I_e
@@ -499,7 +501,11 @@ for QubitIndex in Qs_to_look_at:
         ckp_data[QubitIndex]['Q_g'][0] = ckp_Q_g
         ckp_data[QubitIndex]['Qu Frequency Sweep'][0] = ckp_qu_freq_sweep
         ckp_data[QubitIndex]['Res Gain Sweep'][0] = ckp_gain_sweep
-        ckp_data[QubitIndex]['Res Freq Sweep in order'][0] = sweep_in_order
+        ckp_data[QubitIndex]['Res Freq Sweep'][0] = res_freq_sweep
+        ckp_data[QubitIndex]['ss_I_g'][0] = ckp_ss_I_g
+        ckp_data[QubitIndex]['ss_Q_g'][0] = ckp_ss_Q_g
+        ckp_data[QubitIndex]['ss_I_e'][0] = ckp_ss_I_e
+        ckp_data[QubitIndex]['ss_Q_e'][0] = ckp_ss_Q_e
         ckp_data[QubitIndex]['Round Num'][0] = 0
         ckp_data[QubitIndex]['Batch Num'][0] = 0
         ckp_data[QubitIndex]['Exp Config'][0] = expt_cfg
