@@ -340,11 +340,11 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
 
             "gain_steps": 20,
             "start_gain": 0,
-            "end_gain": 0.15,
+            "end_gain": 0.04,
 
             "res_freq_steps": 50,
-            "res_freq_start": 7287.57+0.9,
-            "res_freq_stop": 7287.57-0.9,
+            "res_freq_start": 7287.57+0.7,
+            "res_freq_stop": 7287.57-0.7,
 
             "start_freq": -75, #-6.5,
             "end_freq": 5,

@@ -80,8 +80,42 @@ CHI_CONFIG = -0.234 / 2  # MHz  → −0.117 MHz
 # ----- Output -----
 SAVE_FIGS  = True
 SHOW_FIGS  = True
-OUTPUT_DIR = os.path.dirname(os.path.abspath(__file__))
+run_name = 'bob_run_started_Feb_11'
+device_name = 'squill'
+substudy_txt_notes = ('ckp test')
 
+study = 'ckp_nbar_calibration'
+sub_study = 'q5'#f'n_bar_calibration'
+data_set ='2026-04-16_20-47-19'
+
+# set which of the following you'd like to run to 'True'
+run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss": True, "rabi": True,
+             "t1": True}
+
+if not os.path.exists(f"M:/_Data/20250822 - Olivia/{run_name}/"):
+    os.makedirs(f"M:/_Data/20250822 - Olivia/{run_name}/")
+if not os.path.exists(f"M:/_Data/20250822 - Olivia/{run_name}/{device_name}/"):
+    os.makedirs(f"M:/_Data/20250822 - Olivia/{run_name}/{device_name}/")
+studyFolder = os.path.join(f"M:/_Data/20250822 - Olivia/{run_name}/{device_name}/", study)
+if not os.path.exists(studyFolder):
+    os.makedirs(studyFolder)
+subStudyFolder = os.path.join(studyFolder, sub_study)
+if not os.path.exists(subStudyFolder):
+    os.makedirs(subStudyFolder)
+
+dataSetFolder = os.path.join(subStudyFolder, data_set)
+optimizationFolder = os.path.join(dataSetFolder, 'optimization')
+studyFolder = os.path.join(dataSetFolder, 'study_data')
+studyDocumentationFolder = os.path.join(dataSetFolder, 'documentation')
+subStudyDataFolder = os.path.join(dataSetFolder, 'study_data')
+if not os.path.exists(studyDocumentationFolder):
+    os.makedirs(studyDocumentationFolder)
+if not os.path.exists(optimizationFolder):
+    os.makedirs(optimizationFolder)
+if not os.path.exists(subStudyDataFolder):
+    os.makedirs(subStudyDataFolder)
+
+OUTPUT_DIR = studyDocumentationFolder
 
 # ═══════════════════════════════════════════════════════════════
 #  H5 LOADING UTILITIES
