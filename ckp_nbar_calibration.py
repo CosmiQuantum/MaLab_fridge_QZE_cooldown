@@ -240,11 +240,11 @@ class CKPMeasurement:
                                      self.config["res_freq_stop"],
                                      num=self.config["res_freq_steps"])
 
-        # ── CKP config overrides (same as before) ──
+        # ── CKP config overrides ──
         self.config["sigma_ckz"] = 0.12
-        self.config["qubit_gain_ge"] = 0.5787
+        self.config["qubit_gain_ge"] = 2#0.5787
         self.config["ckp_length"] = (self.config["qubit_pulse_delay"]
-                                     + self.config["sigma_ckz"] * 4)
+                                     + self.config["sigma_ckz"] * 4 + 0.02)
 
         n_res = self.config["res_freq_steps"]
         n_qf = self.config["qubit_pulse_steps"]
