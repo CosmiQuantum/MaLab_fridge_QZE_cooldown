@@ -242,7 +242,7 @@ class CKPMeasurement:
 
         # ── CKP config overrides ──
         self.config["sigma_ckz"] = 0.12
-        self.config["qubit_gain_ge"] = 2#0.5787
+        self.config["qubit_gain_ge"] = 0.2#0.5787
         self.config["ckp_length"] = (self.config["qubit_pulse_delay"]
                                      + self.config["sigma_ckz"] * 4 + 0.02)
 

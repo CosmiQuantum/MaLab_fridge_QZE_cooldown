@@ -334,7 +334,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "list_of_all_qubits": list_of_all_qubits,
         },
         "ckp_nbar_calibration": {
-            "reps": 1000,
+            "reps": 300,
             "rounds": 1,
             "list_of_all_qubits": list_of_all_qubits,
 

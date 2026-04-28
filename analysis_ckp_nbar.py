@@ -50,7 +50,7 @@ from scipy.optimize import curve_fit
 
 # Path to the directory containing the CKP h5 file
 H5_DIR = (r"M:\_Data\20250822 - Olivia\bob_run_started_Feb_11\squill"
-          r"\ckp_nbar_calibration\q5\2026-04-20_11-32-25"
+          r"\ckp_nbar_calibration\q5\2026-04-22_14-32-53"
           r"\study_data\Data_h5\ckp_calibration")
 
 QUBIT_GROUP = "Q6"  # QubitIndex=5 → h5 group "Q6"
@@ -84,7 +84,7 @@ substudy_txt_notes = 'ckp full-model fit'
 
 study = 'ckp_nbar_calibration'
 sub_study = 'q5'
-data_set = '2026-04-20_11-32-25'
+data_set = '2026-04-22_14-32-53'
 
 run_flags = {
     "tof": False,
