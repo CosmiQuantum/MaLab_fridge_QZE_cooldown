@@ -1,139 +1,163 @@
 """
-analysis_ckp_nbar.py — CKP Photon Number (n̄) Calibration Analysis
-=================================================================
-Based on: Sank et al., Phys. Rev. Applied 23, 024055 (2025)
-          "System Characterization of Dispersive Readout in
-           Superconducting Qubits"  (arXiv:2402.00413)
+analysis_ckp_nbar_paper_style.py — CKP analysis using the paper-style fit
+========================================================================
 
-CKP Protocol Summary
----------------------
-The CKP (Chi-Kappa-Power) protocol drives the resonator at variable
-frequency (f_d) and gain while performing qubit spectroscopy. The AC
-Stark effect shifts the qubit frequency by:
+Based on:
+    Sank et al., Phys. Rev. Applied 23, 024055 (2025)
+    "System Characterization of Dispersive Readout in Superconducting Qubits"
 
-    ω_q'(f_d) = ω_q + 2χ · n̄(f_d)
+Main goal
+---------
+This script implements the CKP fit in the style described in the paper:
 
-where the steady-state photon number follows a Lorentzian:
+    For a given resonator drive power, fit the two CKP branches together
+    with one five-parameter pair-of-Lorentzians model:
 
-    n̄(f_d) = ε² / [(f_d − ω_r,state)² + (κ/2)²]
+        omega_q0
+        omega_r,m
+        |chi|
+        kappa
+        |A|^2
 
-The |g⟩ and |e⟩ branches correspond to the qubit-state-dependent
-resonator frequencies:  ω_r,g = ω_r + χ,  ω_r,e = ω_r − χ.
+Your dataset has many resonator-drive gains, so this script repeats that
+five-parameter fit independently for each gain.
 
-Extracted Parameters
---------------------
-  • χ  = half the splitting between |g⟩ and |e⟩ branch centers
-  • κ  = FWHM of each Lorentzian branch
-  • n̄  = |Δf_q| / (2|χ|)   for each (gain, res_drive_freq)
+Important difference from your older script
+-------------------------------------------
+The older script used one global nonlinear fit across all gains with shared
+omega_q0, omega_r,m, chi, and kappa, plus one |A|^2 per gain.
 
-Outputs
--------
-  1. Scatter plot  — n̄ vs. resonator gain at on-resonance freq
-  2. Heatmap       — n̄ vs. (gain, resonator drive frequency)
-  3. Diagnostic    — Branch extraction with Lorentzian fits
+This script does NOT do that. It fits each gain independently, which is the
+closest match to the paper's CKP fitting procedure for a multi-gain dataset.
 
-Usage
------
-  Run from the lab machine where the H5 data lives:
-      python analysis_ckp_nbar.py
+Sign convention
+---------------
+The paper uses signed chi < 0, with
+
+    omega_r,|1> - omega_r,|0> = 2 chi < 0.
+
+For numerical stability and clarity, this code fits
+
+    chi_mag = |chi| > 0
+
+and uses
+
+    omega_r,|0> = omega_r,m + chi_mag
+    omega_r,|1> = omega_r,m - chi_mag
+
+The corresponding signed paper chi is
+
+    chi_paper_signed = -chi_mag.
 """
 
-import numpy as np
-import h5py
-import os
 import glob
+import os
 import re
-from scipy.optimize import curve_fit
+
+import h5py
 import matplotlib.pyplot as plt
+import numpy as np
+from scipy.optimize import curve_fit
+
 
 # ═══════════════════════════════════════════════════════════════
-#  USER CONFIGURATION — edit paths and parameters here
+#  USER CONFIGURATION
 # ═══════════════════════════════════════════════════════════════
 
-# Path to the directory containing the CKP h5 file
-H5_DIR = (r"M:\_Data\20250822 - Olivia\bob_run_started_Feb_11\squill"
-          r"\ckp_nbar_calibration\q5\2026-04-16_20-47-19"
-          r"\study_data\Data_h5\ckp_calibration")
+date = "2026-04-20_11-32-25"
 
-QUBIT_GROUP = "Q6"  # QubitIndex=5 → h5 group "Q6"
+# Path to the directory containing the CKP h5 file.
+H5_DIR = (
+    r"M:\_Data\20250822 - Olivia\bob_run_started_Feb_11\squill"
+    rf"\ckp_nbar_calibration\q5\{date}"
+    r"\study_data\Data_h5\ckp_calibration"
+)
 
-# ----- System parameters -----
-RES_FREQ_ON_RESONANCE = 7287.570   # MHz, bare resonator frequency
-BARE_QUBIT_FREQ       = 3095.192   # MHz, bare qubit g-e frequency
+QUBIT_GROUP = "Q6"  # QubitIndex=5 -> h5 group "Q6"
 
-# ----- Config values for sweep reconstruction (fallbacks) -----
-CFG_GAIN_START     = 0.0
-CFG_GAIN_END       = 0.15
-CFG_GAIN_STEPS     = 20
+# System reference values.
+# This is only used as a reference line / optional diagnostic. The paper-style
+# extraction below uses fitted branch resonances, not this manual value.
+RES_FREQ_ON_RESONANCE = 7287.570  # MHz
+BARE_QUBIT_FREQ = 3095.45         # MHz
 
-CFG_RES_FREQ_START = 7287.57 + 1   # 7288.57 MHz
-CFG_RES_FREQ_STOP  = 7287.57 - 1   # 7286.57 MHz
+# Fallback sweep values, used only if the values cannot be read from the H5.
+CFG_GAIN_START = 0.0
+CFG_GAIN_END = 0.15
+CFG_GAIN_STEPS = 20
+
+CFG_RES_FREQ_START = 7287.57 + 1
+CFG_RES_FREQ_STOP = 7287.57 - 1
 CFG_RES_FREQ_STEPS = 50
 
-CFG_QU_FREQ_OFFSET_START = -75     # MHz from bare qubit freq
-CFG_QU_FREQ_OFFSET_END   = 5      # MHz from bare qubit freq
-CFG_QU_FREQ_STEPS         = 100
+CFG_QU_FREQ_OFFSET_START = -75
+CFG_QU_FREQ_OFFSET_END = 5
+CFG_QU_FREQ_STEPS = 100
 
-# Known χ from previous measurement (for comparison only)
-CHI_CONFIG = -0.234 / 2  # MHz  → −0.117 MHz
+# Known chi from previous measurement, for initial guesses and comparison only.
+CHI_CONFIG = -0.234 / 2  # MHz -> -0.117 MHz
 
-# ----- Output -----
-SAVE_FIGS  = True
-SHOW_FIGS  = True
-run_name = 'bob_run_started_Feb_11'
-device_name = 'squill'
-substudy_txt_notes = ('ckp test')
+# Output options.
+SAVE_FIGS = True
+SHOW_FIGS = True
 
-study = 'ckp_nbar_calibration'
-sub_study = 'q5'#f'n_bar_calibration'
-data_set ='2026-04-16_20-47-19'
+run_name = "bob_run_started_Feb_11"
+device_name = "squill"
+study = "ckp_nbar_calibration"
+sub_study = "q5"
+data_set = date
 
-# set which of the following you'd like to run to 'True'
-run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss": True, "rabi": True,
-             "t1": True}
 
-if not os.path.exists(f"M:/_Data/20250822 - Olivia/{run_name}/"):
-    os.makedirs(f"M:/_Data/20250822 - Olivia/{run_name}/")
-if not os.path.exists(f"M:/_Data/20250822 - Olivia/{run_name}/{device_name}/"):
-    os.makedirs(f"M:/_Data/20250822 - Olivia/{run_name}/{device_name}/")
-studyFolder = os.path.join(f"M:/_Data/20250822 - Olivia/{run_name}/{device_name}/", study)
-if not os.path.exists(studyFolder):
-    os.makedirs(studyFolder)
-subStudyFolder = os.path.join(studyFolder, sub_study)
-if not os.path.exists(subStudyFolder):
-    os.makedirs(subStudyFolder)
+# ═══════════════════════════════════════════════════════════════
+#  OUTPUT DIRECTORY SETUP
+# ═══════════════════════════════════════════════════════════════
 
-dataSetFolder = os.path.join(subStudyFolder, data_set)
-optimizationFolder = os.path.join(dataSetFolder, 'optimization')
-studyFolder = os.path.join(dataSetFolder, 'study_data')
-studyDocumentationFolder = os.path.join(dataSetFolder, 'documentation')
-subStudyDataFolder = os.path.join(dataSetFolder, 'study_data')
-if not os.path.exists(studyDocumentationFolder):
-    os.makedirs(studyDocumentationFolder)
-if not os.path.exists(optimizationFolder):
-    os.makedirs(optimizationFolder)
-if not os.path.exists(subStudyDataFolder):
-    os.makedirs(subStudyDataFolder)
+base_dir = f"M:/_Data/20250822 - Olivia/{run_name}"
+device_dir = os.path.join(base_dir, device_name)
+study_dir = os.path.join(device_dir, study)
+sub_study_dir = os.path.join(study_dir, sub_study)
+data_set_dir = os.path.join(sub_study_dir, data_set)
 
-OUTPUT_DIR = studyDocumentationFolder
+optimization_dir = os.path.join(data_set_dir, "optimization")
+study_data_dir = os.path.join(data_set_dir, "study_data")
+documentation_dir = os.path.join(data_set_dir, "documentation")
+
+for path in [
+    base_dir,
+    device_dir,
+    study_dir,
+    sub_study_dir,
+    data_set_dir,
+    optimization_dir,
+    study_data_dir,
+    documentation_dir,
+]:
+    os.makedirs(path, exist_ok=True)
+
+OUTPUT_DIR = documentation_dir
+
 
 # ═══════════════════════════════════════════════════════════════
 #  H5 LOADING UTILITIES
 # ═══════════════════════════════════════════════════════════════
 
 def find_h5_file(directory):
-    """Find the most-recent .h5 file in *directory*."""
+    """Find the most recent .h5 file in directory."""
     h5_files = sorted(glob.glob(os.path.join(directory, "*.h5")))
     if not h5_files:
-        raise FileNotFoundError(f"No .h5 files in:\n  {directory}")
+        raise FileNotFoundError(f"No .h5 files found in:\n  {directory}")
+
     if len(h5_files) > 1:
-        print(f"  Found {len(h5_files)} h5 files — using latest: "
-              f"{os.path.basename(h5_files[-1])}")
+        print(
+            f"  Found {len(h5_files)} h5 files. "
+            f"Using latest: {os.path.basename(h5_files[-1])}"
+        )
+
     return h5_files[-1]
 
 
 def _bytes_to_str(raw):
-    """Decode an h5 byte-string to Python str."""
+    """Decode an H5 byte-string or scalar-like dataset into a Python string."""
     if isinstance(raw, np.ndarray):
         raw = raw.flat[0]
     if isinstance(raw, bytes):
@@ -142,112 +166,131 @@ def _bytes_to_str(raw):
 
 
 def parse_1d_array(raw):
-    """
-    Parse a 1-D numpy array stored as a space-separated string
-    (the result of str(np.array([...]))).
-    """
+    """Parse a 1D array saved as a string-like H5 dataset."""
     s = _bytes_to_str(raw).strip()
     inner = s.strip("[]").strip()
-    inner = re.sub(r"\s+", " ", inner)         # normalise whitespace
-    return np.array([float(v) for v in inner.split() if v])
+    inner = re.sub(r"\s+", " ", inner)
+    return np.array([float(v) for v in inner.split() if v], dtype=float)
 
 
 def parse_nested_array(raw, n_outer=None, n_mid=None, n_inner=None):
     """
-    Parse a nested list-of-lists-of-numpy-arrays that was saved via
-    ``str(nested_list)`` → ``'[[array([...]), ...], ...]'``.
+    Parse nested arrays saved as strings in H5.
 
-    Returns an np.float64 array with the recovered shape.
+    This supports the common forms:
+        [[...], [...]]
+        array([...])
+        stringified numpy arrays
     """
     s = _bytes_to_str(raw).strip()
 
-    # --- Method 1: replace array() notation → plain list, then eval ----
     cleaned = s.replace("array(", "").replace(")", "")
-    cleaned = re.sub(r"\s+", " ", cleaned)     # collapse whitespace
+    cleaned = re.sub(r"\s+", " ", cleaned)
+
     try:
-        data = eval(cleaned, {"__builtins__": {},
-                              "nan": float("nan"), "inf": float("inf")})
+        data = eval(
+            cleaned,
+            {
+                "__builtins__": {},
+                "nan": float("nan"),
+                "inf": float("inf"),
+            },
+        )
         return np.asarray(data, dtype=np.float64)
     except Exception as e1:
-        print(f"    parse_nested (eval-cleaned) failed: {e1}")
+        print(f"    parse_nested eval-cleaned failed: {e1}")
 
-    # --- Method 2: eval with array=np.array (handles repr output) ------
     try:
-        data = eval(s, {"__builtins__": {},
-                        "array": np.array,
-                        "nan": float("nan"), "inf": float("inf"),
-                        "float64": np.float64})
+        data = eval(
+            s,
+            {
+                "__builtins__": {},
+                "array": np.array,
+                "nan": float("nan"),
+                "inf": float("inf"),
+                "float64": np.float64,
+            },
+        )
         return np.asarray(data, dtype=np.float64)
     except Exception as e2:
-        print(f"    parse_nested (eval-array) failed: {e2}")
+        print(f"    parse_nested eval-array failed: {e2}")
 
-    # --- Method 3: regex extraction (requires known shape) -------------
     if n_outer and n_mid and n_inner:
         try:
             blocks = re.findall(r"\[([\d\s.eE+\-,]+?)\]", s)
             arrays = []
             for blk in blocks:
-                vals = [float(x) for x in re.split(r"[,\s]+", blk.strip()) if x]
+                vals = [
+                    float(x)
+                    for x in re.split(r"[,\s]+", blk.strip())
+                    if x
+                ]
                 if len(vals) == n_inner:
                     arrays.append(vals)
+
             if len(arrays) == n_outer * n_mid:
                 return np.array(arrays, dtype=np.float64).reshape(
-                    n_outer, n_mid, n_inner)
+                    n_outer,
+                    n_mid,
+                    n_inner,
+                )
         except Exception as e3:
-            print(f"    parse_nested (regex) failed: {e3}")
+            print(f"    parse_nested regex failed: {e3}")
 
-    raise ValueError("Could not parse nested array from H5. "
-                     f"First 200 chars: {s[:200]}")
+    raise ValueError(
+        "Could not parse nested array from H5. "
+        f"First 200 chars: {s[:200]}"
+    )
 
 
 # ═══════════════════════════════════════════════════════════════
-#  PHYSICS / ANALYSIS FUNCTIONS
+#  CENTER EXTRACTION FROM IQ DATA
 # ═══════════════════════════════════════════════════════════════
 
 def iq_distance_from_baseline(I_row, Q_row, n_baseline=10):
     """
-    Compute IQ Euclidean distance from the off-resonance baseline
-    for a single spectroscopy sweep row.
+    Compute IQ Euclidean distance from an off-resonance baseline.
 
-    The baseline is estimated from the *high-frequency* end of the
-    qubit-probe sweep (far above the expected qubit resonance).
+    This is not exactly the paper's raw flip-probability observable.
+    It is your available proxy for extracting the qubit spectroscopy center
+    from each vertical slice.
     """
     I_base = np.mean(I_row[-n_baseline:])
     Q_base = np.mean(Q_row[-n_baseline:])
-    return np.sqrt((I_row - I_base)**2 + (Q_row - Q_base)**2)
+    return np.sqrt((I_row - I_base) ** 2 + (Q_row - Q_base) ** 2)
 
 
 def find_peak_center(dist, freq_sweep):
     """
-    Locate the spectroscopic peak via argmax + sub-bin quadratic
-    interpolation.
+    Locate the spectroscopy peak via argmax plus sub-bin quadratic interpolation.
     """
     x = np.asarray(freq_sweep, dtype=float)
-    idx = int(np.argmax(dist))
+    y = np.asarray(dist, dtype=float)
+
+    idx = int(np.argmax(y))
 
     if 1 <= idx <= len(x) - 2:
-        xs = x[idx - 1 : idx + 2]
-        ys = dist[idx - 1 : idx + 2]
+        xs = x[idx - 1: idx + 2]
+        ys = y[idx - 1: idx + 2]
+
         try:
             a, b, _ = np.polyfit(xs, ys, 2)
             if abs(a) > 1e-20:
-                xv = -b / (2 * a)
+                xv = -b / (2.0 * a)
                 if xs[0] <= xv <= xs[-1]:
-                    return xv
+                    return float(xv)
         except Exception:
             pass
-    return x[idx]
+
+    return float(x[idx])
 
 
 def extract_all_branch_centers(I, Q, qu_freq_sweep, n_baseline=10):
     """
-    Extract spectroscopy peak centers for a 2-D slice
-    ``[n_res_freqs, n_qubit_freqs]`` at a fixed gain.
-
-    Returns 1-D array of centres, length = n_res_freqs.
+    Extract one qubit-resonance estimate for each resonator-drive frequency.
     """
     n_res = I.shape[0]
-    centers = np.empty(n_res)
+    centers = np.empty(n_res, dtype=float)
 
     for ri in range(n_res):
         dist = iq_distance_from_baseline(I[ri], Q[ri], n_baseline)
@@ -256,59 +299,319 @@ def extract_all_branch_centers(I, Q, qu_freq_sweep, n_baseline=10):
     return centers
 
 
-def lorentzian_dip(x, x0, depth, hwhm, offset):
-    """
-    Lorentzian dip:
-        f(x) = offset − depth / [1 + ((x − x₀) / hwhm)²]
+# ═══════════════════════════════════════════════════════════════
+#  PAPER-STYLE CKP MODEL
+# ═══════════════════════════════════════════════════════════════
 
-    Physical mapping (CKP branches):
-      x0     ↔ state-dependent resonator frequency  ω_r ± χ
-      depth  ↔ 2|χ| × n̄_peak
-      hwhm   ↔ κ / 2  (half the resonator linewidth)
-      offset ↔ bare qubit frequency
+def ckp_paper_branch_model(x, omega_q0, omega_rm, chi_mag, kappa, A2, branch):
     """
-    return offset - depth / (1.0 + ((x - x0) / hwhm)**2)
+    Paper-style CKP branch model, Eq. (7), using chi_mag = |chi| > 0.
+
+    For branch "g", corresponding to |0> preparation:
+
+        omega_r,|0> = omega_rm + chi_mag
+
+    For branch "e", corresponding to |1> preparation:
+
+        omega_r,|1> = omega_rm - chi_mag
+
+    The qubit transition frequency shifts downward in this convention:
+
+        omega_d,q* = omega_q0 - 2 chi_mag nbar
+    """
+    x = np.asarray(x, dtype=float)
+
+    if branch == "g":
+        center = omega_rm + chi_mag
+    elif branch == "e":
+        center = omega_rm - chi_mag
+    else:
+        raise ValueError("branch must be 'g' or 'e'")
+
+    denom = (x - center) ** 2 + (kappa / 2.0) ** 2
+    return omega_q0 - (2.0 * chi_mag * kappa * A2) / denom
 
 
-def fit_branch(res_freq_sweep, centers, bare_freq_guess):
+def ckp_paper_pair_model(xdata, omega_q0, omega_rm, chi_mag, kappa, A2):
     """
-    Fit the qubit-resonance-vs-drive-frequency curve to a Lorentzian
-    dip.  Returns dict of fit parameters or *None* on failure.
+    Five-parameter pair-of-Lorentzians CKP model.
+
+    Fit parameters:
+        omega_q0
+        omega_rm
+        chi_mag
+        kappa
+        A2
+
+    xdata[0] = resonator drive frequency
+    xdata[1] = branch flag, +1 for |0>, -1 for |1>
+    """
+    x = np.asarray(xdata[0], dtype=float)
+    branch_flag = np.asarray(xdata[1], dtype=float)
+
+    y = np.empty_like(x, dtype=float)
+
+    mask_g = branch_flag > 0
+    mask_e = branch_flag < 0
+
+    y[mask_g] = ckp_paper_branch_model(
+        x[mask_g],
+        omega_q0,
+        omega_rm,
+        chi_mag,
+        kappa,
+        A2,
+        branch="g",
+    )
+
+    y[mask_e] = ckp_paper_branch_model(
+        x[mask_e],
+        omega_q0,
+        omega_rm,
+        chi_mag,
+        kappa,
+        A2,
+        branch="e",
+    )
+
+    return y
+
+
+def build_paper_pair_fit_arrays(res_freq_sweep, g_centers_one_gain, e_centers_one_gain):
+    """
+    Build xdata and ydata for one gain setting.
+
+    Both branches are fitted together with one five-parameter model.
+    """
+    x_g = np.asarray(res_freq_sweep, dtype=float)
+    x_e = np.asarray(res_freq_sweep, dtype=float)
+
+    branch_g = np.ones_like(x_g)
+    branch_e = -np.ones_like(x_e)
+
+    xdata = np.vstack([
+        np.r_[x_g, x_e],
+        np.r_[branch_g, branch_e],
+    ])
+
+    ydata = np.r_[
+        np.asarray(g_centers_one_gain, dtype=float),
+        np.asarray(e_centers_one_gain, dtype=float),
+    ]
+
+    return xdata, ydata
+
+
+def estimate_paper_initial_params(res_freq_sweep, g_centers_one_gain, e_centers_one_gain):
+    """
+    Initial guesses for one five-parameter CKP fit.
     """
     x = np.asarray(res_freq_sweep, dtype=float)
-    y = np.asarray(centers, dtype=float)
+    yg = np.asarray(g_centers_one_gain, dtype=float)
+    ye = np.asarray(e_centers_one_gain, dtype=float)
 
-    depth0 = np.max(y) - np.min(y)
-    if depth0 < 0.01:                        # no significant dip
-        return None
+    # Approximate Lorentzian minima give approximate branch resonator centers.
+    x0_g = x[int(np.argmin(yg))]
+    x0_e = x[int(np.argmin(ye))]
 
-    x0_guess   = x[np.argmin(y)]
-    hwhm0      = np.ptp(x) / 20
-    offset0    = bare_freq_guess
+    omega_rm0 = 0.5 * (x0_g + x0_e)
 
-    p0 = [x0_guess, depth0, abs(hwhm0), offset0]
-    lb = [x.min() - 2,  0.0,   0.001,   y.min() - 5]
-    ub = [x.max() + 2,  300.0, np.ptp(x), y.max() + 5]
+    chi_mag0 = max(
+        abs(x0_g - x0_e) / 2.0,
+        abs(CHI_CONFIG),
+        0.005,
+    )
 
-    try:
-        popt, pcov = curve_fit(lorentzian_dip, x, y, p0=p0,
-                               bounds=(lb, ub), maxfev=30000)
-        perr  = np.sqrt(np.diag(pcov))
-        fit_y = lorentzian_dip(x, *popt)
+    # Use edge values as a crude estimate of the unshifted qubit frequency.
+    edge_vals = np.r_[yg[0], yg[-1], ye[0], ye[-1]]
+    omega_q0_0 = float(np.median(edge_vals))
 
-        return dict(
-            x0     = popt[0],
-            depth  = popt[1],
-            hwhm   = abs(popt[2]),
-            offset = popt[3],
-            kappa  = 2 * abs(popt[2]),
-            popt   = popt,
-            perr   = perr,
-            fit_y  = fit_y,
-        )
-    except Exception as e:
-        print(f"    Lorentzian fit failed: {e}")
-        return None
+    # Crude linewidth guess.
+    kappa0 = max(np.ptp(x) / 8.0, 0.01)
+
+    # At resonance:
+    #   depth = 2 chi_mag kappa A2 / (kappa/2)^2
+    #         = 8 chi_mag A2 / kappa
+    # so:
+    #   A2 = depth * kappa / (8 chi_mag)
+    depth_g = max(omega_q0_0 - np.min(yg), 0.0)
+    depth_e = max(omega_q0_0 - np.min(ye), 0.0)
+    depth0 = max(0.5 * (depth_g + depth_e), 1e-6)
+
+    A2_0 = max(depth0 * kappa0 / (8.0 * chi_mag0), 1e-12)
+
+    return omega_q0_0, omega_rm0, chi_mag0, kappa0, A2_0
+
+
+def fit_ckp_paper_style_one_gain(res_freq_sweep, g_centers_one_gain, e_centers_one_gain):
+    """
+    Fit one gain setting using the paper-style five-parameter CKP model.
+    """
+    xdata, ydata = build_paper_pair_fit_arrays(
+        res_freq_sweep,
+        g_centers_one_gain,
+        e_centers_one_gain,
+    )
+
+    p0 = estimate_paper_initial_params(
+        res_freq_sweep,
+        g_centers_one_gain,
+        e_centers_one_gain,
+    )
+
+    x_min = float(np.min(res_freq_sweep))
+    x_max = float(np.max(res_freq_sweep))
+    x_span = x_max - x_min
+
+    y_min = float(np.min(ydata))
+    y_max = float(np.max(ydata))
+
+    lower = [
+        y_min - 20.0,  # omega_q0
+        x_min - 2.0,   # omega_rm
+        0.001,         # chi_mag
+        0.001,         # kappa
+        0.0,           # A2
+    ]
+
+    upper = [
+        y_max + 20.0,  # omega_q0
+        x_max + 2.0,   # omega_rm
+        x_span,        # chi_mag
+        x_span,        # kappa
+        np.inf,        # A2
+    ]
+
+    popt, pcov = curve_fit(
+        ckp_paper_pair_model,
+        xdata,
+        ydata,
+        p0=p0,
+        bounds=(lower, upper),
+        maxfev=200000,
+    )
+
+    perr = np.sqrt(np.diag(pcov))
+    yfit = ckp_paper_pair_model(xdata, *popt)
+    residuals = ydata - yfit
+    rmse = float(np.sqrt(np.mean(residuals ** 2)))
+
+    omega_q0, omega_rm, chi_mag, kappa, A2 = popt
+
+    model_g = ckp_paper_branch_model(
+        res_freq_sweep,
+        omega_q0,
+        omega_rm,
+        chi_mag,
+        kappa,
+        A2,
+        branch="g",
+    )
+
+    model_e = ckp_paper_branch_model(
+        res_freq_sweep,
+        omega_q0,
+        omega_rm,
+        chi_mag,
+        kappa,
+        A2,
+        branch="e",
+    )
+
+    center_g = omega_rm + chi_mag
+    center_e = omega_rm - chi_mag
+
+    nbar_g = kappa * A2 / (
+        (res_freq_sweep - center_g) ** 2 + (kappa / 2.0) ** 2
+    )
+
+    nbar_e = kappa * A2 / (
+        (res_freq_sweep - center_e) ** 2 + (kappa / 2.0) ** 2
+    )
+
+    return {
+        "popt": popt,
+        "perr": perr,
+        "pcov": pcov,
+        "omega_q0": omega_q0,
+        "omega_rm": omega_rm,
+        "chi_mag": chi_mag,
+        "chi_paper_signed": -chi_mag,
+        "kappa": kappa,
+        "A2": A2,
+        "omega_r_g": center_g,
+        "omega_r_e": center_e,
+        "model_g": model_g,
+        "model_e": model_e,
+        "nbar_g": nbar_g,
+        "nbar_e": nbar_e,
+        "yfit": yfit,
+        "residuals": residuals,
+        "rmse": rmse,
+    }
+
+
+def fit_ckp_paper_style_all_gains(res_freq_sweep, gain_sweep, g_centers, e_centers):
+    """
+    Repeat the paper-style five-parameter CKP fit independently for every gain.
+    """
+    fits = []
+
+    for gi, gain in enumerate(gain_sweep):
+        try:
+            fit = fit_ckp_paper_style_one_gain(
+                res_freq_sweep,
+                g_centers[gi],
+                e_centers[gi],
+            )
+
+            fit["gain"] = float(gain)
+            fit["gain_index"] = int(gi)
+            fits.append(fit)
+
+            print(
+                f"    gain {gain:.4f}: "
+                f"|chi| = {fit['chi_mag']:.5f} MHz, "
+                f"kappa = {fit['kappa']:.5f} MHz, "
+                f"A2 = {fit['A2']:.6g}, "
+                f"RMSE = {fit['rmse']:.4f} MHz"
+            )
+
+        except Exception as exc:
+            print(f"    gain {gain:.4f}: fit failed: {exc}")
+            fits.append({
+                "gain": float(gain),
+                "gain_index": int(gi),
+                "failed": True,
+                "error": str(exc),
+            })
+
+    return fits
+
+
+# ═══════════════════════════════════════════════════════════════
+#  PLOTTING HELPERS
+# ═══════════════════════════════════════════════════════════════
+
+def quadratic(g, a, b):
+    """Simple gain-to-nbar diagnostic fit."""
+    return a * g ** 2 + b
+
+
+def safe_nanmax(row):
+    """nan-safe max for rows that may contain failed fits."""
+    row = np.asarray(row, dtype=float)
+    if np.any(np.isfinite(row)):
+        return float(np.nanmax(row))
+    return np.nan
+
+
+def savefig_if_requested(fig, filename):
+    """Save figure if SAVE_FIGS is true."""
+    if SAVE_FIGS:
+        path = os.path.join(OUTPUT_DIR, filename)
+        fig.savefig(path, bbox_inches="tight")
+        print(f"  Saved -> {path}")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -316,14 +619,12 @@ def fit_branch(res_freq_sweep, centers, bare_freq_guess):
 # ═══════════════════════════════════════════════════════════════
 
 def main():
-    print("=" * 62)
-    print("  CKP n̄ Calibration Analysis")
+    print("=" * 76)
+    print("  CKP nbar Calibration Analysis — paper-style five-parameter fits")
     print("  Sank et al., Phys. Rev. Applied 23, 024055 (2025)")
-    print("=" * 62)
+    print("=" * 76)
 
-    # ──────────────────────────────────────────────────────────
-    #  1.  Load H5 data
-    # ──────────────────────────────────────────────────────────
+    # 1. Load H5 data.
     h5_path = find_h5_file(H5_DIR)
     print(f"\n[1] Loading: {h5_path}")
 
@@ -331,164 +632,225 @@ def main():
         grp = f[QUBIT_GROUP]
         print(f"    Datasets in {QUBIT_GROUP}: {list(grp.keys())}")
 
-        # ---- IQ data (nested 3-D arrays stored as strings) ----
-        print("    Parsing I_g …", end=" ", flush=True)
-        I_g = parse_nested_array(grp["I_g"][()],
-                                 CFG_GAIN_STEPS, CFG_RES_FREQ_STEPS,
-                                 CFG_QU_FREQ_STEPS)
+        print("    Parsing I_g ...", end=" ", flush=True)
+        I_g = parse_nested_array(
+            grp["I_g"][()],
+            CFG_GAIN_STEPS,
+            CFG_RES_FREQ_STEPS,
+            CFG_QU_FREQ_STEPS,
+        )
         print(f"shape {I_g.shape}")
 
-        print("    Parsing Q_g …", end=" ", flush=True)
-        Q_g = parse_nested_array(grp["Q_g"][()],
-                                 CFG_GAIN_STEPS, CFG_RES_FREQ_STEPS,
-                                 CFG_QU_FREQ_STEPS)
+        print("    Parsing Q_g ...", end=" ", flush=True)
+        Q_g = parse_nested_array(
+            grp["Q_g"][()],
+            CFG_GAIN_STEPS,
+            CFG_RES_FREQ_STEPS,
+            CFG_QU_FREQ_STEPS,
+        )
         print(f"shape {Q_g.shape}")
 
-        print("    Parsing I_e …", end=" ", flush=True)
-        I_e = parse_nested_array(grp["I_e"][()],
-                                 CFG_GAIN_STEPS, CFG_RES_FREQ_STEPS,
-                                 CFG_QU_FREQ_STEPS)
+        print("    Parsing I_e ...", end=" ", flush=True)
+        I_e = parse_nested_array(
+            grp["I_e"][()],
+            CFG_GAIN_STEPS,
+            CFG_RES_FREQ_STEPS,
+            CFG_QU_FREQ_STEPS,
+        )
         print(f"shape {I_e.shape}")
 
-        print("    Parsing Q_e …", end=" ", flush=True)
-        Q_e = parse_nested_array(grp["Q_e"][()],
-                                 CFG_GAIN_STEPS, CFG_RES_FREQ_STEPS,
-                                 CFG_QU_FREQ_STEPS)
+        print("    Parsing Q_e ...", end=" ", flush=True)
+        Q_e = parse_nested_array(
+            grp["Q_e"][()],
+            CFG_GAIN_STEPS,
+            CFG_RES_FREQ_STEPS,
+            CFG_QU_FREQ_STEPS,
+        )
         print(f"shape {Q_e.shape}")
 
-        # ---- Sweep arrays ----
         try:
-            print("    Parsing gain sweep …", end=" ", flush=True)
+            print("    Parsing gain sweep ...", end=" ", flush=True)
             gain_sweep = parse_1d_array(grp["Res Gain Sweep"][()])
             print(f"range [{gain_sweep[0]:.4f}, {gain_sweep[-1]:.4f}]")
-        except Exception:
-            print("FAILED — using config fallback")
-            gain_sweep = np.linspace(CFG_GAIN_START, CFG_GAIN_END,
-                                     CFG_GAIN_STEPS)
+        except Exception as exc:
+            print(f"FAILED: {exc}. Using config fallback.")
+            gain_sweep = np.linspace(
+                CFG_GAIN_START,
+                CFG_GAIN_END,
+                CFG_GAIN_STEPS,
+            )
 
         try:
-            print("    Parsing qubit freq sweep …", end=" ", flush=True)
+            print("    Parsing qubit freq sweep ...", end=" ", flush=True)
             qu_freq_sweep = parse_1d_array(grp["Qu Frequency Sweep"][()])
-            print(f"range [{qu_freq_sweep[0]:.3f}, {qu_freq_sweep[-1]:.3f}] MHz")
-        except Exception:
-            print("FAILED — using config fallback")
+            print(
+                f"range [{qu_freq_sweep[0]:.3f}, "
+                f"{qu_freq_sweep[-1]:.3f}] MHz"
+            )
+        except Exception as exc:
+            print(f"FAILED: {exc}. Using config fallback.")
             qu_freq_sweep = np.linspace(
                 BARE_QUBIT_FREQ + CFG_QU_FREQ_OFFSET_START,
                 BARE_QUBIT_FREQ + CFG_QU_FREQ_OFFSET_END,
-                CFG_QU_FREQ_STEPS)
+                CFG_QU_FREQ_STEPS,
+            )
 
-    # Reconstruct res_freq_sweep from config (most reliable)
     n_gains, n_res, n_qf = I_g.shape
     res_freq_sweep = np.linspace(CFG_RES_FREQ_START, CFG_RES_FREQ_STOP, n_res)
 
-    print(f"\n    Dimensions : {n_gains} gains × {n_res} res_freqs "
-          f"× {n_qf} qubit_freqs")
-    print(f"    Gain       : {gain_sweep[0]:.4f} – {gain_sweep[-1]:.4f}")
-    print(f"    Res freq   : {res_freq_sweep[0]:.4f} – "
-          f"{res_freq_sweep[-1]:.4f} MHz")
-    print(f"    Qubit freq : {qu_freq_sweep[0]:.3f} – "
-          f"{qu_freq_sweep[-1]:.3f} MHz")
+    if len(gain_sweep) != n_gains:
+        print(
+            "    WARNING: gain_sweep length does not match data shape. "
+            "Using evenly spaced fallback gain sweep."
+        )
+        gain_sweep = np.linspace(CFG_GAIN_START, CFG_GAIN_END, n_gains)
 
-    # ──────────────────────────────────────────────────────────
-    #  2.  Extract branch centres for every gain
-    # ──────────────────────────────────────────────────────────
-    print("\n[2] Extracting branch centres …")
+    print(f"\n    Dimensions : {n_gains} gains x {n_res} res_freqs x {n_qf} qubit_freqs")
+    print(f"    Gain       : {gain_sweep[0]:.4f} to {gain_sweep[-1]:.4f}")
+    print(f"    Res freq   : {res_freq_sweep[0]:.4f} to {res_freq_sweep[-1]:.4f} MHz")
+    print(f"    Qubit freq : {qu_freq_sweep[0]:.3f} to {qu_freq_sweep[-1]:.3f} MHz")
 
-    g_centers = np.zeros((n_gains, n_res))   # |g⟩ prep
-    e_centers = np.zeros((n_gains, n_res))   # |e⟩ prep
+    # 2. Extract branch centers.
+    print("\n[2] Extracting branch centers from IQ slices ...")
+
+    g_centers = np.zeros((n_gains, n_res), dtype=float)
+    e_centers = np.zeros((n_gains, n_res), dtype=float)
 
     for gi in range(n_gains):
         g_centers[gi] = extract_all_branch_centers(
-            I_g[gi], Q_g[gi], qu_freq_sweep)
+            I_g[gi],
+            Q_g[gi],
+            qu_freq_sweep,
+        )
+
         e_centers[gi] = extract_all_branch_centers(
-            I_e[gi], Q_e[gi], qu_freq_sweep)
+            I_e[gi],
+            Q_e[gi],
+            qu_freq_sweep,
+        )
 
     print("    Done.")
 
-    # ──────────────────────────────────────────────────────────
-    #  3.  Fit Lorentzians → χ, κ
-    # ──────────────────────────────────────────────────────────
-    print("\n[3] Fitting Lorentzians for χ and κ …")
+    # 3. Fit each gain independently using paper-style five-parameter CKP.
+    print("\n[3] Fitting paper-style five-parameter CKP model independently at each gain ...")
 
-    # Search middle–high gains for best fit (low gain has weak signal)
-    best_fit_g, best_fit_e, best_gi = None, None, n_gains // 2
+    fits = fit_ckp_paper_style_all_gains(
+        res_freq_sweep,
+        gain_sweep,
+        g_centers,
+        e_centers,
+    )
 
-    for trial in range(max(2, n_gains // 4),
-                       min(n_gains, 3 * n_gains // 4 + 1)):
-        fg = fit_branch(res_freq_sweep, g_centers[trial], BARE_QUBIT_FREQ)
-        fe = fit_branch(res_freq_sweep, e_centers[trial], BARE_QUBIT_FREQ)
-        if fg is not None and fe is not None:
-            if best_fit_g is None or fg["depth"] > best_fit_g["depth"]:
-                best_fit_g, best_fit_e, best_gi = fg, fe, trial
+    valid_fits = [f for f in fits if not f.get("failed", False)]
 
-    if best_fit_g is not None and best_fit_e is not None:
-        chi   = abs(best_fit_g["x0"] - best_fit_e["x0"]) / 2
-        kappa = (best_fit_g["kappa"] + best_fit_e["kappa"]) / 2
-        ref_gain = gain_sweep[best_gi]
+    if not valid_fits:
+        raise RuntimeError("All paper-style CKP fits failed.")
 
-        print(f"    Reference gain index : {best_gi}  "
-              f"(gain = {ref_gain:.4f})")
-        print(f"    |g⟩ branch center    : {best_fit_g['x0']:.4f} MHz")
-        print(f"    |e⟩ branch center    : {best_fit_e['x0']:.4f} MHz")
-        print(f"    2χ (splitting)       : {2*chi:.4f} MHz")
-        print(f"    χ                    : {chi:.4f} MHz  "
-              f"({chi*1e3:.2f} kHz)")
-        print(f"    κ                    : {kappa:.4f} MHz  "
-              f"({kappa*1e3:.2f} kHz)")
-        print(f"    χ from config (ref)  : {abs(CHI_CONFIG):.4f} MHz")
-    else:
-        print("    ⚠  Lorentzian fit unsuccessful — using config χ")
-        chi   = abs(CHI_CONFIG)
-        kappa = 0.5                         # default guess [MHz]
-        best_fit_g = best_fit_e = None
+    # Choose a representative fit.
+    # Since the paper uses one power level, and your dataset has many gains,
+    # this selects the largest fitted A2 as the reference diagnostic.
+    ref_fit = max(valid_fits, key=lambda f: f["A2"])
 
-    # ──────────────────────────────────────────────────────────
-    #  4.  Compute n̄ for every (gain, res_freq)
-    # ──────────────────────────────────────────────────────────
-    print("\n[4] Computing n̄ …")
+    best_gi = ref_fit["gain_index"]
+    ref_gain = ref_fit["gain"]
 
-    # n̄ = |Δf_q| / (2|χ|)
-    delta_fq_g = g_centers - BARE_QUBIT_FREQ          # typically ≤ 0
-    delta_fq_e = e_centers - BARE_QUBIT_FREQ
+    omega_q0_ref = ref_fit["omega_q0"]
+    omega_rm_ref = ref_fit["omega_rm"]
+    chi_ref = ref_fit["chi_mag"]
+    kappa_ref = ref_fit["kappa"]
+    A2_ref = ref_fit["A2"]
+    center_g_ref = ref_fit["omega_r_g"]
+    center_e_ref = ref_fit["omega_r_e"]
 
-    nbar_g = np.abs(delta_fq_g) / (2 * chi)
-    nbar_e = np.abs(delta_fq_e) / (2 * chi)
+    print("\n    Reference paper-style CKP fit")
+    print(f"    Gain index             : {best_gi}")
+    print(f"    Gain                   : {ref_gain:.4f}")
+    print(f"    RMSE                   : {ref_fit['rmse']:.4f} MHz")
+    print(f"    omega_q0               : {omega_q0_ref:.4f} MHz")
+    print(f"    omega_rm               : {omega_rm_ref:.4f} MHz")
+    print(f"    omega_r,|0>            : {center_g_ref:.4f} MHz")
+    print(f"    omega_r,|1>            : {center_e_ref:.4f} MHz")
+    print(f"    2|chi|                 : {2.0 * chi_ref:.4f} MHz")
+    print(f"    chi paper signed       : {-chi_ref:.4f} MHz")
+    print(f"    kappa                  : {kappa_ref:.4f} MHz")
+    print(f"    |A|^2                  : {A2_ref:.6g}")
 
-    # ── on-resonance slice ──
-    on_res_idx = int(np.argmin(np.abs(res_freq_sweep - RES_FREQ_ON_RESONANCE)))
-    print(f"    On-resonance index   : {on_res_idx}  "
-          f"(f_d = {res_freq_sweep[on_res_idx]:.4f} MHz)")
+    # 4. Collect results into arrays.
+    print("\n[4] Computing nbar from Eq. (6) for each independent fit ...")
 
-    nbar_on_g = nbar_g[:, on_res_idx]
-    nbar_on_e = nbar_e[:, on_res_idx]
+    nbar_g = np.full((n_gains, n_res), np.nan)
+    nbar_e = np.full((n_gains, n_res), np.nan)
+    model_g = np.full((n_gains, n_res), np.nan)
+    model_e = np.full((n_gains, n_res), np.nan)
 
-    # ── fit  n̄ = a·gain² + b  ──
-    def quad(g, a, b):
-        return a * g**2 + b
+    omega_q0_by_gain = np.full(n_gains, np.nan)
+    omega_rm_by_gain = np.full(n_gains, np.nan)
+    chi_mag_by_gain = np.full(n_gains, np.nan)
+    kappa_by_gain = np.full(n_gains, np.nan)
+    A2_by_gain = np.full(n_gains, np.nan)
+    omega_r_g_by_gain = np.full(n_gains, np.nan)
+    omega_r_e_by_gain = np.full(n_gains, np.nan)
+    rmse_by_gain = np.full(n_gains, np.nan)
 
-    try:
-        popt_q, _ = curve_fit(quad, gain_sweep, nbar_on_g, p0=[100, 0])
-        fit_g_fine = np.linspace(gain_sweep[0], gain_sweep[-1], 300)
-        fit_nbar   = quad(fit_g_fine, *popt_q)
-        print(f"    Fit: n̄ ≈ {popt_q[0]:.1f} × g² + {popt_q[1]:.3f}")
-    except Exception as e:
-        print(f"    Quadratic fit failed: {e}")
-        popt_q = None
+    for fit in valid_fits:
+        gi = fit["gain_index"]
 
-    # ──────────────────────────────────────────────────────────
-    #  5.  Summary table
-    # ──────────────────────────────────────────────────────────
-    print("\n" + "─" * 62)
-    print(f"  {'Gain':>8s}   {'n̄ (|g⟩, on-res)':>16s}   "
-          f"{'n̄ (|e⟩, on-res)':>16s}")
-    print(f"  {'─'*8}   {'─'*16}   {'─'*16}")
-    for i, g in enumerate(gain_sweep):
-        print(f"  {g:8.4f}   {nbar_on_g[i]:16.4f}   {nbar_on_e[i]:16.4f}")
-    print("─" * 62)
+        nbar_g[gi] = fit["nbar_g"]
+        nbar_e[gi] = fit["nbar_e"]
+        model_g[gi] = fit["model_g"]
+        model_e[gi] = fit["model_e"]
 
-    # ══════════════════════════════════════════════════════════
-    #  PLOTS
-    # ══════════════════════════════════════════════════════════
+        omega_q0_by_gain[gi] = fit["omega_q0"]
+        omega_rm_by_gain[gi] = fit["omega_rm"]
+        chi_mag_by_gain[gi] = fit["chi_mag"]
+        kappa_by_gain[gi] = fit["kappa"]
+        A2_by_gain[gi] = fit["A2"]
+        omega_r_g_by_gain[gi] = fit["omega_r_g"]
+        omega_r_e_by_gain[gi] = fit["omega_r_e"]
+        rmse_by_gain[gi] = fit["rmse"]
+
+    nbar_peak_g = np.array([safe_nanmax(nbar_g[gi]) for gi in range(n_gains)])
+    nbar_peak_e = np.array([safe_nanmax(nbar_e[gi]) for gi in range(n_gains)])
+    nbar_peak_avg = 0.5 * (nbar_peak_g + nbar_peak_e)
+
+    idx_bare = int(np.argmin(np.abs(res_freq_sweep - RES_FREQ_ON_RESONANCE)))
+    nbar_bare_g = nbar_g[:, idx_bare]
+    nbar_bare_e = nbar_e[:, idx_bare]
+    nbar_bare_avg = 0.5 * (nbar_bare_g + nbar_bare_e)
+
+    print(
+        f"    Bare/reference frequency index: {idx_bare} "
+        f"(f_d = {res_freq_sweep[idx_bare]:.4f} MHz)"
+    )
+
+    # Stark-shift back-out diagnostic using the reference fit parameters.
+    # This is not the main paper-style output. It is just a sanity check.
+    nbar_stark_g_ref = np.maximum(omega_q0_ref - g_centers, 0.0) / (2.0 * chi_ref)
+    nbar_stark_e_ref = np.maximum(omega_q0_ref - e_centers, 0.0) / (2.0 * chi_ref)
+
+    # 5. Print summary table.
+    print("\n" + "-" * 116)
+    print(
+        f"  {'Gain':>8s}   {'|chi| MHz':>10s}   {'kappa MHz':>10s}   "
+        f"{'|A|^2':>12s}   {'peak nbar |0>':>14s}   "
+        f"{'peak nbar |1>':>14s}   {'RMSE MHz':>10s}"
+    )
+    print("-" * 116)
+
+    for i, gain in enumerate(gain_sweep):
+        print(
+            f"  {gain:8.4f}   "
+            f"{chi_mag_by_gain[i]:10.5f}   "
+            f"{kappa_by_gain[i]:10.5f}   "
+            f"{A2_by_gain[i]:12.6g}   "
+            f"{nbar_peak_g[i]:14.4f}   "
+            f"{nbar_peak_e[i]:14.4f}   "
+            f"{rmse_by_gain[i]:10.4f}"
+        )
+
+    print("-" * 116)
+
+    # 6. Plots.
     plt.rcParams.update({
         "font.size": 12,
         "axes.titlesize": 13,
@@ -497,182 +859,480 @@ def main():
         "savefig.dpi": 200,
     })
 
-    # ── Plot 1: n̄ vs gain — on-resonance (scatter) ───────────
-    fig1, ax1 = plt.subplots(figsize=(7, 5))
+    # Plot 1: peak nbar vs gain.
+    fig1, ax1 = plt.subplots(figsize=(8.8, 5.0))
 
-    ax1.scatter(gain_sweep, nbar_on_g,
-                s=80, c="#1976D2", edgecolors="#0D47A1", linewidth=1.2,
-                zorder=5, label=r"$|0\rangle$ branch")
-    ax1.scatter(gain_sweep, nbar_on_e,
-                s=55, c="#E53935", edgecolors="#B71C1C", linewidth=1.2,
-                marker="s", zorder=5, label=r"$|1\rangle$ branch")
+    ax1.scatter(gain_sweep, nbar_peak_g, s=70, label=r"$|0\rangle$ branch peak")
+    ax1.scatter(gain_sweep, nbar_peak_e, s=55, marker="s", label=r"$|1\rangle$ branch peak")
+    ax1.plot(gain_sweep, nbar_peak_avg, "--", alpha=0.7, label="branch average")
 
-    if popt_q is not None:
-        ax1.plot(fit_g_fine, fit_nbar, "--", color="#0D47A1", lw=1.5,
-                 alpha=0.55,
-                 label=(rf"fit:  $\bar{{n}} = {popt_q[0]:.0f}\,g^2"
-                        rf" {'+' if popt_q[1] >= 0 else ''}"
-                        rf"{popt_q[1]:.2f}$"))
+    good = np.isfinite(nbar_peak_avg)
 
-    ax1.set_xlabel("Resonator drive gain  [DAC units]")
-    ax1.set_ylabel(r"$\bar{n}$  (photon number)")
-    ax1.set_title(
-        rf"On-resonance  $\bar{{n}}$  vs. gain   "
-        rf"($f_d$ = {RES_FREQ_ON_RESONANCE} MHz)")
-    ax1.legend(fontsize=10, framealpha=0.9)
+    if np.count_nonzero(good) >= 3:
+        try:
+            popt_q, _ = curve_fit(
+                quadratic,
+                gain_sweep[good],
+                nbar_peak_avg[good],
+                p0=[100.0, 0.0],
+            )
+
+            fit_g_fine = np.linspace(
+                np.nanmin(gain_sweep),
+                np.nanmax(gain_sweep),
+                300,
+            )
+
+            fit_nbar = quadratic(fit_g_fine, *popt_q)
+
+            ax1.plot(
+                fit_g_fine,
+                fit_nbar,
+                ":",
+                lw=2,
+                label=(
+                    rf"fit: $\bar{{n}} = {popt_q[0]:.0f}\,g^2"
+                    rf" {'+' if popt_q[1] >= 0 else ''}{popt_q[1]:.2f}$"
+                ),
+            )
+
+            print(
+                f"    Peak nbar quadratic diagnostic: "
+                f"nbar ≈ {popt_q[0]:.1f} g^2 + {popt_q[1]:.3f}"
+            )
+
+        except Exception as exc:
+            print(f"    Peak nbar quadratic fit failed: {exc}")
+
+    txt = (
+        "Reference five-parameter CKP fit\n"
+        rf"gain = {ref_gain:.4f}" "\n"
+        rf"$|\chi|$ = {chi_ref:.4f} MHz" "\n"
+        rf"$\kappa$ = {kappa_ref:.4f} MHz" "\n"
+        rf"$\omega_{{r,m}}$ = {omega_rm_ref:.4f} MHz" "\n"
+        rf"$\omega_{{q,0}}$ = {omega_q0_ref:.4f} MHz"
+    )
+
+    ax1.text(
+        0.03,
+        0.97,
+        txt,
+        transform=ax1.transAxes,
+        va="top",
+        bbox=dict(boxstyle="round,pad=0.4", fc="white", alpha=0.85),
+    )
+
+    ax1.set_xlabel("Resonator drive gain [DAC units]")
+    ax1.set_ylabel(r"peak $\bar{n}$")
+    ax1.set_title(r"Paper-style CKP: peak $\bar{n}$ from independent five-parameter fits")
     ax1.grid(True, alpha=0.25)
     ax1.set_xlim(left=-0.002)
     ax1.set_ylim(bottom=0)
+    ax1.legend(
+        loc="upper left",
+        bbox_to_anchor=(1.02, 1.0),
+        borderaxespad=0.0,
+        fontsize=10,
+        framealpha=0.9,
+    )
 
-    # annotate extracted parameters
-    txt = (rf"$\chi$ = {chi:.4f} MHz" "\n"
-           rf"$\kappa$ = {kappa:.4f} MHz")
-    ax1.text(0.03, 0.97, txt, transform=ax1.transAxes,
-             fontsize=10, va="top",
-             bbox=dict(boxstyle="round,pad=0.4", fc="white", alpha=0.85))
+    fig1.tight_layout(rect=[0, 0, 0.80, 1])
+    savefig_if_requested(fig1, "ckp_paperstyle_peak_nbar_vs_gain.png")
 
-    fig1.tight_layout()
-    if SAVE_FIGS:
-        p = os.path.join(OUTPUT_DIR, "ckp_nbar_vs_gain_on_resonance.png")
-        fig1.savefig(p, bbox_inches="tight")
-        print(f"\n  Saved → {p}")
+    # Plot 1b: nbar sampled at manually supplied bare/reference frequency.
+    fig1b, ax1b = plt.subplots(figsize=(8.8, 5.0))
 
-    # ── Plot 2: n̄ heatmap (gain × res_freq) ──────────────────
-    fig2, ax2 = plt.subplots(figsize=(9, 5.5))
+    ax1b.scatter(
+        gain_sweep,
+        nbar_bare_g,
+        s=70,
+        label=rf"$|0\rangle$ at {RES_FREQ_ON_RESONANCE:.3f} MHz",
+    )
 
-    # Sort res_freq for increasing y-axis
+    ax1b.scatter(
+        gain_sweep,
+        nbar_bare_e,
+        s=55,
+        marker="s",
+        label=rf"$|1\rangle$ at {RES_FREQ_ON_RESONANCE:.3f} MHz",
+    )
+
+    ax1b.plot(gain_sweep, nbar_bare_avg, "--", alpha=0.7, label="branch average")
+
+    ax1b.set_xlabel("Resonator drive gain [DAC units]")
+    ax1b.set_ylabel(r"$\bar{n}$")
+    ax1b.set_title(
+        rf"Paper-style CKP: $\bar{{n}}$ sampled at reference frequency "
+        rf"$f_d$ = {RES_FREQ_ON_RESONANCE:.3f} MHz"
+    )
+    ax1b.grid(True, alpha=0.25)
+    ax1b.set_xlim(left=-0.002)
+    ax1b.set_ylim(bottom=0)
+    ax1b.legend(
+        loc="upper left",
+        bbox_to_anchor=(1.02, 1.0),
+        borderaxespad=0.0,
+        fontsize=10,
+        framealpha=0.9,
+    )
+
+    fig1b.tight_layout(rect=[0, 0, 0.80, 1])
+    savefig_if_requested(fig1b, "ckp_paperstyle_referencefreq_nbar_vs_gain.png")
+
+    # Plot 2: heatmap for |0> branch.
     sort_idx = np.argsort(res_freq_sweep)
     rf_sorted = res_freq_sweep[sort_idx]
-    nbar_sorted = nbar_g[:, sort_idx].T      # shape [n_res, n_gains]
 
-    im = ax2.pcolormesh(gain_sweep, rf_sorted, nbar_sorted,
-                        shading="nearest", cmap="inferno")
+    fig2, ax2 = plt.subplots(figsize=(9, 5.5))
+
+    nbar_g_sorted = nbar_g[:, sort_idx].T
+
+    im = ax2.pcolormesh(
+        gain_sweep,
+        rf_sorted,
+        nbar_g_sorted,
+        shading="nearest",
+        cmap="inferno",
+    )
+
     cbar = fig2.colorbar(im, ax=ax2, pad=0.02)
-    cbar.set_label(r"$\bar{n}$  (photon number)", fontsize=12)
+    cbar.set_label(r"$\bar{n}$ (photon number)", fontsize=12)
 
-    # mark on-resonance and branch centres
-    ax2.axhline(RES_FREQ_ON_RESONANCE, color="white", ls="--", lw=1.4,
-                alpha=0.85, label=f"bare resonator ({RES_FREQ_ON_RESONANCE} MHz)")
-    if best_fit_g is not None:
-        ax2.axhline(best_fit_g["x0"], color="cyan", ls=":", lw=1.2,
-                    alpha=0.7, label=rf"$\omega_{{r,|0\rangle}}$ = "
-                                     f"{best_fit_g['x0']:.3f} MHz")
-        ax2.axhline(best_fit_e["x0"], color="#FF8A65", ls=":", lw=1.2,
-                    alpha=0.7, label=rf"$\omega_{{r,|1\rangle}}$ = "
-                                     f"{best_fit_e['x0']:.3f} MHz")
+    ax2.axhline(
+        RES_FREQ_ON_RESONANCE,
+        ls="--",
+        lw=1.4,
+        alpha=0.85,
+        label=f"reference freq ({RES_FREQ_ON_RESONANCE:.3f} MHz)",
+    )
 
-    ax2.set_xlabel("Resonator drive gain  [DAC units]")
-    ax2.set_ylabel("Resonator drive frequency  [MHz]")
-    ax2.set_title(r"$\bar{n}$  across gain and drive frequency  "
-                  r"($|0\rangle$ branch)")
+    ax2.plot(
+        gain_sweep,
+        omega_r_g_by_gain,
+        ".",
+        ms=5,
+        label=rf"fitted $\omega_{{r,|0\rangle}}$",
+    )
+
+    ax2.set_xlabel("Resonator drive gain [DAC units]")
+    ax2.set_ylabel("Resonator drive frequency [MHz]")
+    ax2.set_title(r"Paper-style CKP $\bar{n}$ heatmap, $|0\rangle$ branch")
     ax2.legend(loc="upper left", fontsize=9, framealpha=0.85)
 
     fig2.tight_layout()
-    if SAVE_FIGS:
-        p = os.path.join(OUTPUT_DIR, "ckp_nbar_heatmap_gain_vs_resfreq.png")
-        fig2.savefig(p, bbox_inches="tight")
-        print(f"  Saved → {p}")
+    savefig_if_requested(fig2, "ckp_paperstyle_nbar_heatmap_0branch.png")
 
-    # ── Plot 3: diagnostic — branch extraction at ref gain ────
-    fig3, axes3 = plt.subplots(1, 2, figsize=(14, 5),
-                               gridspec_kw={"width_ratios": [1.4, 1]})
+    # Plot 2b: heatmap for |1> branch.
+    fig2b, ax2b = plt.subplots(figsize=(9, 5.5))
 
-    # Left panel: branch centres with Lorentzian fits
+    nbar_e_sorted = nbar_e[:, sort_idx].T
+
+    im = ax2b.pcolormesh(
+        gain_sweep,
+        rf_sorted,
+        nbar_e_sorted,
+        shading="nearest",
+        cmap="inferno",
+    )
+
+    cbar = fig2b.colorbar(im, ax=ax2b, pad=0.02)
+    cbar.set_label(r"$\bar{n}$ (photon number)", fontsize=12)
+
+    ax2b.axhline(
+        RES_FREQ_ON_RESONANCE,
+        ls="--",
+        lw=1.4,
+        alpha=0.85,
+        label=f"reference freq ({RES_FREQ_ON_RESONANCE:.3f} MHz)",
+    )
+
+    ax2b.plot(
+        gain_sweep,
+        omega_r_e_by_gain,
+        ".",
+        ms=5,
+        label=rf"fitted $\omega_{{r,|1\rangle}}$",
+    )
+
+    ax2b.set_xlabel("Resonator drive gain [DAC units]")
+    ax2b.set_ylabel("Resonator drive frequency [MHz]")
+    ax2b.set_title(r"Paper-style CKP $\bar{n}$ heatmap, $|1\rangle$ branch")
+    ax2b.legend(loc="upper left", fontsize=9, framealpha=0.85)
+
+    fig2b.tight_layout()
+    savefig_if_requested(fig2b, "ckp_paperstyle_nbar_heatmap_1branch.png")
+
+    # Plot 3: diagnostic fit at reference gain.
+    fig3, axes3 = plt.subplots(
+        1,
+        2,
+        figsize=(14, 5),
+        gridspec_kw={"width_ratios": [1.5, 1.0]},
+    )
+
     ax = axes3[0]
-    ax.plot(res_freq_sweep, g_centers[best_gi], "o", ms=5,
-            color="#1976D2", label=r"$|0\rangle$ branch data")
-    ax.plot(res_freq_sweep, e_centers[best_gi], "s", ms=5,
-            color="#E53935", label=r"$|1\rangle$ branch data")
 
-    if best_fit_g is not None:
-        ax.plot(res_freq_sweep, best_fit_g["fit_y"], "-",
-                color="#0D47A1", lw=2, label="Lorentzian fit")
-    if best_fit_e is not None:
-        ax.plot(res_freq_sweep, best_fit_e["fit_y"], "-",
-                color="#B71C1C", lw=2)
+    ax.plot(
+        res_freq_sweep,
+        g_centers[best_gi],
+        "o",
+        ms=5,
+        label=r"$|0\rangle$ extracted centers",
+    )
 
-    ax.axhline(BARE_QUBIT_FREQ, color="gray", ls=":", lw=1, alpha=0.6,
-               label=rf"bare $\omega_q$ = {BARE_QUBIT_FREQ} MHz")
+    ax.plot(
+        res_freq_sweep,
+        e_centers[best_gi],
+        "s",
+        ms=5,
+        label=r"$|1\rangle$ extracted centers",
+    )
 
-    ax.set_xlabel("Resonator drive frequency  [MHz]")
-    ax.set_ylabel("Qubit resonance frequency  [MHz]")
-    ax.set_title(f"Branch extraction   "
-                 f"(gain = {gain_sweep[best_gi]:.4f})")
-    ax.legend(fontsize=9, loc="best")
+    ax.plot(
+        res_freq_sweep,
+        ref_fit["model_g"],
+        "-",
+        lw=2,
+        label=r"five-parameter fit: $|0\rangle$",
+    )
+
+    ax.plot(
+        res_freq_sweep,
+        ref_fit["model_e"],
+        "-",
+        lw=2,
+        label=r"five-parameter fit: $|1\rangle$",
+    )
+
+    ax.axhline(
+        omega_q0_ref,
+        ls=":",
+        lw=1,
+        alpha=0.6,
+        label=rf"fitted $\omega_q$ = {omega_q0_ref:.3f} MHz",
+    )
+
+    ax.axvline(
+        center_g_ref,
+        ls=":",
+        lw=1,
+        alpha=0.7,
+        label=rf"$\omega_{{r,|0\rangle}}$ = {center_g_ref:.3f} MHz",
+    )
+
+    ax.axvline(
+        center_e_ref,
+        ls=":",
+        lw=1,
+        alpha=0.7,
+        label=rf"$\omega_{{r,|1\rangle}}$ = {center_e_ref:.3f} MHz",
+    )
+
+    ax.set_xlabel("Resonator drive frequency [MHz]")
+    ax.set_ylabel("Qubit resonance frequency [MHz]")
+    ax.set_title(f"Paper-style CKP fit at reference gain = {ref_gain:.4f}")
     ax.grid(True, alpha=0.25)
+    ax.legend(fontsize=8, loc="best")
 
-    # Right panel: parameter summary
     ax = axes3[1]
     ax.axis("off")
 
     lines = [
-        r"$\bf{Extracted\ Parameters}$",
+        r"$\bf{Paper\ style\ five\ parameter\ CKP\ fit}$",
         "",
-        rf"$\chi$  =  {chi:.4f} MHz  ({chi*1e3:.1f} kHz)",
-        rf"$\kappa$  =  {kappa:.4f} MHz  ({kappa*1e3:.1f} kHz)",
+        rf"gain index = {best_gi}",
+        rf"gain = {ref_gain:.4f}",
         "",
-        rf"$2\chi$ (splitting)  =  {2*chi:.4f} MHz",
+        rf"$\omega_{{q,0}}$ = {omega_q0_ref:.4f} MHz",
+        rf"$\omega_{{r,m}}$ = {omega_rm_ref:.4f} MHz",
+        rf"$|\chi|$ = {chi_ref:.4f} MHz ({chi_ref * 1e3:.1f} kHz)",
+        rf"signed paper $\chi$ = {-chi_ref:.4f} MHz",
+        rf"$\kappa$ = {kappa_ref:.4f} MHz ({kappa_ref * 1e3:.1f} kHz)",
+        rf"$|A|^2$ = {A2_ref:.6g}",
         "",
-        f"On-res freq  =  {RES_FREQ_ON_RESONANCE} MHz",
-        f"Bare qubit   =  {BARE_QUBIT_FREQ} MHz",
+        rf"$\omega_{{r,|0\rangle}}$ = {center_g_ref:.4f} MHz",
+        rf"$\omega_{{r,|1\rangle}}$ = {center_e_ref:.4f} MHz",
+        rf"RMSE = {ref_fit['rmse']:.4f} MHz",
         "",
+        rf"$\bar{{n}}_{{peak,|0\rangle}}$ = {np.nanmax(ref_fit['nbar_g']):.2f}",
+        rf"$\bar{{n}}_{{peak,|1\rangle}}$ = {np.nanmax(ref_fit['nbar_e']):.2f}",
+        "",
+        rf"Config $|\chi|$ reference = {abs(CHI_CONFIG):.4f} MHz",
     ]
 
-    if best_fit_g is not None:
-        lines += [
-            rf"$\omega_{{r,|0\rangle}}$  =  {best_fit_g['x0']:.4f} MHz",
-            rf"$\omega_{{r,|1\rangle}}$  =  {best_fit_e['x0']:.4f} MHz",
-            "",
-            rf"$n_{{peak}}$ at ref gain  =  "
-            rf"{best_fit_g['depth'] / (2*chi):.1f}  photons",
-        ]
-
-    if popt_q is not None:
-        lines += [
-            "",
-            rf"$\bar{{n}}(g) \approx {popt_q[0]:.0f}\,g^2"
-            rf" {'+'  if popt_q[1]>=0 else ''}{popt_q[1]:.2f}$",
-        ]
-
-    lines += ["", f"Config χ (ref.)  =  {abs(CHI_CONFIG):.4f} MHz"]
-
-    ax.text(0.05, 0.95, "\n".join(lines), transform=ax.transAxes,
-            fontsize=11, va="top", fontfamily="monospace",
-            bbox=dict(boxstyle="round,pad=0.5", fc="lightyellow",
-                      ec="gray", alpha=0.9))
+    ax.text(
+        0.05,
+        0.95,
+        "\n".join(lines),
+        transform=ax.transAxes,
+        fontsize=11,
+        va="top",
+        fontfamily="monospace",
+        bbox=dict(
+            boxstyle="round,pad=0.5",
+            fc="lightyellow",
+            ec="gray",
+            alpha=0.9,
+        ),
+    )
 
     fig3.tight_layout()
-    if SAVE_FIGS:
-        p = os.path.join(OUTPUT_DIR, "ckp_chi_kappa_extraction.png")
-        fig3.savefig(p, bbox_inches="tight")
-        print(f"  Saved → {p}")
+    savefig_if_requested(fig3, "ckp_paperstyle_reference_fit_diagnostic.png")
+
+    # Plot 4: fitted parameters versus gain.
+    fig4, ax4 = plt.subplots(figsize=(8.5, 5.0))
+
+    ax4.plot(gain_sweep, chi_mag_by_gain, "o-", label=r"$|\chi|$")
+    ax4.plot(gain_sweep, kappa_by_gain, "s-", label=r"$\kappa$")
+
+    ax4.axhline(
+        abs(CHI_CONFIG),
+        ls=":",
+        lw=1.2,
+        alpha=0.8,
+        label=rf"config $|\chi|$ = {abs(CHI_CONFIG):.4f} MHz",
+    )
+
+    ax4.set_xlabel("Resonator drive gain [DAC units]")
+    ax4.set_ylabel("Frequency [MHz]")
+    ax4.set_title(r"Paper-style CKP fitted $|\chi|$ and $\kappa$ versus gain")
+    ax4.grid(True, alpha=0.25)
+    ax4.legend(fontsize=9)
+
+    fig4.tight_layout()
+    savefig_if_requested(fig4, "ckp_paperstyle_chi_kappa_vs_gain.png")
+
+    # Plot 5: RMSE versus gain.
+    fig5, ax5 = plt.subplots(figsize=(8.5, 5.0))
+
+    ax5.plot(gain_sweep, rmse_by_gain, "o-")
+    ax5.set_xlabel("Resonator drive gain [DAC units]")
+    ax5.set_ylabel("Fit RMSE [MHz]")
+    ax5.set_title("Paper-style CKP fit residual versus gain")
+    ax5.grid(True, alpha=0.25)
+
+    fig5.tight_layout()
+    savefig_if_requested(fig5, "ckp_paperstyle_rmse_vs_gain.png")
+
+    # Plot 6: cross-check at reference frequency.
+    fig6, ax6 = plt.subplots(figsize=(8.5, 5.0))
+
+    ax6.plot(
+        gain_sweep,
+        nbar_stark_g_ref[:, idx_bare],
+        "o",
+        ms=5,
+        label=r"Stark back-out, $|0\rangle$",
+    )
+
+    ax6.plot(
+        gain_sweep,
+        nbar_bare_g,
+        "-",
+        lw=2,
+        label=r"Eq. (6), $|0\rangle$",
+    )
+
+    ax6.plot(
+        gain_sweep,
+        nbar_stark_e_ref[:, idx_bare],
+        "s",
+        ms=5,
+        label=r"Stark back-out, $|1\rangle$",
+    )
+
+    ax6.plot(
+        gain_sweep,
+        nbar_bare_e,
+        "-",
+        lw=2,
+        label=r"Eq. (6), $|1\rangle$",
+    )
+
+    ax6.set_xlabel("Resonator drive gain [DAC units]")
+    ax6.set_ylabel(r"$\bar{n}$")
+    ax6.set_title(
+        rf"Cross-check at reference frequency "
+        rf"$f_d$ = {RES_FREQ_ON_RESONANCE:.3f} MHz"
+    )
+    ax6.grid(True, alpha=0.25)
+    ax6.legend(fontsize=9)
+
+    fig6.tight_layout()
+    savefig_if_requested(fig6, "ckp_paperstyle_nbar_crosscheck_referencefreq.png")
 
     if SHOW_FIGS:
         plt.show()
 
-    # ──────────────────────────────────────────────────────────
-    #  6.  Save results to .npz for downstream use
-    # ──────────────────────────────────────────────────────────
-    npz_path = os.path.join(OUTPUT_DIR, "ckp_nbar_results.npz")
-    np.savez(npz_path,
-             chi=chi,
-             kappa=kappa,
-             gain_sweep=gain_sweep,
-             res_freq_sweep=res_freq_sweep,
-             qu_freq_sweep=qu_freq_sweep,
-             nbar_g=nbar_g,
-             nbar_e=nbar_e,
-             g_centers=g_centers,
-             e_centers=e_centers,
-             nbar_on_resonance_g=nbar_on_g,
-             nbar_on_resonance_e=nbar_on_e)
-    print(f"\n  Results saved → {npz_path}")
+    # 7. Save results.
+    npz_path = os.path.join(OUTPUT_DIR, "ckp_paperstyle_results.npz")
 
-    print("\n✓  Analysis complete.")
-    return dict(chi=chi, kappa=kappa, nbar_g=nbar_g, nbar_e=nbar_e,
-                gain_sweep=gain_sweep, res_freq_sweep=res_freq_sweep)
+    np.savez(
+        npz_path,
+
+        gain_sweep=gain_sweep,
+        res_freq_sweep=res_freq_sweep,
+        qu_freq_sweep=qu_freq_sweep,
+
+        omega_q0_by_gain=omega_q0_by_gain,
+        omega_rm_by_gain=omega_rm_by_gain,
+        chi_mag_by_gain=chi_mag_by_gain,
+        chi_paper_signed_by_gain=-chi_mag_by_gain,
+        kappa_by_gain=kappa_by_gain,
+        A2_by_gain=A2_by_gain,
+        omega_r_g_by_gain=omega_r_g_by_gain,
+        omega_r_e_by_gain=omega_r_e_by_gain,
+        rmse_by_gain=rmse_by_gain,
+
+        nbar_g=nbar_g,
+        nbar_e=nbar_e,
+        nbar_peak_g=nbar_peak_g,
+        nbar_peak_e=nbar_peak_e,
+        nbar_bare_g=nbar_bare_g,
+        nbar_bare_e=nbar_bare_e,
+
+        g_centers=g_centers,
+        e_centers=e_centers,
+        model_g=model_g,
+        model_e=model_e,
+
+        reference_gain_index=best_gi,
+        reference_gain=ref_gain,
+        reference_omega_q0=omega_q0_ref,
+        reference_omega_rm=omega_rm_ref,
+        reference_chi_mag=chi_ref,
+        reference_chi_paper_signed=-chi_ref,
+        reference_kappa=kappa_ref,
+        reference_A2=A2_ref,
+        reference_omega_r_g=center_g_ref,
+        reference_omega_r_e=center_e_ref,
+        reference_rmse=ref_fit["rmse"],
+    )
+
+    print(f"\n  Paper-style results saved -> {npz_path}")
+
+    print("\nAnalysis complete.")
+
+    return {
+        "fits": fits,
+        "valid_fits": valid_fits,
+        "gain_sweep": gain_sweep,
+        "res_freq_sweep": res_freq_sweep,
+        "qu_freq_sweep": qu_freq_sweep,
+        "g_centers": g_centers,
+        "e_centers": e_centers,
+        "nbar_g": nbar_g,
+        "nbar_e": nbar_e,
+        "nbar_peak_g": nbar_peak_g,
+        "nbar_peak_e": nbar_peak_e,
+        "omega_q0_by_gain": omega_q0_by_gain,
+        "omega_rm_by_gain": omega_rm_by_gain,
+        "chi_mag_by_gain": chi_mag_by_gain,
+        "kappa_by_gain": kappa_by_gain,
+        "A2_by_gain": A2_by_gain,
+        "reference_fit": ref_fit,
+    }
 
 
-# ═══════════════════════════════════════════════════════════════
 if __name__ == "__main__":
     results = main()

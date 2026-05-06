@@ -61,11 +61,11 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         #     "list_of_all_qubits": list_of_all_qubits,
         # },
         "qubit_spec_ge": {
-            "reps": 20,
-            "rounds": 20,  # 3
-            "start": list(VNA_qubit - 0.8),  # [MHz] -30
-            "stop": list(VNA_qubit + 0.8),  # [MHz] +15
-            "steps": 100,
+            "reps": 2000,
+            "rounds": 1,  # 3
+            "start": list(VNA_qubit - 2),  # [MHz]0.8
+            "stop": list(VNA_qubit + 2),  # [MHz] 0.8
+            "steps": 300,
             "relax_delay": 100,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
@@ -158,7 +158,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "reps": 200,  # 300,
             "rounds": 1,  # 10,
             "start": 0,  # [DAC units]
-            "stop": 0.8,  # [DAC units]
+            "stop": 0.8,  # 0.08 [DAC units]
             "steps": 50,
             "relax_delay": 4000,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
@@ -334,26 +334,25 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "list_of_all_qubits": list_of_all_qubits,
         },
         "ckp_nbar_calibration": {
-            "reps": 500,
+            "reps": 2000,
             "rounds": 1,
             "list_of_all_qubits": list_of_all_qubits,
 
-            "gain_steps": 20,
+            "gain_steps": 30,
             "start_gain": 0,
             "end_gain": 0.04,
 
-            "res_freq_steps": 50,
-            "res_freq_start": 7287.57+0.7,
+            "res_freq_steps": 100,
+            "res_freq_start": 7287.57+0.5,
             "res_freq_stop": 7287.57-0.7,
 
-            "start_freq": -75, #-6.5,
+            "start_freq": -10, #-6.5,
             "end_freq": 5,
             "qubit_pulse_steps": 100,
 
 
             "qubit_pulse_delay": 6,
-            "ckp_length": 20,
-            "readout_pulse_delay": 6,
+            "readout_pulse_delay": 5,
 
             "ckp_gain": [],
             "res_freq_ckp": [],
@@ -468,7 +467,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "Ramsey_ge_zeno": {
-            "reps": 600,
+            "reps": 100,
             "rounds": 1,
             "start": 0.01,  # [us]
             "stop": 20,  # [us]
@@ -522,7 +521,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "list_of_all_qubits": list_of_all_qubits,
         },
         "SpinEcho_ge_zeno": {
-            "reps": 300,  # 20,
+            "reps": 100,  # 20,
             "rounds": 1,
             "start": 0.01,  # [us]
             "stop": 20,  # [us]
