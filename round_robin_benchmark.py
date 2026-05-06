@@ -62,18 +62,18 @@ Qs_to_look_at = [5]     # only list the qubits you want to do the RR for
 run_name = 'bob_run_started_Feb_11'
 device_name = 'squill'
 substudy_txt_notes = ('track res and q spec')
-study ='resonator_tracking_gef_shorter_pulse_len'
+study ='tls_qspec'
 sub_study = f'pulse_len_test'
 data_set = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 # set which of the following you'd like to run to 'True'
-run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss":  False, "rabi": True, "len_rabi": False, "ss_gef": False, "test_act": False, "fh_rabi": False,
-             "t1":  False, "t2r": False, "t2r_correction":False, "t2e":  False, "ef_res_spec": True, "ef_q_spec": True, "fh_q_spec":False,
-             "rabi_pop_meas": False, "ef_Rabi": True, "ef_ss": False, "res_spec_fh":True}
+run_flags = {"tof": False, "res_spec": False, "q_spec": True, "ss":  False, "rabi":  False, "len_rabi": False, "ss_gef": False, "test_act": False, "fh_rabi": False,
+             "t1":  False, "t2r": False, "t2r_correction":False, "t2e":  False, "ef_res_spec":  False, "ef_q_spec":  False, "fh_q_spec":False,
+             "rabi_pop_meas": False, "ef_Rabi":  False, "ef_ss": False, "res_spec_fh":  False}
 
 
 # optimization outputs from qick board, unmasking set to true
-res_leng_vals = [3]*6
+res_leng_vals = [9]*6
 res_gain = [0.25,0.25,0.25,0.25,0.24,0.2133]
 freq_offsets = [0,0,0,0,-0.25,-0.16]
 
@@ -443,6 +443,7 @@ while j < n:
 
         # experiment.readout_cfg['res_freq_ge'] = freq_offsets[QubitIndex] + 7267.56
         # experiment.readout_cfg['res_freq_ef'] = 7267.56-0.2
+        experiment.readout_cfg['res_freq_ge'] = freq_offsets[QubitIndex] + 7287.6
         experiment.qubit_cfg['qubit_freq_ef'] = float(2929.37)
         experiment.qubit_cfg['qubit_freq_ge'] = float(3095.44)
         experiment.qubit_cfg['pi_amp'] =  experiment.qubit_cfg['pi_amp'][QubitIndex]
