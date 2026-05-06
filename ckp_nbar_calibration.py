@@ -174,10 +174,106 @@ class CKPProgram_e(AveragerProgramV2):
         self.pulse(ch=cfg['res_ch'], name="res_pulse")
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
+# ═══════════════════════════════════════════════════════════════════════════════
+#  CKPProgram_f — |f⟩ preparation (π_ge + π_ef first), 2D sweep
+# ═══════════════════════════════════════════════════════════════════════════════
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  CKP Measurement class
-# ═══════════════════════════════════════════════════════════════════════════════
+class CKPProgram_f(AveragerProgramV2):
+    """CKP qubit spectroscopy — |f⟩ preparation (π_ge + π_ef first), 2D sweep."""
+
+    def _initialize(self, cfg):
+        ro_ch = cfg['ro_ch']
+        res_ch = cfg['res_ch']
+        qubit_ch = cfg['qubit_ch']
+
+        # ── resonator / readout ──
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
+        self.add_readoutconfig(ch=ro_ch, name="myro",
+                               freq=cfg['res_freq_ge'],
+                               gen_ch=res_ch,
+                               outsel='product')
+        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
+
+        # Stark tone — frequency swept via outer loop
+        self.add_pulse(ch=res_ch, name="stark_tone",
+                       style="const",
+                       length=cfg['ckp_length'],
+                       freq=QickSweep1D("res_freq_loop",
+                                        cfg['res_freq_start'],
+                                        cfg['res_freq_stop']),
+                       phase=cfg['ro_phase'],
+                       gain=cfg['ckp_gain']
+                       )
+
+        # Normal readout pulse (fixed)
+        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
+                       style="const",
+                       length=cfg["res_length"],
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
+                       )
+
+        # ── qubit ──
+        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
+
+        self.add_gauss(ch=qubit_ch, name="ramp", sigma=cfg['sigma'],
+                       length=cfg['sigma'] * 4, even_length=False)
+        self.add_gauss(ch=qubit_ch, name="ramp_ef", sigma=cfg['sigma_ef'],
+                       length=cfg['sigma_ef'] * 4, even_length=False)
+        self.add_gauss(ch=qubit_ch, name="ramp_ckz", sigma=cfg['sigma_ckz'],
+                       length=cfg['sigma_ckz'] * 4, even_length=False)
+
+        # Qubit probe pulse — frequency swept via inner loop
+        self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch,
+                       style="arb",
+                       envelope="ramp_ckz",
+                       freq=QickSweep1D("qubit_pulse_loop",
+                                        cfg['qubit_freq_ge'] + cfg["start_freq"],
+                                        cfg['qubit_freq_ge'] + cfg["end_freq"]),
+                       phase=cfg['qubit_phase'],
+                       gain=cfg['qubit_gain_ge'],
+                       )
+
+        # g→e Pi pulse (fixed freq/gain)
+        self.add_pulse(ch=qubit_ch, name="pi_ge_pulse",
+                       style="arb",
+                       envelope="ramp",
+                       freq=cfg['qubit_freq_ge'],
+                       phase=cfg['qubit_phase'],
+                       gain=cfg['pi_amp'],
+                       )
+
+        # e→f Pi pulse (fixed freq/gain)
+        self.add_pulse(ch=qubit_ch, name="pi_ef_pulse",
+                       style="arb",
+                       envelope="ramp_ef",
+                       freq=cfg['qubit_freq_ef'],
+                       phase=cfg['qubit_phase'],
+                       gain=cfg['pi_ef_amp'],
+                       )
+
+        # Inner loop added FIRST, outer loop added SECOND
+        self.add_loop("qubit_pulse_loop", cfg["qubit_pulse_steps"])   # inner
+        self.add_loop("res_freq_loop", cfg["res_freq_steps"])          # outer
+
+    def _body(self, cfg):
+        self.pulse(ch=cfg['qubit_ch'], name="pi_ge_pulse")                     # put qubit in |e⟩
+        self.delay_auto(t=0)
+        self.pulse(ch=cfg['qubit_ch'], name="pi_ef_pulse")                     # put qubit in |f⟩
+        self.delay_auto(t=0)
+        self.pulse(ch=self.cfg['res_ch'], name="stark_tone", t=0)          # play stark tone
+        self.pulse(ch=cfg['qubit_ch'], name="qubit_pulse",
+                   t=cfg['qubit_pulse_delay'])                              # play qubit pulse with delay
+        self.delay_auto(t=0)
+        self.delay_auto(t=cfg['readout_pulse_delay'])                       # wait for ring-down
+        self.pulse(ch=cfg['res_ch'], name="res_pulse")
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+
+
+
 
 class CKPMeasurement:
     def __init__(self, QubitIndex, number_of_qubits, outerFolder, round_num,
