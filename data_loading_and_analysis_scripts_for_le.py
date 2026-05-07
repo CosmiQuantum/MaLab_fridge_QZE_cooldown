@@ -46,6 +46,8 @@ The importable entry point is:
 
 `results` is a dictionary with `qspec_points`, `t1_points`,
 `qspec_summary`, `t1_summary`, `nbar_by_round`, and `plot_files`.
+T1 heatmaps are saved two ways: `plots/t1_heatmaps_vs_nbar/` and
+`plots/t1_heatmaps_vs_gain/`.
 """
 
 from __future__ import annotations
@@ -1039,11 +1041,14 @@ def plot_t1_heatmaps(
     nbar_by_round: dict[str, dict[str, Any]],
     *,
     qubit_index: int,
+    x_axis: str,
     out_dir: Path,
     dpi: int,
 ) -> list[Path]:
     if not t1_points:
         return []
+    if x_axis not in {"nbar", "gain"}:
+        raise ValueError("x_axis must be 'nbar' or 'gain'")
 
     plt, mticker = import_pyplot(out_dir)
     plot_files: list[Path] = []
@@ -1060,23 +1065,34 @@ def plot_t1_heatmaps(
         points_by_round[int(row["round"])].append(row)
 
     for round_id, rows in sorted(points_by_round.items()):
-        entry = nbar_by_round.get(str(round_id))
-        if not entry:
-            continue
+        if x_axis == "nbar":
+            entry = nbar_by_round.get(str(round_id))
+            if not entry:
+                continue
 
-        gains = np.asarray(entry["gains"], dtype=float)
-        nbar = np.asarray(entry["nbar"], dtype=float)
-        n = min(gains.size, nbar.size)
-        if n == 0:
-            continue
-        gain_to_nbar = {float(g): float(nb) for g, nb in zip(gains[:n], nbar[:n])}
+            gains = np.asarray(entry["gains"], dtype=float)
+            nbar = np.asarray(entry["nbar"], dtype=float)
+            n = min(gains.size, nbar.size)
+            if n == 0:
+                continue
+            gain_to_x = {float(g): float(nb) for g, nb in zip(gains[:n], nbar[:n])}
+            x_label = r"Photon number $\bar{n}$"
+            title_axis = "nbar"
+            file_suffix = "nbar"
+        else:
+            gain_to_x = {}
+            x_label = "Gain (a.u.)"
+            title_axis = "gain"
+            file_suffix = "gain"
 
         bucket: dict[tuple[float, float], list[float]] = defaultdict(list)
         for row in rows:
             gain = float(row["gain"])
             delay = float(row["delay_us"])
             pop = float(row["population"])
-            if gain in gain_to_nbar and np.isfinite(delay) and np.isfinite(pop):
+            if x_axis == "gain" and np.isfinite(gain):
+                gain_to_x[gain] = gain
+            if gain in gain_to_x and np.isfinite(delay) and np.isfinite(pop):
                 bucket[(gain, delay)].append(pop)
 
         gains_r = sorted({gain for gain, _ in bucket})
@@ -1084,7 +1100,7 @@ def plot_t1_heatmaps(
         if len(gains_r) == 0 or len(delays_r) == 0:
             continue
 
-        x_vals = np.asarray([gain_to_nbar[g] for g in gains_r], dtype=float)
+        x_vals = np.asarray([gain_to_x[g] for g in gains_r], dtype=float)
         order = np.argsort(x_vals)
         x_vals = x_vals[order]
         gains_sorted = [gains_r[i] for i in order]
@@ -1109,13 +1125,13 @@ def plot_t1_heatmaps(
         cbar = fig.colorbar(mesh, ax=ax, pad=0.02)
         cbar.set_label("Qubit population")
 
-        ax.set_title(f"Qubit {qubit_index}: T1 decay vs nbar, round {round_id}")
-        ax.set_xlabel(r"Photon number $\bar{n}$")
+        ax.set_title(f"Qubit {qubit_index}: T1 decay vs {title_axis}, round {round_id}")
+        ax.set_xlabel(x_label)
         ax.set_ylabel("Delay time (us)")
         ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=7))
         fig.tight_layout()
 
-        outfile = out_dir / f"t1_heatmap_q{qubit_index}_round{round_id}_nbar.png"
+        outfile = out_dir / f"t1_heatmap_q{qubit_index}_round{round_id}_{file_suffix}.png"
         outfile.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(outfile, dpi=dpi)
         plt.close(fig)
@@ -1273,7 +1289,18 @@ def make_all_plots(
                 t1_points,
                 nbar_by_round,
                 qubit_index=config.qubit_index,
+                x_axis="nbar",
                 out_dir=plot_dir / "t1_heatmaps_vs_nbar",
+                dpi=config.dpi,
+            )
+        )
+        plot_files.extend(
+            plot_t1_heatmaps(
+                t1_points,
+                nbar_by_round,
+                qubit_index=config.qubit_index,
+                x_axis="gain",
+                out_dir=plot_dir / "t1_heatmaps_vs_gain",
                 dpi=config.dpi,
             )
         )
@@ -1355,7 +1382,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dpi", type=int, default=200, help="Saved plot DPI.")
     parser.add_argument("--no-plots", action="store_true", help="Only write CSV/JSON; do not make plots.")
     parser.add_argument("--no-qspec-heatmaps", action="store_true", help="Skip qubit spectroscopy heatmaps vs nbar.")
-    parser.add_argument("--no-t1-heatmaps", action="store_true", help="Skip T1 heatmaps vs nbar.")
+    parser.add_argument("--no-t1-heatmaps", action="store_true", help="Skip T1 heatmaps vs nbar and gain.")
     parser.add_argument("--no-per-round-summary-plots", action="store_true", help="Skip per-round T1/Gamma summary plots.")
     return parser
 
