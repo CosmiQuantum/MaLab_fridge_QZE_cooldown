@@ -76,7 +76,7 @@ data_path_name = "M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/2d_mo
 DEFAULT_DATA_ROOT = Path(
     data_path_name
 )
-DEFAULT_CKP_ROOT = Path(f"{data_path_name}/analysis_for_le_outputs")
+DEFAULT_CKP_ROOT = Path(f"{data_path_name}/ckp_nbar_calibration/study_data/Data_h5/ckp_calibration")
 DEFAULT_OUT_DIR = Path(f"{data_path_name}/analysis_for_le_outputs")
 DEFAULT_QUBIT_INDEX = 5
 DEFAULT_ROUNDS = "0:47"
