@@ -74,7 +74,7 @@ except ImportError:  # The script can still show --help without h5py.
 DEFAULT_DATA_ROOT = Path(
     "M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/2d_more_stats/all_qubits"
 )
-DEFAULT_OUT_DIR = Path("analysis_for_le_outputs")
+DEFAULT_OUT_DIR = Path("M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/2d_more_stats/all_qubits/analysis_for_le_outputs")
 DEFAULT_QUBIT_INDEX = 5
 DEFAULT_ROUNDS = "0:47"
 DEFAULT_CHI_MHZ = -0.137
