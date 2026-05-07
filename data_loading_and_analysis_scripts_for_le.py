@@ -72,13 +72,13 @@ try:
 except ImportError:  # The script can still show --help without h5py.
     h5py = None
 
-
+data_path_name = "M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/2d_more_stats/qubit_5"
 DEFAULT_DATA_ROOT = Path(
-    "M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/2d_more_stats/all_qubits"
+    data_path_name
 )
-DEFAULT_OUT_DIR = Path("M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/2d_more_stats/all_qubits/analysis_for_le_outputs")
+DEFAULT_OUT_DIR = Path(f"{data_path_name}/analysis_for_le_outputs")
 DEFAULT_QUBIT_INDEX = 5
-DEFAULT_ROUNDS = "0:47"
+DEFAULT_ROUNDS = "0:20"
 DEFAULT_CHI_MHZ = -0.137
 
 NUMBER_RE = re.compile(r"[-+]?(?:(?:\d+\.\d*)|(?:\.\d+)|(?:\d+))(?:[eE][-+]?\d+)?")
