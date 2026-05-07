@@ -96,6 +96,7 @@ class AnalysisConfig:
     t1_subdir: str = "T1_ge_zeno"
     make_plots: bool = True
     make_qspec_heatmaps: bool = True
+    make_t1_heatmaps: bool = True
     make_per_round_summary_plots: bool = True
     min_qspec_points: int = 5
     min_t1_points: int = 4
@@ -903,6 +904,7 @@ def plot_per_round_summary(
     y_key: str,
     yerr_key: str,
     ylabel: str,
+    title_prefix: str,
     filename_prefix: str,
     out_dir: Path,
     dpi: int,
@@ -930,7 +932,7 @@ def plot_per_round_summary(
         ax.plot(x, y, "o-", linewidth=1.2, markersize=4)
         ax.set_xlabel(r"Photon number $\bar{n}$")
         ax.set_ylabel(ylabel)
-        ax.set_title(f"Qubit summary, round {round_id}")
+        ax.set_title(f"{title_prefix}, round {round_id}")
         ax.grid(True, alpha=0.25)
         fig.tight_layout()
 
@@ -945,7 +947,6 @@ def plot_per_round_summary(
 def plot_qspec_heatmaps(
     qspec_points: list[dict[str, Any]],
     nbar_by_round: dict[str, dict[str, Any]],
-    qspec_summary: list[dict[str, Any]],
     *,
     qubit_index: int,
     out_dir: Path,
@@ -963,10 +964,6 @@ def plot_qspec_heatmaps(
         return []
     vmin = float(np.nanmin(finite_pop))
     vmax = float(np.nanmax(finite_pop))
-
-    summary_by_round = defaultdict(list)
-    for row in qspec_summary:
-        summary_by_round[int(row["round"])].append(row)
 
     points_by_round: dict[int, list[dict[str, Any]]] = defaultdict(list)
     for row in qspec_points:
@@ -1022,26 +1019,103 @@ def plot_qspec_heatmaps(
         cbar = fig.colorbar(mesh, ax=ax, pad=0.02)
         cbar.set_label("Qubit population")
 
-        center_rows = summary_by_round.get(round_id, [])
-        if center_rows:
-            center_by_gain = {float(row["gain"]): float(row["center_mhz"]) for row in center_rows}
-            center_x = []
-            center_y = []
-            for gain in gains_sorted:
-                if gain in center_by_gain and gain in gain_to_nbar:
-                    center_x.append(gain_to_nbar[gain])
-                    center_y.append(center_by_gain[gain])
-            if center_x:
-                ax.plot(center_x, center_y, "o", ms=4, mfc="none", mec="w", mew=1.3, label="fit centers")
-                ax.legend(loc="best")
-
-        ax.set_title(f"Qubit {qubit_index} qspec, round {round_id}")
+        ax.set_title(f"Qubit {qubit_index}: qspec vs nbar, round {round_id}")
         ax.set_xlabel(r"Photon number $\bar{n}$")
         ax.set_ylabel("Frequency (MHz)")
         ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=7))
         fig.tight_layout()
 
         outfile = out_dir / f"qspec_heatmap_q{qubit_index}_round{round_id}_nbar.png"
+        outfile.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(outfile, dpi=dpi)
+        plt.close(fig)
+        plot_files.append(outfile)
+
+    return plot_files
+
+
+def plot_t1_heatmaps(
+    t1_points: list[dict[str, Any]],
+    nbar_by_round: dict[str, dict[str, Any]],
+    *,
+    qubit_index: int,
+    out_dir: Path,
+    dpi: int,
+) -> list[Path]:
+    if not t1_points:
+        return []
+
+    plt, mticker = import_pyplot(out_dir)
+    plot_files: list[Path] = []
+
+    all_pop = np.asarray([float(row["population"]) for row in t1_points], dtype=float)
+    finite_pop = all_pop[np.isfinite(all_pop)]
+    if finite_pop.size == 0:
+        return []
+    vmin = float(np.nanmin(finite_pop))
+    vmax = float(np.nanmax(finite_pop))
+
+    points_by_round: dict[int, list[dict[str, Any]]] = defaultdict(list)
+    for row in t1_points:
+        points_by_round[int(row["round"])].append(row)
+
+    for round_id, rows in sorted(points_by_round.items()):
+        entry = nbar_by_round.get(str(round_id))
+        if not entry:
+            continue
+
+        gains = np.asarray(entry["gains"], dtype=float)
+        nbar = np.asarray(entry["nbar"], dtype=float)
+        n = min(gains.size, nbar.size)
+        if n == 0:
+            continue
+        gain_to_nbar = {float(g): float(nb) for g, nb in zip(gains[:n], nbar[:n])}
+
+        bucket: dict[tuple[float, float], list[float]] = defaultdict(list)
+        for row in rows:
+            gain = float(row["gain"])
+            delay = float(row["delay_us"])
+            pop = float(row["population"])
+            if gain in gain_to_nbar and np.isfinite(delay) and np.isfinite(pop):
+                bucket[(gain, delay)].append(pop)
+
+        gains_r = sorted({gain for gain, _ in bucket})
+        delays_r = sorted({delay for _, delay in bucket})
+        if len(gains_r) == 0 or len(delays_r) == 0:
+            continue
+
+        x_vals = np.asarray([gain_to_nbar[g] for g in gains_r], dtype=float)
+        order = np.argsort(x_vals)
+        x_vals = x_vals[order]
+        gains_sorted = [gains_r[i] for i in order]
+        delays_arr = np.asarray(delays_r, dtype=float)
+
+        c_grid = np.full((len(delays_r), len(gains_sorted)), np.nan, dtype=float)
+        d_index = {delay: idx for idx, delay in enumerate(delays_r)}
+        g_index = {gain: idx for idx, gain in enumerate(gains_sorted)}
+        for (gain, delay), vals in bucket.items():
+            if gain in g_index:
+                c_grid[d_index[delay], g_index[gain]] = float(np.nanmean(vals))
+
+        fig, ax = plt.subplots(figsize=(6.8, 4.6))
+        mesh = ax.pcolormesh(
+            centers_to_edges(x_vals),
+            centers_to_edges(delays_arr),
+            c_grid,
+            shading="flat",
+            vmin=vmin,
+            vmax=vmax,
+        )
+        cbar = fig.colorbar(mesh, ax=ax, pad=0.02)
+        cbar.set_label("Qubit population")
+
+        ax.set_title(f"Qubit {qubit_index}: T1 decay vs nbar, round {round_id}")
+        ax.set_xlabel(r"Photon number $\bar{n}$")
+        ax.set_ylabel("Delay time (us)")
+        ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=7))
+        fig.tight_layout()
+
+        outfile = out_dir / f"t1_heatmap_q{qubit_index}_round{round_id}_nbar.png"
         outfile.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(outfile, dpi=dpi)
         plt.close(fig)
@@ -1143,9 +1217,9 @@ def write_outputs(results: dict[str, Any], out_dir: Path) -> None:
 
 def make_all_plots(
     qspec_points: list[dict[str, Any]],
+    t1_points: list[dict[str, Any]],
     t1_summary: list[dict[str, Any]],
     nbar_by_round: dict[str, dict[str, Any]],
-    qspec_summary: list[dict[str, Any]],
     *,
     config: AnalysisConfig,
 ) -> list[Path]:
@@ -1155,29 +1229,6 @@ def make_all_plots(
     plot_dir = config.out_dir / "plots"
     plot_files: list[Path] = []
 
-    plot_files.extend(
-        plot_summary_vs_nbar(
-            t1_summary,
-            y_key="T1_us",
-            yerr_key="T1_err_us",
-            ylabel="T1 (us)",
-            title=f"Qubit {config.qubit_index}: T1 vs nbar",
-            outfile=plot_dir / f"T1_vs_nbar_q{config.qubit_index}_all_rounds.png",
-            dpi=config.dpi,
-        )
-    )
-    plot_files.extend(
-        plot_summary_vs_nbar(
-            t1_summary,
-            y_key="gamma_1_per_ms",
-            yerr_key="gamma_err_1_per_ms",
-            ylabel="Gamma = 1/T1 (1/ms)",
-            title=f"Qubit {config.qubit_index}: Gamma vs nbar",
-            outfile=plot_dir / f"Gamma_vs_nbar_q{config.qubit_index}_all_rounds.png",
-            dpi=config.dpi,
-        )
-    )
-
     if config.make_per_round_summary_plots:
         round_dir = plot_dir / "per_round_t1_gamma"
         plot_files.extend(
@@ -1186,6 +1237,7 @@ def make_all_plots(
                 y_key="T1_us",
                 yerr_key="T1_err_us",
                 ylabel="T1 (us)",
+                title_prefix=f"Qubit {config.qubit_index}: T1 vs nbar",
                 filename_prefix=f"T1_vs_nbar_q{config.qubit_index}",
                 out_dir=round_dir,
                 dpi=config.dpi,
@@ -1197,6 +1249,7 @@ def make_all_plots(
                 y_key="gamma_1_per_ms",
                 yerr_key="gamma_err_1_per_ms",
                 ylabel="Gamma = 1/T1 (1/ms)",
+                title_prefix=f"Qubit {config.qubit_index}: Gamma vs nbar",
                 filename_prefix=f"Gamma_vs_nbar_q{config.qubit_index}",
                 out_dir=round_dir,
                 dpi=config.dpi,
@@ -1208,9 +1261,19 @@ def make_all_plots(
             plot_qspec_heatmaps(
                 qspec_points,
                 nbar_by_round,
-                qspec_summary,
                 qubit_index=config.qubit_index,
                 out_dir=plot_dir / "qspec_heatmaps_vs_nbar",
+                dpi=config.dpi,
+            )
+        )
+
+    if config.make_t1_heatmaps:
+        plot_files.extend(
+            plot_t1_heatmaps(
+                t1_points,
+                nbar_by_round,
+                qubit_index=config.qubit_index,
+                out_dir=plot_dir / "t1_heatmaps_vs_nbar",
                 dpi=config.dpi,
             )
         )
@@ -1269,9 +1332,9 @@ def run_analysis(config: AnalysisConfig) -> dict[str, Any]:
     }
     results["plot_files"] = make_all_plots(
         qspec_points,
+        t1_points,
         t1_summary,
         nbar_by_round,
-        qspec_summary,
         config=config,
     )
     write_outputs(results, config.out_dir)
@@ -1292,7 +1355,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dpi", type=int, default=200, help="Saved plot DPI.")
     parser.add_argument("--no-plots", action="store_true", help="Only write CSV/JSON; do not make plots.")
     parser.add_argument("--no-qspec-heatmaps", action="store_true", help="Skip qubit spectroscopy heatmaps vs nbar.")
-    parser.add_argument("--no-per-round-summary-plots", action="store_true", help="Only make all-round T1/Gamma summary plots.")
+    parser.add_argument("--no-t1-heatmaps", action="store_true", help="Skip T1 heatmaps vs nbar.")
+    parser.add_argument("--no-per-round-summary-plots", action="store_true", help="Skip per-round T1/Gamma summary plots.")
     return parser
 
 
@@ -1308,6 +1372,7 @@ def main() -> None:
         t1_subdir=args.t1_subdir,
         make_plots=not args.no_plots,
         make_qspec_heatmaps=not args.no_qspec_heatmaps,
+        make_t1_heatmaps=not args.no_t1_heatmaps,
         make_per_round_summary_plots=not args.no_per_round_summary_plots,
         dpi=args.dpi,
     )
