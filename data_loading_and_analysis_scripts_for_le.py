@@ -29,11 +29,10 @@ The script returns/writes data in tidy row formats:
         columns: round, qubit_index, gain, delay_us, population, date_iso,
         source_file, dataset_index.
 
-    qspec_nbar_summary.csv:
-        one row per spectroscopy gain after center extraction and nbar
-        calibration.
-        columns: round, qubit_index, gain, nbar, center_mhz, fwhm_mhz,
-        chi_mhz, center_vs_gain2_slope_mhz_per_gain2, center_vs_gain2_intercept_mhz.
+    ckp_nbar_summary.csv:
+        one row per CKP calibration gain, repeated for each analyzed round.
+        columns: round, qubit_index, gain, nbar, nbar_g, nbar_e,
+        ckp_nbar_kind, ckp_source_file.
 
     t1_gamma_summary.csv:
         one row per T1 fit.
@@ -45,7 +44,7 @@ The importable entry point is:
     results = run_analysis(AnalysisConfig(data_root=..., qubit_index=5))
 
 `results` is a dictionary with `qspec_points`, `t1_points`,
-`qspec_summary`, `t1_summary`, `nbar_by_round`, and `plot_files`.
+`nbar_summary`, `t1_summary`, `nbar_by_round`, and `plot_files`.
 T1 heatmaps are saved two ways: `plots/t1_heatmaps_vs_nbar/` and
 `plots/t1_heatmaps_vs_gain/`.
 """
@@ -97,6 +96,9 @@ class AnalysisConfig:
     chi_mhz: float = DEFAULT_CHI_MHZ
     qspec_subdir: str = "QSpec_zeno"
     t1_subdir: str = "T1_ge_zeno"
+    ckp_path: Path = DEFAULT_CKP_ROOT
+    ckp_nbar_kind: str = "reference_avg"
+    ckp_reference_res_freq_mhz: float | None = None
     make_plots: bool = True
     make_qspec_heatmaps: bool = True
     make_t1_heatmaps: bool = True
@@ -121,23 +123,24 @@ t1_points.csv
   Raw/normalized T1 samples. `delay_us` is the T1 delay axis. `population` uses
   the same IQ normalization convention as qspec_points.csv.
 
-qspec_nbar_summary.csv
-  Spectroscopy-derived nbar calibration. For each round and gain, the script
-  averages qspec_points at the same frequency, fits a Lorentzian-like peak
-  center, then fits center_mhz versus gain^2 within that round. nbar is computed
-  from that fitted line as (fitted_center_mhz - intercept_mhz) / (2 * chi_mhz).
-  The default chi_mhz is -0.137 to match the original analysis script.
+ckp_nbar_summary.csv
+  CKP-derived nbar calibration. The script first looks for
+  ckp_paperstyle_results.npz under the CKP folder. If it is not present, it
+  analyzes the raw ckp_calibration H5 file directly. By default, `nbar` is the
+  branch-average CKP photon number sampled at the reference resonator drive
+  frequency (`reference_avg`). Other selectable kinds are `peak_avg`,
+  `reference_g`, `reference_e`, `peak_g`, and `peak_e`.
 
 t1_gamma_summary.csv
   T1 fit results. For each round and gain, the script averages t1_points at the
   same delay, fits A * exp(-(t - t0) / T1_us) + c, and computes
-  gamma_1_per_ms = 1000 / T1_us. nbar is matched from qspec_nbar_summary by
-  round and gain; if an exact gain match is not found but the gain lies inside
-  the spectroscopy gain range, nbar is linearly interpolated and nbar_source is
+  gamma_1_per_ms = 1000 / T1_us. nbar is matched from ckp_nbar_summary by
+  gain; if an exact gain match is not found but the gain lies inside
+  the CKP gain range, nbar is linearly interpolated and nbar_source is
   set to `interpolated`.
 
 results_summary.json
-  Small machine-readable summary containing nbar_by_round, qspec_summary,
+  Small machine-readable summary containing nbar_by_round, nbar_summary,
   t1_summary, and plot file paths. The raw point tables are kept as CSV because
   they can be large.
 """
@@ -693,6 +696,438 @@ def calculate_nbar_from_qspec(
     return nbar_by_round, summary_rows
 
 
+def _unique_paths(paths: list[Path]) -> list[Path]:
+    seen = set()
+    out = []
+    for path in paths:
+        key = str(path)
+        if key not in seen:
+            seen.add(key)
+            out.append(path)
+    return out
+
+
+def find_ckp_source(ckp_path: Path) -> tuple[str, Path]:
+    """Return ("npz" or "h5", path) for the CKP calibration source."""
+    path = Path(ckp_path)
+    if path.is_file():
+        suffix = path.suffix.lower()
+        if suffix == ".npz":
+            return "npz", path
+        if suffix in {".h5", ".hdf5"}:
+            return "h5", path
+        raise ValueError(f"Unsupported CKP file type: {path}")
+
+    if not path.exists():
+        raise FileNotFoundError(f"CKP path does not exist: {path}")
+
+    roots = [path] + list(path.parents[:4])
+    npz_candidates: list[Path] = []
+    for root in roots:
+        npz_candidates.extend(root.glob("ckp_paperstyle_results.npz"))
+        npz_candidates.extend(root.glob("documentation/ckp_paperstyle_results.npz"))
+        npz_candidates.extend(root.glob("*/documentation/ckp_paperstyle_results.npz"))
+    npz_candidates = sorted(p for p in _unique_paths(npz_candidates) if p.exists())
+    if npz_candidates:
+        return "npz", npz_candidates[-1]
+
+    h5_candidates: list[Path] = []
+    h5_candidates.extend(path.glob("*.h5"))
+    h5_candidates.extend(path.glob("*.hdf5"))
+    h5_candidates.extend(path.glob("study_data/Data_h5/ckp_calibration/*.h5"))
+    h5_candidates.extend(path.glob("study_data/Data_h5/ckp_calibration/*.hdf5"))
+    h5_candidates.extend(path.glob("**/ckp_calibration/*.h5"))
+    h5_candidates.extend(path.glob("**/ckp_calibration/*.hdf5"))
+    h5_candidates = sorted(p for p in _unique_paths(h5_candidates) if p.exists())
+    if h5_candidates:
+        return "h5", h5_candidates[-1]
+
+    raise FileNotFoundError(
+        "Could not find CKP calibration data. Expected either "
+        "ckp_paperstyle_results.npz or a raw ckp_calibration H5 under: "
+        f"{path}"
+    )
+
+
+def parse_ckp_nested_array(raw: Any, n_gain: int, n_res: int, n_qf: int) -> np.ndarray:
+    text = str(decode_if_needed(raw)).strip()
+    if isinstance(raw, np.ndarray) and raw.dtype.kind not in ("S", "U", "O"):
+        arr = np.asarray(raw, dtype=float)
+        return arr.reshape(n_gain, n_res, n_qf)
+
+    cleaned = text.replace("array(", "").replace(")", "")
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    for candidate in (cleaned, text):
+        try:
+            data = eval(
+                candidate,
+                {"__builtins__": {}, "nan": float("nan"), "inf": float("inf"), "float64": np.float64, "array": np.array},
+            )
+            arr = np.asarray(data, dtype=float)
+            return arr.reshape(n_gain, n_res, n_qf)
+        except Exception:
+            pass
+
+    blocks = re.findall(r"\[([^\[\]]+)\]", text)
+    rows = []
+    for block in blocks:
+        vals = [float(match.group(0)) for match in NUMBER_RE.finditer(block)]
+        if len(vals) == n_qf:
+            rows.append(vals)
+    if len(rows) == n_gain * n_res:
+        return np.asarray(rows, dtype=float).reshape(n_gain, n_res, n_qf)
+
+    nums = parse_numeric_vector(text)
+    if len(nums) == n_gain * n_res * n_qf:
+        return np.asarray(nums, dtype=float).reshape(n_gain, n_res, n_qf)
+
+    raise ValueError(f"Could not parse CKP nested array. First 200 chars: {text[:200]}")
+
+
+def iq_distance_from_baseline(i_row: np.ndarray, q_row: np.ndarray, n_baseline: int = 10) -> np.ndarray:
+    n = min(len(i_row), len(q_row))
+    i_row = np.asarray(i_row[:n], dtype=float)
+    q_row = np.asarray(q_row[:n], dtype=float)
+    k = min(max(1, n_baseline), n)
+    i_base = float(np.nanmean(i_row[-k:]))
+    q_base = float(np.nanmean(q_row[-k:]))
+    return np.sqrt((i_row - i_base) ** 2 + (q_row - q_base) ** 2)
+
+
+def ckp_peak_center(distance: np.ndarray, qu_freq_sweep: np.ndarray) -> float:
+    x = np.asarray(qu_freq_sweep, dtype=float)
+    y = np.asarray(distance, dtype=float)
+    mask = np.isfinite(x) & np.isfinite(y)
+    x = x[mask]
+    y = y[mask]
+    if x.size == 0:
+        return float("nan")
+    idx = int(np.nanargmax(y))
+    if 1 <= idx <= len(x) - 2:
+        try:
+            a, b, _ = np.polyfit(x[idx - 1:idx + 2], y[idx - 1:idx + 2], 2)
+            if abs(a) > 1e-20:
+                vertex = -b / (2.0 * a)
+                if x[idx - 1] <= vertex <= x[idx + 1]:
+                    return float(vertex)
+        except Exception:
+            pass
+    return float(x[idx])
+
+
+def extract_ckp_centers(i_data: np.ndarray, q_data: np.ndarray, qu_freq_sweep: np.ndarray) -> np.ndarray:
+    n_gain, n_res, _ = i_data.shape
+    centers = np.full((n_gain, n_res), np.nan, dtype=float)
+    for gi in range(n_gain):
+        for ri in range(n_res):
+            centers[gi, ri] = ckp_peak_center(
+                iq_distance_from_baseline(i_data[gi, ri], q_data[gi, ri]),
+                qu_freq_sweep,
+            )
+    return centers
+
+
+def ckp_branch_model(x: np.ndarray, omega_q0: float, omega_rm: float, chi_mag: float, kappa: float, a2: float, branch: str) -> np.ndarray:
+    center = omega_rm + chi_mag if branch == "g" else omega_rm - chi_mag
+    denom = (x - center) ** 2 + (kappa / 2.0) ** 2
+    return omega_q0 - (2.0 * chi_mag * kappa * a2) / denom
+
+
+def ckp_pair_model(xdata: np.ndarray, omega_q0: float, omega_rm: float, chi_mag: float, kappa: float, a2: float) -> np.ndarray:
+    x = np.asarray(xdata[0], dtype=float)
+    branch_flag = np.asarray(xdata[1], dtype=float)
+    y = np.empty_like(x, dtype=float)
+    mask_g = branch_flag > 0
+    y[mask_g] = ckp_branch_model(x[mask_g], omega_q0, omega_rm, chi_mag, kappa, a2, "g")
+    y[~mask_g] = ckp_branch_model(x[~mask_g], omega_q0, omega_rm, chi_mag, kappa, a2, "e")
+    return y
+
+
+def fit_ckp_one_gain(res_freq_sweep: np.ndarray, g_centers: np.ndarray, e_centers: np.ndarray) -> dict[str, Any]:
+    x = np.asarray(res_freq_sweep, dtype=float)
+    yg = np.asarray(g_centers, dtype=float)
+    ye = np.asarray(e_centers, dtype=float)
+    mask = np.isfinite(x) & np.isfinite(yg) & np.isfinite(ye)
+    x = x[mask]
+    yg = yg[mask]
+    ye = ye[mask]
+    if x.size < 6:
+        raise ValueError("not enough finite CKP points")
+
+    xdata = np.vstack([np.r_[x, x], np.r_[np.ones_like(x), -np.ones_like(x)]])
+    ydata = np.r_[yg, ye]
+
+    x0_g = x[int(np.nanargmin(yg))]
+    x0_e = x[int(np.nanargmin(ye))]
+    omega_rm0 = 0.5 * (x0_g + x0_e)
+    chi0 = max(abs(x0_g - x0_e) / 2.0, 0.005)
+    omega_q0_0 = float(np.nanmedian(np.r_[yg[0], yg[-1], ye[0], ye[-1]]))
+    kappa0 = max(float(np.ptp(x)) / 8.0, 0.01)
+    depth0 = max(0.5 * (max(omega_q0_0 - np.nanmin(yg), 0.0) + max(omega_q0_0 - np.nanmin(ye), 0.0)), 1e-6)
+    a20 = max(depth0 * kappa0 / (8.0 * chi0), 1e-12)
+
+    x_span = float(np.ptp(x))
+    lower = [float(np.nanmin(ydata)) - 20.0, float(np.nanmin(x)) - 2.0, 0.001, 0.001, 0.0]
+    upper = [float(np.nanmax(ydata)) + 20.0, float(np.nanmax(x)) + 2.0, max(x_span, 0.001), max(x_span, 0.001), np.inf]
+    popt, pcov = curve_fit(
+        ckp_pair_model,
+        xdata,
+        ydata,
+        p0=[omega_q0_0, omega_rm0, chi0, kappa0, a20],
+        bounds=(lower, upper),
+        maxfev=200000,
+    )
+    yfit = ckp_pair_model(xdata, *popt)
+    rmse = float(np.sqrt(np.nanmean((ydata - yfit) ** 2)))
+    omega_q0, omega_rm, chi_mag, kappa, a2 = map(float, popt)
+    center_g = omega_rm + chi_mag
+    center_e = omega_rm - chi_mag
+    full_x = np.asarray(res_freq_sweep, dtype=float)
+    nbar_g = kappa * a2 / ((full_x - center_g) ** 2 + (kappa / 2.0) ** 2)
+    nbar_e = kappa * a2 / ((full_x - center_e) ** 2 + (kappa / 2.0) ** 2)
+    return {
+        "omega_q0": omega_q0,
+        "omega_rm": omega_rm,
+        "chi_mag": chi_mag,
+        "kappa": kappa,
+        "A2": a2,
+        "omega_r_g": center_g,
+        "omega_r_e": center_e,
+        "nbar_g": nbar_g,
+        "nbar_e": nbar_e,
+        "rmse": rmse,
+    }
+
+
+def finite_nanmax(values: np.ndarray) -> float:
+    arr = np.asarray(values, dtype=float)
+    return float(np.nanmax(arr)) if np.any(np.isfinite(arr)) else float("nan")
+
+
+def ckp_nbar_from_arrays(
+    gain_sweep: np.ndarray,
+    res_freq_sweep: np.ndarray,
+    qu_freq_sweep: np.ndarray,
+    i_g: np.ndarray,
+    q_g: np.ndarray,
+    i_e: np.ndarray,
+    q_e: np.ndarray,
+    *,
+    reference_res_freq_mhz: float | None,
+) -> dict[str, Any]:
+    g_centers = extract_ckp_centers(i_g, q_g, qu_freq_sweep)
+    e_centers = extract_ckp_centers(i_e, q_e, qu_freq_sweep)
+    n_gain = len(gain_sweep)
+    n_res = len(res_freq_sweep)
+
+    nbar_g = np.full((n_gain, n_res), np.nan)
+    nbar_e = np.full((n_gain, n_res), np.nan)
+    fit_ok = np.zeros(n_gain, dtype=bool)
+    rmse = np.full(n_gain, np.nan)
+    for gi in range(n_gain):
+        try:
+            fit = fit_ckp_one_gain(res_freq_sweep, g_centers[gi], e_centers[gi])
+            nbar_g[gi] = fit["nbar_g"]
+            nbar_e[gi] = fit["nbar_e"]
+            rmse[gi] = fit["rmse"]
+            fit_ok[gi] = True
+        except Exception:
+            continue
+
+    if reference_res_freq_mhz is None:
+        reference_res_freq_mhz = float(np.nanmedian(res_freq_sweep))
+    ref_idx = int(np.nanargmin(np.abs(np.asarray(res_freq_sweep, dtype=float) - reference_res_freq_mhz)))
+    nbar_bare_g = nbar_g[:, ref_idx]
+    nbar_bare_e = nbar_e[:, ref_idx]
+    nbar_peak_g = np.asarray([finite_nanmax(nbar_g[gi]) for gi in range(n_gain)], dtype=float)
+    nbar_peak_e = np.asarray([finite_nanmax(nbar_e[gi]) for gi in range(n_gain)], dtype=float)
+
+    return {
+        "gain_sweep": np.asarray(gain_sweep, dtype=float),
+        "res_freq_sweep": np.asarray(res_freq_sweep, dtype=float),
+        "qu_freq_sweep": np.asarray(qu_freq_sweep, dtype=float),
+        "g_centers": g_centers,
+        "e_centers": e_centers,
+        "nbar_g": nbar_g,
+        "nbar_e": nbar_e,
+        "nbar_bare_g": nbar_bare_g,
+        "nbar_bare_e": nbar_bare_e,
+        "nbar_peak_g": nbar_peak_g,
+        "nbar_peak_e": nbar_peak_e,
+        "reference_res_freq_mhz": float(res_freq_sweep[ref_idx]),
+        "fit_ok": fit_ok,
+        "rmse": rmse,
+    }
+
+
+def load_ckp_raw_h5(path: Path, qubit_index: int, reference_res_freq_mhz: float | None) -> dict[str, Any]:
+    require_h5py()
+    with h5py.File(path, "r") as handle:
+        group = get_qubit_group(handle, qubit_index)
+        if group is None:
+            raise KeyError(f"Could not find Q{qubit_index + 1} in CKP file: {path}")
+        gain_sweep = np.asarray(parse_numeric_vector(group["Res Gain Sweep"][()]), dtype=float)
+        res_freq_sweep = np.asarray(parse_numeric_vector(group["Res Freq Sweep"][()]), dtype=float)
+        qu_freq_sweep = np.asarray(parse_numeric_vector(group["Qu Frequency Sweep"][()]), dtype=float)
+        n_gain, n_res, n_qf = len(gain_sweep), len(res_freq_sweep), len(qu_freq_sweep)
+        i_g = parse_ckp_nested_array(group["I_g"][()], n_gain, n_res, n_qf)
+        q_g = parse_ckp_nested_array(group["Q_g"][()], n_gain, n_res, n_qf)
+        i_e = parse_ckp_nested_array(group["I_e"][()], n_gain, n_res, n_qf)
+        q_e = parse_ckp_nested_array(group["Q_e"][()], n_gain, n_res, n_qf)
+
+    result = ckp_nbar_from_arrays(
+        gain_sweep,
+        res_freq_sweep,
+        qu_freq_sweep,
+        i_g,
+        q_g,
+        i_e,
+        q_e,
+        reference_res_freq_mhz=reference_res_freq_mhz,
+    )
+    result["source_file"] = str(path)
+    result["source_format"] = "raw_h5"
+    return result
+
+
+def load_ckp_npz(path: Path, reference_res_freq_mhz: float | None) -> dict[str, Any]:
+    with np.load(path, allow_pickle=False) as data:
+        result = {key: np.asarray(data[key]) for key in data.files}
+    result["source_file"] = str(path)
+    result["source_format"] = "npz"
+    if "reference_res_freq_mhz" not in result:
+        if reference_res_freq_mhz is not None:
+            result["reference_res_freq_mhz"] = float(reference_res_freq_mhz)
+        elif "res_freq_sweep" in result and "nbar_bare_g" in result:
+            result["reference_res_freq_mhz"] = float("nan")
+    return result
+
+
+def select_ckp_nbar_vector(ckp_result: dict[str, Any], nbar_kind: str) -> tuple[np.ndarray, np.ndarray | None, np.ndarray | None, str]:
+    kind = nbar_kind.strip().lower()
+    aliases = {
+        "bare_avg": "reference_avg",
+        "ref_avg": "reference_avg",
+        "reference": "reference_avg",
+        "bare_g": "reference_g",
+        "ref_g": "reference_g",
+        "bare_e": "reference_e",
+        "ref_e": "reference_e",
+    }
+    kind = aliases.get(kind, kind)
+
+    if kind == "reference_avg":
+        nbar_g = np.asarray(ckp_result["nbar_bare_g"], dtype=float)
+        nbar_e = np.asarray(ckp_result["nbar_bare_e"], dtype=float)
+        nbar = np.nanmean(np.vstack([nbar_g, nbar_e]), axis=0)
+    elif kind == "reference_g":
+        nbar_g = np.asarray(ckp_result["nbar_bare_g"], dtype=float)
+        nbar_e = None
+        nbar = nbar_g
+    elif kind == "reference_e":
+        nbar_g = None
+        nbar_e = np.asarray(ckp_result["nbar_bare_e"], dtype=float)
+        nbar = nbar_e
+    elif kind == "peak_avg":
+        nbar_g = np.asarray(ckp_result["nbar_peak_g"], dtype=float)
+        nbar_e = np.asarray(ckp_result["nbar_peak_e"], dtype=float)
+        nbar = np.nanmean(np.vstack([nbar_g, nbar_e]), axis=0)
+    elif kind == "peak_g":
+        nbar_g = np.asarray(ckp_result["nbar_peak_g"], dtype=float)
+        nbar_e = None
+        nbar = nbar_g
+    elif kind == "peak_e":
+        nbar_g = None
+        nbar_e = np.asarray(ckp_result["nbar_peak_e"], dtype=float)
+        nbar = nbar_e
+    else:
+        raise ValueError("ckp_nbar_kind must be reference_avg, reference_g, reference_e, peak_avg, peak_g, or peak_e")
+
+    return np.asarray(nbar, dtype=float), nbar_g, nbar_e, kind
+
+
+def load_ckp_nbar_calibration(
+    ckp_path: Path,
+    *,
+    qubit_index: int,
+    nbar_kind: str,
+    reference_res_freq_mhz: float | None,
+) -> dict[str, Any]:
+    source_format, source_path = find_ckp_source(Path(ckp_path))
+    if source_format == "npz":
+        ckp_result = load_ckp_npz(source_path, reference_res_freq_mhz)
+    else:
+        ckp_result = load_ckp_raw_h5(source_path, qubit_index, reference_res_freq_mhz)
+
+    gains = np.asarray(ckp_result["gain_sweep"], dtype=float).ravel()
+    nbar, nbar_g, nbar_e, normalized_kind = select_ckp_nbar_vector(ckp_result, nbar_kind)
+    n = min(len(gains), len(nbar))
+    gains = gains[:n]
+    nbar = np.asarray(nbar[:n], dtype=float)
+    nbar_g = np.asarray(nbar_g[:n], dtype=float) if nbar_g is not None else np.full(n, np.nan)
+    nbar_e = np.asarray(nbar_e[:n], dtype=float) if nbar_e is not None else np.full(n, np.nan)
+
+    finite = np.isfinite(gains) & np.isfinite(nbar)
+    gains, nbar, nbar_g, nbar_e = gains[finite], nbar[finite], nbar_g[finite], nbar_e[finite]
+    order = np.argsort(gains)
+    gains, nbar, nbar_g, nbar_e = gains[order], nbar[order], nbar_g[order], nbar_e[order]
+    if len(gains) == 0:
+        raise RuntimeError(f"No finite CKP nbar calibration points found in {source_path}")
+
+    return {
+        "source_file": str(source_path),
+        "source_format": source_format,
+        "nbar_kind": normalized_kind,
+        "reference_res_freq_mhz": float(ckp_result.get("reference_res_freq_mhz", np.nan)),
+        "gains": gains,
+        "nbar": nbar,
+        "nbar_g": nbar_g,
+        "nbar_e": nbar_e,
+    }
+
+
+def build_ckp_nbar_by_round(
+    calibration: dict[str, Any],
+    rounds: list[int],
+    *,
+    qubit_index: int,
+) -> tuple[dict[str, dict[str, Any]], list[dict[str, Any]]]:
+    gains = np.asarray(calibration["gains"], dtype=float)
+    nbar = np.asarray(calibration["nbar"], dtype=float)
+    nbar_g = np.asarray(calibration["nbar_g"], dtype=float)
+    nbar_e = np.asarray(calibration["nbar_e"], dtype=float)
+    nbar_by_round: dict[str, dict[str, Any]] = {}
+    summary: list[dict[str, Any]] = []
+    for round_id in rounds:
+        nbar_by_round[str(round_id)] = {
+            "gains": [float(x) for x in gains],
+            "nbar": [float(x) for x in nbar],
+            "nbar_g": [float(x) for x in nbar_g],
+            "nbar_e": [float(x) for x in nbar_e],
+            "source": "ckp",
+            "ckp_nbar_kind": calibration["nbar_kind"],
+            "ckp_source_file": calibration["source_file"],
+            "ckp_source_format": calibration["source_format"],
+            "ckp_reference_res_freq_mhz": calibration["reference_res_freq_mhz"],
+        }
+        for gain, nb, nb_g, nb_e in zip(gains, nbar, nbar_g, nbar_e):
+            summary.append(
+                {
+                    "round": int(round_id),
+                    "qubit_index": int(qubit_index),
+                    "gain": float(gain),
+                    "nbar": float(nb),
+                    "nbar_g": float(nb_g),
+                    "nbar_e": float(nb_e),
+                    "ckp_nbar_kind": calibration["nbar_kind"],
+                    "ckp_source_file": calibration["source_file"],
+                    "ckp_source_format": calibration["source_format"],
+                    "ckp_reference_res_freq_mhz": calibration["reference_res_freq_mhz"],
+                }
+            )
+    return nbar_by_round, summary
+
+
 def exp_decay_for_t1(t_shifted_us: np.ndarray, amplitude: float, t1_us: float, offset: float) -> np.ndarray:
     return amplitude * np.exp(-t_shifted_us / t1_us) + offset
 
@@ -952,6 +1387,8 @@ def plot_qspec_heatmaps(
     nbar_by_round: dict[str, dict[str, Any]],
     *,
     qubit_index: int,
+    gain_match_atol: float,
+    gain_match_rtol: float,
     out_dir: Path,
     dpi: int,
 ) -> list[Path]:
@@ -973,42 +1410,37 @@ def plot_qspec_heatmaps(
         points_by_round[int(row["round"])].append(row)
 
     for round_id, rows in sorted(points_by_round.items()):
-        entry = nbar_by_round.get(str(round_id))
-        if not entry:
-            continue
-
-        gains = np.asarray(entry["gains"], dtype=float)
-        nbar = np.asarray(entry["nbar"], dtype=float)
-        n = min(gains.size, nbar.size)
-        if n == 0:
-            continue
-        gain_to_nbar = {float(g): float(nb) for g, nb in zip(gains[:n], nbar[:n])}
-
         bucket: dict[tuple[float, float], list[float]] = defaultdict(list)
         for row in rows:
             gain = float(row["gain"])
             freq = float(row["frequency_mhz"])
             pop = float(row["population"])
-            if gain in gain_to_nbar and np.isfinite(freq) and np.isfinite(pop):
-                bucket[(gain, freq)].append(pop)
+            nbar_val, _ = nbar_for_gain(
+                nbar_by_round,
+                round_id,
+                gain,
+                atol=gain_match_atol,
+                rtol=gain_match_rtol,
+            )
+            if np.isfinite(nbar_val) and np.isfinite(freq) and np.isfinite(pop):
+                bucket[(nbar_val, freq)].append(pop)
 
-        gains_r = sorted({gain for gain, _ in bucket})
+        nbar_r = sorted({nbar_val for nbar_val, _ in bucket})
         freqs_r = sorted({freq for _, freq in bucket})
-        if len(gains_r) == 0 or len(freqs_r) == 0:
+        if len(nbar_r) == 0 or len(freqs_r) == 0:
             continue
 
-        x_vals = np.asarray([gain_to_nbar[g] for g in gains_r], dtype=float)
+        x_vals = np.asarray(nbar_r, dtype=float)
         order = np.argsort(x_vals)
         x_vals = x_vals[order]
-        gains_sorted = [gains_r[i] for i in order]
         freqs_arr = np.asarray(freqs_r, dtype=float)
 
-        c_grid = np.full((len(freqs_r), len(gains_sorted)), np.nan, dtype=float)
+        c_grid = np.full((len(freqs_r), len(x_vals)), np.nan, dtype=float)
         f_index = {freq: idx for idx, freq in enumerate(freqs_r)}
-        g_index = {gain: idx for idx, gain in enumerate(gains_sorted)}
-        for (gain, freq), vals in bucket.items():
-            if gain in g_index:
-                c_grid[f_index[freq], g_index[gain]] = float(np.nanmean(vals))
+        x_index = {x_val: idx for idx, x_val in enumerate(x_vals.tolist())}
+        for (x_val, freq), vals in bucket.items():
+            if x_val in x_index:
+                c_grid[f_index[freq], x_index[x_val]] = float(np.nanmean(vals))
 
         fig, ax = plt.subplots(figsize=(6.8, 4.6))
         mesh = ax.pcolormesh(
@@ -1043,6 +1475,8 @@ def plot_t1_heatmaps(
     *,
     qubit_index: int,
     x_axis: str,
+    gain_match_atol: float,
+    gain_match_rtol: float,
     out_dir: Path,
     dpi: int,
 ) -> list[Path]:
@@ -1067,21 +1501,10 @@ def plot_t1_heatmaps(
 
     for round_id, rows in sorted(points_by_round.items()):
         if x_axis == "nbar":
-            entry = nbar_by_round.get(str(round_id))
-            if not entry:
-                continue
-
-            gains = np.asarray(entry["gains"], dtype=float)
-            nbar = np.asarray(entry["nbar"], dtype=float)
-            n = min(gains.size, nbar.size)
-            if n == 0:
-                continue
-            gain_to_x = {float(g): float(nb) for g, nb in zip(gains[:n], nbar[:n])}
             x_label = r"Photon number $\bar{n}$"
             title_axis = "nbar"
             file_suffix = "nbar"
         else:
-            gain_to_x = {}
             x_label = "Gain (a.u.)"
             title_axis = "gain"
             file_suffix = "gain"
@@ -1091,28 +1514,35 @@ def plot_t1_heatmaps(
             gain = float(row["gain"])
             delay = float(row["delay_us"])
             pop = float(row["population"])
-            if x_axis == "gain" and np.isfinite(gain):
-                gain_to_x[gain] = gain
-            if gain in gain_to_x and np.isfinite(delay) and np.isfinite(pop):
-                bucket[(gain, delay)].append(pop)
+            if x_axis == "nbar":
+                x_val, _ = nbar_for_gain(
+                    nbar_by_round,
+                    round_id,
+                    gain,
+                    atol=gain_match_atol,
+                    rtol=gain_match_rtol,
+                )
+            else:
+                x_val = gain
+            if np.isfinite(x_val) and np.isfinite(delay) and np.isfinite(pop):
+                bucket[(x_val, delay)].append(pop)
 
-        gains_r = sorted({gain for gain, _ in bucket})
+        x_unique = sorted({x_val for x_val, _ in bucket})
         delays_r = sorted({delay for _, delay in bucket})
-        if len(gains_r) == 0 or len(delays_r) == 0:
+        if len(x_unique) == 0 or len(delays_r) == 0:
             continue
 
-        x_vals = np.asarray([gain_to_x[g] for g in gains_r], dtype=float)
+        x_vals = np.asarray(x_unique, dtype=float)
         order = np.argsort(x_vals)
         x_vals = x_vals[order]
-        gains_sorted = [gains_r[i] for i in order]
         delays_arr = np.asarray(delays_r, dtype=float)
 
-        c_grid = np.full((len(delays_r), len(gains_sorted)), np.nan, dtype=float)
+        c_grid = np.full((len(delays_r), len(x_vals)), np.nan, dtype=float)
         d_index = {delay: idx for idx, delay in enumerate(delays_r)}
-        g_index = {gain: idx for idx, gain in enumerate(gains_sorted)}
-        for (gain, delay), vals in bucket.items():
-            if gain in g_index:
-                c_grid[d_index[delay], g_index[gain]] = float(np.nanmean(vals))
+        x_index = {x_val: idx for idx, x_val in enumerate(x_vals.tolist())}
+        for (x_val, delay), vals in bucket.items():
+            if x_val in x_index:
+                c_grid[d_index[delay], x_index[x_val]] = float(np.nanmean(vals))
 
         fig, ax = plt.subplots(figsize=(6.8, 4.6))
         mesh = ax.pcolormesh(
@@ -1188,18 +1618,19 @@ def write_outputs(results: dict[str, Any], out_dir: Path) -> None:
         ["round", "qubit_index", "gain", "delay_us", "population", "date_unix", "date_iso", "source_file", "dataset_index"],
     )
     write_csv(
-        out_dir / "qspec_nbar_summary.csv",
-        results["qspec_summary"],
+        out_dir / "ckp_nbar_summary.csv",
+        results["nbar_summary"],
         [
             "round",
             "qubit_index",
             "gain",
             "nbar",
-            "center_mhz",
-            "fwhm_mhz",
-            "chi_mhz",
-            "center_vs_gain2_slope_mhz_per_gain2",
-            "center_vs_gain2_intercept_mhz",
+            "nbar_g",
+            "nbar_e",
+            "ckp_nbar_kind",
+            "ckp_source_file",
+            "ckp_source_format",
+            "ckp_reference_res_freq_mhz",
         ],
     )
     write_csv(
@@ -1221,8 +1652,13 @@ def write_outputs(results: dict[str, Any], out_dir: Path) -> None:
 
     summary_json = {
         "data_format": DATA_FORMAT_DESCRIPTION,
+        "nbar_source": "ckp",
+        "ckp_source_file": results["ckp_source_file"],
+        "ckp_source_format": results["ckp_source_format"],
+        "ckp_nbar_kind": results["ckp_nbar_kind"],
+        "ckp_reference_res_freq_mhz": results["ckp_reference_res_freq_mhz"],
         "nbar_by_round": results["nbar_by_round"],
-        "qspec_summary": results["qspec_summary"],
+        "nbar_summary": results["nbar_summary"],
         "t1_summary": results["t1_summary"],
         "plot_files": [str(path) for path in results["plot_files"]],
     }
@@ -1279,6 +1715,8 @@ def make_all_plots(
                 qspec_points,
                 nbar_by_round,
                 qubit_index=config.qubit_index,
+                gain_match_atol=config.gain_match_atol,
+                gain_match_rtol=config.gain_match_rtol,
                 out_dir=plot_dir / "qspec_heatmaps_vs_nbar",
                 dpi=config.dpi,
             )
@@ -1291,6 +1729,8 @@ def make_all_plots(
                 nbar_by_round,
                 qubit_index=config.qubit_index,
                 x_axis="nbar",
+                gain_match_atol=config.gain_match_atol,
+                gain_match_rtol=config.gain_match_rtol,
                 out_dir=plot_dir / "t1_heatmaps_vs_nbar",
                 dpi=config.dpi,
             )
@@ -1301,6 +1741,8 @@ def make_all_plots(
                 nbar_by_round,
                 qubit_index=config.qubit_index,
                 x_axis="gain",
+                gain_match_atol=config.gain_match_atol,
+                gain_match_rtol=config.gain_match_rtol,
                 out_dir=plot_dir / "t1_heatmaps_vs_gain",
                 dpi=config.dpi,
             )
@@ -1312,6 +1754,7 @@ def make_all_plots(
 def run_analysis(config: AnalysisConfig) -> dict[str, Any]:
     config.data_root = Path(config.data_root)
     config.out_dir = Path(config.out_dir)
+    config.ckp_path = Path(config.ckp_path)
     rounds = parse_rounds(config.rounds, config.data_root, config.qubit_index)
 
     qspec_files = discover_h5_files(config.data_root, config.qubit_index, rounds, config.qspec_subdir)
@@ -1330,11 +1773,16 @@ def run_analysis(config: AnalysisConfig) -> dict[str, Any]:
         x_column="delay_us",
     )
 
-    nbar_by_round, qspec_summary = calculate_nbar_from_qspec(
-        qspec_points,
+    ckp_calibration = load_ckp_nbar_calibration(
+        config.ckp_path,
         qubit_index=config.qubit_index,
-        chi_mhz=config.chi_mhz,
-        min_points=config.min_qspec_points,
+        nbar_kind=config.ckp_nbar_kind,
+        reference_res_freq_mhz=config.ckp_reference_res_freq_mhz,
+    )
+    nbar_by_round, nbar_summary = build_ckp_nbar_by_round(
+        ckp_calibration,
+        rounds,
+        qubit_index=config.qubit_index,
     )
     t1_summary = fit_t1_summary(
         t1_points,
@@ -1353,7 +1801,12 @@ def run_analysis(config: AnalysisConfig) -> dict[str, Any]:
         "qspec_points": qspec_points,
         "t1_points": t1_points,
         "nbar_by_round": nbar_by_round,
-        "qspec_summary": qspec_summary,
+        "nbar_summary": nbar_summary,
+        "ckp_calibration": ckp_calibration,
+        "ckp_source_file": ckp_calibration["source_file"],
+        "ckp_source_format": ckp_calibration["source_format"],
+        "ckp_nbar_kind": ckp_calibration["nbar_kind"],
+        "ckp_reference_res_freq_mhz": ckp_calibration["reference_res_freq_mhz"],
         "t1_summary": t1_summary,
         "plot_files": [],
         "data_format": DATA_FORMAT_DESCRIPTION,
@@ -1371,15 +1824,23 @@ def run_analysis(config: AnalysisConfig) -> dict[str, Any]:
 
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Load saved QZE HDF5 data, compute nbar, fit T1, and make T1/Gamma/qspec plots vs nbar."
+        description="Load saved QZE HDF5 data, apply CKP nbar calibration, fit T1, and make T1/Gamma/qspec plots vs nbar."
     )
     parser.add_argument("--data-root", type=Path, default=DEFAULT_DATA_ROOT, help="Folder containing qubit_<q>round<N> folders.")
     parser.add_argument("--out", dest="out_dir", type=Path, default=DEFAULT_OUT_DIR, help="Output folder for CSV/JSON/plots.")
     parser.add_argument("--qubit", dest="qubit_index", type=int, default=DEFAULT_QUBIT_INDEX, help="Zero-based qubit index.")
     parser.add_argument("--rounds", default=DEFAULT_ROUNDS, help="Rounds to load, e.g. 0:47, 0,1,2, or auto.")
-    parser.add_argument("--chi-mhz", type=float, default=DEFAULT_CHI_MHZ, help="chi/2pi in MHz for nbar extraction.")
+    parser.add_argument("--chi-mhz", type=float, default=DEFAULT_CHI_MHZ, help="Legacy qspec-nbar setting; ignored when using CKP nbar.")
     parser.add_argument("--qspec-subdir", default="QSpec_zeno", help="Data_h5 subfolder for qspec data.")
     parser.add_argument("--t1-subdir", default="T1_ge_zeno", help="Data_h5 subfolder for T1 data.")
+    parser.add_argument("--ckp-path", type=Path, default=DEFAULT_CKP_ROOT, help="CKP folder/file. Can be raw ckp_calibration H5 folder, ckp_nbar_calibration folder, or ckp_paperstyle_results.npz.")
+    parser.add_argument(
+        "--ckp-nbar-kind",
+        default="reference_avg",
+        choices=["reference_avg", "reference_g", "reference_e", "peak_avg", "peak_g", "peak_e", "bare_avg", "bare_g", "bare_e"],
+        help="Which CKP nbar vector to use. Default reference_avg is branch-average nbar at the reference resonator drive frequency.",
+    )
+    parser.add_argument("--ckp-reference-res-freq-mhz", type=float, default=None, help="Reference resonator drive frequency for raw CKP H5 analysis. Default is the center of the CKP resonator sweep.")
     parser.add_argument("--dpi", type=int, default=200, help="Saved plot DPI.")
     parser.add_argument("--no-plots", action="store_true", help="Only write CSV/JSON; do not make plots.")
     parser.add_argument("--no-qspec-heatmaps", action="store_true", help="Skip qubit spectroscopy heatmaps vs nbar.")
@@ -1398,6 +1859,9 @@ def main() -> None:
         chi_mhz=args.chi_mhz,
         qspec_subdir=args.qspec_subdir,
         t1_subdir=args.t1_subdir,
+        ckp_path=args.ckp_path,
+        ckp_nbar_kind=args.ckp_nbar_kind,
+        ckp_reference_res_freq_mhz=args.ckp_reference_res_freq_mhz,
         make_plots=not args.no_plots,
         make_qspec_heatmaps=not args.no_qspec_heatmaps,
         make_t1_heatmaps=not args.no_t1_heatmaps,
@@ -1410,7 +1874,11 @@ def main() -> None:
     print(f"Loaded {len(results['t1_files'])} T1 HDF5 files.")
     print(f"Wrote {len(results['qspec_points'])} qspec point rows.")
     print(f"Wrote {len(results['t1_points'])} T1 point rows.")
-    print(f"Wrote {len(results['qspec_summary'])} qspec/nbar summary rows.")
+    print(f"Used CKP source: {results['ckp_source_file']}")
+    print(f"Used CKP source format: {results['ckp_source_format']}")
+    print(f"Used CKP nbar kind: {results['ckp_nbar_kind']}")
+    print(f"Used CKP reference resonator frequency: {results['ckp_reference_res_freq_mhz']}")
+    print(f"Wrote {len(results['nbar_summary'])} CKP nbar summary rows.")
     print(f"Wrote {len(results['t1_summary'])} T1/Gamma summary rows.")
     print(f"Wrote {len(results['plot_files'])} plot files.")
     print(f"Output folder: {config.out_dir}")
