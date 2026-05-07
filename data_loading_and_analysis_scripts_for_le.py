@@ -721,7 +721,7 @@ def find_ckp_source(ckp_path: Path) -> tuple[str, Path]:
     if not path.exists():
         raise FileNotFoundError(f"CKP path does not exist: {path}")
 
-    roots = [path] + list(path.parents[:4])
+    roots = [path] + list(path.parents)[:4]
     npz_candidates: list[Path] = []
     for root in roots:
         npz_candidates.extend(root.glob("ckp_paperstyle_results.npz"))
