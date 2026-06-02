@@ -71,9 +71,9 @@ run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss":  False, "rabi
 
 
 # optimization outputs from qick board, unmasking set to true
-res_leng_vals = [9]*6
-res_gain = [0.25,0.25,0.25,0.25,0.24,0.25]
-freq_offsets = [0,0,0,0,-0.25,-0.15]
+res_leng_vals = [9]*6 #9 micro s, 10% e->g
+res_gain = [0.25,0.25,0.25,0.25,0.24,0.25] #gain for q 1-6
+freq_offsets = [0,0,0,0,-0.25,-0.15] #offset res freq
 
 qubit_freqs_ef = [None]*6
 increase_steps_to_ef = 600
@@ -233,12 +233,12 @@ while j < n:
         #             continue  # skip the rest of this qubit
 
         ################################################## g-e Qubit spec ##################################################
-        if run_flags["q_spec"]:
+        if run_flags["q_spec"]: #qubit spectroscopy code
             try:
                 q_spec = QubitSpectroscopy(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j,
                                            signal, save_figs, plot_fit=True, experiment=experiment,
                                            live_plot=live_plot, verbose=verbose, logger=rr_logger,
-                                           unmasking_resgain=unmask)
+                                           unmasking_resgain=unmask) #class instance
                 (qspec_I, qspec_Q, qspec_freqs, qspec_fit, qubit_freq, sys_config_qspec, ss_Q_e_qspec, ss_Q_g_qspec,
                  ss_I_e_qspec,
                  ss_I_g_qspec, I_shots_qspec, Q_shots_qspec) = q_spec.run(scaling=True)

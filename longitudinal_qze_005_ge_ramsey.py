@@ -52,7 +52,7 @@ run_name = 'bob_run_started_Feb_11'
 device_name = 'squill'
 substudy_txt_notes = ('script longitudinal_qze_005_ge_ramsey.py')
 
-study = 'self_zeno_long_run_part3'
+study = 'self_zeno_long_run_part5'
 
 ################################################ optimization outputs ##################################################
 # Optimization parameters for resonator spectroscopy
@@ -177,7 +177,7 @@ for QubitIndex in Qs_to_look_at:
     experiment.qubit_cfg['qubit_freq_ge'] = experiment.qubit_cfg['qubit_freq_ge'][QubitIndex]
     experiment.qubit_cfg['qubit_gain_ge'] = experiment.qubit_cfg['qubit_gain_ge'][QubitIndex]
 
-    # experiment.readout_cfg['res_freq_ge'] = freq_offsets[QubitIndex] + 7267.56
+    # experiment.readout_cfg['res_freq_ge'] = freq_offsets[QubitIndex] + 7287.59
     # experiment.qubit_cfg['qubit_freq_ge'] = float(3095.45)
     # experiment.qubit_cfg['pi_amp'] =  experiment.qubit_cfg['pi_amp'][QubitIndex]
     ################################ Do Res spec once per qubit and store the value ####################################

@@ -49,7 +49,9 @@ def add_single_qubit_experiment(expt_cfg, expt_name, QubitIndex):
     # Decide what parameter we are changing.
     if expt_name == 'res_spec_ge':
         exp_cfg.update([('res_freq_ge', QickSweep1D('freqloop', start, stop))])
-    elif expt_name == 'qubit_spec_ge' or expt_name == 'qubit_spec_ge_zeno' or expt_name == 'qubit_spec_ge_zeno_stark' or expt_name == 'qubit_spec_ge_extended' or expt_name == 'qubit_spec_ge_high_gain':
+    elif expt_name == 'qubit_spec_ge' or expt_name == 'qubit_spec_ge_zeno' \
+            or expt_name == 'qubit_spec_ge_zeno_stark' or expt_name == 'qubit_spec_ge_extended' \
+            or expt_name == 'qubit_spec_ge_high_gain' or expt_name == 'qubit_spec_ge_dual_stark_drive':
         exp_cfg.update([('qubit_freq_ge', QickSweep1D('freqloop', start, stop))])
     elif expt_name == 'time_rabi_ge' or expt_name == 'qubit_temp':
         expt_cfg.update([('expts', expts), ('start', start)])
