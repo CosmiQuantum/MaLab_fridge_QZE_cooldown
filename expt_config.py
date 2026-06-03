@@ -103,22 +103,22 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
 
         "qubit_spec_ge_dual_stark_drive": {
             "reps": 20,
-            "rounds": 20,
+            "rounds": 2,
             "start": list(VNA_qubit - 8),  # [MHz] -40
-            "stop": list(VNA_qubit + 1),  # [MHz] +40
-            "steps": 500,
+            "stop": list(VNA_qubit + 8),  # [MHz] +40
+            "steps": 50,#500
             "relax_delay": 200,  # [us]
-            "qubit_pulse_length": 10,
-            "qubit_stark_pulse_length":10,
-            "qubit_stark_freq": 3095.43+10,
+            "qubit_pulse_length": 0.48,
+            "qubit_stark_pulse_length":25,
+            "qubit_stark_freq": 3095.43+20,
             "start_qubit_stark_gain": 0,
-            "stop_qubit_stark_gain": 0.5,
+            "stop_qubit_stark_gain": 1,#0.01,
             "stark_gain_steps": 5,
             "list_of_all_qubits": list_of_all_qubits,
             "gain_start": gain_start,
             "gain_stop": gain_stop,
             "gain_steps": gain_steps,
-            "readout_pulse_delay": 5,
+
         },
 
         "qubit_spec_ge_extended": {

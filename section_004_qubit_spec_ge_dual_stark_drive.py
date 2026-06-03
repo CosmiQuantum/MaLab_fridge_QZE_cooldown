@@ -161,7 +161,7 @@ class QubitSpectroscopyDualStark:
             I_shots_all=[]
             Q_shots_all=[]
 
-            qspec = OffResonantQSpecDrive(self.experiment.soccfg, reps=self.config['reps'], final_delay=0.5,
+            qspec = OffResonantQSpecDrive(self.experiment.soccfg, reps=self.config['reps'], final_delay=1000,
                                                   cfg=self.config)
 
             iq_list = qspec.acquire(self.experiment.soc, rounds=self.exp_cfg["rounds"], progress=self.qick_verbose)
@@ -1337,12 +1337,21 @@ class OffResonantQSpecDrive(AveragerProgramV2):
 
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
 
-        self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch,
-                       style="const",
-                       length=cfg['qubit_pulse_length'],
+        # self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch,
+        #                style="const",
+        #                length=cfg['qubit_pulse_length'],
+        #                freq=cfg['qubit_freq_ge'],
+        #                phase=cfg['ro_phase'],
+        #                gain=cfg['pi_amp'],
+        #                )
+
+        self.add_gauss(ch=qubit_ch, name="ramp", sigma=cfg['sigma'], length=cfg['sigma'] * 4, even_length=False)
+        self.add_pulse(ch=qubit_ch, name="qubit_pulse",
+                       style="arb",
+                       envelope="ramp",
                        freq=cfg['qubit_freq_ge'],
-                       phase=cfg['ro_phase'],
-                       gain=cfg['qubit_gain_ge'],
+                       phase=cfg['qubit_phase'],
+                       gain=cfg['pi_amp'],
                        )
 
         self.add_pulse(ch=qubit_ch, name="qubit_stark_pulse", ro_ch=ro_ch,  # for before we hit pi pulse len
