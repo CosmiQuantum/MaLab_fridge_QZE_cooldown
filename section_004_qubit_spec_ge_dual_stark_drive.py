@@ -238,6 +238,30 @@ class QubitSpectroscopyDualStark:
         if 'tof_readout_length' not in self.config or self.config['tof_readout_length'] is None:
             self.config['tof_readout_length'] = self.config['qubit_stark_pulse_length'] + 12
 
+        # The decimated ADC buffer is limited (e.g. 16384 samples). A long window will raise
+        # "requested readout length ... exceeds buffer size". Clamp the window to what the
+        # buffer can hold (queried from soccfg so it's board-agnostic). We still trigger at
+        # t=0, so the full off-resonant stark pulse stays in view as long as it fits (~29 us
+        # is plenty for the 25 us stark pulse); only the trailing readout pulse may be clipped.
+        try:
+            ro_ch = self.config['ro_ch']
+            maxlen_samps = self.experiment.soccfg['readouts'][ro_ch]['maxlen']
+            max_window_us = float(self.experiment.soccfg.cycles2us(maxlen_samps, ro_ch=ro_ch)) * 0.97
+            if self.config['tof_readout_length'] > max_window_us:
+                if self.verbose:
+                    print(f"TOF window {self.config['tof_readout_length']} us exceeds decimated "
+                          f"buffer (~{max_window_us:.2f} us max); clamping to {max_window_us:.2f} us. "
+                          f"This still captures the full {self.config['qubit_stark_pulse_length']} us "
+                          f"stark pulse.")
+                self.logger.info(f"Clamping TOF readout window to {max_window_us:.2f} us "
+                                 f"(decimated buffer limit).")
+                self.config['tof_readout_length'] = max_window_us
+        except Exception as e:
+            if self.verbose:
+                print(f"Could not auto-clamp TOF window from soccfg ({e}); "
+                      f"using {self.config['tof_readout_length']} us. If acquire_decimated raises a "
+                      f"buffer-size error, lower 'tof_readout_length' in expt_config.")
+
         # add_qubit_experiment() turns qubit_freq_ge into a QickSweep1D over the 'freqloop'
         # loop (for the normal qspec measurement). The TOF check does NOT sweep frequency
         # (only gain vs time), so pin qubit_freq_ge to a fixed scalar (center of that sweep)

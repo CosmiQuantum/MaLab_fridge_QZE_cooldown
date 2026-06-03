@@ -115,8 +115,10 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "stop_qubit_stark_gain": 1,#0.01,
             "stark_gain_steps": 5,
             "tof_readout_length": 37,  # [us] decimated capture window for the TOF stark-pulse check
-                                       # (spans qubit pulse + 25us stark pulse + readout). Shorten if
-                                       # the decimated ADC buffer overflows on hardware.
+                                       # (spans qubit pulse + 25us stark pulse + readout). The decimated
+                                       # ADC buffer is limited (~16384 samples / ~29us), so this is
+                                       # auto-clamped to the buffer max at runtime; the full stark pulse
+                                       # still fits. Lower it if you want a shorter capture.
             "list_of_all_qubits": list_of_all_qubits,
             "gain_start": gain_start,
             "gain_stop": gain_stop,
