@@ -675,39 +675,39 @@ for QubitIndex in Qs_to_look_at:
         # # reinitialize
         # qspec_data = create_data_dict(qspec_keys, save_r, list_of_all_qubits)
 
-        ################################## off-resonant qspec drive ###############################################
-        (qspec_I_res_stark, qspec_Q_res_stark, qspec_freqs_res_stark, qspec_fit_res_stark, qubit_freq_res_stark,
-         sys_config_qspec_res_stark, ss_Q_e_qspec_res_stark, ss_Q_g_qspec_res_stark,
-         ss_I_e_qspec_res_stark, ss_I_g_qspec_res_stark, I_shots_qspec_res_stark, Q_shots_qspec_res_stark,
-         gains_qspec_res_stark) = q_spec.run_off_resonant_qstark(scaling=True, qze_pulse='const')
-
-        qspec_data = create_data_dict(qspec_keys, save_r, list_of_all_qubits)
-
-        qspec_data[QubitIndex]['Dates'][0] = (
-            time.mktime(datetime.datetime.now().timetuple()))
-        qspec_data[QubitIndex]['I'][0] = qspec_I_res_stark
-        qspec_data[QubitIndex]['Q'][0] = qspec_Q_res_stark
-        qspec_data[QubitIndex]['Frequencies'][0] = qspec_freqs_res_stark
-        qspec_data[QubitIndex]['I Fit'][0] = qspec_fit_res_stark
-        qspec_data[QubitIndex]['Round Num'][0] = 0
-        qspec_data[QubitIndex]['Batch Num'][0] = 0
-        qspec_data[QubitIndex]['Recycled QFreq'][0] = False  # no rr so no recycling here
-        qspec_data[QubitIndex]['Exp Config'][0] = expt_cfg
-        qspec_data[QubitIndex]['Syst Config'][0] = sys_config_qspec_res_stark
-        qspec_data[QubitIndex]['ss_Q_e'][0] = ss_Q_e_qspec_res_stark
-        qspec_data[QubitIndex]['ss_Q_g'][0] = ss_Q_g_qspec_res_stark
-        qspec_data[QubitIndex]['ss_I_e'][0] = ss_I_e_qspec_res_stark
-        qspec_data[QubitIndex]['ss_I_g'][0] = ss_I_g_qspec_res_stark
-        qspec_data[QubitIndex]['I_shots'][0] = I_shots_qspec_res_stark
-        qspec_data[QubitIndex]['Q_shots'][0] = Q_shots_qspec_res_stark
-        qspec_data[QubitIndex]['Gains'][0] = gains_qspec_res_stark
-
-        saver_qspec = Data_H5(subStudyDataFolder, qspec_data, 0, save_r)
-        saver_qspec.save_to_h5('QSpec_zeno_res_stark')
-        del saver_qspec
-        del qspec_data
-        # reinitialize
-        qspec_data = create_data_dict(qspec_keys, save_r, list_of_all_qubits)
+        # ################################## off-resonant qspec drive ###############################################
+        # (qspec_I_res_stark, qspec_Q_res_stark, qspec_freqs_res_stark, qspec_fit_res_stark, qubit_freq_res_stark,
+        #  sys_config_qspec_res_stark, ss_Q_e_qspec_res_stark, ss_Q_g_qspec_res_stark,
+        #  ss_I_e_qspec_res_stark, ss_I_g_qspec_res_stark, I_shots_qspec_res_stark, Q_shots_qspec_res_stark,
+        #  gains_qspec_res_stark) = q_spec.run_off_resonant_qstark(scaling=True, qze_pulse='const')
+        #
+        # qspec_data = create_data_dict(qspec_keys, save_r, list_of_all_qubits)
+        #
+        # qspec_data[QubitIndex]['Dates'][0] = (
+        #     time.mktime(datetime.datetime.now().timetuple()))
+        # qspec_data[QubitIndex]['I'][0] = qspec_I_res_stark
+        # qspec_data[QubitIndex]['Q'][0] = qspec_Q_res_stark
+        # qspec_data[QubitIndex]['Frequencies'][0] = qspec_freqs_res_stark
+        # qspec_data[QubitIndex]['I Fit'][0] = qspec_fit_res_stark
+        # qspec_data[QubitIndex]['Round Num'][0] = 0
+        # qspec_data[QubitIndex]['Batch Num'][0] = 0
+        # qspec_data[QubitIndex]['Recycled QFreq'][0] = False  # no rr so no recycling here
+        # qspec_data[QubitIndex]['Exp Config'][0] = expt_cfg
+        # qspec_data[QubitIndex]['Syst Config'][0] = sys_config_qspec_res_stark
+        # qspec_data[QubitIndex]['ss_Q_e'][0] = ss_Q_e_qspec_res_stark
+        # qspec_data[QubitIndex]['ss_Q_g'][0] = ss_Q_g_qspec_res_stark
+        # qspec_data[QubitIndex]['ss_I_e'][0] = ss_I_e_qspec_res_stark
+        # qspec_data[QubitIndex]['ss_I_g'][0] = ss_I_g_qspec_res_stark
+        # qspec_data[QubitIndex]['I_shots'][0] = I_shots_qspec_res_stark
+        # qspec_data[QubitIndex]['Q_shots'][0] = Q_shots_qspec_res_stark
+        # qspec_data[QubitIndex]['Gains'][0] = gains_qspec_res_stark
+        #
+        # saver_qspec = Data_H5(subStudyDataFolder, qspec_data, 0, save_r)
+        # saver_qspec.save_to_h5('QSpec_zeno_res_stark')
+        # del saver_qspec
+        # del qspec_data
+        # # reinitialize
+        # qspec_data = create_data_dict(qspec_keys, save_r, list_of_all_qubits)
 
     del experiment
     # except:
