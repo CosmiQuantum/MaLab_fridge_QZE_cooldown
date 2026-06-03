@@ -245,22 +245,32 @@ class QubitSpectroscopyDualStark:
         # is plenty for the 25 us stark pulse); only the trailing readout pulse may be clipped.
         try:
             ro_ch = self.config['ro_ch']
-            maxlen_samps = self.experiment.soccfg['readouts'][ro_ch]['maxlen']
-            max_window_us = float(self.experiment.soccfg.cycles2us(maxlen_samps, ro_ch=ro_ch)) * 0.97
-            if self.config['tof_readout_length'] > max_window_us:
-                if self.verbose:
-                    print(f"TOF window {self.config['tof_readout_length']} us exceeds decimated "
-                          f"buffer (~{max_window_us:.2f} us max); clamping to {max_window_us:.2f} us. "
-                          f"This still captures the full {self.config['qubit_stark_pulse_length']} us "
-                          f"stark pulse.")
-                self.logger.info(f"Clamping TOF readout window to {max_window_us:.2f} us "
-                                 f"(decimated buffer limit).")
-                self.config['tof_readout_length'] = max_window_us
+            ro_cfg = self.experiment.soccfg['readouts'][ro_ch]
+            # the buffer-length key has different names across QICK versions
+            maxlen_samps = None
+            for k in ('maxlen', 'buf_maxlen', 'avg_maxlen', 'max_length'):
+                if k in ro_cfg:
+                    maxlen_samps = ro_cfg[k]
+                    break
+            if maxlen_samps is not None:
+                max_window_us = float(self.experiment.soccfg.cycles2us(maxlen_samps, ro_ch=ro_ch)) * 0.97
+                if self.config['tof_readout_length'] > max_window_us:
+                    if self.verbose:
+                        print(f"TOF window {self.config['tof_readout_length']} us exceeds decimated "
+                              f"buffer (~{max_window_us:.2f} us max); clamping to {max_window_us:.2f} us. "
+                              f"This still captures the full {self.config['qubit_stark_pulse_length']} us "
+                              f"stark pulse.")
+                    self.logger.info(f"Clamping TOF readout window to {max_window_us:.2f} us "
+                                     f"(decimated buffer limit).")
+                    self.config['tof_readout_length'] = max_window_us
+            else:
+                # couldn't find the buffer-size key for this QICK version; keep configured value.
+                # If acquire_decimated raises a buffer-size error, lower 'tof_readout_length'.
+                self.logger.info("Could not determine decimated buffer max from soccfg; "
+                                 f"using configured tof_readout_length={self.config['tof_readout_length']} us.")
         except Exception as e:
-            if self.verbose:
-                print(f"Could not auto-clamp TOF window from soccfg ({e}); "
-                      f"using {self.config['tof_readout_length']} us. If acquire_decimated raises a "
-                      f"buffer-size error, lower 'tof_readout_length' in expt_config.")
+            self.logger.info(f"TOF window auto-clamp skipped ({e}); "
+                             f"using tof_readout_length={self.config['tof_readout_length']} us.")
 
         # add_qubit_experiment() turns qubit_freq_ge into a QickSweep1D over the 'freqloop'
         # loop (for the normal qspec measurement). The TOF check does NOT sweep frequency
