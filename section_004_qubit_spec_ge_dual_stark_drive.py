@@ -242,8 +242,8 @@ class QubitSpectroscopyDualStark:
         # loop (for the normal qspec measurement). The TOF check does NOT sweep frequency
         # (only gain vs time), so pin qubit_freq_ge to a fixed scalar (center of that sweep)
         # to avoid a dangling 'freqloop' reference when the program compiles.
-        from qick.asm_v2 import QickSweep1D
-        if isinstance(self.config.get('qubit_freq_ge'), QickSweep1D):
+        # (QickSweep1D is a factory, not a type, so check for "not a plain number" instead.)
+        if not isinstance(self.config.get('qubit_freq_ge'), (int, float)):
             self.config['qubit_freq_ge'] = float((self.config['start'] + self.config['stop']) / 2)
 
         # gain sweep axis (one decimated acquire per gain point)
