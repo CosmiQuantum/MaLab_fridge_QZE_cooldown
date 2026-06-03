@@ -238,6 +238,14 @@ class QubitSpectroscopyDualStark:
         if 'tof_readout_length' not in self.config or self.config['tof_readout_length'] is None:
             self.config['tof_readout_length'] = self.config['qubit_stark_pulse_length'] + 12
 
+        # add_qubit_experiment() turns qubit_freq_ge into a QickSweep1D over the 'freqloop'
+        # loop (for the normal qspec measurement). The TOF check does NOT sweep frequency
+        # (only gain vs time), so pin qubit_freq_ge to a fixed scalar (center of that sweep)
+        # to avoid a dangling 'freqloop' reference when the program compiles.
+        from qick.asm_v2 import QickSweep1D
+        if isinstance(self.config.get('qubit_freq_ge'), QickSweep1D):
+            self.config['qubit_freq_ge'] = float((self.config['start'] + self.config['stop']) / 2)
+
         # gain sweep axis (one decimated acquire per gain point)
         if gains is None:
             gains = np.linspace(self.config['start_qubit_stark_gain'],
