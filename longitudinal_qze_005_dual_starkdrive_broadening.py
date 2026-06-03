@@ -31,6 +31,9 @@ zero_qubit_drive_gain = False
 constant_zeno_pulse = True
 adapt_starked_qubit_freq = False
 wait_for_res_ring_up = True
+tof_check_stark_pulse = True          # if True, run the TOF/decimated pulse-sequence check of the
+                                      # off-resonant stark pulse instead of the qspec measurement,
+                                      # to verify the stark pulse is actually coming out of the board
 n= 1
 unmask = True
 save_r = 1                           # how many rounds to save after
@@ -620,6 +623,25 @@ for QubitIndex in Qs_to_look_at:
                                        signal, save_figs, plot_fit=True, experiment=exp,
                                        live_plot=live_plot, verbose=verbose, logger=rr_logger,
                                        unmasking_resgain=unmask)
+
+        ######################## TOF check of the off-resonant stark pulse ########################
+        # Verify the off-resonant stark pulse is actually coming out of the board: replay the same
+        # pulse sequence (qubit pulse -> off-res stark pulse -> readout) but capture the raw
+        # decimated ADC trace, sweeping stark gain vs time. Amplitude of the stark portion should
+        # grow with gain if the pulse is being played correctly.
+        if tof_check_stark_pulse:
+            (tof_t, tof_gains, tof_I, tof_Q, tof_mag,
+             tof_config) = q_spec.run_off_resonant_qstark_tof()
+
+            # save the raw traces alongside the auto-saved 2D plot
+            np.savez(os.path.join(studyDocumentationFolder,
+                                  f'off_res_stark_tof_round{repeat_round}.npz'),
+                     t=tof_t, gains=tof_gains, I=tof_I, Q=tof_Q, mag=tof_mag)
+            if verbose:
+                print(f"Saved off-resonant stark TOF check for round {repeat_round}")
+            del q_spec
+            continue  # skip the qspec measurement; this round is just the pulse-sequence check
+
         # (qspec_I_res_stark, qspec_Q_res_stark, qspec_freqs_res_stark, qspec_fit_res_stark, qubit_freq_res_stark,
         #  sys_config_qspec_res_stark, ss_Q_e_qspec_res_stark, ss_Q_g_qspec_res_stark,
         #  ss_I_e_qspec_res_stark, ss_I_g_qspec_res_stark, I_shots_qspec_res_stark, Q_shots_qspec_res_stark,

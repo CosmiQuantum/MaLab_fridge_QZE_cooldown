@@ -114,6 +114,9 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "start_qubit_stark_gain": 0,
             "stop_qubit_stark_gain": 1,#0.01,
             "stark_gain_steps": 5,
+            "tof_readout_length": 37,  # [us] decimated capture window for the TOF stark-pulse check
+                                       # (spans qubit pulse + 25us stark pulse + readout). Shorten if
+                                       # the decimated ADC buffer overflows on hardware.
             "list_of_all_qubits": list_of_all_qubits,
             "gain_start": gain_start,
             "gain_stop": gain_stop,
