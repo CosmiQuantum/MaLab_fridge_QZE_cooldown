@@ -280,37 +280,58 @@ class QubitSpectroscopyDualStark:
         if soft_avgs is None:
             soft_avgs = self.config['rounds']
 
-        I_traces = []
-        Q_traces = []
-        mag_traces = []
-        t = None
-        for g in gains:
-            self.config['qubit_stark_gain_tof'] = float(g)
-            prog = OffResonantQSpecDriveTOF(self.experiment.soccfg, reps=1,
-                                            final_delay=self.config['relax_delay'],
-                                            cfg=self.config)
-            iq_list = prog.acquire_decimated(self.experiment.soc, rounds=soft_avgs,
-                                             progress=self.qick_verbose)
-            if t is None:
-                t = prog.get_time_axis(ro_index=0)
-            I = iq_list[0][:, 0]
-            Q = iq_list[0][:, 1]
-            mag = np.abs(iq_list[0].dot([1, 1j]))
-            I_traces.append(I)
-            Q_traces.append(Q)
-            mag_traces.append(mag)
-            if self.verbose:
-                print(f"TOF stark check Q{self.QubitIndex + 1}: gain={g:.4g}, "
-                      f"peak |IQ|={np.max(mag):.1f}")
+        # I_traces = []
+        # Q_traces = []
+        # mag_traces = []
+        # t = None
+        # for g in gains:
+        #     self.config['qubit_stark_gain_tof'] = float(g)
+        #     # prog = OffResonantQSpecDriveTOF(self.experiment.soccfg, reps=1,
+        #     #                                 final_delay=self.config['relax_delay'],
+        #     #                                 cfg=self.config)
+        #     prog = MuxProgram(self.experiment.soccfg, reps=1, final_delay=0.5, cfg=self.config)
+        #
+        #     iq_list = prog.acquire_decimated(self.experiment.soc, rounds=soft_avgs,
+        #                                      progress=self.qick_verbose)
+        #
+        #
+        #     if t is None:
+        #         t = prog.get_time_axis(ro_index=0)
+        #     I = iq_list[0][:, 0]
+        #     Q = iq_list[0][:, 1]
+        #     mag = np.abs(iq_list[0].dot([1, 1j]))
+        #     I_traces.append(I)
+        #     Q_traces.append(Q)
+        #     mag_traces.append(mag)
+        #     if self.verbose:
+        #         print(f"TOF stark check Q{self.QubitIndex + 1}: gain={g:.4g}, "
+        #               f"peak |IQ|={np.max(mag):.1f}")
+        #
+        # I_traces = np.array(I_traces)
+        # Q_traces = np.array(Q_traces)
+        # mag_traces = np.array(mag_traces)
+        #
+        # if self.save_figs:
+        #     self.plot_tof_2d(t, gains, I_traces, Q_traces, mag_traces)
+        # return t, gains, I_traces, Q_traces, mag_traces, self.config
 
-        I_traces = np.array(I_traces)
-        Q_traces = np.array(Q_traces)
-        mag_traces = np.array(mag_traces)
+        prog = MuxProgram(self.experiment.soccfg, reps=1, final_delay=0.5, cfg=self.config)
 
-        if self.save_figs:
-            self.plot_tof_2d(t, gains, I_traces, Q_traces, mag_traces)
+        iq_list = prog.acquire_decimated(self.experiment.soc, rounds=soft_avgs,
+                                         progress=self.qick_verbose)
+        t = prog.get_time_axis(ro_index=0)
+        I = iq_list[0][:, 0]
+        Q = iq_list[0][:, 1]
+        mag = np.abs(I + 1j * Q)  # or: np.abs(iq_list[0].dot([1, 1j]))
 
-        return t, gains, I_traces, Q_traces, mag_traces, self.config
+        plt.figure(figsize=(10, 5))
+        plt.plot(t, mag, label="magnitude")
+        plt.xlabel("Time (us)")
+        plt.ylabel("|IQ| (a.u.)")
+        plt.legend()
+        plt.show()
+
+        return t, gains, I, Q, mag, self.config
 
     def plot_tof_2d(self, t, gains, I_traces, Q_traces, mag_traces, fig_quality=100):
         """2D heatmap (time vs gain, color=|IQ|) plus per-gain magnitude line traces."""
@@ -1514,7 +1535,31 @@ class OffResonantQSpecDrive(AveragerProgramV2):
         self.pulse(ch=cfg['res_ch'], name="res_pulse")
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
+class MuxProgram(AveragerProgramV2):
+    def _initialize(self, cfg):
+        ro_chs = cfg['ro_ch']
+        res_ch = cfg['res_ch']
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
 
+        self.add_readoutconfig(ch=ro_chs, name="myro",
+                               freq=cfg['res_freq_ge'],
+                               gen_ch=res_ch,
+                               outsel='product')
+
+        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
+        # print(cfg["res_length"],cfg['ro_phase'],cfg['res_gain_ge'])
+        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_chs,
+                       style="const",
+                       length=cfg["res_length"],
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
+                       )
+
+    def _body(self, cfg):
+        self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=0, ddr4=True)
 class OffResonantQSpecDriveTOF(AveragerProgramV2):
     """
     Time-of-flight / decimated-capture twin of OffResonantQSpecDrive.
