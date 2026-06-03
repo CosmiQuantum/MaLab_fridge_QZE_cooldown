@@ -109,12 +109,12 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "steps": 50,#500
             "relax_delay": 200,  # [us]
             "qubit_pulse_length": 0.48,
-            "qubit_stark_pulse_length":25,
+            "qubit_stark_pulse_length":10,#25,
             "qubit_stark_freq": 3095.43+20,
             "start_qubit_stark_gain": 0,
             "stop_qubit_stark_gain": 1,#0.01,
             "stark_gain_steps": 5,
-            "tof_readout_length": 37,  # [us] decimated capture window for the TOF stark-pulse check
+            "tof_readout_length": 24,  # [us] decimated capture window for the TOF stark-pulse check
                                        # (spans qubit pulse + 25us stark pulse + readout). The decimated
                                        # ADC buffer is limited (~16384 samples / ~29us), so this is
                                        # auto-clamped to the buffer max at runtime; the full stark pulse
