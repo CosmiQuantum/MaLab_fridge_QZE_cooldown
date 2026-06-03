@@ -1581,9 +1581,13 @@ class OffResonantQSpecDriveTOF(AveragerProgramV2):
     def _body(self, cfg):
         # trigger at t=0 so the decimated capture starts at the beginning of the sequence
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=0, ddr4=True)
-        # all three pulses are defined on res_ch now, so play them there
+        # all three pulses are defined on res_ch now, so play them there, back to back.
+        # NOTE: ros=False is critical here -- the readout we just triggered is ~tof_readout_length
+        # (e.g. 24 us) long, and a default delay_auto would wait for THAT to finish, pushing the
+        # stark/readout pulses out past the end of the capture window (so nothing shows up). We
+        # only want to sync on the generator pulses, so exclude readouts from the auto-delay.
         self.pulse(ch=cfg['res_ch'], name="qubit_pulse", t=0)
-        self.delay_auto(t=0, tag='waiting')
+        self.delay_auto(t=0, ros=False, tag='waiting')
         self.pulse(ch=cfg['res_ch'], name="qubit_stark_pulse", t=0)
-        self.delay_auto(t=0, tag='waiting2')
+        self.delay_auto(t=0, ros=False, tag='waiting2')
         self.pulse(ch=cfg['res_ch'], name="res_pulse")
