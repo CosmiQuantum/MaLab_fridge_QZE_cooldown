@@ -1539,7 +1539,7 @@ class OffResonantQSpecDriveTOF(AveragerProgramV2):
         # the qubit-channel pulses are now emitted at the resonator frequency for this loopback
         # timing check, so declare the qubit gen in the resonator's Nyquist zone (nqz_res) so it
         # can actually produce ~res_freq_ge instead of the ~qubit_freq_ge zone.
-        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_res'])
+        # self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_res'])
 
         # long readout window so the decimated capture spans the whole pulse sequence
         self.declare_readout(ch=ro_ch, length=cfg['tof_readout_length'])
@@ -1561,17 +1561,17 @@ class OffResonantQSpecDriveTOF(AveragerProgramV2):
                        )
 
         # same gaussian qubit pulse as OffResonantQSpecDrive, but at the resonator frequency
-        self.add_gauss(ch=qubit_ch, name="ramp", sigma=cfg['sigma'], length=cfg['sigma'] * 4, even_length=False)
-        self.add_pulse(ch=qubit_ch, name="qubit_pulse",
-                       style="arb",
-                       envelope="ramp",
+        # self.add_gauss(ch=res_ch, name="ramp", sigma=cfg['sigma'], length=cfg['sigma'] * 4, even_length=False)
+        self.add_pulse(ch=res_ch, name="qubit_pulse",ro_ch=ro_ch,
+                       style="const",
+                       length=cfg['sigma'] * 4,
                        freq=cfg['res_freq_ge'],
                        phase=cfg['qubit_phase'],
                        gain=cfg['pi_amp'],
                        )
 
         # off-resonant stark pulse — at the resonator frequency, fixed gain (Python sweeps it)
-        self.add_pulse(ch=qubit_ch, name="qubit_stark_pulse", ro_ch=ro_ch,
+        self.add_pulse(ch=res_ch, name="qubit_stark_pulse", ro_ch=ro_ch,
                        style="const",
                        length=cfg['qubit_stark_pulse_length'],
                        freq=cfg['res_freq_ge'],
