@@ -1581,8 +1581,9 @@ class OffResonantQSpecDriveTOF(AveragerProgramV2):
     def _body(self, cfg):
         # trigger at t=0 so the decimated capture starts at the beginning of the sequence
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=0, ddr4=True)
-        self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)
+        # all three pulses are defined on res_ch now, so play them there
+        self.pulse(ch=cfg['res_ch'], name="qubit_pulse", t=0)
         self.delay_auto(t=0, tag='waiting')
-        self.pulse(ch=self.cfg["qubit_ch"], name="qubit_stark_pulse", t=0)
+        self.pulse(ch=cfg['res_ch'], name="qubit_stark_pulse", t=0)
         self.delay_auto(t=0, tag='waiting2')
         self.pulse(ch=cfg['res_ch'], name="res_pulse")
