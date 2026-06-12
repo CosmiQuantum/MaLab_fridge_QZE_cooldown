@@ -6,6 +6,7 @@ import numpy as np
 # from long_qubit_spectroscopy import fh_config
 
 np.set_printoptions(threshold=int(1e15)) #need this so it saves absolutely everything returned from the classes
+
 import datetime
 import time
 import logging
@@ -17,6 +18,7 @@ from section_001_time_of_flight import TOFExperiment
 from section_002_res_spec_ge_mux import ResonanceSpectroscopy
 from section_002_res_spec_ef import ResonanceSpectroscopyEF
 from section_004_qubit_spec_ge import QubitSpectroscopy
+from oliviaG_starkShift import QubitSpectroscopy_driveFill
 from section_004_qubit_spec_ef import EFQubitSpectroscopy
 from section_004_qubit_spec_fh_V2 import FHQubitSpectroscopy
 from section_006_amp_rabi_ef import EF_AmplitudeRabiExperiment
@@ -33,6 +35,7 @@ from section_010_T2E_ge import T2EMeasurement
 from system_config import QICK_experiment
 from section_003_punch_out_ge_mux import PunchOut
 from expt_config import expt_cfg, list_of_all_qubits, tot_num_of_qubits, FRIDGE
+
 ################################################ Run Configurations ####################################################
 st = time.time()
 #
@@ -61,12 +64,13 @@ Qs_to_look_at = [5]     # only list the qubits you want to do the RR for
 run_name = 'bob_run_started_Feb_11'
 device_name = 'squill'
 substudy_txt_notes = ('track res and q spec')
-study ='find_ef_qfreqs'#'higher_spec_transitions'
+study ='qpec_driveFill'#'higher_spec_transitions'
+
 sub_study = f'qubit_' + str(5)
 data_set = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 # set which of the following you'd like to run to 'True'
-run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss":  False, "rabi":  True, "ss_gef": False, "test_act": False, "fh_rabi": False,
+run_flags = {"driveFill": True, "tof": False, "res_spec": True, "q_spec": True, "ss":  False, "rabi":  True, "ss_gef": False, "test_act": False, "fh_rabi": False,
              "t1":  False, "t2r": False, "t2r_correction":True, "t2e":  False, "ef_res_spec": True, "ef_q_spec": True, "fh_q_spec": False, "rabi_pop_meas": False, "ef_Rabi": False, "ef_ss": False}
 
 
@@ -158,6 +162,7 @@ ss_keys_gef = ['Fidelity', 'Angle_ef', 'Dates', 'I_g', 'Q_g', 'I_e', 'Q_e', 'I_f
 act_keys = [ 'actI', 'actQ','noactI', 'noactQ', 'Syst Config']
 #initialize a simple list to store the qspec values in incase a fit fails
 stored_qspec_list = [None] * tot_num_of_qubits
+stored_qspec_list_df = [None] * tot_num_of_qubits
 # True
 if live_plot:
     # Check if visdom is connected right away, otherwise, throw an error
@@ -275,6 +280,55 @@ while j < n:
                 if verbose:
                     print(f"RR g-e QSpec error on qubit {QubitIndex}: {e}")
                 continue
+
+
+            ################################################## g-e Qubit spec drive then fill ##################################################
+            if run_flags["driveFill"]:
+                try:
+                    q_spec_driveFill = QubitSpectroscopy_driveFill(QubitIndex, tot_num_of_qubits,
+                                                                   studyDocumentationFolder, j,
+                                                                   signal, save_figs, plot_fit=True,
+                                                                   experiment=experiment,
+                                                                   live_plot=live_plot, verbose=verbose,
+                                                                   logger=rr_logger,
+                                                                   unmasking_resgain=unmask)  # class instance
+                    (qspec_I_df, qspec_Q_df, qspec_freqs_df, qspec_fit_df, qubit_freq_df, sys_config_qspec_df,
+                     ss_Q_e_qspec_df, ss_Q_g_qspec_df,
+                     ss_I_e_qspec_df,
+                     ss_I_g_qspec_df, I_shots_qspec_df, Q_shots_qspec_df) = q_spec_driveFill.run(scaling=True)
+                    if qubit_freq is None:
+                        if stored_qspec_list_df[QubitIndex] is not None:
+                            experiment.qubit_cfg['qubit_freq_ge'] = stored_qspec_list_df[QubitIndex]
+                            rr_logger.warning(f"Using previous stored value: {stored_qspec_list_df[QubitIndex]}")
+                            recycled_qfreq = True
+                            qubit_freq = stored_qspec_list_df[QubitIndex]
+                            experiment.qubit_cfg['qubit_freq_ge'] = float(qubit_freq_df)
+                            stored_qspec_list_df[QubitIndex] = float(qubit_freq_df)
+                            if verbose:
+                                print(f"Using previous stored value: {qubit_freq_df}")
+                        else:
+                            rr_logger.warning(
+                                f"No stored g-e qubit spec value for qubit {QubitIndex}; skipping iteration.")
+                            if verbose:
+                                print('No stored g-e qubit spec value for qubit {QubitIndex}; skipping iteration.')
+                            del q_spec_driveFill
+
+                        continue
+                    else:
+                        experiment.qubit_cfg['qubit_freq_ge'] = float(qubit_freq_df)
+                        stored_qspec_list_df[QubitIndex] = float(qubit_freq_df)
+                    rr_logger.info(f"g-e Qubit {QubitIndex + 1} frequency: {float(qubit_freq_df)}")
+                    if verbose:
+                        print(f"g-e Qubit {QubitIndex + 1} frequency: {float(qubit_freq_df)}")
+                    del q_spec_driveFill
+
+                except Exception as e:
+                    if debug_mode:
+                        raise e
+                    rr_logger.exception(f"RR g-e QSpec error on qubit {QubitIndex}: {e}")
+                    if verbose:
+                        print(f"RR g-e QSpec error on qubit {QubitIndex}: {e}")
+                    continue
         ###################################################### g-e Rabi ####################################################
         if run_flags["rabi"]:
             # try:

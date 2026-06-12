@@ -102,19 +102,19 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "qubit_spec_ge_dual_stark_drive": {
-            "reps": 20,
-            "rounds": 2,
-            "start": list(VNA_qubit - 8),  # [MHz] -40
-            "stop": list(VNA_qubit + 8),  # [MHz] +40
-            "steps": 50,#500
+            "reps": 100,
+            "rounds": 20,
+            "start": list(VNA_qubit - 3),  # [MHz] -40
+            "stop": list(VNA_qubit + 1),  # [MHz] +40
+            "steps": 500,#500
             "relax_delay": 200,  # [us]
-            "qubit_pulse_length": 0.48,
-            "qubit_stark_pulse_length":10,#25,
-            "qubit_stark_freq": 3095.43+20,
+            "qubit_pulse_length": 10,
+            "qubit_stark_pulse_length":25,
+            "qubit_stark_freq": 3095.43+10,
             "start_qubit_stark_gain": 0,
             "stop_qubit_stark_gain": 1,#0.01,
-            "stark_gain_steps": 5,
-            "tof_readout_length": 24,  # [us] decimated capture window for the TOF stark-pulse check
+            "stark_gain_steps": 10,
+            "tof_readout_length": 30,  # [us] decimated capture window for the TOF stark-pulse check
                                        # (spans qubit pulse + 25us stark pulse + readout). The decimated
                                        # ADC buffer is limited (~16384 samples / ~29us), so this is
                                        # auto-clamped to the buffer max at runtime; the full stark pulse

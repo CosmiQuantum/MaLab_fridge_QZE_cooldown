@@ -215,22 +215,7 @@ class QubitSpectroscopyDualStark:
                     , ss_I_g_all, I_shots_all, Q_shots_all, gains
 
     def run_off_resonant_qstark_tof(self, gains=None, soft_avgs=None):
-        """
-        TOF-style sanity check for the off-resonant qubit stark pulse.
 
-        Plays the SAME pulse sequence as run_off_resonant_qstark / OffResonantQSpecDrive
-        (gaussian qubit pulse -> off-resonant stark pulse -> resonator readout), but instead
-        of measuring qubit population we grab the raw *decimated* ADC trace over the whole
-        sequence so you can literally see whether the stark pulse is coming out of the board
-        and whether its amplitude scales with gain. The ADC is downconverted at
-        qubit_stark_freq so the off-resonant stark tone sits near DC and is directly readable.
-
-        The stark gain is swept in Python (one acquire_decimated per gain) so the result is a
-        clean 2D array: amplitude vs (gain, time).
-
-        Returns: t (us), gains, I_traces, Q_traces, mag_traces, config
-            where *_traces have shape (n_gains, n_time_samples).
-        """
         # how long the decimated capture window is. Default spans the whole sequence
         # (stark pulse + a bit before for the qubit pulse + readout after). If the decimated
         # buffer overflows on hardware, shorten qubit_stark_pulse_length or set
@@ -290,58 +275,60 @@ class QubitSpectroscopyDualStark:
         if soft_avgs is None:
             soft_avgs = self.config['rounds']
 
-        # I_traces = []
-        # Q_traces = []
-        # mag_traces = []
-        # t = None
-        # for g in gains:
-        #     self.config['qubit_stark_gain_tof'] = float(g)
-        #     # prog = OffResonantQSpecDriveTOF(self.experiment.soccfg, reps=1,
-        #     #                                 final_delay=self.config['relax_delay'],
-        #     #                                 cfg=self.config)
-        #     prog = MuxProgram(self.experiment.soccfg, reps=1, final_delay=0.5, cfg=self.config)
-        #
-        #     iq_list = prog.acquire_decimated(self.experiment.soc, rounds=soft_avgs,
-        #                                      progress=self.qick_verbose)
-        #
-        #
-        #     if t is None:
-        #         t = prog.get_time_axis(ro_index=0)
-        #     I = iq_list[0][:, 0]
-        #     Q = iq_list[0][:, 1]
-        #     mag = np.abs(iq_list[0].dot([1, 1j]))
-        #     I_traces.append(I)
-        #     Q_traces.append(Q)
-        #     mag_traces.append(mag)
-        #     if self.verbose:
-        #         print(f"TOF stark check Q{self.QubitIndex + 1}: gain={g:.4g}, "
-        #               f"peak |IQ|={np.max(mag):.1f}")
-        #
-        # I_traces = np.array(I_traces)
-        # Q_traces = np.array(Q_traces)
-        # mag_traces = np.array(mag_traces)
-        #
-        # if self.save_figs:
-        #     self.plot_tof_2d(t, gains, I_traces, Q_traces, mag_traces)
-        # return t, gains, I_traces, Q_traces, mag_traces, self.config
+        I_traces = []
+        Q_traces = []
+        mag_traces = []
+        t = None
+        for g in gains:
+            self.config['qubit_stark_gain_tof'] = float(g)
+            prog = OffResonantQSpecDriveTOF_Q(self.experiment.soccfg, reps=1,
+                                            final_delay=self.config['relax_delay'],
+                                            cfg=self.config)
+            # prog = MuxProgram(self.experiment.soccfg, reps=1, final_delay=5, cfg=self.config)
 
-        prog = MuxProgram(self.experiment.soccfg, reps=1, final_delay=0.5, cfg=self.config)
+            iq_list = prog.acquire_decimated(self.experiment.soc, rounds=500,
+                                             progress=self.qick_verbose)
 
-        iq_list = prog.acquire_decimated(self.experiment.soc, rounds=soft_avgs,
-                                         progress=self.qick_verbose)
-        t = prog.get_time_axis(ro_index=0)
-        I = iq_list[0][:, 0]
-        Q = iq_list[0][:, 1]
-        mag = np.abs(I + 1j * Q)  # or: np.abs(iq_list[0].dot([1, 1j]))
 
-        plt.figure(figsize=(10, 5))
-        plt.plot(t, mag, label="magnitude")
-        plt.xlabel("Time (us)")
-        plt.ylabel("|IQ| (a.u.)")
-        plt.legend()
-        plt.show()
+            if t is None:
+                t = prog.get_time_axis(ro_index=0)
+            I = iq_list[0][:, 0]
+            Q = iq_list[0][:, 1]
+            mag = np.abs(iq_list[0].dot([1, 1j]))
+            I_traces.append(I)
+            Q_traces.append(Q)
+            mag_traces.append(mag)
+            if self.verbose:
+                print(f"TOF stark check Q{self.QubitIndex + 1}: gain={g:.4g}, "
+                      f"peak |IQ|={np.max(mag):.1f}")
 
-        return t, gains, I, Q, mag, self.config
+        I_traces = np.array(I_traces)
+        Q_traces = np.array(Q_traces)
+        mag_traces = np.array(mag_traces)
+
+        if self.save_figs:
+            self.plot_tof_2d(t, gains, I_traces, Q_traces, mag_traces)
+        return t, gains, I_traces, Q_traces, mag_traces, self.config
+
+        # prog = MuxProgram(self.experiment.soccfg, reps=1, final_delay=5, cfg=self.config)
+        #
+        # iq_list = prog.acquire_decimated(self.experiment.soc, rounds=1000,#soft_avgs,
+        #                                  progress=self.qick_verbose)
+        # t = prog.get_time_axis(ro_index=0)
+        # I = iq_list[0][:, 0]
+        # Q = iq_list[0][:, 1]
+        # print(iq_list[0].shape)
+        #
+        # mag = np.abs(I + 1j * Q)  # or: np.abs(iq_list[0].dot([1, 1j]))
+        #
+        # plt.figure(figsize=(10, 5))
+        # plt.plot(t, mag, label="magnitude")
+        # plt.xlabel("Time (us)")
+        # plt.ylabel("|IQ| (a.u.)")
+        # plt.legend()
+        # plt.show()
+        #
+        # return t, gains, I, Q, mag, self.config
 
     def plot_tof_2d(self, t, gains, I_traces, Q_traces, mag_traces, fig_quality=100):
         """2D heatmap (time vs gain, color=|IQ|) plus per-gain magnitude line traces."""
@@ -1525,7 +1512,7 @@ class OffResonantQSpecDrive(AveragerProgramV2):
                        envelope="ramp",
                        freq=cfg['qubit_freq_ge'],
                        phase=cfg['qubit_phase'],
-                       gain=cfg['pi_amp'],
+                       gain=cfg['qubit_gain_ge'],
                        )
 
         self.add_pulse(ch=qubit_ch, name="qubit_stark_pulse", ro_ch=ro_ch,  # for before we hit pi pulse len
@@ -1535,7 +1522,7 @@ class OffResonantQSpecDrive(AveragerProgramV2):
                        phase=cfg['qubit_phase'],
                        gain=QickSweep1D("stark_gain_loop", cfg["start_qubit_stark_gain"], cfg["stop_qubit_stark_gain"]))
         self.add_loop("freqloop", cfg["steps"])
-        self.add_loop("stark_gain_loop", cfg["stark_gain_steps"])  # inn
+        self.add_loop("stark_gain_loop", cfg["stark_gain_steps"])
 
     def _body(self, cfg):
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)  # play probe pulse after ring up
@@ -1547,19 +1534,19 @@ class OffResonantQSpecDrive(AveragerProgramV2):
 
 class MuxProgram(AveragerProgramV2):
     def _initialize(self, cfg):
-        ro_chs = cfg['ro_ch']
+        ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
         self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
 
-        self.add_readoutconfig(ch=ro_chs, name="myro",
+        self.add_readoutconfig(ch=ro_ch, name="myro",
                                freq=cfg['res_freq_ge'],
                                gen_ch=res_ch,
                                outsel='product')
 
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         # print(cfg["res_length"],cfg['ro_phase'],cfg['res_gain_ge'])
-        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_chs,
+        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
                        style="const",
                        length=cfg["res_length"],
                        freq=cfg['res_freq_ge'],
@@ -1567,24 +1554,34 @@ class MuxProgram(AveragerProgramV2):
                        gain=cfg['res_gain_ge']
                        )
 
+        # same gaussian qubit pulse as OffResonantQSpecDrive, but at the resonator frequency
+        # self.add_gauss(ch=res_ch, name="ramp", sigma=cfg['sigma'], length=cfg['sigma'] * 4, even_length=False)
+        self.add_pulse(ch=res_ch, name="qubit_pulse", ro_ch=ro_ch,
+                       style="const",
+                       length=cfg['sigma'] * 4,
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['qubit_phase'],
+                       gain=cfg['pi_amp'],
+                       )
+
+        # off-resonant stark pulse — at the resonator frequency, fixed gain (Python sweeps it)
+        self.add_pulse(ch=res_ch, name="qubit_stark_pulse", ro_ch=ro_ch,
+                       style="const",
+                       length=cfg['qubit_stark_pulse_length'],
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['qubit_phase'],
+                       gain=cfg['qubit_stark_gain_tof'])
+
     def _body(self, cfg):
-        self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+        # trigger at t=0 so the decimated capture starts at the beginning of the sequence
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=0, ddr4=True)
+        self.pulse(ch=cfg['res_ch'], name="qubit_pulse", t=0)
+        self.delay_auto(t=0.1, ros=False, tag='waiting')
+        self.pulse(ch=cfg['res_ch'], name="qubit_stark_pulse", t=0)
+        self.delay_auto(t=0.1, ros=False, tag='waiting2')
+        self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
 class OffResonantQSpecDriveTOF(AveragerProgramV2):
-    """
-    Time-of-flight / decimated-capture twin of OffResonantQSpecDrive.
 
-    Same pulse sequence (gaussian qubit pulse -> off-resonant qubit_stark_pulse ->
-    resonator readout) but built for acquire_decimated: we grab the raw downconverted
-    ADC trace over the whole sequence instead of measuring qubit population. This is a
-    pulse-sequence sanity check to confirm the off-resonant stark pulse is actually
-    coming out of the board with the right timing and that its amplitude tracks gain.
-
-    The ADC is downconverted at qubit_stark_freq (gen_ch = qubit_ch) so the off-resonant
-    stark tone sits near DC and shows up clearly in the trace. The stark gain is a fixed
-    scalar (cfg['qubit_stark_gain_tof']); the calling method sweeps it in Python so each
-    acquire_decimated returns one time trace per gain.
-    """
     def _initialize(self, cfg):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
@@ -1636,13 +1633,69 @@ class OffResonantQSpecDriveTOF(AveragerProgramV2):
     def _body(self, cfg):
         # trigger at t=0 so the decimated capture starts at the beginning of the sequence
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=0, ddr4=True)
-        # all three pulses are defined on res_ch now, so play them there, back to back.
-        # NOTE: ros=False is critical here -- the readout we just triggered is ~tof_readout_length
-        # (e.g. 24 us) long, and a default delay_auto would wait for THAT to finish, pushing the
-        # stark/readout pulses out past the end of the capture window (so nothing shows up). We
-        # only want to sync on the generator pulses, so exclude readouts from the auto-delay.
         self.pulse(ch=cfg['res_ch'], name="qubit_pulse", t=0)
-        self.delay_auto(t=0, ros=False, tag='waiting')
+        self.delay_auto(t=0.1, ros=False, tag='waiting')
         self.pulse(ch=cfg['res_ch'], name="qubit_stark_pulse", t=0)
-        self.delay_auto(t=0, ros=False, tag='waiting2')
+        self.delay_auto(t=0.1, ros=False, tag='waiting2')
+        self.pulse(ch=cfg['res_ch'], name="res_pulse")
+
+class OffResonantQSpecDriveTOF_Q(AveragerProgramV2):
+
+    def _initialize(self, cfg):
+        ro_ch = cfg['ro_ch']
+        res_ch = cfg['res_ch']
+        qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        # the qubit-channel pulses are now emitted at the resonator frequency for this loopback
+        # timing check, so declare the qubit gen in the resonator's Nyquist zone (nqz_res) so it
+        # can actually produce ~res_freq_ge instead of the ~qubit_freq_ge zone.
+        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_res'])
+
+        # long readout window so the decimated capture spans the whole pulse sequence
+        self.declare_readout(ch=ro_ch, length=cfg['tof_readout_length'])
+
+        # downconvert at the resonator frequency: every pulse is played at res_freq_ge so the
+        # whole sequence shows up on the readout line / ADC for a pure timing+amplitude check
+        self.add_readoutconfig(ch=ro_ch, name="myro",
+                               freq=cfg['res_freq_ge'],
+                               gen_ch=res_ch,
+                               outsel='product')
+        self.send_readoutconfig(ch=ro_ch, name="myro", t=0)
+
+        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
+                       style="const",
+                       length=cfg["res_length"],
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']*2
+                       )
+
+        # same gaussian qubit pulse as OffResonantQSpecDrive, but at the resonator frequency
+        self.add_gauss(ch=qubit_ch, name="ramp", sigma=cfg['sigma'], length=cfg['sigma'] * 4, even_length=False)
+
+        self.add_pulse(ch=qubit_ch, name="qubit_pulse",ro_ch=ro_ch,
+                       style="arb",
+                       envelope="ramp",
+                       # length=cfg['sigma'] * 4,
+                       freq=cfg['qubit_freq_ge'],
+                       phase=cfg['qubit_phase'],
+                       gain=1,#cfg['pi_amp'],
+                       )
+
+        self.add_pulse(ch=qubit_ch, name="qubit_stark_pulse", ro_ch=ro_ch,
+                       style="arb",
+                       envelope="ramp",
+                       # length=cfg['qubit_stark_pulse_length'],
+                       freq=cfg['qubit_freq_ge'],
+                       phase=cfg['qubit_phase'],
+                       gain=1,)#cfg['pi_amp'])#cfg['qubit_stark_gain_tof'])
+
+    def _body(self, cfg):
+        # trigger at t=0 so the decimated capture starts at the beginning of the sequence
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=0, ddr4=True)
+        self.pulse(ch=cfg['qubit_ch'], name="qubit_pulse", t=0)
+        self.delay_auto(t=10, ros=False, tag='waiting')
+        self.pulse(ch=cfg['qubit_ch'], name="qubit_stark_pulse", t=0)
+        self.delay_auto(t=1, ros=False, tag='waiting2')
         self.pulse(ch=cfg['res_ch'], name="res_pulse")
