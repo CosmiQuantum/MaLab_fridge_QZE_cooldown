@@ -663,7 +663,7 @@ class ProbePulseSpectroscopy(AveragerProgramV2): #drive, then fill
 
         self.add_pulse(ch=res_ch, name="qze_pulse",  ro_ch=ro_ch,
                        style="const",
-                       length=cfg['qubit_length_ge']+cfg["readout_pulse_delay"],#+3us for res ring up time
+                       length=cfg['res_length'],#+3us for res ring up time
                        freq=cfg['res_freq_qze'],
                        phase=cfg['res_phase_qze'],
                        gain=QickSweep1D("gain_loop", cfg["gain_start"], cfg["gain_stop"])

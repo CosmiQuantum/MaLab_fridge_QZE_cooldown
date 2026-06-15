@@ -161,7 +161,7 @@ class QubitSpectroscopyDualStark:
             I_shots_all=[]
             Q_shots_all=[]
 
-            qspec = OffResonantQSpecDrive(self.experiment.soccfg, reps=self.config['reps'], final_delay=1000,
+            qspec = OffResonantQSpecDrive(self.experiment.soccfg, reps=self.config['reps'], final_delay=self.config['relax_delay'],
                                                   cfg=self.config)
 
             iq_list = qspec.acquire(self.experiment.soc, rounds=self.exp_cfg["rounds"], progress=self.qick_verbose)
@@ -1483,49 +1483,19 @@ class OffResonantQSpecDrive(AveragerProgramV2):
         self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
         self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
 
-        self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['res_freq_ge'],
-                               gen_ch=res_ch,
-                               outsel='product')
+        self.add_readoutconfig(ch=ro_ch, name="myro", freq=cfg['res_freq_ge'], gen_ch=res_ch, outsel='product')
         self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
-                       style="const",
-                       length=cfg["res_length"],
-                       freq=cfg['res_freq_ge'],
-                       phase=cfg['ro_phase'],
-                       gain=cfg['res_gain_ge']
-                       )
+        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,  style="const", length=cfg["res_length"], freq=cfg['res_freq_ge'], phase=cfg['ro_phase'], gain=cfg['res_gain_ge'])
 
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
-
-        # self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch,
-        #                style="const",
-        #                length=cfg['qubit_pulse_length'],
-        #                freq=cfg['qubit_freq_ge'],
-        #                phase=cfg['ro_phase'],
-        #                gain=cfg['pi_amp'],
-        #                )
-
-        self.add_gauss(ch=qubit_ch, name="ramp", sigma=cfg['sigma'], length=cfg['sigma'] * 4, even_length=False)
-        self.add_pulse(ch=qubit_ch, name="qubit_pulse",
-                       style="arb",
-                       envelope="ramp",
-                       freq=cfg['qubit_freq_ge'],
-                       phase=cfg['qubit_phase'],
-                       gain=cfg['qubit_gain_ge'],
-                       )
-
-        self.add_pulse(ch=qubit_ch, name="qubit_stark_pulse", ro_ch=ro_ch,  # for before we hit pi pulse len
-                       style="const",
-                       length=cfg['qubit_stark_pulse_length'],
-                       freq=cfg["qubit_stark_freq"],
-                       phase=cfg['qubit_phase'],
+        self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch,style="const", length=cfg['qubit_length_ge'],  freq=cfg['qubit_freq_ge'], phase=cfg['ro_phase'],gain=cfg['qubit_gain_ge'],)
+        self.add_pulse(ch=qubit_ch, name="qubit_stark_pulse", ro_ch=ro_ch, style="const", length=cfg['qubit_stark_pulse_length'], freq=cfg["qubit_stark_freq"], phase=cfg['qubit_phase'],
                        gain=QickSweep1D("stark_gain_loop", cfg["start_qubit_stark_gain"], cfg["stop_qubit_stark_gain"]))
         self.add_loop("freqloop", cfg["steps"])
         self.add_loop("stark_gain_loop", cfg["stark_gain_steps"])
-
     def _body(self, cfg):
-        self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)  # play probe pulse after ring up
+
+        self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)
         self.delay_auto(t=0, tag='waiting')
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_stark_pulse", t=0)
         self.delay_auto(t=0, tag='waiting2')
