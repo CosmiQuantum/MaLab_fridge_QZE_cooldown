@@ -67,6 +67,7 @@ class LengthRabiExperiment:
             self.save_figs = save_figs
             self.experiment = experiment
             self.verbose = verbose
+            self.logger = logger if logger is not None else logging.getLogger("custom_logger_for_rr_only")
         if experiment is not None:
             self.q_config = all_qubit_state(self.experiment, self.number_of_qubits)
             self.exp_cfg = add_qubit_experiment(expt_cfg, self.expt_name, self.QubitIndex)
@@ -114,7 +115,15 @@ class LengthRabiExperiment:
         #get the lens that were used so you can use to plot on the x axis
         lengths = amp_rabi.get_pulse_param('qubit_pulse', "length", as_array=True)
         #lens = amp_rabi.get_pulse_param('qubit_pulse', "gain", as_array=True)
-        if not self.chevron:
+        # x_axis is what gets returned/saved as the swept parameter for the plotted data
+        x_axis = lengths
+        if self.length_rabi_vs_gain:
+            # 2D sweep: a Rabi oscillation (vs pulse length) for each qubit drive gain.
+            # I, Q have shape (gain_steps, len_steps); fit a cosine per gain.
+            gains = amp_rabi.get_pulse_param('qubit_pulse', "gain", as_array=True)
+            q1_fit_cosine, pi_len = self.plot_results_vs_gain(I, Q, lengths, gains, config=self.config)
+            x_axis = gains
+        elif not self.chevron:
             q1_fit_cosine, pi_len = self.plot_results( I, Q, lengths, config = self.config)
         else:
 
@@ -143,10 +152,12 @@ class LengthRabiExperiment:
         I_shots = A[:, :, 0]  # if you have 4 steps and 3 shots/reps this is like [[1,2,3,4],[1,2,3,4],[1,2,3,4]]
         Q_shots = A[:, :, 1]
 
-        q1_fit_cosine, pi_amp = self.plot_results_scaled(I, Q, lengths, config=self.config,
-                                                  scaling=True, Ie=ss_I_e, Ig=ss_I_g, Qe=ss_Q_e, Qg=ss_Q_g)
+        # plot_results_scaled does a 1D cosine fit, so it only applies to the 1D (single-gain) sweeps
+        if not self.length_rabi_vs_gain:
+            q1_fit_cosine, pi_amp = self.plot_results_scaled(I, Q, lengths, config=self.config,
+                                                      scaling=True, Ie=ss_I_e, Ig=ss_I_g, Qe=ss_Q_e, Qg=ss_Q_g)
 
-        return I, Q, lengths, q1_fit_cosine, pi_len, self.config, ss_Q_e, ss_Q_g,ss_I_e, ss_I_g, I_shots, Q_shots
+        return I, Q, x_axis, q1_fit_cosine, pi_len, self.config, ss_Q_e, ss_Q_g,ss_I_e, ss_I_g, I_shots, Q_shots
 
     def run_QZE(self,constant_zeno_pulse=False,adapt_qubit_freq=False, wait_for_res_ring_up=False, exp=None):
         qubit_length_ge_loop = np.linspace(self.config['start'], self.config['stop'], self.config['steps'])
@@ -546,7 +557,7 @@ class LengthRabiExperiment:
 
         except Exception as e:
             if self.verbose: print("Error fitting cosine:", e)
-            self.logger.info("Error fitting cosine: {e}")
+            self.logger.info(f"Error fitting cosine: {e}")
             # Return None if the fit didn't work
             return None, None
     def run_oscilliscope_simple(self, thresholding=False):
@@ -904,8 +915,94 @@ class LengthRabiExperiment:
 
         except Exception as e:
             if self.verbose: print("Error fitting cosine:", e)
-            self.logger.info("Error fitting cosine: {e}")
+            self.logger.info(f"Error fitting cosine: {e}")
             # Return None if the fit didn't work
+            return None, None
+
+    def plot_results_vs_gain(self, I, Q, lens, gains, config=None, fig_quality=100, showfig=False):
+        """
+        Length-Rabi-vs-gain analysis.
+
+        I and Q have shape (n_gains, n_lengths): a Rabi oscillation as a function of
+        pulse length for each qubit-drive gain. Fit a cosine to each gain's oscillation,
+        print the Rabi frequency for that gain (the cosine 'b' parameter; this is in MHz
+        when the pulse length is in us), and plot Rabi frequency vs gain.
+
+        Returns (fits, rabi_freqs):
+            fits       : (n_gains, n_lengths) array of the per-gain cosine fits
+            rabi_freqs : (n_gains,) array of Rabi frequencies (MHz)
+        """
+        try:
+            I = np.asarray(I)
+            Q = np.asarray(Q)
+            lens = np.asarray(lens)
+            gains = np.asarray(gains)
+
+            # pick the signal we fit on (default to I for 'I' or 'None')
+            data = Q if 'Q' in self.signal and 'None' not in self.signal else I
+
+            rabi_freqs = []
+            fits = []
+            print(f"\n--- Rabi frequency vs gain (Q{self.QubitIndex + 1}) ---")
+            for idx in range(len(gains)):
+                trace = np.asarray(data[idx])
+                try:
+                    a_guess = (np.max(trace) - np.min(trace)) / 2
+                    d_guess = np.mean(trace)
+                    b_guess = 1.0 / lens[-1]
+                    guess = [a_guess, b_guess, 0, d_guess]
+                    popt, _ = curve_fit(self.cosine, lens, trace, maxfev=100000, p0=guess)
+                    rabi_freq = abs(popt[1])  # cycles per us == MHz when lens is in us
+                    fits.append(self.cosine(lens, *popt))
+                    print(f"  gain = {gains[idx]:.4f}  ->  Rabi frequency = {rabi_freq:.4f} MHz")
+                except Exception as e:
+                    rabi_freq = np.nan
+                    fits.append(np.full(lens.shape, np.nan, dtype=float))
+                    print(f"  gain = {gains[idx]:.4f}  ->  fit failed: {e}")
+                rabi_freqs.append(rabi_freq)
+            print("-------------------------------------------\n")
+
+            rabi_freqs = np.array(rabi_freqs)
+            fits = np.array(fits)
+
+            # ---- plot: heatmap of the signal + Rabi frequency vs gain ----
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
+            plt.rcParams.update({'font.size': 18})
+
+            mag = np.sqrt(I ** 2 + Q ** 2)  # (n_gains, n_lengths)
+            extent = [lens[0], lens[-1], gains[0], gains[-1]]
+            im = ax1.imshow(mag, aspect='auto', origin='lower', extent=extent)
+            ax1.set_xlabel("Qubit drive pulse length (us)", fontsize=18)
+            ax1.set_ylabel("Qubit drive gain (a.u.)", fontsize=18)
+            ax1.set_title(f"Rabi magnitude Q{self.QubitIndex + 1}", fontsize=18)
+            fig.colorbar(im, ax=ax1)
+
+            ax2.plot(gains, rabi_freqs, 'o-', linewidth=2)
+            ax2.set_xlabel("Qubit drive gain (a.u.)", fontsize=18)
+            ax2.set_ylabel("Rabi frequency (MHz)", fontsize=18)
+            ax2.tick_params(axis='both', which='major', labelsize=16)
+
+            plt.tight_layout()
+
+            if showfig:
+                plt.show()
+            if self.save_figs:
+                outerFolder_expt = os.path.join(self.outerFolder, self.expt_name)
+                self.create_folder_if_not_exists(outerFolder_expt)
+                now = datetime.datetime.now()
+                formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
+                file_name = os.path.join(
+                    outerFolder_expt,
+                    f"R_{self.round_num}_Q_{self.QubitIndex + 1}_{formatted_datetime}_{self.expt_name}_vs_gain_q{self.QubitIndex + 1}.png"
+                )
+                fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')
+            plt.close(fig)
+
+            return fits, rabi_freqs
+
+        except Exception as e:
+            if self.verbose: print("Error fitting cosine vs gain:", e)
+            self.logger.info(f"Error fitting cosine vs gain: {e}")
             return None, None
 
     def plot_QZE(self, I, Q, lens, config=None, fig_quality=100):
