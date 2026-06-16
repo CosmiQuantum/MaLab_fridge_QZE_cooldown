@@ -116,7 +116,7 @@ class QICK_experiment:
             "fwhm_w01_starked": None, #for err bars
             "fwhm_w01": None, #for err bars
 
-            "qubit_gain_ge": [0.01, 0.01, 0.03, 0.01,0.02, 0.005],#0.002],
+            "qubit_gain_ge": [0.01, 0.01, 0.03, 0.01,0.02, 0.002],#0.002],
             "qubit_ampl_gain_ge": 0.025,
             "qubit_pi_len": 0.11, # Olivia May 17th
             # [0.4287450656184295, 0.4287450656184295, 0.4903077560386716, 0.6, 0.4903077560386716, 0.4287450656184295], # For spec pulse

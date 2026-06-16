@@ -182,7 +182,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "reps": 200,  # 300,
             "rounds": 1,  # 10,
             "start": 0,  # [DAC units]
-            "stop": 0.8,  # 0.08 [DAC units]
+            "stop": 0.6,  # 0.08 [DAC units]
             "steps": 50,
             "relax_delay": 4000,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
@@ -242,9 +242,21 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "steps": 100,
             "relax_delay": 4000,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
-            "start_freq":VNA_qubit[4] - 15,
-            "end_freq":VNA_qubit[4] + 15,
+            "start_freq":VNA_qubit[5] - 15,
+            "end_freq":VNA_qubit[5] + 15,
             "freq_steps":100
+        },
+        "length_rabi_vs_gain": {
+            "reps": 100,
+            "rounds": 1,
+            "start": 0.01,  # [us]
+            "stop": 2,  # [0.7] * 6,  # [us]
+            "steps": 100,
+            "relax_delay": 4000,  # [us]
+            "list_of_all_qubits": list_of_all_qubits,
+            "start_gain":0,
+            "end_gain":0.5,
+            "gain_steps":10
         },
 
         "length_rabi_Qtemps": {

@@ -16,7 +16,8 @@ class LengthRabiExperiment:
     def __init__(self, QubitIndex, number_of_qubits, outerFolder, round_num, signal, save_figs, experiment = None,
                  live_plot = None, increase_qubit_reps = False, qubit_to_increase_reps_for = None,
                  multiply_qubit_reps_by = 0, verbose = False, logger = None, qick_verbose=True, QZE=False,
-                 projective_readout_pulse_len_us=9,  time_between_projective_readout_pulses=None, zeno_pulse_gain=None,chevron=False):
+                 projective_readout_pulse_len_us=9,  time_between_projective_readout_pulses=None,
+                 zeno_pulse_gain=None,chevron=False, length_rabi_vs_gain=False):
         self.qick_verbose = qick_verbose
         self.QubitIndex = QubitIndex
         self.number_of_qubits = number_of_qubits
@@ -25,6 +26,7 @@ class LengthRabiExperiment:
         self.QZE = QZE
         if self.QZE:
             self.expt_name = "length_rabi_ge_qze"
+
             self.Qubit = 'Q' + str(self.QubitIndex)
             self.exp_cfg = expt_cfg[self.expt_name]
             self.round_num = round_num
@@ -50,8 +52,11 @@ class LengthRabiExperiment:
                 self.experiment.readout_cfg['res_phase_qze'].append(experiment.readout_cfg['res_phase_qze'][self.QubitIndex])
 
         else:
+            self.length_rabi_vs_gain = length_rabi_vs_gain
             if chevron:
                 self.expt_name = "length_rabi_ge_chevron"
+            elif length_rabi_vs_gain:
+                self.expt_name = "length_rabi_vs_gain"
             else:
                 self.expt_name = "length_rabi_ge"
             self.Qubit = 'Q' + str(self.QubitIndex)
@@ -76,12 +81,20 @@ class LengthRabiExperiment:
 
     def run(self, thresholding=False, constant_zeno_pulse=False):
         if not self.chevron:
-            amp_rabi = LengthRabiProgram(
-                self.experiment.soccfg,
-                reps=self.config['reps'],
-                final_delay=self.config['relax_delay'],
-                cfg=self.config
-            )
+            if self.length_rabi_vs_gain:
+                amp_rabi = LengthVsGainRabiProgram(
+                    self.experiment.soccfg,
+                    reps=self.config['reps'],
+                    final_delay=self.config['relax_delay'],
+                    cfg=self.config
+                )
+            else:
+                amp_rabi = LengthRabiProgram(
+                    self.experiment.soccfg,
+                    reps=self.config['reps'],
+                    final_delay=self.config['relax_delay'],
+                    cfg=self.config
+                )
         else:
             amp_rabi = LengthRabiChevronProgram(
                 self.experiment.soccfg,
@@ -1183,6 +1196,49 @@ class LengthRabiProgram(AveragerProgramV2):
 
     def _body(self, cfg):
         #self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
+        self.pulse(ch=cfg["qubit_ch"], name="qubit_pulse", t=0)  # play probe pulse
+
+        self.delay_auto(t=0, tag='waiting')
+
+        self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
+        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+class LengthVsGainRabiProgram(AveragerProgramV2):
+    def _initialize(self, cfg):
+        ro_ch = cfg['ro_ch']
+        res_ch = cfg['res_ch']
+        qubit_ch = cfg['qubit_ch']
+
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
+        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
+
+        self.add_readoutconfig(ch=ro_ch, name="myro",
+                               freq=cfg['res_freq_ge'],
+                               gen_ch=res_ch,
+                               outsel='product')
+        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
+        # Define a generator for the readout pulses with the gains, phases, and mixer/mux frequencies
+        # Configure the hardware to set this sort of pulse that we can trigger later
+        # This has a rectangle pulse becuase style="const"
+        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
+                       style="const",
+                       length=cfg["res_length"],
+                       freq=cfg['res_freq_ge'],
+                       phase=cfg['ro_phase'],
+                       gain=cfg['res_gain_ge']
+                       )
+        self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
+        self.add_pulse(ch=qubit_ch, name="qubit_pulse",
+                       style="const",
+                       length=cfg['qubit_length_ge'],
+                       freq=cfg['qubit_freq_ge'],
+                       phase=cfg['qubit_phase'],
+                       gain=QickSweep1D("gainloop", cfg['start_gain'], cfg['end_gain']),
+                       )
+        self.add_loop("lenloop", cfg["steps"])
+        self.add_loop("gainloop", cfg["gain_steps"])
+
+    def _body(self, cfg):
+        # self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
         self.pulse(ch=cfg["qubit_ch"], name="qubit_pulse", t=0)  # play probe pulse
 
         self.delay_auto(t=0, tag='waiting')
