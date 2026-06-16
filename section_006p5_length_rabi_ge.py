@@ -935,23 +935,34 @@ class LengthRabiExperiment:
         try:
             I = np.asarray(I)
             Q = np.asarray(Q)
-            lens = np.asarray(lens)
-            gains = np.asarray(gains)
+            lens = np.asarray(lens, dtype=float)
+            gains = np.asarray(gains, dtype=float)
 
             # pick the signal we fit on (default to I for 'I' or 'None')
             data = Q if 'Q' in self.signal and 'None' not in self.signal else I
+
+            # frequency limits for the fit (cycles per us == MHz when lens is in us)
+            dt = (lens[-1] - lens[0]) / (len(lens) - 1)
+            nyquist = 0.5 / dt                       # max resolvable frequency
+            f_min = 0.5 / (lens[-1] - lens[0])       # at least ~half a period over the window
 
             rabi_freqs = []
             fits = []
             print(f"\n--- Rabi frequency vs gain (Q{self.QubitIndex + 1}) ---")
             for idx in range(len(gains)):
-                trace = np.asarray(data[idx])
+                trace = np.asarray(data[idx], dtype=float)
                 try:
                     a_guess = (np.max(trace) - np.min(trace)) / 2
                     d_guess = np.mean(trace)
-                    b_guess = 1.0 / lens[-1]
+                    # FFT-based frequency guess: robust when there are many oscillations
+                    b_guess = self._estimate_freq(lens, trace)
+                    b_guess = min(max(b_guess, f_min), nyquist)
                     guess = [a_guess, b_guess, 0, d_guess]
-                    popt, _ = curve_fit(self.cosine, lens, trace, maxfev=100000, p0=guess)
+                    # bound b so the optimiser can't run off to a low-frequency alias
+                    lower = [0, f_min, -1, -np.inf]
+                    upper = [np.inf, nyquist, 1, np.inf]
+                    popt, _ = curve_fit(self.cosine, lens, trace, maxfev=100000,
+                                        p0=guess, bounds=(lower, upper))
                     rabi_freq = abs(popt[1])  # cycles per us == MHz when lens is in us
                     fits.append(self.cosine(lens, *popt))
                     print(f"  gain = {gains[idx]:.4f}  ->  Rabi frequency = {rabi_freq:.4f} MHz")
@@ -984,6 +995,26 @@ class LengthRabiExperiment:
 
             plt.tight_layout()
 
+            # ---- per-gain figure: each Rabi curve with its cosine fit overlaid ----
+            n = len(gains)
+            ncols = 4
+            nrows = int(np.ceil(n / ncols))
+            fig2, axes = plt.subplots(nrows, ncols, figsize=(4 * ncols, 2.6 * nrows),
+                                      squeeze=False)
+            for idx in range(nrows * ncols):
+                ax = axes[idx // ncols][idx % ncols]
+                if idx < n:
+                    ax.plot(lens, data[idx], '.', markersize=4, label="data")
+                    ax.plot(lens, fits[idx], '-', color='red', linewidth=1.5, label="fit")
+                    ax.set_title(f"gain={gains[idx]:.3f}, f={rabi_freqs[idx]:.3f} MHz",
+                                 fontsize=10)
+                    ax.tick_params(axis='both', which='major', labelsize=8)
+                else:
+                    ax.axis('off')
+            fig2.text(0.5, 0.995, f"Length-Rabi fits per gain  Q{self.QubitIndex + 1}",
+                      ha='center', va='top', fontsize=14)
+            fig2.tight_layout(rect=[0, 0, 1, 0.98])
+
             if showfig:
                 plt.show()
             if self.save_figs:
@@ -991,12 +1022,16 @@ class LengthRabiExperiment:
                 self.create_folder_if_not_exists(outerFolder_expt)
                 now = datetime.datetime.now()
                 formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
-                file_name = os.path.join(
-                    outerFolder_expt,
-                    f"R_{self.round_num}_Q_{self.QubitIndex + 1}_{formatted_datetime}_{self.expt_name}_vs_gain_q{self.QubitIndex + 1}.png"
-                )
-                fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')
+                base = (f"R_{self.round_num}_Q_{self.QubitIndex + 1}_{formatted_datetime}_"
+                        f"{self.expt_name}")
+                fig.savefig(os.path.join(outerFolder_expt,
+                            f"{base}_vs_gain_q{self.QubitIndex + 1}.png"),
+                            dpi=fig_quality, bbox_inches='tight')
+                fig2.savefig(os.path.join(outerFolder_expt,
+                             f"{base}_per_gain_fits_q{self.QubitIndex + 1}.png"),
+                             dpi=fig_quality, bbox_inches='tight')
             plt.close(fig)
+            plt.close(fig2)
 
             return fits, rabi_freqs
 
@@ -1004,6 +1039,18 @@ class LengthRabiExperiment:
             if self.verbose: print("Error fitting cosine vs gain:", e)
             self.logger.info(f"Error fitting cosine vs gain: {e}")
             return None, None
+
+    def _estimate_freq(self, x, y):
+        """Estimate the dominant oscillation frequency of y(x) via an rFFT.
+        Returns cycles per unit of x (MHz when x is in us). Assumes ~uniform x."""
+        n = len(x)
+        dt = (x[-1] - x[0]) / (n - 1)
+        yf = np.abs(np.fft.rfft(y - np.mean(y)))
+        xf = np.fft.rfftfreq(n, d=dt)
+        if len(yf) <= 1:
+            return 1.0 / (x[-1] - x[0])
+        peak = np.argmax(yf[1:]) + 1  # skip DC bin
+        return xf[peak]
 
     def plot_QZE(self, I, Q, lens, config=None, fig_quality=100):
         try:
