@@ -213,7 +213,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "power_rabi_vs_gain": {
-            "start_gain": 0.00001,
+            "start_gain": 0.000001,
             "end_gain": 0.1,
             "gain_steps": 3,
             "reps": 50,
@@ -247,14 +247,14 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "freq_steps":100
         },
         "length_rabi_vs_gain": {
-            "reps": 100,
-            "rounds": 1,
+            "reps": 200,
+            "rounds": 4,
             "start": 0.01,  # [us]
             "stop": 2,  # [0.7] * 6,  # [us]
             "steps": 100,
             "relax_delay": 4000,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
-            "start_gain":0,
+            "start_gain":0.01,
             "end_gain":0.5,
             "gain_steps":10
         },
