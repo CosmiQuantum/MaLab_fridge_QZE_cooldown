@@ -106,13 +106,13 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "rounds": 1,
             "start": list(VNA_qubit - 1),  # [MHz] -40
             "stop": list(VNA_qubit + 1),  # [MHz] +40
-            "steps": 50,#500
-            "relax_delay": 600,  # [us]
-            "qubit_stark_pulse_length":30,
-            "qubit_stark_freq": 3095.43+15,
+            "steps": 100,#500
+            "relax_delay": 100,  # [us]
+            "qubit_stark_pulse_length":20,
+            "qubit_stark_freq": 3095.43+2,
             "start_qubit_stark_gain": 0,
             "stop_qubit_stark_gain": 0.5,#0.01,
-            "stark_gain_steps": 10,
+            "stark_gain_steps": 3,
             "tof_readout_length": 30,  # [us] decimated capture window for the TOF stark-pulse check
                                        # (spans qubit pulse + 25us stark pulse + readout). The decimated
                                        # ADC buffer is limited (~16384 samples / ~29us), so this is
@@ -247,8 +247,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "freq_steps":100
         },
         "length_rabi_vs_gain": {
-            "reps": 200,
-            "rounds": 4,
+            "reps": 300,
+            "rounds": 5,
             "start": 0.01,  # [us]
             "stop": 2,  # [0.7] * 6,  # [us]
             "steps": 100,
@@ -256,7 +256,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "list_of_all_qubits": list_of_all_qubits,
             "start_gain":0.01,
             "end_gain":0.5,
-            "gain_steps":10
+            "gain_steps":20
         },
 
         "length_rabi_Qtemps": {

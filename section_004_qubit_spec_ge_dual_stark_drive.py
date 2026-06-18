@@ -1494,11 +1494,10 @@ class OffResonantQSpecDrive(AveragerProgramV2):
         self.add_loop("freqloop", cfg["steps"])
         self.add_loop("stark_gain_loop", cfg["stark_gain_steps"])
     def _body(self, cfg):
-
-        self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)
-        self.delay_auto(t=0, tag='waiting')
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_stark_pulse", t=0)
         self.delay_auto(t=0, tag='waiting2')
+        self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)
+        self.delay_auto(t=0, tag='waiting')
         self.pulse(ch=cfg['res_ch'], name="res_pulse")
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
