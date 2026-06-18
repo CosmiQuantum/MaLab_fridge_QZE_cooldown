@@ -21,10 +21,10 @@ import datetime
 
 import numpy as np
 import matplotlib.pyplot as plt
-import h5py
 from scipy.optimize import curve_fit
 
 from expt_config import expt_cfg
+from section_008_save_data_to_h5 import Data_H5
 
 # ----------------------------------------------------------------------------------------
 # Which dataset to load  (match longitudinal_qze_005_ge_length_rabi_vs_gain.py)
@@ -64,16 +64,15 @@ def find_latest_h5():
 
 def process_h5_data(data):
     """Parse a numpy-array-repr byte/str (how I/Q/Gains were serialized) into a flat
-    list of floats. Mirrors the parser used by the other analysis_* scripts."""
+    list of floats. Same parser as analysis_004_pi_amp_vs_time_plots.py -- the character
+    filter drops every bracket (including the internal ones in a 2D array repr), so it
+    handles the (n_gains, n_lengths) I/Q arrays as well as 1D Gains."""
     if isinstance(data, bytes):
         data_str = data.decode()
     elif isinstance(data, str):
         data_str = data
-    elif isinstance(data, np.ndarray):
-        # already a real numeric array
-        return np.asarray(data, dtype=float).ravel().tolist()
     else:
-        raise ValueError("Unsupported data type. Data should be bytes, str, or ndarray.")
+        raise ValueError("Unsupported data type. Data should be bytes or string.")
 
     cleaned = ''.join(c for c in data_str if c.isdigit() or c in ['-', '.', ' ', 'e'])
     return [float(x) for x in cleaned.split() if x]
@@ -146,14 +145,19 @@ def main():
     h5_file = find_latest_h5()
     print(f"Loading: {h5_file}")
 
-    qgroup = f"Q{QubitIndex + 1}"
-    with h5py.File(h5_file, 'r') as f:
-        if qgroup not in f:
-            raise KeyError(f"{qgroup} not in file. Available groups: {list(f.keys())}")
-        grp = f[qgroup]
-        I_flat = np.array(process_h5_data(grp['I'][()]))
-        Q_flat = np.array(process_h5_data(grp['Q'][()]))
-        gains = np.array(process_h5_data(grp['Gains'][()]))
+    # Load the same way the other analysis_* scripts do: Data_H5.load_from_h5 returns,
+    # for each key, [group[key][()]] * save_r, and the byte-strings get .decode()'d before
+    # process_h5_data. The Rabi_chevron file uses the same keys as 'Rabi', so we reuse that
+    # mapping (scaling=True maps I, Q, Gains, Fit, ss_*, and shots).
+    save_round = int(h5_file.split('Num_per_batch')[-1].split('.')[0].split('_')[0])
+    H5_class_instance = Data_H5(h5_file)
+    load_data = H5_class_instance.load_from_h5(data_type='Rabi', save_r=save_round, scaling=True)
+    rabi = load_data['Rabi'][QubitIndex]
+
+    dataset = 0  # only one round saved per Rabi_chevron file
+    I_flat = np.array(process_h5_data(rabi.get('I', [])[0][dataset].decode()))
+    Q_flat = np.array(process_h5_data(rabi.get('Q', [])[0][dataset].decode()))
+    gains = np.array(process_h5_data(rabi.get('Gains', [])[0][dataset].decode()))
 
     n_gains = len(gains)
     if n_gains == 0 or I_flat.size % n_gains != 0:
