@@ -31,8 +31,8 @@ class QICK_experiment:
 
         self.FSGEN_CH = 1
         self.FSGEN_AMPL_CH = 2 # not used on 4x2
-        self.MIXMUXGEN_CH  = 0 # Readout resonator DAC channel
-        self.MUXRO_CH = 0
+        self.MIXMUXGEN_CH  = 0 # Readout resonator DAC channel (axis_sg_mux8_v1, gen ch 0)
+        self.MUXRO_CH = [0, 1, 2, 3, 4, 5]  # MUX readout ADC channels (one per qubit)
 
         # ### NEW for the RF board
         # self.qubit_center_freq = 4225 #4400  # To be in the middle of the qubit freqs.
@@ -54,14 +54,14 @@ class QICK_experiment:
         # Hardware Configuration
         self.hw_cfg = {
             # DAC
-            "qubit_ch": self.FSGEN_CH,  # Qubit Channel Port, Full-speed DAC
-            "qubit_ampl_ch": self.FSGEN_AMPL_CH ,
-            "res_ch": self.MIXMUXGEN_CH ,  # Single Tone Readout Port, MUX DAC
-            "qubit_ch_ef": self.FSGEN_CH, # Qubit ef Channel, Full-speed DAC
+            "qubit_ch": [self.FSGEN_CH] * 6,  # Qubit Channel Port, Full-speed DAC
+            "qubit_ampl_ch": [self.FSGEN_AMPL_CH] * 6,
+            "res_ch": [self.MIXMUXGEN_CH] * 6,  # Readout Port, MUX DAC
+            "qubit_ch_ef": [self.FSGEN_CH] * 6, # Qubit ef Channel, Full-speed DAC
             "nqz_qubit": 1,
             "nqz_res": 2,
             # ADC
-            "ro_ch": self.MUXRO_CH,  # MUX readout channel
+            "ro_ch": [self.MUXRO_CH] * 6,  # MUX readout channels (full list per qubit)
             "list_of_all_qubits": [0, 1, 2, 3, 4, 5]
         }
 
@@ -90,14 +90,14 @@ class QICK_experiment:
             "res_freq_fh": [6223.016, 6284.544, 6343.861, 6414.893, 6414.893, 6546.754],  # [MHz]
             "res_gain_fh": [0.95,0.9,0.95,0.55,0.55,0.95],  # [DAC units]
             "res_length": 4.0,  # [us] (1.0 for res spec)
-            "res_phase": 0,#[ -180+((1.281174-2.6703) * 180/np.pi), -10, 85,
+            "res_phase": [0, 0, 0, 0, 0, 0],  # MUX tone phases (mux_phases)#[ -180+((1.281174-2.6703) * 180/np.pi), -10, 85,
                         #   0, 150,
                         # -90], #Joyce 3/11
             #"res_phase": [(0.19-0.38) * 180/np.pi, (2.07-3.12-1.16) * 180/np.pi, (-0.35+2.28) * 180/np.pi,
                #           (-1.36+1.68+1.1) * 180/np.pi, (-2.4-1.5) * 180/np.pi, (-0.56+1.18) * 180/np.pi],
             # [-0.1006 *360/np.pi, -2.412527*360/np.pi, -1.821284*360/np.pi, -1.90962*360/np.pi, -0.566479*360/np.pi, -0.5941687*360/np.pi], # Rotation Angle From QICK Function, is the ang of 10 ss angles per qubit
             # "res_phase": [0]*6,#[-0.1006 *360/np.pi, -2.412527*360/np.pi, -1.821284*360/np.pi, -1.90962*360/np.pi, -0.566479*360/np.pi, -0.5941687*360/np.pi], # Rotation Angle From QICK Function, is the ang of 10 ss angles per qubit
-            "ro_phase": 0,  # Rotation Angle From QICK Function
+            "ro_phase": [0, 0, 0, 0, 0, 0],  # Rotation Angle From QICK Function (per-RO demod phase)
             "n_resets": 3,
             "g_center":0,
             "e_center":0,

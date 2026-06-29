@@ -14,20 +14,17 @@ class T1Program(AveragerProgramV2):
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
 
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
-
-        self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['res_freq_ge'],
-                               gen_ch=res_ch,
-                               outsel='product')
-        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=cfg['ro_ch'][0],
+                         mux_freqs=cfg['res_freq_ge'],
+                         mux_gains=cfg['res_gain_ge'],
+                         mux_phases=cfg['res_phase'],
+                         mixer_freq=cfg['mixer_freq'])
+        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ge'], cfg['ro_phase']):
+            self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=res_ch)
+        self.add_pulse(ch=res_ch, name="res_pulse",
                        style="const",
                        length=cfg["res_length"],
-                       freq=cfg['res_freq_ge'],
-                       phase=cfg['ro_phase'],
-                       gain=cfg['res_gain_ge']
+                       mask=cfg["list_of_all_qubits"],
                        )
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
         self.add_gauss(ch=qubit_ch, name="ramp", sigma=cfg['sigma'], length=cfg['sigma'] * 4, even_length=False)
@@ -44,7 +41,7 @@ class T1Program(AveragerProgramV2):
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)  # play probe pulse
         self.delay_auto(cfg['wait_time'] + 0.01, tag='wait')  # wait_time after last pulse
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
-        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
 
 class T1ProgramActiveReset(AveragerProgramV2):
     def _initialize(self, cfg):
@@ -52,20 +49,17 @@ class T1ProgramActiveReset(AveragerProgramV2):
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
 
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
-
-        self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['res_freq_ge'],
-                               gen_ch=res_ch,
-                               outsel='product')
-        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=cfg['ro_ch'][0],
+                         mux_freqs=cfg['res_freq_ge'],
+                         mux_gains=cfg['res_gain_ge'],
+                         mux_phases=cfg['res_phase'],
+                         mixer_freq=cfg['mixer_freq'])
+        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ge'], cfg['ro_phase']):
+            self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=res_ch)
+        self.add_pulse(ch=res_ch, name="res_pulse",
                        style="const",
                        length=cfg["res_length"],
-                       freq=cfg['res_freq_ge'],
-                       phase=cfg['ro_phase'],
-                       gain=cfg['res_gain_ge']
+                       mask=cfg["list_of_all_qubits"],
                        )
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
         self.add_gauss(ch=qubit_ch, name="ramp", sigma=cfg['sigma'], length=cfg['sigma'] * 4, even_length=False)
@@ -83,14 +77,14 @@ class T1ProgramActiveReset(AveragerProgramV2):
         n_resets = cfg.get('n_resets', 0)
         for i in range(n_resets):
             self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
-            self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+            self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
             self.wait_auto(0.01, gens=True, ros=True)
             self.resync()
             self.delay_auto(t=0.01)
-            self.read_and_jump(ro_ch=cfg['ro_ch'],
+            self.read_and_jump(ro_ch=cfg['ro_ch'][0],
                                component='I',
                                threshold=int(np.round(
-                                   cfg["threshold"] * self.soccfg.us2cycles(cfg['res_length'], ro_ch=cfg['ro_ch']))),
+                                   cfg["threshold"] * self.soccfg.us2cycles(cfg['res_length'], ro_ch=cfg['ro_ch'][0]))),
                                test="<", label=f'skip_reset_{i}')
             self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)
             self.delay_auto(t=6)
@@ -104,7 +98,7 @@ class T1ProgramActiveReset(AveragerProgramV2):
 
         # readout
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
-        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
 
 
 class T1Measurement:

@@ -288,21 +288,17 @@ class EF_AmplitudeRabiProgram(AveragerProgramV2):
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
 
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
-
-        self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['res_freq_ge'],
-                               gen_ch=res_ch,
-                               outsel='product')
-        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-
-        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=cfg['ro_ch'][0],
+                         mux_freqs=cfg['res_freq_ge'],
+                         mux_gains=cfg['res_gain_ge'],
+                         mux_phases=cfg['res_phase'],
+                         mixer_freq=cfg['mixer_freq'])
+        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ge'], cfg['ro_phase']):
+            self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=res_ch)
+        self.add_pulse(ch=res_ch, name="res_pulse",
                        style="const",
                        length=cfg["res_length"],
-                       freq=cfg['res_freq_ge'],
-                       phase=cfg['ro_phase'],
-                       gain=cfg['res_gain_ge']
+                       mask=cfg["list_of_all_qubits"],
                        )
 
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
@@ -336,7 +332,7 @@ class EF_AmplitudeRabiProgram(AveragerProgramV2):
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0) #  play pulse: variable-gain fh pi
         self.delay_auto(t=0.0, tag='waiting') #wait
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0) #probe pulse
-        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
 
     #For temperature calculations, DO NOT USE (just storing this here for now)
     # def _body(self, cfg):
@@ -347,7 +343,7 @@ class EF_AmplitudeRabiProgram(AveragerProgramV2):
     #     self.delay_auto(t=0.0, tag='waiting after pi')  # Wait til ge pi pulse is done before proceeding
     #
     #     self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0) #probe pulse
-    #     self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+    #     self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
     #
     # def _body(self, cfg):
     #     self.pulse(ch=self.cfg["qubit_ch"], name="pi_ge", t=0)  # play ge pi pulse
@@ -360,4 +356,4 @@ class EF_AmplitudeRabiProgram(AveragerProgramV2):
     #     self.delay_auto(t=0.0, tag='waiting after pi')  # Wait til ge pi pulse is done before proceeding
     #
     #     self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)  # probe pulse
-    #     self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+    #     self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])

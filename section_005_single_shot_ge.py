@@ -21,21 +21,17 @@ class SingleShotProgram(AveragerProgramV2):
         ro_chs = cfg['ro_chs']
         gen_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
-        self.declare_gen(ch=gen_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
-
-        self.add_readoutconfig(ch=ro_chs, name="myro",
-                               freq=cfg['res_freq_ge'],
-                               gen_ch=gen_ch,
-                               outsel='product')
-        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
-        self.add_pulse(ch=gen_ch, name="res_pulse", ro_ch=ro_chs,
+        self.declare_gen(ch=gen_ch, nqz=cfg['nqz_res'], ro_ch=cfg['ro_ch'][0],
+                         mux_freqs=cfg['res_freq_ge'],
+                         mux_gains=cfg['res_gain_ge'],
+                         mux_phases=cfg['res_phase'],
+                         mixer_freq=cfg['mixer_freq'])
+        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ge'], cfg['ro_phase']):
+            self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=gen_ch)
+        self.add_pulse(ch=gen_ch, name="res_pulse",
                        style="const",
                        length=cfg["res_length"],
-                       freq=cfg['res_freq_ge'],
-                       phase=cfg['ro_phase'],
-                       gain=cfg['res_gain_ge']
+                       mask=cfg["list_of_all_qubits"],
                        )
 
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
@@ -56,7 +52,7 @@ class SingleShotProgram(AveragerProgramV2):
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)  # play pulse
         self.delay_auto(0.01)
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)  # play probe pulse
-        self.trigger(ros=cfg['ro_chs'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
 
 
 # Separate g and e per each experiment defined.
@@ -66,20 +62,17 @@ class SingleShotProgram_g(AveragerProgramV2):
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
 
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
-
-        self.add_readoutconfig(ch=ro_chs, name="myro",
-                               freq=cfg['res_freq_ge'],
-                               gen_ch=res_ch,
-                               outsel='product')
-        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_chs,
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=cfg['ro_ch'][0],
+                         mux_freqs=cfg['res_freq_ge'],
+                         mux_gains=cfg['res_gain_ge'],
+                         mux_phases=cfg['res_phase'],
+                         mixer_freq=cfg['mixer_freq'])
+        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ge'], cfg['ro_phase']):
+            self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=res_ch)
+        self.add_pulse(ch=res_ch, name="res_pulse",
                        style="const",
                        length=cfg["res_length"],
-                       freq=cfg['res_freq_ge'],
-                       phase=cfg['ro_phase'],
-                       gain=cfg['res_gain_ge']
+                       mask=cfg["list_of_all_qubits"],
                        )
 
         self.add_loop("shotloop", cfg["steps"])  # number of total shots
@@ -87,7 +80,7 @@ class SingleShotProgram_g(AveragerProgramV2):
     def _body(self, cfg):
         self.delay_auto(0.01)
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)  # play probe pulse
-        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
         # relax delay ...
 class SingleShotProgram_g_active_reset(AveragerProgramV2):
     def _initialize(self, cfg):
@@ -95,20 +88,17 @@ class SingleShotProgram_g_active_reset(AveragerProgramV2):
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
 
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
-
-        self.add_readoutconfig(ch=ro_chs, name="myro",
-                               freq=cfg['res_freq_ge'],
-                               gen_ch=res_ch,
-                               outsel='product')
-        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_chs,
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=cfg['ro_ch'][0],
+                         mux_freqs=cfg['res_freq_ge'],
+                         mux_gains=cfg['res_gain_ge'],
+                         mux_phases=cfg['res_phase'],
+                         mixer_freq=cfg['mixer_freq'])
+        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ge'], cfg['ro_phase']):
+            self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=res_ch)
+        self.add_pulse(ch=res_ch, name="res_pulse",
                        style="const",
                        length=cfg["res_length"],
-                       freq=cfg['res_freq_ge'],
-                       phase=cfg['ro_phase'],
-                       gain=cfg['res_gain_ge']
+                       mask=cfg["list_of_all_qubits"],
                        )
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
 
@@ -129,14 +119,14 @@ class SingleShotProgram_g_active_reset(AveragerProgramV2):
         n_resets = cfg.get('n_resets', 0)
         for i in range(n_resets):
             self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
-            self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+            self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
             self.wait_auto(0.01, gens=True, ros=True)
             self.resync()
             self.delay_auto(t=0.01)
-            self.read_and_jump(ro_ch=cfg['ro_ch'],
+            self.read_and_jump(ro_ch=cfg['ro_ch'][0],
                                component='I',
                                threshold=int(np.round(
-                                   cfg["threshold"] * self.soccfg.us2cycles(cfg['res_length'], ro_ch=cfg['ro_ch']))),
+                                   cfg["threshold"] * self.soccfg.us2cycles(cfg['res_length'], ro_ch=cfg['ro_ch'][0]))),
                                test="<", label=f'skip_reset_{i}')
             self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)
             self.delay_auto(t=6)
@@ -145,7 +135,7 @@ class SingleShotProgram_g_active_reset(AveragerProgramV2):
         self._active_reset_block(cfg)
         self.delay_auto(0.01)
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)  # play probe pulse
-        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
 
 class SingleShotProgram_e(AveragerProgramV2):
     def _initialize(self, cfg):
@@ -153,20 +143,17 @@ class SingleShotProgram_e(AveragerProgramV2):
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
 
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
-
-        self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['res_freq_ge'],
-                               gen_ch=res_ch,
-                               outsel='product')
-        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=cfg['ro_ch'][0],
+                         mux_freqs=cfg['res_freq_ge'],
+                         mux_gains=cfg['res_gain_ge'],
+                         mux_phases=cfg['res_phase'],
+                         mixer_freq=cfg['mixer_freq'])
+        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ge'], cfg['ro_phase']):
+            self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=res_ch)
+        self.add_pulse(ch=res_ch, name="res_pulse",
                        style="const",
                        length=cfg["res_length"],
-                       freq=cfg['res_freq_ge'],
-                       phase=cfg['ro_phase'],
-                       gain=cfg['res_gain_ge']
+                       mask=cfg["list_of_all_qubits"],
                        )
 
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
@@ -187,7 +174,7 @@ class SingleShotProgram_e(AveragerProgramV2):
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)  # play pulse
         self.delay_auto(0.0)
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)  # play probe pulse
-        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
 
 class SingleShotProgram_e_active_reset(AveragerProgramV2):
     def _initialize(self, cfg):
@@ -195,20 +182,17 @@ class SingleShotProgram_e_active_reset(AveragerProgramV2):
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
 
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
-
-        self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['res_freq_ge'],
-                               gen_ch=res_ch,
-                               outsel='product')
-        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=cfg['ro_ch'][0],
+                         mux_freqs=cfg['res_freq_ge'],
+                         mux_gains=cfg['res_gain_ge'],
+                         mux_phases=cfg['res_phase'],
+                         mixer_freq=cfg['mixer_freq'])
+        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ge'], cfg['ro_phase']):
+            self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=res_ch)
+        self.add_pulse(ch=res_ch, name="res_pulse",
                        style="const",
                        length=cfg["res_length"],
-                       freq=cfg['res_freq_ge'],
-                       phase=cfg['ro_phase'],
-                       gain=cfg['res_gain_ge']
+                       mask=cfg["list_of_all_qubits"],
                        )
 
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
@@ -226,14 +210,14 @@ class SingleShotProgram_e_active_reset(AveragerProgramV2):
     def _active_reset_block(self, cfg, label_addition=''):
         # Active reset
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
-        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
         self.wait_auto(0.01, gens=True, ros=True)
         self.resync()
         # self.delay_auto(t=0.01)
-        self.read_and_jump(ro_ch=cfg['ro_ch'],
+        self.read_and_jump(ro_ch=cfg['ro_ch'][0],
                            component='I',
                            threshold=int(np.round(
-                               cfg["threshold"] * self.soccfg.us2cycles(cfg['res_length'], ro_ch=cfg['ro_ch']))),
+                               cfg["threshold"] * self.soccfg.us2cycles(cfg['res_length'], ro_ch=cfg['ro_ch'][0]))),
                            test="<", label=f'skip_reset_{label_addition}')
 
         self.label(f'skip_reset_{label_addition}')
@@ -251,7 +235,7 @@ class SingleShotProgram_e_active_reset(AveragerProgramV2):
         self._active_reset_block(cfg, label_addition='post')
 
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
-        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
 
 class SingleShot:
     def __init__(self, QubitIndex, number_of_qubits,  outerFolder, round_num, save_figs=False, experiment = None,

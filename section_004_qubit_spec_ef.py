@@ -385,20 +385,17 @@ class EFPulseProbeSpectroscopyProgram(AveragerProgramV2):
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
 
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-        self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
-
-        self.add_readoutconfig(ch=ro_ch, name="myro",
-                               freq=cfg['res_freq_ef'],
-                               gen_ch=res_ch,
-                               outsel='product')
-        self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-        self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=cfg['ro_ch'][0],
+                         mux_freqs=cfg['res_freq_ef'],
+                         mux_gains=cfg['res_gain_ef'],
+                         mux_phases=cfg['res_phase'],
+                         mixer_freq=cfg['mixer_freq'])
+        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ef'], cfg['ro_phase']):
+            self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=res_ch)
+        self.add_pulse(ch=res_ch, name="res_pulse",
                        style="const",
                        length=cfg["res_length"],
-                       freq=cfg['res_freq_ef'],
-                       phase=cfg['ro_phase'],
-                       gain=cfg['res_gain_ef']
+                       mask=cfg["list_of_all_qubits"],
                        )
 
 
@@ -429,5 +426,5 @@ class EFPulseProbeSpectroscopyProgram(AveragerProgramV2):
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)  # play e-f pulse
         self.delay_auto(t=0.01, tag='waiting')  # Wait til qubit e-f pulse is done before proceeding
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0) #readout
-        self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
 

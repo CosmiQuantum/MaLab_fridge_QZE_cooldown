@@ -11,7 +11,7 @@ def add_qubit_channel(system_config, QubitIndex):
     hw_config = copy.deepcopy(system_config.hw_cfg)
     var = ["qubit_ch", "qubit_ampl_ch", "res_ch", "ro_ch", "qubit_ch_ef"]
     for Index in var:
-        value = hw_config[Index]
+        value = hw_config[Index][QubitIndex]  # channels are now lists-of-6 for MUX; pick this qubit's entry
         hw_config.update([(Index,value)])
     return hw_config
 

@@ -35,27 +35,22 @@ class TOFExperiment:
             def _initialize(self, cfg):
                 ro_chs = cfg['ro_ch']
                 res_ch = cfg['res_ch']
-                self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'])
-                self.declare_readout(ch=cfg['ro_ch'], length=cfg['res_length'])
-
-                self.add_readoutconfig(ch=ro_chs, name="myro",
-                                       freq=cfg['res_freq_ge'],
-                                       gen_ch=res_ch,
-                                       outsel='product')
-
-                self.send_readoutconfig(ch=cfg['ro_ch'], name="myro", t=0)
-                # print(cfg["res_length"],cfg['ro_phase'],cfg['res_gain_ge'])
-                self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_chs,
+                self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=cfg['ro_ch'][0],
+                                 mux_freqs=cfg['res_freq_ge'],
+                                 mux_gains=cfg['res_gain_ge'],
+                                 mux_phases=cfg['res_phase'],
+                                 mixer_freq=cfg['mixer_freq'])
+                for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ge'], cfg['ro_phase']):
+                    self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=res_ch)
+                self.add_pulse(ch=res_ch, name="res_pulse",
                                style="const",
                                length=cfg["res_length"],
-                               freq=cfg['res_freq_ge'],
-                               phase=cfg['ro_phase'],
-                               gain=cfg['res_gain_ge']
+                               mask=cfg["list_of_all_qubits"],
                                )
 
             def _body(self, cfg):
                 self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
-                self.trigger(ros=[cfg['ro_ch']], pins=[0], t=0, ddr4=True)
+                self.trigger(ros=cfg['ro_ch'], pins=[0], t=0, ddr4=True)
 
         prog = MuxProgram(self.experiment.soccfg, reps=1, final_delay=0.5, cfg=self.config)
         iq_list = prog.acquire_decimated(self.experiment.soc, rounds=self.config['soft_avgs'])
