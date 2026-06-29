@@ -44,7 +44,9 @@ class QubitSpectroscopy_driveFill:
         self.logger = logger if logger is not None else logging.getLogger("custom_logger_for_rr_only")
         self.increase_reps = increase_reps
         self.increase_reps_to = increase_reps_to
-
+        self.experiment.readout_cfg['res_gain_qze'] = self.zeno_pulse_gain
+        self.experiment.readout_cfg['res_freq_qze'] = self.experiment.readout_cfg['res_freq_ge']
+        self.experiment.readout_cfg['res_phase_qze'] = self.experiment.readout_cfg['res_phase']
         if unmasking_resgain:
             self.exp_cfg["list_of_all_qubits"] = [QubitIndex]
 
@@ -660,7 +662,7 @@ class ProbePulseSpectroscopy(AveragerProgramV2): #drive, then fill
                        phase=cfg['ro_phase'],
                        gain=cfg['qubit_gain_ge'],
                        )
-
+        print(cfg)
         self.add_pulse(ch=res_ch, name="qze_pulse",  ro_ch=ro_ch,
                        style="const",
                        length=cfg['res_length'],#+3us for res ring up time

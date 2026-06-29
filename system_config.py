@@ -116,11 +116,11 @@ class QICK_experiment:
             "fwhm_w01_starked": None, #for err bars
             "fwhm_w01": None, #for err bars
 
-            "qubit_gain_ge": [0.01, 0.01, 0.03, 0.01,0.02, 0.004],#0.002],
+            "qubit_gain_ge": [0.01, 0.01, 0.03, 0.01,0.02, 0.002],#0.002],
             "qubit_ampl_gain_ge": 0.025,
             "qubit_pi_len": 0.11, # Olivia May 17th
             # [0.4287450656184295, 0.4287450656184295, 0.4903077560386716, 0.6, 0.4903077560386716, 0.4287450656184295], # For spec pulse
-            "qubit_length_ge": 5,#20,  # 5 [us] for spec Pulse
+            "qubit_length_ge": 20,  # 5 [us] for spec Pulse
             "qubit_freq_ef": [2764, 2980, 2876, 3096, 3043.32, 3095.65], #Q4 not fixed, looks like it shifted quite a lot
             # [MHz] Freqs of Qubit e/f Transition
             "qubit_freq_fh": [4016.3, 3450.8, 3988.44, 4292.73, 4292.73, 4833.17],
