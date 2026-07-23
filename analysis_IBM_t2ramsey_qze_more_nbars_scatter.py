@@ -372,13 +372,25 @@ for qubit in qubits:
             point_color='steelblue',
             median_color='crimson',
             show_median_line=True,
+            x_mode='linear',
     ):
         """
-        Scatter every datapoint in each nbar group against its nbar value.
-        The x-axis is a genuine linear scale in nbar (points sit at their true
-        nbar value); only every `label_every`-th nbar receives an x-axis tick
-        label so the axis stays readable with 50+ points.
-        A per-nbar median trend line is overlaid unless show_median_line=False.
+        Scatter every datapoint in each nbar group against nbar.
+
+        x_mode controls the x-axis, which matters because the nbar sample points
+        are NOT evenly spaced (nbar grows ~quadratically with gain, so on a true
+        nbar axis the points bunch up at low nbar):
+          'linear' : true nbar value on a linear axis (real metric spacing,
+                     but visually crowded at low nbar).
+          'log'    : true nbar value on a log axis -- "un-does" the bunching so
+                     geometrically-spaced points look evenly spread. nbar<=0
+                     (the gain=0 baseline) cannot go on a log axis and is dropped.
+          'index'  : evenly-spaced rank positions (1,2,3,...), one column per
+                     nbar. Guarantees an evenly-spaced ("linear looking") axis;
+                     tick labels still show the real nbar values. Spacing is no
+                     longer a true metric distance.
+        Only every `label_every`-th nbar gets a tick label. A per-nbar median
+        trend line is overlaid unless show_median_line=False.
         """
         os.makedirs(save_path, exist_ok=True)
 
@@ -386,26 +398,34 @@ for qubit in qubits:
         order = np.argsort(nbars)
 
         fig, ax = plt.subplots(figsize=(14, 6))
-        ax.set_xscale('linear')
 
-        used_nbars = []
+        used_nbars = []      # real nbar value per drawn column (sorted order)
+        x_positions = []     # x coordinate actually used per column
         median_x, median_y = [], []
         n_total = 0
+        col = 0
 
         for j in order:
             nb = nbars[j]
             if not np.isfinite(nb):
+                continue
+            if x_mode == 'log' and nb <= 0:
+                # cannot place non-positive nbar on a log axis
                 continue
             amps_g = amps_list[j]
             _, v = _collect_vals_for_gain(amps_g, q_key=q_key)
             if v is None or v.size == 0:
                 continue
 
-            ax.scatter(np.full(v.size, nb), v, alpha=0.4, s=18,
+            col += 1
+            xpos = float(col) if x_mode == 'index' else float(nb)
+
+            ax.scatter(np.full(v.size, xpos), v, alpha=0.4, s=18,
                        color=point_color, edgecolors='none', zorder=3)
-            median_x.append(nb)
+            median_x.append(xpos)
             median_y.append(float(np.median(v)))
             used_nbars.append(nb)
+            x_positions.append(xpos)
             n_total += v.size
 
         if not used_nbars:
@@ -413,20 +433,27 @@ for qubit in qubits:
             plt.close(fig)
             return None
 
+        if x_mode == 'log':
+            ax.set_xscale('log')
+        else:
+            ax.set_xscale('linear')
+
         # Overlay per-nbar median trend (the red line), unless suppressed
         if show_median_line:
             ax.plot(median_x, median_y, '-', color=median_color, linewidth=1.5,
                     marker='D', markersize=5, zorder=4, label='per-$\\bar{n}$ median')
 
         # Label only every Nth nbar to avoid crowding
-        used_nbars = np.asarray(sorted(set(used_nbars)))
-        tick_positions = used_nbars[::label_every]
-        ax.set_xticks(tick_positions)
-        ax.set_xticklabels([f"{nb:.3g}" for nb in tick_positions], rotation=45, ha='right')
+        used_nbars = np.asarray(used_nbars)
+        x_positions = np.asarray(x_positions)
+        tick_idx = np.arange(0, used_nbars.size, label_every)
+        ax.set_xticks(x_positions[tick_idx])
+        ax.set_xticklabels([f"{nb:.3g}" for nb in used_nbars[tick_idx]],
+                           rotation=45, ha='right')
 
-        ax.set_xlabel(r"$\bar{n}$")
+        ax.set_xlabel(r"$\bar{n}$" + ("  (rank-spaced)" if x_mode == 'index' else ""))
         ax.set_ylabel(ylabel)
-        ax.set_title(f"{title}\nQubit {q_key}  |  {len(used_nbars)} $\\bar{{n}}$ values  |  {n_total} points")
+        ax.set_title(f"{title}\nQubit {q_key}  |  {used_nbars.size} $\\bar{{n}}$ values  |  {n_total} points")
         ax.grid(True, alpha=0.3)
         if show_median_line:
             ax.legend(loc="best")
@@ -436,6 +463,98 @@ for qubit in qubits:
         fig.savefig(out, dpi=300)
         plt.close(fig)
         print(f"Saved scatter vs nbar: {out}")
+        return out
+
+
+    # ============================================================
+    # 4b) 2D representation: per-nbar histogram heatmap.
+    #     Each nbar is one evenly-spaced column; color = count of datapoints
+    #     falling in each y (T1 / Gamma) bin. This "shows it better" when the
+    #     scatter columns overlap heavily.
+    # ============================================================
+    def plot_heatmap_by_nbar(
+            amps_list,
+            nbar_labels,
+            *,
+            q_key,
+            save_path,
+            filename,
+            ylabel,
+            title,
+            label_every=LABEL_EVERY,
+            n_ybins=45,
+            normalize_columns=True,
+            cmap='viridis',
+            show_median_line=True,
+            median_color='white',
+    ):
+        os.makedirs(save_path, exist_ok=True)
+
+        nbars = np.asarray(nbar_labels, dtype=float).ravel()
+        order = np.argsort(nbars)
+
+        col_nbars, col_vals = [], []
+        for j in order:
+            nb = nbars[j]
+            if not np.isfinite(nb):
+                continue
+            _, v = _collect_vals_for_gain(amps_list[j], q_key=q_key)
+            if v is None or v.size == 0:
+                continue
+            col_nbars.append(nb)
+            col_vals.append(v)
+
+        if not col_vals:
+            print(f"No data for heatmap: {filename}")
+            return None
+
+        all_vals = np.concatenate(col_vals)
+        # robust y-range (clip extreme outliers so the color scale is useful)
+        y_lo, y_hi = np.percentile(all_vals, [1, 99])
+        if not np.isfinite(y_lo) or not np.isfinite(y_hi) or y_hi <= y_lo:
+            y_lo, y_hi = float(all_vals.min()), float(all_vals.max())
+            if y_hi <= y_lo:
+                y_hi = y_lo + 1.0
+        ybins = np.linspace(y_lo, y_hi, n_ybins + 1)
+
+        ncols = len(col_vals)
+        H = np.zeros((n_ybins, ncols), dtype=float)
+        medians = np.zeros(ncols, dtype=float)
+        for k, v in enumerate(col_vals):
+            counts, _ = np.histogram(v, bins=ybins)
+            counts = counts.astype(float)
+            if normalize_columns and counts.sum() > 0:
+                counts /= counts.max()  # per-column shape, 0..1
+            H[:, k] = counts
+            medians[k] = float(np.median(v))
+
+        fig, ax = plt.subplots(figsize=(14, 6))
+        # evenly-spaced columns: edges at 0.5 .. ncols+0.5
+        x_edges = np.arange(ncols + 1) + 0.5
+        mesh = ax.pcolormesh(x_edges, ybins, H, cmap=cmap, shading='flat')
+
+        if show_median_line:
+            ax.plot(np.arange(1, ncols + 1), medians, '-', color=median_color,
+                    linewidth=1.6, marker='D', markersize=4, zorder=4,
+                    label='per-$\\bar{n}$ median')
+            ax.legend(loc='best')
+
+        tick_idx = np.arange(0, ncols, label_every)
+        ax.set_xticks((tick_idx + 1).astype(float))
+        ax.set_xticklabels([f"{col_nbars[i]:.3g}" for i in tick_idx],
+                           rotation=45, ha='right')
+        ax.set_xlabel(r"$\bar{n}$  (rank-spaced)")
+        ax.set_ylabel(ylabel)
+        ax.set_title(f"{title}\nQubit {q_key}  |  {ncols} $\\bar{{n}}$ values  |  {all_vals.size} points")
+
+        cbar = fig.colorbar(mesh, ax=ax)
+        cbar.set_label("per-column density (max-normalized)" if normalize_columns else "count")
+        fig.tight_layout()
+
+        out = os.path.join(save_path, filename)
+        fig.savefig(out, dpi=300)
+        plt.close(fig)
+        print(f"Saved heatmap vs nbar: {out}")
         return out
 
 
@@ -519,6 +638,43 @@ for qubit in qubits:
         show_median_line=False,
     )
 
+    # T1 vs nbar — EVENLY-SPACED (rank) x-axis so it "looks linear" despite the
+    # bunched nbar sampling. Tick labels still show the true nbar values.
+    plot_scatter_by_nbar(
+        amps_list_t1_fit,
+        nbar_labels,
+        q_key=q,
+        save_path=save_dir,
+        filename=f"t1_vs_nbar_scatter_even_Q{q}.png",
+        ylabel=r"$T_1$ ($\mu$s)",
+        title=r"$T_1$ vs $\bar{n}$ (evenly spaced)",
+        x_mode='index',
+    )
+
+    # T1 vs nbar — log nbar axis (the literal "inverse log" of the bunching).
+    plot_scatter_by_nbar(
+        amps_list_t1_fit,
+        nbar_labels,
+        q_key=q,
+        save_path=save_dir,
+        filename=f"t1_vs_nbar_scatter_logx_Q{q}.png",
+        ylabel=r"$T_1$ ($\mu$s)",
+        title=r"$T_1$ vs $\bar{n}$ (log $\bar{n}$ axis)",
+        x_mode='log',
+    )
+
+    # T1 2D heatmap (per-nbar density) — evenly spaced columns.
+    plot_heatmap_by_nbar(
+        amps_list_t1_fit,
+        nbar_labels,
+        q_key=q,
+        save_path=save_dir,
+        filename=f"t1_vs_nbar_heatmap_Q{q}.png",
+        ylabel=r"$T_1$ ($\mu$s)",
+        title=r"$T_1$ vs $\bar{n}$ density",
+    )
+
+    # ---- Gamma versions ----
     plot_scatter_by_nbar(
         amps_list_g,
         nbar_labels,
@@ -527,6 +683,27 @@ for qubit in qubits:
         filename=f"gamma_vs_nbar_scatter_Q{q}.png",
         ylabel=r"$\Gamma_1$ (1/$\mu$s)",
         title=r"$\Gamma_1$ (1/$T_1$) vs $\bar{n}$",
+    )
+
+    plot_scatter_by_nbar(
+        amps_list_g,
+        nbar_labels,
+        q_key=q,
+        save_path=save_dir,
+        filename=f"gamma_vs_nbar_scatter_even_Q{q}.png",
+        ylabel=r"$\Gamma_1$ (1/$\mu$s)",
+        title=r"$\Gamma_1$ (1/$T_1$) vs $\bar{n}$ (evenly spaced)",
+        x_mode='index',
+    )
+
+    plot_heatmap_by_nbar(
+        amps_list_g,
+        nbar_labels,
+        q_key=q,
+        save_path=save_dir,
+        filename=f"gamma_vs_nbar_heatmap_Q{q}.png",
+        ylabel=r"$\Gamma_1$ (1/$\mu$s)",
+        title=r"$\Gamma_1$ (1/$T_1$) vs $\bar{n}$ density",
     )
 
     print("\n=== Total datapoints per nbar ===")
