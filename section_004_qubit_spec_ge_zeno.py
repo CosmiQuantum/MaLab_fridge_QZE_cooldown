@@ -1088,6 +1088,17 @@ class PulseProbeSpectroscopyProgram(AveragerProgramV2):
         self.delay_auto(t=cfg["readout_pulse_delay"], tag='waiting')  # Wait til qubit pulse is done and resonator rings down before proceeding
         self.pulse(ch=cfg['res_ch'], name="res_pulse")
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
+    # def _body(self, cfg):
+    #
+    #     self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse",
+    #                t=0)  # play probe pulse after ring up
+    #     self.delay_auto(t=0,
+    #                     tag='waiting1')
+    #     self.pulse(ch=cfg['res_ch'], name="qze_pulse", t=0)
+    #     self.delay_auto(t=cfg["readout_pulse_delay"],
+    #                     tag='waiting')  # Wait til qubit pulse is done and resonator rings down before proceeding
+    #     self.pulse(ch=cfg['res_ch'], name="res_pulse")
+    #     self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 class PulseProbeSpectroscopyProgramSingleGain(AveragerProgramV2):
     def _initialize(self, cfg):

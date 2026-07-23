@@ -70,7 +70,7 @@ sub_study = f'qubit_' + str(5)
 data_set = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 # set which of the following you'd like to run to 'True'
-run_flags = {"driveFill": True, "tof": False, "res_spec": True, "q_spec": True, "ss":  False, "rabi":  True, "ss_gef": False, "test_act": False, "fh_rabi": False,
+run_flags = {"driveFill": True, "tof": False, "res_spec": True, "q_spec": False, "ss":  False, "rabi":  True, "ss_gef": False, "test_act": False, "fh_rabi": False,
              "t1":  False, "t2r": False, "t2r_correction":True, "t2e":  False, "ef_res_spec": True, "ef_q_spec": True, "fh_q_spec": False, "rabi_pop_meas": False, "ef_Rabi": False, "ef_ss": False}
 
 

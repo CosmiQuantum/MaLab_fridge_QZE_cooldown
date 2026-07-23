@@ -1488,17 +1488,16 @@ class OffResonantQSpecDrive(AveragerProgramV2):
         self.add_pulse(ch=res_ch, name="res_pulse", ro_ch=ro_ch,  style="const", length=cfg["res_length"], freq=cfg['res_freq_ge'], phase=cfg['ro_phase'], gain=cfg['res_gain_ge'])
 
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
-        self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch,style="const", length=cfg['qubit_length_ge'],  freq=cfg['qubit_freq_ge'], phase=cfg['ro_phase'],gain=cfg['qubit_gain_ge'],)
+        self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch,style="const", length=cfg['qubit_pulse_length'],  freq=cfg['qubit_freq_ge'], phase=cfg['ro_phase'],gain=cfg['qubit_pulse_gain'],)
         self.add_pulse(ch=qubit_ch, name="qubit_stark_pulse", ro_ch=ro_ch, style="const", length=cfg['qubit_stark_pulse_length'], freq=cfg["qubit_stark_freq"], phase=cfg['qubit_phase'],
                        gain=QickSweep1D("stark_gain_loop", cfg["start_qubit_stark_gain"], cfg["stop_qubit_stark_gain"]))
         self.add_loop("freqloop", cfg["steps"])
         self.add_loop("stark_gain_loop", cfg["stark_gain_steps"])
     def _body(self, cfg):
-
-        self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)
-        self.delay_auto(t=0, tag='waiting')
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_stark_pulse", t=0)
         self.delay_auto(t=0, tag='waiting2')
+        self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)
+        self.delay_auto(t=0, tag='waiting')
         self.pulse(ch=cfg['res_ch'], name="res_pulse")
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
