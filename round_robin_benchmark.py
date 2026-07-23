@@ -49,7 +49,7 @@ fit_data = True                      # fit the data here and save or plot the fi
 save_data_h5 = True                  # save all of the data to h5 files?
 verbose = True                       # print everything to the console in real time, good for debugging, bad for memory
 qick_verbose = True                  # qick verbose prints the progress bar for each qick experiment as it is happening (the red bar that fills out as more experiment rounds/reps are being done)
-debug_mode = False                    # if True, it disables the continuing function of RR if an error pops up in a class -- errors now stop the RR script
+debug_mode = True                    # if True, it disables the continuing function of RR if an error pops up in a class -- errors now stop the RR script
 thresholding = False                 # use internal QICK threshold for ratio of Binary values on y for rabi/t1/t2r/t2e, or analog avg when false
 increase_qubit_reps = False          # if you want to increase the reps for a qubit, set to True
 unmask = True                        # Do you want to use the unmasking feature to increase resonator gain?
@@ -62,12 +62,12 @@ Qs_to_look_at = [5]     # only list the qubits you want to do the RR for
 run_name = 'bob_run_started_Feb_11'
 device_name = 'squill'
 substudy_txt_notes = ('track res and q spec')
-study ='tls_qspec'
-sub_study = f'pulse_len_test'
+study ='mux_test'
+sub_study = f'mux_firmware_test'
 data_set = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 # set which of the following you'd like to run to 'True'
-run_flags = {"tof": False, "res_spec": False, "q_spec": True, "ss":  False, "rabi":  False, "len_rabi": False, "ss_gef": False, "test_act": False, "fh_rabi": False,
+run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss":  False, "rabi":  False, "len_rabi": False, "ss_gef": False, "test_act": False, "fh_rabi": False,
              "t1":  False, "t2r": False, "t2r_correction":False, "t2e":  False, "ef_res_spec":  False, "ef_q_spec":  False, "fh_q_spec":False,
              "rabi_pop_meas": False, "ef_Rabi":  False, "ef_ss": False, "res_spec_fh":  False}
 

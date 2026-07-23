@@ -12,7 +12,7 @@ class SingleToneSpectroscopyProgram(AveragerProgramV2):
     def _initialize(self, cfg):
         ro_chs = cfg['ro_ch']
         res_ch = cfg['res_ch']
-        print(cfg['res_length'],cfg['res_freq_ge'],cfg['res_gain_ge'],cfg['ro_phase'])
+        print(cfg['res_freq_ge'],cfg['res_gain_ge'])
         self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=cfg['ro_ch'][0],
                          mux_freqs=cfg['res_freq_ge'],
                          mux_gains=cfg['res_gain_ge'],
