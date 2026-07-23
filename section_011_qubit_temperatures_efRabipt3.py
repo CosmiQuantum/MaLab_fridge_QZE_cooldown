@@ -47,7 +47,7 @@ class Temps_EFAmpRabiExperiment:
         if self.live_plot:
             I1, Q1, gains1 = self.live_plotting(amp_rabi1, soc)
         else:
-            iq_list1 = amp_rabi1.acquire(soc, rounds=self.config["rounds"], progress=True)
+            iq_list1 = amp_rabi1.acquire(soc, soft_avgs=self.config["rounds"], progress=True)
             I1 = iq_list1[self.QubitIndex][0, :, 0]
             Q1 = iq_list1[self.QubitIndex][0, :, 1]
             gains1 = amp_rabi1.get_pulse_param('qubit_pulse', "gain", as_array=True)
@@ -59,7 +59,7 @@ class Temps_EFAmpRabiExperiment:
         if self.live_plot:
             I2, Q2, gains2 = self.live_plotting(amp_rabi2, soc)
         else:
-            iq_list2 = amp_rabi2.acquire(soc, rounds=self.config["rounds"], progress=True)
+            iq_list2 = amp_rabi2.acquire(soc, soft_avgs=self.config["rounds"], progress=True)
             I2 = iq_list2[self.QubitIndex][0, :, 0]
             Q2 = iq_list2[self.QubitIndex][0, :, 1]
             gains2 = amp_rabi2.get_pulse_param('qubit_pulse', "gain", as_array=True)
@@ -75,11 +75,11 @@ class Temps_EFAmpRabiExperiment:
         assert viz.check_connection(timeout_seconds=5), "Visdom server not connected!"
 
         for ii in range(self.config["rounds"]):
-            iq_list = amp_rabi.acquire(soc, rounds=1, progress=True)
+            iq_list = amp_rabi.acquire(soc, soft_avgs=1, progress=True)
             gains = amp_rabi.get_pulse_param('qubit_pulse', "gain", as_array=True)
-            iq_list = iq_list[0][0].T
-            this_I = (iq_list[0])
-            this_Q = (iq_list[1])
+
+            this_I = iq_list[self.QubitIndex][0, :, 0]
+            this_Q = iq_list[self.QubitIndex][0, :, 1]
 
             if I is None:  # ii == 0
                 I, Q = this_I, this_Q
@@ -311,14 +311,13 @@ class AmplitudeRabiProgram1(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
-
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=cfg['ro_ch'][0],
-                         mux_freqs=cfg['res_freq_ge'],
-                         mux_gains=cfg['res_gain_ge'],
-                         mux_phases=cfg['res_phase'],
-                         mixer_freq=cfg['mixer_freq'])
-        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ge'], cfg['ro_phase']):
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=ro_ch[0],
+                         mux_freqs=cfg['res_freq_ef'],
+                         mux_gains=cfg['res_gain_ef'],
+                         mux_phases=cfg['res_phase'])
+        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ef'], cfg['ro_phase']):
             self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=res_ch)
+
         self.add_pulse(ch=res_ch, name="res_pulse",
                        style="const",
                        length=cfg["res_length"],
@@ -362,14 +361,13 @@ class AmplitudeRabiProgram2(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
-
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=cfg['ro_ch'][0],
-                         mux_freqs=cfg['res_freq_ge'],
-                         mux_gains=cfg['res_gain_ge'],
-                         mux_phases=cfg['res_phase'],
-                         mixer_freq=cfg['mixer_freq'])
-        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ge'], cfg['ro_phase']):
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=ro_ch[0],
+                         mux_freqs=cfg['res_freq_ef'],
+                         mux_gains=cfg['res_gain_ef'],
+                         mux_phases=cfg['res_phase'])
+        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ef'], cfg['ro_phase']):
             self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=res_ch)
+
         self.add_pulse(ch=res_ch, name="res_pulse",
                        style="const",
                        length=cfg["res_length"],

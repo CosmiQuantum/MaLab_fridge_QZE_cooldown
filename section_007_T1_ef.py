@@ -14,14 +14,14 @@ class FG_T1Program(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=ro_ch[0],
+                         mux_freqs=cfg['res_freq_ef'],
+                         mux_gains=cfg['res_gain_ef'],
+                         mux_phases=cfg['res_phase'])
 
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=cfg['ro_ch'][0],
-                         mux_freqs=cfg['res_freq_ge'],
-                         mux_gains=cfg['res_gain_ge'],
-                         mux_phases=cfg['res_phase'],
-                         mixer_freq=cfg['mixer_freq'])
-        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ge'], cfg['ro_phase']):
+        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ef'], cfg['ro_phase']):
             self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=res_ch)
+
         self.add_pulse(ch=res_ch, name="res_pulse",
                        style="const",
                        length=cfg["res_length"],
@@ -69,14 +69,14 @@ class FE_T1Program(AveragerProgramV2):
         ro_ch = cfg['ro_ch']
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=ro_ch[0],
+                         mux_freqs=cfg['res_freq_ef'],
+                         mux_gains=cfg['res_gain_ef'],
+                         mux_phases=cfg['res_phase'])
 
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=cfg['ro_ch'][0],
-                         mux_freqs=cfg['res_freq_ge'],
-                         mux_gains=cfg['res_gain_ge'],
-                         mux_phases=cfg['res_phase'],
-                         mixer_freq=cfg['mixer_freq'])
-        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ge'], cfg['ro_phase']):
+        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ef'], cfg['ro_phase']):
             self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=res_ch)
+
         self.add_pulse(ch=res_ch, name="res_pulse",
                        style="const",
                        length=cfg["res_length"],
@@ -167,14 +167,13 @@ class EF_T1Measurement:
             I, Q, delay_times = self.live_plotting(t1, thresholding)
         else:
             if thresholding:
-                iq_list = t1.acquire(self.experiment.soc, rounds=self.config['rounds'],
+                iq_list = t1.acquire(self.experiment.soc, soft_avgs=self.config['rounds'],
                                            threshold=self.experiment.readout_cfg["threshold"],
                                            angle=self.experiment.readout_cfg["ro_phase"], progress=True)
             else:
-                iq_list = t1.acquire(self.experiment.soc, rounds=self.config['rounds'], progress=True)
-            iq_list = iq_list[0][0].T
-            I = (iq_list[0])
-            Q = (iq_list[1])
+                iq_list = t1.acquire(self.experiment.soc, soft_avgs=self.config['rounds'], progress=True)
+            I = iq_list[self.QubitIndex][0, :, 0]
+            Q = iq_list[self.QubitIndex][0, :, 1]
             delay_times = t1.get_time_param('wait', "t", as_array=True)
 
         if self.fit_data:
@@ -193,17 +192,17 @@ class EF_T1Measurement:
         if not viz.check_connection(timeout_seconds=5):
             raise RuntimeError("Visdom server not connected!")
         for ii in range(self.config["rounds"]):
-            #iq_list = t1.acquire(self.experiment.soc, rounds=1, progress=True)
+            #iq_list = t1.acquire(self.experiment.soc, soft_avgs=1, progress=True)
             if thresholding:
-                iq_list = t1.acquire(self.experiment.soc, rounds=1,
+                iq_list = t1.acquire(self.experiment.soc, soft_avgs=1,
                                            threshold=self.experiment.readout_cfg["threshold"],
                                            angle=self.experiment.readout_cfg["ro_phase"], progress=True)
             else:
-                iq_list = t1.acquire(self.experiment.soc, rounds=1, progress=True)
+                iq_list = t1.acquire(self.experiment.soc, soft_avgs=1, progress=True)
             delay_times = t1.get_time_param('wait', "t", as_array=True)
-            iq_list = iq_list[0][0].T
-            this_I = (iq_list[0])
-            this_Q = (iq_list[1])
+
+            this_I = iq_list[self.QubitIndex][0, :, 0]
+            this_Q = iq_list[self.QubitIndex][0, :, 1]
 
             if I is None:  # ii == 0
                 I, Q = this_I, this_Q

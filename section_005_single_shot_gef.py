@@ -21,17 +21,18 @@ class GEF_SingleShotProgram(AveragerProgramV2):
         ro_chs = cfg['ro_chs']
         gen_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
-        self.declare_gen(ch=gen_ch, nqz=cfg['nqz_res'], ro_ch=cfg['ro_ch'][0],
+
+        self.declare_gen(ch=gen_ch, nqz=cfg['nqz'], ro_ch=ro_chs[0],
                          mux_freqs=cfg['f_res'],
-                         mux_gains=cfg['res_gain_ge'],
-                         mux_phases=cfg['res_phase'],
-                         mixer_freq=cfg['mixer_freq'])
-        for ch, f, ph in zip(cfg['ro_ch'], cfg['f_res'], cfg['ro_phase']):
-            self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=gen_ch)
+                         mux_gains=cfg['res_gain'],
+                         mux_phases=cfg['res_phase'])
+        for ch, f, ph in zip(cfg['ro_chs'], cfg['f_res'], cfg['ro_phase']):
+            self.declare_readout(ch=ch, length=cfg['res_len'], freq=f, phase=ph, gen_ch=gen_ch)
+
         self.add_pulse(ch=gen_ch, name="res_pulse",
                        style="const",
-                       length=cfg["res_length"],
-                       mask=cfg["list_of_all_qubits"],
+                       length=cfg["res_len"],
+                       mask=[0, 1, 2, 3, 4, 5],
                        )
 
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
@@ -52,7 +53,7 @@ class GEF_SingleShotProgram(AveragerProgramV2):
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)  # play pulse
         self.delay_auto(0.01)
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)  # play probe pulse
-        self.trigger(ros=cfg['ro_ch'], pins=[0], t=cfg['trig_time'])
+        self.trigger(ros=cfg['ro_chs'], pins=[0], t=cfg['trig_time'])
 
 
 # Separate g and e per each experiment defined.
@@ -62,17 +63,19 @@ class SingleShotProgram_g(AveragerProgramV2):
         ro_chs = cfg['ro_ch']
         gen_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
-        self.declare_gen(ch=gen_ch, nqz=cfg['nqz_res'], ro_ch=cfg['ro_ch'][0],
+
+        self.declare_gen(ch=gen_ch, nqz=cfg['nqz_res'], ro_ch=ro_chs[0],
                          mux_freqs=cfg['res_freq_ef'],
                          mux_gains=cfg['res_gain_ef'],
-                         mux_phases=cfg['res_phase'],
-                         mixer_freq=cfg['mixer_freq'])
+                         mux_phases=cfg['res_phase'])
+
         for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ef'], cfg['ro_phase']):
             self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=gen_ch)
+
         self.add_pulse(ch=gen_ch, name="res_pulse",
                        style="const",
                        length=cfg["res_length"],
-                       mask=cfg["list_of_all_qubits"],
+                       mask=[0, 1, 2, 3, 4, 5],
                        )
 
         self.add_loop("shotloop", cfg["steps"])  # number of total shots
@@ -89,17 +92,19 @@ class SingleShotProgram_e(AveragerProgramV2):
         ro_chs = cfg['ro_ch']
         gen_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
-        self.declare_gen(ch=gen_ch, nqz=cfg['nqz_res'], ro_ch=cfg['ro_ch'][0],
+
+        self.declare_gen(ch=gen_ch, nqz=cfg['nqz_res'], ro_ch=ro_chs[0],
                          mux_freqs=cfg['res_freq_ef'],
-                         mux_gains=cfg['res_gain_ge'],
-                         mux_phases=cfg['res_phase'],
-                         mixer_freq=cfg['mixer_freq'])
+                         mux_gains=cfg['res_gain_ef'],
+                         mux_phases=cfg['res_phase'])
+
         for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ef'], cfg['ro_phase']):
             self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=gen_ch)
+
         self.add_pulse(ch=gen_ch, name="res_pulse",
                        style="const",
                        length=cfg["res_length"],
-                       mask=cfg["list_of_all_qubits"],
+                       mask=[0, 1, 2, 3, 4, 5],
                        )
 
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
@@ -127,17 +132,19 @@ class SingleShotProgram_f(AveragerProgramV2):
         ro_chs = cfg['ro_ch']
         gen_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
-        self.declare_gen(ch=gen_ch, nqz=cfg['nqz_res'], ro_ch=cfg['ro_ch'][0],
+
+        self.declare_gen(ch=gen_ch, nqz=cfg['nqz_res'], ro_ch=ro_chs[0],
                          mux_freqs=cfg['res_freq_ef'],
-                         mux_gains=cfg['res_gain_ge'],
-                         mux_phases=cfg['res_phase'],
-                         mixer_freq=cfg['mixer_freq'])
+                         mux_gains=cfg['res_gain_ef'],
+                         mux_phases=cfg['res_phase'])
+
         for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ef'], cfg['ro_phase']):
             self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=gen_ch)
+
         self.add_pulse(ch=gen_ch, name="res_pulse",
                        style="const",
                        length=cfg["res_length"],
-                       mask=cfg["list_of_all_qubits"],
+                       mask=[0, 1, 2, 3, 4, 5],
                        )
 
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
@@ -200,15 +207,15 @@ class SingleShot_ef:
         # Run the single shot programs (g and e)
         ssp_g = SingleShotProgram_g(soccfg, reps=1, final_delay=self.config['relax_delay'],
                                     cfg=self.config)
-        iq_list_g = ssp_g.acquire(soc, rounds=1, progress=False)
+        iq_list_g = ssp_g.acquire(soc, soft_avgs=1, progress=False)
 
         ssp_e = SingleShotProgram_e(soccfg, reps=1, final_delay=self.config['relax_delay'],
                                     cfg=self.config)
-        iq_list_e = ssp_e.acquire(soc, rounds=1, progress=False)
+        iq_list_e = ssp_e.acquire(soc, soft_avgs=1, progress=False)
 
         ssp_f = SingleShotProgram_f(soccfg, reps=1, final_delay=self.config['relax_delay'],
                                     cfg=self.config)
-        iq_list_f = ssp_f.acquire(soc, rounds=1, progress=False)
+        iq_list_f = ssp_f.acquire(soc, soft_avgs=1, progress=False)
 
         # Use the fidelity calculation from SingleShotGE
         fidelity, _, _, _,_ = self.hist_ssf(
@@ -221,13 +228,13 @@ class SingleShot_ef:
 
     def run(self, soccfg, soc):
         ssp_g = SingleShotProgram_g(soccfg, reps=1, final_delay=self.config['relax_delay'], cfg=self.config)
-        iq_list_g = ssp_g.acquire(soc, rounds=1, progress=True)
+        iq_list_g = ssp_g.acquire(soc, soft_avgs=1, progress=True)
 
         ssp_e = SingleShotProgram_e(soccfg, reps=1, final_delay=self.config['relax_delay'], cfg=self.config)
-        iq_list_e = ssp_e.acquire(soc, rounds=1, progress=True)
+        iq_list_e = ssp_e.acquire(soc, soft_avgs=1, progress=True)
 
         ssp_f = SingleShotProgram_f(soccfg, reps=1, final_delay=self.config['relax_delay'], cfg=self.config)
-        iq_list_f = ssp_f.acquire(soc, rounds=1, progress=True)
+        iq_list_f = ssp_f.acquire(soc, soft_avgs=1, progress=True)
 
         # fid, angle = self.plot_results(iq_list_g, iq_list_e, iq_list_f, self.QubitIndex)
         ig_new, qg_new, ie_new, qe_new, if_new, qf_new, theta_ge, threshold_ge = self.plot_results(iq_list_g, iq_list_e, iq_list_f, self.QubitIndex)
@@ -419,10 +426,11 @@ class GainFrequencySweep:
                 print('gain', gain)
 
                 # Update config with current gain and frequency values
-                fresh_experiment.readout_cfg['res_freq_ge']= freq
+                fresh_experiment.readout_cfg['res_freq_ge'][self.qubit_index]= freq
                 fresh_experiment.readout_cfg['res_length'] = readout_length  # Set the optimal readout length for the qubit
 
-                fresh_experiment.readout_cfg['res_gain_ge'] = gain
+                res_gains = fresh_experiment.mask_gain_res(self.qubit_index, gain)
+                fresh_experiment.readout_cfg['res_gain_ge'] = res_gains
 
                 # Initialize SingleShot_ef instance for fidelity calculation
                 round_num = 0

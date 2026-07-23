@@ -42,17 +42,15 @@ class FHQubitSpectroscopy:
         # if self.increase_steps:
         #     self.config['steps'] = self.increase_steps_to
 
-        efqspec = FHPulseProbeSpectroscopyProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay=self.config['relax_delay'], cfg=self.config)
+        efqspec = FHPulseProbeSpectroscopyProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay=0.5, cfg=self.config)
 
         # iq_lists= []
         if self.live_plot:
             efI, efQ, effreqs = self.live_plotting(efqspec, self.experiment.soc)
         else:
-            efiq_list = efqspec.acquire(self.experiment.soc, rounds=self.exp_cfg["rounds"], progress=True)
-            efiq_list = efiq_list[0][0].T
-            efI = (efiq_list[0])
-            efQ = (efiq_list[1])
-
+            efiq_list = efqspec.acquire(self.experiment.soc, soft_avgs=self.exp_cfg["rounds"], progress=True)
+            efI = efiq_list[self.QubitIndex][0, :, 0]
+            efQ = efiq_list[self.QubitIndex][0, :, 1]
             effreqs = efqspec.get_pulse_param('qubit_pulse', "freq", as_array=True)
             #print(effreqs)
         self.plot_results(efI, efQ, effreqs, config=self.config)
@@ -65,11 +63,11 @@ class FHQubitSpectroscopy:
         assert viz.check_connection(timeout_seconds=5), "Visdom server not connected!"
         viz.close(win=None)  # close previous plots
         for ii in range(self.config["rounds"]):
-            iq_list = qspec.acquire(soc, rounds=1, progress=True)
+            iq_list = qspec.acquire(soc, soft_avgs=1, progress=True)
             freqs = qspec.get_pulse_param('qubit_pulse', "freq", as_array=True)
-            iq_list = iq_list[0][0].T
-            this_I = (iq_list[0])
-            this_Q = (iq_list[1])
+
+            this_I = iq_list[self.QubitIndex][0, :, 0]
+            this_Q = iq_list[self.QubitIndex][0, :, 1]
 
             if I is None:  # ii == 0
                 I, Q = this_I, this_Q
@@ -261,22 +259,22 @@ class FHQubitSpectroscopy:
 
 class FHPulseProbeSpectroscopyProgram(AveragerProgramV2):
     def _initialize(self, cfg):
-        ro_ch = cfg['ro_ch']
-        res_ch = cfg['res_ch']
+        ro_chs = cfg['ro_ch']
+        gen_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
 
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=cfg['ro_ch'][0],
-                         mux_freqs=cfg['res_freq_fh'],
-                         mux_gains=cfg['res_gain_ge'],
-                         mux_phases=cfg['res_phase'],
-                         mixer_freq=cfg['mixer_freq'])
-        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_fh'], cfg['ro_phase']):
-            self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=res_ch)
-        print(cfg['res_freq_fh'],cfg['res_gain_fh'])
-        self.add_pulse(ch=res_ch, name="res_pulse",
+        self.declare_gen(ch=gen_ch, nqz=cfg['nqz_res'], ro_ch=ro_chs[0],
+                         mux_freqs=cfg['res_freq_ef'],
+                         mux_gains=cfg['res_gain_ef'],
+                         mux_phases=cfg['res_phase'])
+
+        for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ef'], cfg['ro_phase']):
+            self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=gen_ch)
+
+        self.add_pulse(ch=gen_ch, name="res_pulse",
                        style="const",
                        length=cfg["res_length"],
-                       mask=cfg["list_of_all_qubits"],
+                       mask=cfg["list_of_all_qubits"]  # [0, 1, 2, 3, 4, 5],
                        )
 
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
@@ -300,11 +298,12 @@ class FHPulseProbeSpectroscopyProgram(AveragerProgramV2):
                        gain=cfg['pi_ef_amp'],
                        )
 
-        self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch,
+        # print('FH',cfg['qubit_length_ge'], cfg['qubit_freq_fh'],cfg['qubit_gain_fh'])
+        self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_chs[0],
                        style="const",
-                       length=cfg['qubit_length_fh'],
+                       length=cfg['qubit_length_ge'],
                        freq=cfg['qubit_freq_fh'],
-                       phase=cfg['ro_phase'],
+                       phase=0,
                        gain=cfg['qubit_gain_fh'],
                        )
 

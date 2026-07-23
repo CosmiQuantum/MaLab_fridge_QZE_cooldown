@@ -64,16 +64,15 @@ class FH_AmplitudeRabiExperiment:
             # The QICK will run the 'body' method in AmplitudeRabiProgram repeatedly for the iterations set in the
             # initalize loop when this aquire def is used
             # if thresholding:
-            #     iq_list = amp_rabi.acquire(self.experiment.soc, rounds=self.config["rounds"],
+            #     iq_list = amp_rabi.acquire(self.experiment.soc, soft_avgs=self.config["rounds"],
             #                                threshold=self.experiment.readout_cfg["threshold"],
             #                                angle=self.experiment.readout_cfg["ro_phase"], progress=self.qick_verbose)
             # else:
-            #     iq_list = amp_rabi.acquire(self.experiment.soc, rounds=self.config["rounds"],
+            #     iq_list = amp_rabi.acquire(self.experiment.soc, soft_avgs=self.config["rounds"],
             #                                progress=self.qick_verbose)
-            iq_list = amp_rabi.acquire(self.experiment.soc, rounds=self.config["rounds"], progress=self.qick_verbose)
-            iq_list = iq_list[0][0].T
-            I = (iq_list[0])
-            Q = (iq_list[1])
+            iq_list = amp_rabi.acquire(self.experiment.soc, soft_avgs=self.config["rounds"], progress=self.qick_verbose)
+            I = iq_list[self.QubitIndex][0, :, 0]
+            Q = iq_list[self.QubitIndex][0, :, 1]
         # get the gains that were used so you can use to plot on the x axis
         gains = amp_rabi.get_pulse_param('qubit_pulse', "gain", as_array=True)
             # print('gains', gains)
@@ -90,12 +89,11 @@ class FH_AmplitudeRabiExperiment:
         assert viz.check_connection(timeout_seconds=5), "Visdom server not connected!"
 
         for ii in range(self.config["rounds"]):
-            iq_list = amp_rabi.acquire(soc, rounds=1, progress=True)
+            iq_list = amp_rabi.acquire(soc, soft_avgs=1, progress=True)
             gains = amp_rabi.get_pulse_param('qubit_pulse', "gain", as_array=True)
 
-            iq_list = iq_list[0][0].T
-            this_I = (iq_list[0])
-            this_Q = (iq_list[1])
+            this_I = iq_list[self.QubitIndex][0, :, 0]
+            this_Q = iq_list[self.QubitIndex][0, :, 1]
 
             if I is None:  # ii == 0
                 I, Q = this_I, this_Q
@@ -288,17 +286,19 @@ class FH_AmplitudeRabiProgram(AveragerProgramV2):
         ro_chs = cfg['ro_ch']
         gen_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
-        self.declare_gen(ch=gen_ch, nqz=cfg['nqz_res'], ro_ch=cfg['ro_ch'][0],
+
+        self.declare_gen(ch=gen_ch, nqz=cfg['nqz_res'], ro_ch=ro_chs[0],
                          mux_freqs=cfg['res_freq_ef'],
                          mux_gains=cfg['res_gain_ef'],
-                         mux_phases=cfg['res_phase'],
-                         mixer_freq=cfg['mixer_freq'])
+                         mux_phases=cfg['res_phase'])
+
         for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ef'], cfg['ro_phase']):
             self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=gen_ch)
+
         self.add_pulse(ch=gen_ch, name="res_pulse",
                        style="const",
                        length=cfg["res_length"],
-                       mask=cfg["list_of_all_qubits"],
+                       mask=cfg["list_of_all_qubits"]  # [0, 1, 2, 3, 4, 5],
                        )
 
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
@@ -322,6 +322,7 @@ class FH_AmplitudeRabiProgram(AveragerProgramV2):
                        gain=cfg['pi_ef_amp'],
                        )
 
+        print("cfg['sigma_fh']",cfg['sigma_fh'])
         self.add_gauss(ch=qubit_ch, name="ramp", sigma=cfg['sigma_fh'], length=cfg['sigma_fh'] * 4, even_length=False)
         self.add_pulse(ch=qubit_ch, name="qubit_pulse",
                        style="arb",

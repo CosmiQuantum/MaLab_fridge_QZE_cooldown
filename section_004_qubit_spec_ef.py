@@ -59,17 +59,15 @@ class EFQubitSpectroscopy:
         if self.increase_reps:
             self.config['reps'] = self.increase_reps_to
 
-        efqspec = EFPulseProbeSpectroscopyProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay=self.config['relax_delay'], cfg=self.config)
+        efqspec = EFPulseProbeSpectroscopyProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay=0.5, cfg=self.config)
 
         # iq_lists= []
         if self.live_plot:
             efI, efQ, effreqs = self.live_plotting(efqspec, self.experiment.soc)
         else:
-            efiq_list = efqspec.acquire(self.experiment.soc, rounds=self.exp_cfg["rounds"], progress=self.qick_verbose)
-            efiq_list = efiq_list[0][0].T
-            efI = (efiq_list[0])
-            efQ = (efiq_list[1])
-
+            efiq_list = efqspec.acquire(self.experiment.soc, soft_avgs=self.exp_cfg["rounds"], progress=self.qick_verbose)
+            efI = efiq_list[self.QubitIndex][0, :, 0]
+            efQ = efiq_list[self.QubitIndex][0, :, 1]
             effreqs = efqspec.get_pulse_param('qubit_pulse', "freq", as_array=True)
             #print(effreqs)
         # self.plot_results(efI, efQ, effreqs, config=self.config)
@@ -82,12 +80,11 @@ class EFQubitSpectroscopy:
         assert viz.check_connection(timeout_seconds=5), "Visdom server not connected!"
         viz.close(win=None)  # close previous plots
         for ii in range(self.config["rounds"]):
-            iq_list = qspec.acquire(soc, rounds=1, progress=True)
+            iq_list = qspec.acquire(soc, soft_avgs=1, progress=True)
             freqs = qspec.get_pulse_param('qubit_pulse', "freq", as_array=True)
-            iq_list = iq_list[0][0].T
 
-            this_I = (iq_list[0])
-            this_Q = (iq_list[1])
+            this_I = iq_list[self.QubitIndex][0, :, 0]
+            this_Q = iq_list[self.QubitIndex][0, :, 1]
 
             if I is None:  # ii == 0
                 I, Q = this_I, this_Q
@@ -99,179 +96,77 @@ class EFQubitSpectroscopy:
             viz.line(X=freqs, Y=Q, opts=dict(height=400, width=700, title='Qubit Spectroscopy Q', showlegend=True, xlabel='expt_pts'),win='QSpec_Q')
         return I, Q, freqs
 
-    def plot_results(self, I, Q, freqs, config=None, fig_quality=100, sigma_guess=1, return_fwhm=False, scaling=False,
-                     Ie=None, Ig=None, Qe=None, Qg=None):
-        if scaling:
-            e = np.mean((Ie + 1j * Qe))
-            g = np.mean((Ig + 1j * Qg))
-            ### Normalization ###
-            pop_norm = abs(((I + 1j * Q) - g) * (e - g) / abs(e - g) ** 2)
-            ydata = pop_norm
+    def plot_results(self, I, Q, freqs, config=None, fig_quality=100):
+        freqs = np.array(freqs)
+        freq_q = freqs[np.argmax(I)]
 
-            freqs = np.array(freqs)
-            freq_q = freqs[np.argmax(I)]
+        mean_I, mean_Q, I_fit, Q_fit, largest_amp_curve_mean, largest_amp_curve_fwhm, fit_err = self.fit_lorenzian(I, Q, freqs,
+                                                                                                          freq_q)
 
-            mean_y_data, y_data_fit, largest_amp_curve_mean, largest_amp_curve_fwhm, fit_err = self.fit_lorenzian_scaled(
-                ydata, freqs,
-                freq_q, sigma_guess)
+        # Check if the returned values are all None
+        if (mean_I is None and mean_Q is None and I_fit is None and Q_fit is None
+                and largest_amp_curve_mean is None and largest_amp_curve_fwhm is None):
+            # If so, return None for the values in this definition as well
+            return None, None, None
 
-            # Check if the returned values are all None
-            if (mean_y_data is None and y_data_fit is None
-                    and largest_amp_curve_mean is None and largest_amp_curve_fwhm is None):
-                # If so, return None for the values in this definition as well
-                return None, None, None
+        # If we get here, the fit was successful and we can proceed with plotting
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+        plt.rcParams.update({'font.size': 18})
 
-            # If we get here, the fit was successful and we can proceed with plotting
-            fig, (ax1) = plt.subplots(1, 1, figsize=(10, 5))
-            plt.rcParams.update({'font.size': 18})
+        # I subplot
+        ax1.plot(freqs, I, label='I', linewidth=2)
+        ax1.set_ylabel("I Amplitude (a.u.)", fontsize=20)
+        ax1.tick_params(axis='both', which='major', labelsize=16)
+        ax1.legend()
 
-            # I subplot
-            ax1.plot(freqs, ydata, label='Qubit Population', linewidth=2)
-            ax1.set_ylabel("I Amplitude (a.u.)", fontsize=20)
-            ax1.tick_params(axis='both', which='major', labelsize=16)
-            ax1.legend()
+        # Q subplot
+        ax2.plot(freqs, Q, label='Q', linewidth=2)
+        ax2.set_xlabel("Qubit Frequency (MHz)", fontsize=20)
+        ax2.set_ylabel("Q Amplitude (a.u.)", fontsize=20)
+        ax2.tick_params(axis='both', which='major', labelsize=16)
+        ax2.legend()
 
-            # Plot the fits
-            if self.plot_fit:
-                ax1.plot(freqs, y_data_fit, 'r--', label='Lorentzian Fit')
-                ax1.axvline(largest_amp_curve_mean, color='orange', linestyle='--', linewidth=2)
+        # Plot the fits
+        ax1.plot(freqs, I_fit, 'r--', label='Lorentzian Fit')
+        ax1.axvline(largest_amp_curve_mean, color='orange', linestyle='--', linewidth=2)
 
-            # Calculate the middle of the plot area
-            plot_middle = (ax1.get_position().x0 + ax1.get_position().x1) / 2
+        ax2.plot(freqs, Q_fit, 'r--', label='Lorentzian Fit')
+        ax2.axvline(largest_amp_curve_mean, color='orange', linestyle='--', linewidth=2)
 
-            if self.plot_fit:
-                # Add title, centered on the plot area
-                if config is not None:  # then its been passed to this definition, so use that
-                    fig.text(plot_middle, 0.98,
-                             f"Qubit Spectroscopy Q{self.QubitIndex + 1}, %.2f MHz" % largest_amp_curve_mean +
-                             f" FWHM: {round(largest_amp_curve_fwhm, 1)}" +
-                             f", {config['reps']}*{config['rounds']} avgs",
-                             fontsize=24, ha='center', va='top')
-                else:
-                    fig.text(plot_middle, 0.98,
-                             f"Qubit Spectroscopy Q{self.QubitIndex + 1}, %.2f MHz" % largest_amp_curve_mean +
-                             f" FWHM: {round(largest_amp_curve_fwhm, 1)}" +
-                             f", {self.config['reps']}*{self.config['rounds']} avgs",
-                             fontsize=24, ha='center', va='top')
-            else:
-                # Add title, centered on the plot area
-                if config is not None:  # then its been passed to this definition, so use that
-                    fig.text(plot_middle, 0.98,
-                             f"Qubit Spectroscopy Q{self.QubitIndex + 1}" +
-                             f", {config['reps']}*{config['rounds']} avgs",
-                             fontsize=24, ha='center', va='top')
-                else:
-                    fig.text(plot_middle, 0.98,
-                             f"Qubit Spectroscopy Q{self.QubitIndex + 1}",
-                             fontsize=24, ha='center', va='top')
+        # Calculate the middle of the plot area
+        plot_middle = (ax1.get_position().x0 + ax1.get_position().x1) / 2
 
-                    # Adjust spacing
-            plt.tight_layout()
-
-            # Adjust the top margin to make room for the title
-            plt.subplots_adjust(top=0.93)
-
-            ### Save figure
-            if self.save_figs:
-                outerFolder_expt = os.path.join(self.outerFolder, self.expt_name + "_plots")
-                self.create_folder_if_not_exists(outerFolder_expt)
-                now = datetime.datetime.now()
-                formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
-                file_name = os.path.join(outerFolder_expt, f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" +
-                                         f"{formatted_datetime}_" + self.expt_name + f"_q{self.QubitIndex + 1}.png")
-                fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')
-            plt.close(fig)
-            if return_fwhm:
-                return largest_amp_curve_mean, y_data_fit, largest_amp_curve_fwhm
-            else:
-                return largest_amp_curve_mean, y_data_fit
+        # Add title, centered on the plot area
+        if config is not None:  # then its been passed to this definition, so use that
+            fig.text(plot_middle, 0.98,
+                     f"EF Qubit Spectroscopy Q{self.QubitIndex + 1}, %.2f MHz" % largest_amp_curve_mean +
+                     f" FWHM: {round(largest_amp_curve_fwhm, 1)}" +
+                     f", {config['reps']}*{config['rounds']} avgs",
+                     fontsize=24, ha='center', va='top')
         else:
-            freqs = np.array(freqs)
-            freq_q = freqs[np.argmax(I)]
+            fig.text(plot_middle, 0.98,
+                     f"EF Qubit Spectroscopy Q{self.QubitIndex + 1}, %.2f MHz" % largest_amp_curve_mean +
+                     f" FWHM: {round(largest_amp_curve_fwhm, 1)}" +
+                     f", {self.config['reps']}*{self.config['rounds']} avgs",
+                     fontsize=24, ha='center', va='top')
 
-            mean_I, mean_Q, I_fit, Q_fit, largest_amp_curve_mean, largest_amp_curve_fwhm, fit_err = self.fit_lorenzian(
-                I, Q, freqs,
-                freq_q, sigma_guess)
+        # Adjust spacing
+        plt.tight_layout()
 
-            # Check if the returned values are all None
-            if (mean_I is None and mean_Q is None and I_fit is None and Q_fit is None
-                    and largest_amp_curve_mean is None and largest_amp_curve_fwhm is None):
-                # If so, return None for the values in this definition as well
-                return None, None, None
+        # Adjust the top margin to make room for the title
+        plt.subplots_adjust(top=0.93)
 
-            # If we get here, the fit was successful and we can proceed with plotting
-            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
-            plt.rcParams.update({'font.size': 18})
-
-            # I subplot
-            ax1.plot(freqs, I, label='I', linewidth=2)
-            ax1.set_ylabel("I Amplitude (a.u.)", fontsize=20)
-            ax1.tick_params(axis='both', which='major', labelsize=16)
-            ax1.legend()
-
-            # Q subplot
-            ax2.plot(freqs, Q, label='Q', linewidth=2)
-            ax2.set_xlabel("Qubit Frequency (MHz)", fontsize=20)
-            ax2.set_ylabel("Q Amplitude (a.u.)", fontsize=20)
-            ax2.tick_params(axis='both', which='major', labelsize=16)
-            ax2.legend()
-            # Plot the fits
-            if self.plot_fit:
-                ax1.plot(freqs, I_fit, 'r--', label='Lorentzian Fit')
-                ax1.axvline(largest_amp_curve_mean, color='orange', linestyle='--', linewidth=2)
-
-                ax2.plot(freqs, Q_fit, 'r--', label='Lorentzian Fit')
-                ax2.axvline(largest_amp_curve_mean, color='orange', linestyle='--', linewidth=2)
-
-            # Calculate the middle of the plot area
-            plot_middle = (ax1.get_position().x0 + ax1.get_position().x1) / 2
-
-            if self.plot_fit:
-                # Add title, centered on the plot area
-                if config is not None:  # then its been passed to this definition, so use that
-                    fig.text(plot_middle, 0.98,
-                             f"EF Qubit Spectroscopy Q{self.QubitIndex + 1}, %.2f MHz" % largest_amp_curve_mean +
-                             f" FWHM: {round(largest_amp_curve_fwhm, 1)}" +
-                             f", {config['reps']}*{config['rounds']} avgs",
-                             fontsize=24, ha='center', va='top')
-                else:
-                    fig.text(plot_middle, 0.98,
-                             f"EF Qubit Spectroscopy Q{self.QubitIndex + 1}, %.2f MHz" % largest_amp_curve_mean +
-                             f" FWHM: {round(largest_amp_curve_fwhm, 1)}" +
-                             f", {self.config['reps']}*{self.config['rounds']} avgs",
-                             fontsize=24, ha='center', va='top')
-            else:
-                # Add title, centered on the plot area
-                if config is not None:  # then its been passed to this definition, so use that
-                    fig.text(plot_middle, 0.98,
-                             f"EF Qubit Spectroscopy Q{self.QubitIndex + 1}" +
-                             f", {config['reps']}*{config['rounds']} avgs",
-                             fontsize=24, ha='center', va='top')
-                else:
-                    fig.text(plot_middle, 0.98,
-                             f"EF Qubit Spectroscopy Q{self.QubitIndex + 1}",
-                             fontsize=24, ha='center', va='top')
-
-                    # Adjust spacing
-            plt.tight_layout()
-
-            # Adjust the top margin to make room for the title
-            plt.subplots_adjust(top=0.93)
-
-            ### Save figure
-            if self.save_figs:
-                outerFolder_expt = os.path.join(self.outerFolder, self.expt_name + "_plots")
-                self.create_folder_if_not_exists(outerFolder_expt)
-                now = datetime.datetime.now()
-                formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
-                file_name = os.path.join(outerFolder_expt, f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" +
-                                         f"{formatted_datetime}_" + self.expt_name + f"_q{self.QubitIndex + 1}.png")
-                fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')
-            plt.close(fig)
-            if return_fwhm:
-                return largest_amp_curve_mean, I_fit, Q_fit, largest_amp_curve_fwhm
-            else:
-                return largest_amp_curve_mean, I_fit, Q_fit
+        ### Save figure
+        if self.save_figs:
+            outerFolder_expt = os.path.join(self.outerFolder, self.expt_name + "_plots")
+            self.create_folder_if_not_exists(outerFolder_expt)
+            now = datetime.datetime.now()
+            formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
+            file_name = os.path.join(outerFolder_expt, f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" +
+                                     f"{formatted_datetime}_" + self.expt_name + f"_q{self.QubitIndex + 1}.png")
+            fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')
+        plt.close(fig)
+        # return largest_amp_curve_mean, I_fit, Q_fit
 
     def get_results(self, I, Q, freqs):
         freqs = np.array(freqs)
@@ -305,11 +200,11 @@ class EFQubitSpectroscopy:
 
         return corresponding_x, max_average_difference
 
-    def fit_lorenzian(self, I, Q, freqs, freq_q, sigma_guess=1):
+    def fit_lorenzian(self, I, Q, freqs, freq_q):
         try:
             # Initial guesses for I and Q
-            initial_guess_I = [freq_q, sigma_guess, np.max(I), np.min(I)]
-            initial_guess_Q = [freq_q, sigma_guess, np.max(Q), np.min(Q)]
+            initial_guess_I = [freq_q, 1, np.max(I), np.min(I)]
+            initial_guess_Q = [freq_q, 1, np.max(Q), np.min(Q)]
 
             # First round of fits (to get rough estimates)
             params_I, _ = curve_fit(self.lorentzian, freqs, I, p0=initial_guess_I)
@@ -318,8 +213,8 @@ class EFQubitSpectroscopy:
             # Use these fits to refine guesses
             x_max_diff_I, max_diff_I = self.max_offset_difference_with_x(freqs, I, params_I[3])
             x_max_diff_Q, max_diff_Q = self.max_offset_difference_with_x(freqs, Q, params_Q[3])
-            initial_guess_I = [x_max_diff_I, sigma_guess, np.max(I), np.min(I)]
-            initial_guess_Q = [x_max_diff_Q, sigma_guess, np.max(Q), np.min(Q)]
+            initial_guess_I = [x_max_diff_I, 1, np.max(I), np.min(I)]
+            initial_guess_Q = [x_max_diff_Q, 1, np.max(Q), np.min(Q)]
 
             # Second (refined) round of fits, this time capturing the covariance matrices
             params_I, cov_I = curve_fit(self.lorentzian, freqs, I, p0=initial_guess_I)
@@ -344,7 +239,7 @@ class EFQubitSpectroscopy:
             amp_Q_fit = abs(np.max(Q_fit) - np.min(Q_fit))
 
             # Choose which curve to use based on the input signal indicator
-            if 'None' in self.signal or self.signal is None:
+            if 'None' in self.signal:
                 if amp_I_fit > amp_Q_fit:
                     largest_amp_curve_mean = mean_I
                     largest_amp_curve_fwhm = fwhm_I
@@ -366,12 +261,12 @@ class EFQubitSpectroscopy:
                 print('Invalid signal passed, please choose "I", "Q", or "None".')
                 return None
 
-        except Exception as e:
-            if self.verbose: print("Error during Lorentzian fit:", e)
-            self.logger.info(f'Error during Lorentzian fit: {e}')
             # Return all desired results including the error on the Q fit
-            mean_I, mean_Q, I_fit, Q_fit, largest_amp_curve_mean, largest_amp_curve_fwhm, qspec_fit_err = None, None, None, None, None, None, None
-        return mean_I, mean_Q, I_fit, Q_fit, largest_amp_curve_mean, largest_amp_curve_fwhm, qspec_fit_err
+            return mean_I, mean_Q, I_fit, Q_fit, largest_amp_curve_mean, largest_amp_curve_fwhm, qspec_fit_err
+
+        except Exception as e:
+            print("Error during Lorentzian fit:", e)
+            return None, None,None,None,None,None,None
 
     def create_folder_if_not_exists(self, folder_path):
         import os
@@ -385,21 +280,15 @@ class EFPulseProbeSpectroscopyProgram(AveragerProgramV2):
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
 
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=cfg['ro_ch'][0],
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=ro_ch[0],
                          mux_freqs=cfg['res_freq_ef'],
                          mux_gains=cfg['res_gain_ef'],
-                         mux_phases=cfg['res_phase'],
-                         mixer_freq=cfg['mixer_freq'])
+                         mux_phases=cfg['res_phase'])
         for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ef'], cfg['ro_phase']):
             self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=res_ch)
-        self.add_pulse(ch=res_ch, name="res_pulse",
-                       style="const",
-                       length=cfg["res_length"],
-                       mask=cfg["list_of_all_qubits"],
-                       )
-
 
         self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
+
         self.add_gauss(ch=qubit_ch, name="ramp", sigma=cfg['sigma'], length=cfg['sigma'] * 4, even_length=False)
         self.add_pulse(ch=qubit_ch, name="pi_ge",
                        style="arb",
@@ -409,20 +298,29 @@ class EFPulseProbeSpectroscopyProgram(AveragerProgramV2):
                        gain=cfg['pi_amp'],
                        )
 
-        self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch,
+        #self.declare_gen(ch=qubit_ch, nqz=cfg['nqz_qubit'])
+        self.add_pulse(ch=res_ch, name="res_pulse",
                        style="const",
-                       length=cfg['qubit_length_ef'],
+                       length=cfg["res_length"],
+                       mask=cfg["list_of_all_qubits"],
+                       )
+
+        # print('FH',cfg['qubit_length_ge'], cfg['qubit_freq_ef'],cfg['qubit_gain_ef'])
+        self.add_pulse(ch=qubit_ch, name="qubit_pulse", ro_ch=ro_ch[0],
+                       style="const",
+                       length=cfg['qubit_length_ge'],
                        freq=cfg['qubit_freq_ef'],
-                       phase=cfg['ro_phase'],
+                       phase=0,
                        gain=cfg['qubit_gain_ef'],
                        )
 
 
         self.add_loop("freqloop", cfg["steps"])
+        print(cfg["list_of_all_qubits"])
 
     def _body(self, cfg):
         self.pulse(ch=self.cfg["qubit_ch"], name="pi_ge", t=0)  # play ge pi pulse
-        self.delay_auto(t=0, tag='waiting after pi')  # Wait til qubit pulse is done before proceeding
+        self.delay_auto(t=0.0, tag='waiting after pi')  # Wait til qubit pulse is done before proceeding
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=0)  # play e-f pulse
         self.delay_auto(t=0.01, tag='waiting')  # Wait til qubit e-f pulse is done before proceeding
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0) #readout

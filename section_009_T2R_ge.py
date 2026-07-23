@@ -152,13 +152,13 @@ class T2RProgram(AveragerProgramV2):
         res_ch = cfg['res_ch']
         qubit_ch = cfg['qubit_ch']
 
-        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=cfg['ro_ch'][0],
+        self.declare_gen(ch=res_ch, nqz=cfg['nqz_res'], ro_ch=ro_ch[0],
                          mux_freqs=cfg['res_freq_ge'],
                          mux_gains=cfg['res_gain_ge'],
-                         mux_phases=cfg['res_phase'],
-                         mixer_freq=cfg['mixer_freq'])
+                         mux_phases=cfg['res_phase'])
         for ch, f, ph in zip(cfg['ro_ch'], cfg['res_freq_ge'], cfg['ro_phase']):
             self.declare_readout(ch=ch, length=cfg['res_length'], freq=f, phase=ph, gen_ch=res_ch)
+
         self.add_pulse(ch=res_ch, name="res_pulse",
                        style="const",
                        length=cfg["res_length"],
@@ -197,16 +197,12 @@ class T2RProgram(AveragerProgramV2):
 class T2RMeasurement:
     def __init__(self, QubitIndex, number_of_qubits, outerFolder, round_num, signal, save_figs, experiment = None,
                  live_plot = None, fit_data = None, increase_qubit_reps = False, qubit_to_increase_reps_for = None,
-                 multiply_qubit_reps_by = 0, verbose = False, logger = None, qick_verbose=True, unmasking_resgain = False, correction=False, correction_round=1):
+                 multiply_qubit_reps_by = 0, verbose = False, logger = None, qick_verbose=True, unmasking_resgain = False):
         self.qick_verbose = qick_verbose
         self.QubitIndex = QubitIndex
         self.outerFolder = outerFolder
         self.fit_data = fit_data
-        self.correction_round=correction_round
-        if correction:
-            self.expt_name = "Ramsey_ge_correction"
-        else:
-            self.expt_name = "Ramsey_ge"
+        self.expt_name = "Ramsey_ge"
         self.Qubit = 'Q' + str(self.QubitIndex)
         self.experiment = experiment
         self.exp_cfg = expt_cfg[self.expt_name]
@@ -234,7 +230,7 @@ class T2RMeasurement:
             if self.verbose: print(f'Q {self.QubitIndex + 1} Round {self.round_num} T2R configuration: ', self.config)
             self.logger.info(f'Q {self.QubitIndex + 1} Round {self.round_num} T2R configuration:{self.config}')
 
-    def t2_fit(self, x_data, I, Q, verbose = False, guess=None, plot=False, return_freq=False):
+    def t2_fit(self, x_data, I, Q, verbose = False, guess=None, plot=False):
         #fitting code adapted from https://github.com/qua-platform/py-qua-tools/blob/37c741ade5a8f91888419c6fd23fd34e14372b06/qualang_tools/plot/fitting.py
 
         if abs(I[-1] - I[0]) > abs(Q[-1] - Q[0]):
@@ -337,17 +333,6 @@ class T2RMeasurement:
             p0=[1, 1, 1, guess_phase, 1, 1],
         )
 
-        # T2 = popt[4]
-        # T2_err = np.sqrt(pcov[4][4])
-        #
-        # self.T2 = T2
-        # self.T2_err = T2_err
-        #
-        # self.freq_correction = popt[1] - self.detuning
-        # self.freq_err = pcov[1][1]
-
-
-
         perr = np.sqrt(np.diag(pcov))
 
         # Output the fitting function and its parameters
@@ -389,12 +374,9 @@ class T2RMeasurement:
             plt.legend(loc="upper right")
         t2r_est = out['T2'][0] #in ns
         t2r_err = out['T2'][1] #in ns
-        if return_freq:
-            return fit_type(x, popt) * y_normal, t2r_est, t2r_err, plot_sig, out['f'][0]
-        else:
-            return fit_type(x, popt) * y_normal, t2r_est, t2r_err, plot_sig
+        return fit_type(x, popt) * y_normal, t2r_est, t2r_err, plot_sig
 
-    def run(self, thresholding=False,correction=False, scaling=False):
+    def run(self, thresholding=False):
         now = datetime.datetime.now()
         ramsey = T2RProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay=self.config['relax_delay'],
                          cfg=self.config)
@@ -404,90 +386,25 @@ class T2RMeasurement:
             I, Q, delay_times = self.live_plotting(ramsey, thresholding)
         else:
             if thresholding:
-                iq_list = ramsey.acquire(self.experiment.soc, rounds=self.config['rounds'],
+                iq_list = ramsey.acquire(self.experiment.soc, soft_avgs=self.config['rounds'],
                                          threshold=self.experiment.readout_cfg["threshold"],
                                          angle=self.experiment.readout_cfg["ro_phase"], progress=self.qick_verbose)
             else:
-                iq_list = ramsey.acquire(self.experiment.soc, rounds=self.config['rounds'], progress=self.qick_verbose)
-            iq_list = iq_list[0][0].T
-            I = (iq_list[0])
-            Q = (iq_list[1])
+                iq_list = ramsey.acquire(self.experiment.soc, soft_avgs=self.config['rounds'], progress=self.qick_verbose)
 
-            raw_0 = ramsey.get_raw()  # I,Q data without normalizing to readout window, subtracting readout offset, or rotation/thresholding
-            A = np.squeeze(raw_0[0])
-            I_shots = A  # if you have 4 steps and 3 shots/reps this is like [[1,2,3,4],[1,2,3,4],[1,2,3,4]]
-            Q_shots = A
-
-            delay_times = ramsey.get_time_param('wait', "t", as_array=True)
-
-        if scaling:
-            from section_005_single_shot_ge import SingleShotProgram_g, SingleShotProgram_e
-            q_config = all_qubit_state(self.experiment, self.number_of_qubits)
-            ss_exp_cfg = add_qubit_experiment(expt_cfg, 'Readout_Optimization', self.QubitIndex)
-            ss_config = {**q_config[self.Qubit], **ss_exp_cfg}
-            print('performing single shot for g-e calibration')
-
-            ssp_g = SingleShotProgram_g(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'], cfg=ss_config)
-            iq_list_g = ssp_g.acquire(self.experiment.soc, rounds=1, progress=True)
-
-            ssp_e = SingleShotProgram_e(self.experiment.soccfg, reps=1, final_delay=ss_config['relax_delay'], cfg=ss_config)
-            iq_list_e = ssp_e.acquire(self.experiment.soc, rounds=1, progress=True)
-
-            ss_I_g = iq_list_g[0][0].T[0]
-            ss_Q_g = iq_list_g[0][0].T[1]
-            ss_I_e = iq_list_e[0][0].T[0]
-            ss_Q_e = iq_list_e[0][0].T[1]
-
-            fit, t2r_est, t2r_err, plot_sig = None, None, None, None
-            self.plot_results(I, Q, delay_times, now, fit, t2r_est, t2r_err, plot_sig,scaling=scaling, Ie = ss_I_e, Ig = ss_I_g, Qe = ss_Q_e, Qg = ss_Q_g)
-            return  t2r_est, t2r_err, I, Q, delay_times, fit, self.config, ss_Q_e, ss_Q_g, ss_I_e, ss_I_g, I_shots, Q_shots
-        else:
-            if self.fit_data:
-                fit, t2r_est, t2r_err, plot_sig = self.t2_fit(delay_times, I, Q)
-            else:
-                fit, t2r_est, t2r_err, plot_sig = None, None, None, None
-
-            if self.save_figs:
-                self.plot_results(I, Q, delay_times, now, fit, t2r_est, t2r_err, plot_sig)
-
-
-            return  t2r_est, t2r_err, I, Q, delay_times, fit, self.config
-
-    def adjust_qspec(self, thresholding=False,correction=False):
-        now = datetime.datetime.now()
-        ramsey = T2RProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay=self.config['relax_delay'],
-                         cfg=self.config)
-
-        # for live plotting open http://localhost:8097/ on firefox
-        if self.live_plot:
-            I, Q, delay_times = self.live_plotting(ramsey, thresholding)
-        else:
-            if thresholding:
-                iq_list = ramsey.acquire(self.experiment.soc, rounds=self.config['rounds'],
-                                         threshold=self.experiment.readout_cfg["threshold"],
-                                         angle=self.experiment.readout_cfg["ro_phase"], progress=self.qick_verbose)
-            else:
-                iq_list = ramsey.acquire(self.experiment.soc, rounds=self.config['rounds'], progress=self.qick_verbose)
-            iq_list = iq_list[0][0].T
-            I = (iq_list[0])
-            Q = (iq_list[1])
-
-            raw_0 = ramsey.get_raw()  # I,Q data without normalizing to readout window, subtracting readout offset, or rotation/thresholding
-            A = np.squeeze(raw_0[0])
-            I_shots = A[:, :, 0]  # if you have 4 steps and 3 shots/reps this is like [[1,2,3,4],[1,2,3,4],[1,2,3,4]]
-            Q_shots = A[:, :, 1]
-
+            I = iq_list[self.QubitIndex][0, :, 0]
+            Q = iq_list[self.QubitIndex][0, :, 1]
             delay_times = ramsey.get_time_param('wait', "t", as_array=True)
 
         if self.fit_data:
-            fit, t2r_est, t2r_err, plot_sig, freq = self.t2_fit(delay_times, I, Q, return_freq=True)
+            fit, t2r_est, t2r_err, plot_sig = self.t2_fit(delay_times, I, Q)
         else:
             fit, t2r_est, t2r_err, plot_sig = None, None, None, None
 
         if self.save_figs:
             self.plot_results(I, Q, delay_times, now, fit, t2r_est, t2r_err, plot_sig)
 
-        return t2r_est, t2r_err, I, Q, delay_times, fit, self.config, freq, I_shots, Q_shots
+        return  t2r_est, t2r_err, I, Q, delay_times, fit, self.config
 
     def live_plotting(self, ramsey, thresholding):
         I = Q = expt_mags = expt_phases = expt_pop = None
@@ -497,17 +414,16 @@ class T2RMeasurement:
 
         for ii in range(self.config["rounds"]):
             if thresholding:
-                iq_list = ramsey.acquire(self.experiment.soc, rounds=1,
+                iq_list = ramsey.acquire(self.experiment.soc, soft_avgs=1,
                                          threshold=self.experiment.readout_cfg["threshold"],
                                          angle=self.experiment.readout_cfg["ro_phase"], progress=self.qick_verbose)
             else:
-                iq_list = ramsey.acquire(self.experiment.soc, rounds=1, progress=self.qick_verbose)
+                iq_list = ramsey.acquire(self.experiment.soc, soft_avgs=1, progress=self.qick_verbose)
 
             delay_times = ramsey.get_time_param('wait', "t", as_array=True)
 
-            iq_list = iq_list[0][0].T
-            this_I = (iq_list[0])
-            this_Q = (iq_list[1])
+            this_I = iq_list[self.QubitIndex][0, :, 0]
+            this_Q = iq_list[self.QubitIndex][0, :, 1]
 
             if I is None:  # ii == 0
                 I, Q = this_I, this_Q
@@ -534,130 +450,65 @@ class T2RMeasurement:
         if not os.path.exists(folder):
             os.makedirs(folder)
 
-    def plot_results(self, I, Q, delay_times, now, fit, t2r_est, t2r_err, plot_sig, config = None, fig_quality = 100,
-                     scaling=False, Ie=None, Ig=None,
-                     Qe=None, Qg=None):
-        if scaling:
-            e = np.mean((Ie + 1j * Qe))
-            g = np.mean((Ig + 1j * Qg))
-            ### Normalization ###
-            pop_norm = abs(((I + 1j * Q) - g) * (e - g) / abs(e - g) ** 2)
-            ydata = pop_norm
-            fig, (ax1) = plt.subplots(1, 1)
+    def plot_results(self, I, Q, delay_times, now, fit, t2r_est, t2r_err, plot_sig, config = None, fig_quality = 100):
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+        plt.rcParams.update({'font.size': 18})
 
-            plt.rcParams.update({'font.size': 18})
-
-            # Calculate the middle of the plot area
-            plot_middle = (ax1.get_position().x0 + ax1.get_position().x1) / 2
-            if self.fit_data:
+        # Calculate the middle of the plot area
+        plot_middle = (ax1.get_position().x0 + ax1.get_position().x1) / 2
+        if self.fit_data:
+            if 'I' in plot_sig:
                 ax1.plot(delay_times, fit, '-', color='red', linewidth=3, label="Fit")
+            if 'Q' in plot_sig:
+                ax2.plot(delay_times, fit, '-', color='red', linewidth=3, label="Fit")
 
-                # Add title, centered on the plot area
-                if config is not None:
-                    fig.text(plot_middle, 0.98,
-                             f"T2 Q{self.QubitIndex + 1}" + f", {float(config['reps'])}*{float(config['rounds'])} avgs,",
-                             fontsize=24, ha='center',
-                             va='top')  # , pi gain %.2f" % float(config['pi_amp']) + f", {float(config['sigma']) * 1000} ns sigma
-                else:
-                    fig.text(plot_middle, 0.98,
-                             f"T2 Q{self.QubitIndex + 1}, T2R %.2f us" % float(
-                                 t2r_est) + f", {float(self.config['reps'])}*{float(self.config['rounds'])} avgs,",
-                             fontsize=24, ha='center', va='top')
-
+            # Add title, centered on the plot area
+            if config is not None:
+                fig.text(plot_middle, 0.98,
+                         f"T2 Q{self.QubitIndex + 1}" + f", {float(config['reps'])}*{float(config['rounds'])} avgs,",
+                         fontsize=24, ha='center', va='top') #, pi gain %.2f" % float(config['pi_amp']) + f", {float(config['sigma']) * 1000} ns sigma
             else:
-                # Add title, centered on the plot area
-                if config is not None:
-                    fig.text(plot_middle, 0.98,
-                             f"T2 Q{self.QubitIndex + 1}" + f", {float(config['reps'])}*{float(config['rounds'])} avgs,",
-                             fontsize=24, ha='center',
-                             va='top')  # , pi gain %.2f" % float(config['pi_amp']) + f", {float(config['sigma']) * 1000} ns sigma
-                else:
-                    fig.text(plot_middle, 0.98,
-                             f"T2 Q{self.QubitIndex + 1}, pi gain %.2f" % float(self.config[
-                                                                                    'pi_amp']) + f", {float(self.config['sigma']) * 1000} ns sigma" + f", {float(self.config['reps'])}*{float(self.config['rounds'])} avgs,",
-                             fontsize=24, ha='center', va='top')
+                fig.text(plot_middle, 0.98,
+                         f"T2 Q{self.QubitIndex + 1}, T2R %.2f us" % float(
+                             t2r_est) + f", {float(self.config['reps'])}*{float(self.config['rounds'])} avgs,",
+                         fontsize=24, ha='center', va='top')
 
-            # I subplot
-            ax1.plot(delay_times, ydata, label="Gain (a.u.)", linewidth=2)
-            ax1.set_ylabel("Qubit Population", fontsize=20)
-            ax1.tick_params(axis='both', which='major', labelsize=16)
-            # ax1.axvline(freq_q, color='orange', linestyle='--', linewidth=2)
-
-            # Adjust spacing
-            plt.tight_layout()
-
-            # Adjust the top margin to make room for the title
-            plt.subplots_adjust(top=0.93)
-            if self.save_figs:
-                outerFolder_expt = os.path.join(self.outerFolder, self.expt_name + '_' + str(self.correction_round))
-
-                self.create_folder_if_not_exists(outerFolder_expt)
-                now = datetime.datetime.now()
-                formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
-                file_name = os.path.join(outerFolder_expt,
-                                         f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" + f"{formatted_datetime}_" + self.expt_name + f"_q{self.QubitIndex + 1}.png")
-                fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')  # , facecolor='white'
-            plt.close(fig)
         else:
-            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
-            plt.rcParams.update({'font.size': 18})
-
-            # Calculate the middle of the plot area
-            plot_middle = (ax1.get_position().x0 + ax1.get_position().x1) / 2
-            if self.fit_data:
-                if 'I' in plot_sig:
-                    ax1.plot(delay_times, fit, '-', color='red', linewidth=3, label="Fit")
-                if 'Q' in plot_sig:
-                    ax2.plot(delay_times, fit, '-', color='red', linewidth=3, label="Fit")
-
-                # Add title, centered on the plot area
-                if config is not None:
-                    fig.text(plot_middle, 0.98,
-                             f"T2 Q{self.QubitIndex + 1}" + f", {float(config['reps'])}*{float(config['rounds'])} avgs,",
-                             fontsize=24, ha='center', va='top') #, pi gain %.2f" % float(config['pi_amp']) + f", {float(config['sigma']) * 1000} ns sigma
-                else:
-                    fig.text(plot_middle, 0.98,
-                             f"T2 Q{self.QubitIndex + 1}, T2R %.2f us" % float(
-                                 t2r_est) + f", {float(self.config['reps'])}*{float(self.config['rounds'])} avgs,",
-                             fontsize=24, ha='center', va='top')
-
+            # Add title, centered on the plot area
+            if config is not None:
+                fig.text(plot_middle, 0.98,
+                         f"T2 Q{self.QubitIndex + 1}" + f", {float(config['reps'])}*{float(config['rounds'])} avgs," ,
+                         fontsize=24, ha='center', va='top') #, pi gain %.2f" % float(config['pi_amp']) + f", {float(config['sigma']) * 1000} ns sigma
             else:
-                # Add title, centered on the plot area
-                if config is not None:
-                    fig.text(plot_middle, 0.98,
-                             f"T2 Q{self.QubitIndex + 1}" + f", {float(config['reps'])}*{float(config['rounds'])} avgs," ,
-                             fontsize=24, ha='center', va='top') #, pi gain %.2f" % float(config['pi_amp']) + f", {float(config['sigma']) * 1000} ns sigma
-                else:
-                    fig.text(plot_middle, 0.98,
-                             f"T2 Q{self.QubitIndex + 1}, pi gain %.2f" % float(self.config[
-                                                                                    'pi_amp']) + f", {float(self.config['sigma']) * 1000} ns sigma" + f", {float(self.config['reps'])}*{float(self.config['rounds'])} avgs,",
-                             fontsize=24, ha='center', va='top')
+                fig.text(plot_middle, 0.98,
+                         f"T2 Q{self.QubitIndex + 1}, pi gain %.2f" % float(self.config[
+                                                                                'pi_amp']) + f", {float(self.config['sigma']) * 1000} ns sigma" + f", {float(self.config['reps'])}*{float(self.config['rounds'])} avgs,",
+                         fontsize=24, ha='center', va='top')
 
-            # I subplot
-            ax1.plot(delay_times, I, label="Gain (a.u.)", linewidth=2)
-            ax1.set_ylabel("I Amplitude (a.u.)", fontsize=20)
-            ax1.tick_params(axis='both', which='major', labelsize=16)
-            # ax1.axvline(freq_q, color='orange', linestyle='--', linewidth=2)
+        # I subplot
+        ax1.plot(delay_times, I, label="Gain (a.u.)", linewidth=2)
+        ax1.set_ylabel("I Amplitude (a.u.)", fontsize=20)
+        ax1.tick_params(axis='both', which='major', labelsize=16)
+        # ax1.axvline(freq_q, color='orange', linestyle='--', linewidth=2)
 
-            # Q subplot
-            ax2.plot(delay_times, Q, label="Q", linewidth=2)
-            ax2.set_xlabel("Delay time (us)", fontsize=20)
-            ax2.set_ylabel("Q Amplitude (a.u.)", fontsize=20)
-            ax2.tick_params(axis='both', which='major', labelsize=16)
-            # ax2.axvline(freq_q, color='orange', linestyle='--', linewidth=2)
+        # Q subplot
+        ax2.plot(delay_times, Q, label="Q", linewidth=2)
+        ax2.set_xlabel("Delay time (us)", fontsize=20)
+        ax2.set_ylabel("Q Amplitude (a.u.)", fontsize=20)
+        ax2.tick_params(axis='both', which='major', labelsize=16)
+        # ax2.axvline(freq_q, color='orange', linestyle='--', linewidth=2)
 
-            # Adjust spacing
-            plt.tight_layout()
+        # Adjust spacing
+        plt.tight_layout()
 
-            # Adjust the top margin to make room for the title
-            plt.subplots_adjust(top=0.93)
-            if self.save_figs:
-                outerFolder_expt = os.path.join(self.outerFolder, self.expt_name + '_'+str(self.correction_round))
-
-                self.create_folder_if_not_exists(outerFolder_expt)
-                now = datetime.datetime.now()
-                formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
-                file_name = os.path.join(outerFolder_expt, f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" + f"{formatted_datetime}_" + self.expt_name + f"_q{self.QubitIndex + 1}.png")
-                fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')  # , facecolor='white'
-            plt.close(fig)
+        # Adjust the top margin to make room for the title
+        plt.subplots_adjust(top=0.93)
+        if self.save_figs:
+            outerFolder_expt = os.path.join(self.outerFolder, self.expt_name)
+            self.create_folder_if_not_exists(outerFolder_expt)
+            now = datetime.datetime.now()
+            formatted_datetime = now.strftime("%Y-%m-%d_%H-%M-%S")
+            file_name = os.path.join(outerFolder_expt, f"R_{self.round_num}_" + f"Q_{self.QubitIndex + 1}_" + f"{formatted_datetime}_" + self.expt_name + f"_q{self.QubitIndex + 1}.png")
+            fig.savefig(file_name, dpi=fig_quality, bbox_inches='tight')  # , facecolor='white'
+        plt.close(fig)
 
