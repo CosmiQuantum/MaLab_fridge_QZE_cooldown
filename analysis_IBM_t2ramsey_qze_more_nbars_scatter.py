@@ -283,6 +283,78 @@ for qubit in qubits:
 
 
     # ============================================================
+    # 4a) Fit T1 curves -> T1 and Gamma distributions per gain.
+    #     Replaces plot_t1_scatter_multi_gain_by_dataset_index so that NO
+    #     side-effect files are written (no per_dataset_fits_by_gain folder,
+    #     no boxplots, no summary csv/npz). Same return format as that method's
+    #     return_distributions=True output.
+    # ============================================================
+    def fit_t1_gamma_distributions(
+            amps_list, delay_list, gain_labels,
+            *, q_key,
+            min_points=6, maxfev=20000,
+            reject_nonpositive=True, max_T1_us=500.0,
+    ):
+        from scipy.optimize import curve_fit
+
+        def _initial_guess(x, y):
+            x = np.asarray(x, float)
+            y = np.asarray(y, float)
+            a_guess = float(np.nanmax(y) - np.nanmin(y)) if y.size else 1.0
+            c_guess = float((x[-1] - x[0]) / 5.0) if len(x) > 1 else 1.0
+            d_guess = float(np.nanmin(y)) if y.size else 0.0
+            return [a_guess, 0.0, max(c_guess, 1e-6), d_guess]
+
+        lower = [-np.inf, -np.inf, 0.0, -np.inf]
+        upper = [np.inf, np.inf, np.inf, np.inf]
+
+        amps_list_t1_out, amps_list_g_out = [], []
+        for gi in range(len(gain_labels)):
+            amps_dict = amps_list[gi]
+            delay_dict = delay_list[gi]
+            t1_vals, gamma_vals = [], []
+
+            if q_key in amps_dict and q_key in delay_dict:
+                aL = amps_dict[q_key]
+                dL = delay_dict[q_key]
+                for di in range(min(len(aL), len(dL))):
+                    x = np.asarray(dL[di], float).ravel()
+                    y = np.asarray(aL[di], float).ravel()
+                    if x.size == 0 or x.size != y.size:
+                        continue
+                    good = np.isfinite(x) & np.isfinite(y)
+                    x = x[good]
+                    y = y[good]
+                    if x.size < min_points:
+                        continue
+                    order = np.argsort(x)
+                    x = x[order]
+                    y = y[order]
+                    try:
+                        popt, _ = curve_fit(
+                            t1_vs_time.exponential, x, y,
+                            p0=_initial_guess(x, y),
+                            bounds=(lower, upper), method="trf", maxfev=maxfev,
+                        )
+                    except Exception:
+                        continue
+                    T1_est = float(popt[2])
+                    if not np.isfinite(T1_est):
+                        continue
+                    if reject_nonpositive and T1_est <= 0:
+                        continue
+                    if max_T1_us is not None and T1_est > float(max_T1_us):
+                        continue
+                    t1_vals.append(T1_est)
+                    gamma_vals.append(1.0 / T1_est)
+
+            amps_list_t1_out.append({q_key: [np.asarray(t1_vals, float)]})
+            amps_list_g_out.append({q_key: [np.asarray(gamma_vals, float)]})
+
+        return amps_list_g_out, amps_list_t1_out
+
+
+    # ============================================================
     # 4) NEW: scatter plot of a distribution vs nbar
     #    (one scatter point per datapoint, at the true nbar x-position;
     #     only every LABEL_EVERY-th nbar gets an x tick label)
@@ -299,12 +371,14 @@ for qubit in qubits:
             label_every=LABEL_EVERY,
             point_color='steelblue',
             median_color='crimson',
+            show_median_line=True,
     ):
         """
         Scatter every datapoint in each nbar group against its nbar value.
-        All nbar points are drawn; only every `label_every`-th nbar receives an
-        x-axis tick label so the axis stays readable with 50+ points.
-        A median marker per nbar is overlaid for readability.
+        The x-axis is a genuine linear scale in nbar (points sit at their true
+        nbar value); only every `label_every`-th nbar receives an x-axis tick
+        label so the axis stays readable with 50+ points.
+        A per-nbar median trend line is overlaid unless show_median_line=False.
         """
         os.makedirs(save_path, exist_ok=True)
 
@@ -312,6 +386,7 @@ for qubit in qubits:
         order = np.argsort(nbars)
 
         fig, ax = plt.subplots(figsize=(14, 6))
+        ax.set_xscale('linear')
 
         used_nbars = []
         median_x, median_y = [], []
@@ -338,9 +413,10 @@ for qubit in qubits:
             plt.close(fig)
             return None
 
-        # Overlay per-nbar median trend
-        ax.plot(median_x, median_y, '-', color=median_color, linewidth=1.5,
-                marker='D', markersize=5, zorder=4, label='per-$\\bar{n}$ median')
+        # Overlay per-nbar median trend (the red line), unless suppressed
+        if show_median_line:
+            ax.plot(median_x, median_y, '-', color=median_color, linewidth=1.5,
+                    marker='D', markersize=5, zorder=4, label='per-$\\bar{n}$ median')
 
         # Label only every Nth nbar to avoid crowding
         used_nbars = np.asarray(sorted(set(used_nbars)))
@@ -352,7 +428,8 @@ for qubit in qubits:
         ax.set_ylabel(ylabel)
         ax.set_title(f"{title}\nQubit {q_key}  |  {len(used_nbars)} $\\bar{{n}}$ values  |  {n_total} points")
         ax.grid(True, alpha=0.3)
-        ax.legend(loc="best")
+        if show_median_line:
+            ax.legend(loc="best")
         fig.tight_layout()
 
         out = os.path.join(save_path, filename)
@@ -408,22 +485,17 @@ for qubit in qubits:
     os.makedirs(save_dir, exist_ok=True)
 
     # Run the T1 fits to obtain gamma (1/T1) and T1 distributions per gain.
-    # This is what produces amps_list_g (gamma) and amps_list_t1_fit (T1).
-    fig, ax, amps_list_g, amps_list_t1_fit, gain_labels = t1_vs_time.plot_t1_scatter_multi_gain_by_dataset_index(
-        amps_list,
-        delay_list,
-        gain_labels,
-        save_dir,
-        q_key=q,
-        return_distributions=True
+    # This local fit produces amps_list_g (gamma) and amps_list_t1_fit (T1)
+    # WITHOUT writing any per_dataset_fits_by_gain / boxplot / summary files.
+    # gain_labels order is preserved, so nbar_labels stays aligned.
+    amps_list_g, amps_list_t1_fit = fit_t1_gamma_distributions(
+        amps_list, delay_list, gain_labels, q_key=q,
     )
 
-    # Recompute nbar_labels in case gain_labels order was changed by the fit
-    nbar_labels = make_nbar_labels(gain_labels, gain_to_mean_nbar)
-
     # ============================================================
-    # 6) The only two deliverable plots: T1 vs nbar and Gamma vs nbar
+    # 6) The only deliverable plots: T1 vs nbar and Gamma vs nbar
     # ============================================================
+    # T1 vs nbar (linear nbar x-axis) — with the red per-nbar median line.
     plot_scatter_by_nbar(
         amps_list_t1_fit,
         nbar_labels,
@@ -432,6 +504,19 @@ for qubit in qubits:
         filename=f"t1_vs_nbar_scatter_Q{q}.png",
         ylabel=r"$T_1$ ($\mu$s)",
         title=r"$T_1$ vs $\bar{n}$",
+        show_median_line=True,
+    )
+
+    # T1 vs nbar (linear nbar x-axis) — scatter only, no red median line.
+    plot_scatter_by_nbar(
+        amps_list_t1_fit,
+        nbar_labels,
+        q_key=q,
+        save_path=save_dir,
+        filename=f"t1_vs_nbar_scatter_Q{q}_no_median.png",
+        ylabel=r"$T_1$ ($\mu$s)",
+        title=r"$T_1$ vs $\bar{n}$",
+        show_median_line=False,
     )
 
     plot_scatter_by_nbar(
