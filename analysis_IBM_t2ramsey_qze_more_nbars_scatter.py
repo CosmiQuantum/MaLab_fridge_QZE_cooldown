@@ -23,6 +23,12 @@ CHI_MHZ = -0.137
 # 50+ points does not get crowded.
 LABEL_EVERY = 5
 
+# ---- Optional: dump the raw T1 cuts (data only, NO fit overlay) for one or
+#      more specific rounds. Each round gets its own folder containing one
+#      figure per nbar.
+SAVE_T1_CUTS_FOR_ROUND = True
+T1_CUT_ROUNDS = [12]
+
 for qubit in qubits:
     run_name = f'bob_run_started_Aug_23/squill/{path}/all_qubits/'
 
@@ -559,6 +565,86 @@ for qubit in qubits:
 
 
     # ============================================================
+    # 4c) Optional: raw T1 cuts for a single round, one figure per nbar,
+    #     data only (no fit drawn on top). Everything lands in one folder
+    #     named after the round.
+    # ============================================================
+    def save_t1_cuts_for_round(
+            amps_list, delay_list, rounds_list, gain_labels, nbar_labels,
+            round_id,
+            *,
+            q_key,
+            save_root,
+            point_color='steelblue',
+    ):
+        def _round_matches(r):
+            try:
+                return int(r) == int(round_id)
+            except (TypeError, ValueError):
+                return str(r) == str(round_id)
+
+        out_dir = os.path.join(save_root, f"t1_cuts_round_{round_id}_Q{q_key}")
+        os.makedirs(out_dir, exist_ok=True)
+
+        nbars = np.asarray(nbar_labels, dtype=float).ravel()
+        order = np.argsort(nbars)
+
+        n_saved = 0
+        for rank, j in enumerate(order):
+            nb = nbars[j]
+            g = float(gain_labels[j])
+
+            aL = amps_list[j].get(q_key, [])
+            dL = delay_list[j].get(q_key, [])
+            rL = rounds_list[j].get(q_key, [])
+
+            n = min(len(aL), len(dL), len(rL))
+            cuts = []
+            for i in range(n):
+                if not _round_matches(rL[i]):
+                    continue
+                x = np.asarray(dL[i], float).ravel()
+                y = np.asarray(aL[i], float).ravel()
+                if x.size == 0 or x.size != y.size:
+                    continue
+                good = np.isfinite(x) & np.isfinite(y)
+                if not np.any(good):
+                    continue
+                x, y = x[good], y[good]
+                o = np.argsort(x)
+                cuts.append((x[o], y[o]))
+
+            if not cuts:
+                continue
+
+            fig, ax = plt.subplots(figsize=(7, 5))
+            for k, (x, y) in enumerate(cuts):
+                lbl = f"dataset {k}" if len(cuts) > 1 else None
+                ax.plot(x, y, 'o-', ms=4, lw=1.0, alpha=0.85,
+                        color=(point_color if len(cuts) == 1 else None), label=lbl)
+
+            nb_str = f"{nb:.4g}" if np.isfinite(nb) else "NaN"
+            ax.set_xlabel(r"delay time ($\mu$s)")
+            ax.set_ylabel("population (a.u.)")
+            ax.set_title(f"Round {round_id}  |  Qubit {q_key}\n"
+                         rf"$\bar{{n}}$ = {nb_str}  (gain = {g:.6f})  |  {len(cuts)} cut(s)")
+            ax.grid(True, alpha=0.3)
+            if len(cuts) > 1:
+                ax.legend(loc='best', fontsize=8)
+            fig.tight_layout()
+
+            nb_fname = f"{nb:.4g}".replace('.', 'p').replace('-', 'm') if np.isfinite(nb) else "nan"
+            g_fname = f"{g:.6f}".replace('.', 'p').replace('-', 'm')
+            fname = f"idx{rank:03d}_nbar_{nb_fname}_gain_{g_fname}.png"
+            fig.savefig(os.path.join(out_dir, fname), dpi=200)
+            plt.close(fig)
+            n_saved += 1
+
+        print(f"Saved {n_saved} T1 cut figures for round {round_id} -> {out_dir}")
+        return out_dir
+
+
+    # ============================================================
     # 5) Use ALL nbar/gain datapoints (the full 2D sweep), not a
     #    hand-picked subset. Derive the gain step size / list from data.
     # ============================================================
@@ -602,6 +688,18 @@ for qubit in qubits:
     # Output folder: separate from the original analysis_gain_nbar
     save_dir = f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_23/squill/{path}/all_qubits/analysis_more_nbars/'
     os.makedirs(save_dir, exist_ok=True)
+
+    # Optional: dump the raw T1 cuts (no fits overlaid) for the requested
+    # round(s), one folder per round, one figure per nbar.
+    if SAVE_T1_CUTS_FOR_ROUND:
+        rounds_present = sorted({r for rd in rounds_list for r in rd.get(q, [])},
+                                key=lambda r: (str(type(r)), r))
+        print(f"\nRounds present in the filtered T1 data: {rounds_present}")
+        for round_id in T1_CUT_ROUNDS:
+            save_t1_cuts_for_round(
+                amps_list, delay_list, rounds_list, gain_labels, nbar_labels,
+                round_id, q_key=q, save_root=save_dir,
+            )
 
     # Run the T1 fits to obtain gamma (1/T1) and T1 distributions per gain.
     # This local fit produces amps_list_g (gamma) and amps_list_t1_fit (T1)
