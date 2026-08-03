@@ -88,8 +88,11 @@ RELAX_DELAY = 100.0          # [us]
 #   M:/_Data/20250822 - Olivia/{RUN_NAME}/{DEVICE_NAME}/{study}/{sub_study}/
 #       {timestamp}/
 #           optimization/
-#           study_data/          <- plots and .npz
-#           documentation/       <- sub_study_notes.txt, RR_script.log
+#           study_data/          <- raw data (.npz, .h5) ONLY
+#           documentation/       <- ALL plots (.png/.pdf), plus
+#                                   sub_study_notes.txt and RR_script.log
+#
+# Convention: plots always go in documentation/, data always in study_data/.
 # ----------------------------------------------------------------------------
 DATA_ROOT = "M:/_Data/20250822 - Olivia"
 RUN_NAME = "pucq4_run_started_Aug_3"

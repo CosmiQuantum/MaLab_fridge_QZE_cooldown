@@ -74,16 +74,38 @@ def capture(soc, soccfg, cfg, freq, gain):
     return t, trace[:, 0], trace[:, 1]
 
 
+MIN_PEAK_RATIO = 5.0     # peak must clear the noise floor by this factor
+MIN_DUTY = 0.3           # ...and stay high for this fraction of PULSE_LENGTH
+
+
 def edge_estimate(t, mag):
-    """First sample above halfway to the peak, or None if there is no pulse."""
-    floor = np.median(mag[: max(4, len(mag) // 10)])
-    peak = mag.max()
-    if peak < 2 * floor:
+    """Leading edge of a real pulse, or None.
+
+    A single noise spike is not a pulse. Requiring only peak > 2*floor reports
+    a confident-looking edge on pure noise -- which is exactly what happened on
+    the first PUCQ4 run, where noise spikes at peak/floor ~3 produced bogus
+    'edge ~0.049 us' labels. So we require BOTH a decent peak-to-floor ratio
+    AND that the signal stays high for a good fraction of the pulse duration.
+    """
+    floor = float(np.median(mag))
+    peak = float(mag.max())
+    if floor <= 0 or peak < MIN_PEAK_RATIO * floor:
         return None, floor, peak
-    above = np.flatnonzero(mag > 0.5 * (peak + floor))
-    if not len(above):
+
+    above = mag > 0.5 * (peak + floor)
+    if not above.any():
         return None, floor, peak
-    return float(t[above[0]]), floor, peak
+
+    # Longest contiguous run above threshold, in samples.
+    idx = np.flatnonzero(above)
+    splits = np.split(idx, np.flatnonzero(np.diff(idx) != 1) + 1)
+    longest = max(splits, key=len)
+
+    dt = float(t[1] - t[0]) if len(t) > 1 else 0.0
+    if len(longest) * dt < MIN_DUTY * PULSE_LENGTH:
+        return None, floor, peak
+
+    return float(t[longest[0]]), floor, peak
 
 
 def main():
@@ -97,7 +119,9 @@ def main():
         targets.append(("control", float(COMPARE_FREQ)))
 
     folders = P.setup_data_folders(study, sub_study, substudy_txt_notes)
-    outdir = folders["studyDataFolder"]
+    # Convention: plots go in documentation/, raw data goes in study_data/.
+    plotdir = folders["studyDocumentationFolder"]
+    datadir = folders["studyDataFolder"]
     logger = folders["logger"]
     logger.info(f"TOF start: gain={GAIN}, rounds={SOFT_AVGS}, "
                 f"capture={CAPTURE_LENGTH} us, cfg={cfg}")
@@ -132,17 +156,21 @@ def main():
         ax.set_ylabel("ADC units")
         ax.legend(fontsize=7, loc="upper right")
 
-    for ax in np.atleast_1d(axes).flat[-ncol:]:
+    # Hide any unused panels (7 targets in a 4x2 grid leaves one empty).
+    for ax in np.atleast_1d(axes).flat[len(targets):]:
+        ax.set_visible(False)
+
+    for ax in np.atleast_1d(axes).flat[: len(targets)][-ncol:]:
         ax.set_xlabel("Time (us)")
 
     fig.suptitle(f"PUCQ4 time of flight, gain={GAIN}", fontsize=15)
     fig.tight_layout()
-    path = os.path.join(outdir, "tof.png")
+    path = os.path.join(plotdir, "tof.png")
     fig.savefig(path, dpi=200)
-    fig.savefig(os.path.join(outdir, "tof.pdf"), dpi=200)
+    fig.savefig(os.path.join(plotdir, "tof.pdf"), dpi=200)
     plt.close(fig)
 
-    np.savez(os.path.join(outdir, "tof.npz"),
+    np.savez(os.path.join(datadir, "tof.npz"),
              gain=GAIN, rounds=SOFT_AVGS, capture_length=CAPTURE_LENGTH,
              labels=np.array([r[0] for r in results]),
              freqs=np.array([r[1] for r in results]),
