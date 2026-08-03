@@ -57,9 +57,12 @@ def capture(soc, soccfg, cfg, freq, gain):
     cfg["_freq"] = float(freq)
     cfg["_gain"] = float(gain)
     prog = TOFProgram(soccfg, reps=1, final_delay=1.0, cfg=cfg)
-    iq = prog.acquire_decimated(soc, soft_avgs=SOFT_AVGS)
+    # qick 0.2.363 spells the averaging argument 'rounds', not 'soft_avgs' --
+    # same as section_001_time_of_flight.py.
+    iq = prog.acquire_decimated(soc, rounds=SOFT_AVGS)
     trace = np.asarray(iq[0], dtype=float)
-    t = soccfg.cycles2us(np.arange(trace.shape[0]), ro_ch=cfg["ro_ch"])
+    # get_time_axis already accounts for decimation; safer than cycles2us here.
+    t = prog.get_time_axis(ro_index=0)[: trace.shape[0]]
     return t, trace[:, 0], trace[:, 1]
 
 

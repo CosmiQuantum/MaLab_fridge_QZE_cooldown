@@ -90,11 +90,14 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "rounds": 4 if FIRST_LIGHT else 1,  # 3
             # PUCQ4 lines are 20-40 MHz wide, so +/-2 MHz cannot resolve them.
             # +/-500 MHz because VNA_qubit is only valid at the bias the VNA
-            # sweep used, and we are currently at -4 mA. Reading Q4 off the
-            # student's flux scan: ~7040 MHz at the table's bias but ~6600 MHz
-            # at -4 mA, so a +/-150 MHz window would have missed it entirely.
+            # sweep used, and the flux lines are now ramped to 0 mA. Reading Q4
+            # off the student's flux scan it sits ~6900-7000 MHz at zero bias
+            # vs 7036 in the table, so zero is close -- but the other qubits'
+            # tuning curves were never characterized, hence the wide window.
             # 500 MHz / 400 steps = 2.5 MHz per point, still fine against a
             # 20-40 MHz linewidth.
+            # NOTE: 0 mA is NOT a sweet spot. Q4's is around +4 mA / 7110 MHz.
+            # Move there before measuring T1/T2 -- see the note in the deck.
             "start": list(VNA_qubit - (500 if FIRST_LIGHT else 2)),  # [MHz]0.8
             "stop": list(VNA_qubit + (500 if FIRST_LIGHT else 2)),  # [MHz] 0.8
             "steps": 400 if FIRST_LIGHT else 300,
