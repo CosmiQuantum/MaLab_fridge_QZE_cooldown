@@ -91,6 +91,38 @@ def sweep(soc, soccfg, cfg, freqs, label):
     return amps
 
 
+def find_dips(freqs, amps, expected=None, n_expect=P.NUM_RES):
+    """Locate resonator dips by prominence.
+
+    The baseline slopes ~25 -> ~11 across the band (analog rolloff), so a flat
+    amplitude threshold would find dips at the low-frequency end and miss them
+    at the high end. Prominence is measured relative to the local baseline, so
+    it is immune to that tilt.
+    """
+    from scipy.signal import find_peaks
+
+    inverted = -amps
+    # Require each dip to stand out by at least 10% of the full amplitude span.
+    prom = 0.10 * (np.max(amps) - np.min(amps))
+    idx, props = find_peaks(inverted, prominence=prom)
+
+    # Keep the n_expect most prominent, then restore frequency order.
+    if len(idx) > n_expect:
+        keep = np.argsort(props["prominences"])[-n_expect:]
+        idx = np.sort(idx[keep])
+
+    found = freqs[idx]
+    depths = 1.0 - amps[idx] / np.array(
+        [np.median(amps[max(0, i - 40):i + 40]) for i in idx])
+
+    matched = None
+    if expected is not None and len(found):
+        # Nearest measured dip to each expected frequency.
+        matched = np.array([found[np.argmin(np.abs(found - e))]
+                            for e in expected])
+    return found, depths, matched
+
+
 def sensitivity_budget():
     """dB improvement over the pucq4_01_tof.py run, printed up front.
 
@@ -158,12 +190,16 @@ def main():
     nrow = 2 if ctl_amps is not None else 1
     fig, axes = plt.subplots(nrow, 1, figsize=(14, 5 * nrow), squeeze=False)
 
+    found, depths, matched = find_dips(freqs, amps, P.RES_FREQS_VNA)
+
     ax = axes[0][0]
     ax.plot(freqs, amps, linewidth=1.0)
     for i, f in enumerate(P.RES_FREQS_VNA):
         ax.axvline(f, linestyle=":", color="grey", linewidth=1.0)
         ax.text(f, ax.get_ylim()[1], f" M{i + 1}", fontsize=8,
                 va="top", color="grey")
+    for f in found:
+        ax.axvline(f, linestyle="--", color="tab:red", linewidth=0.9, alpha=0.7)
     contrast = (np.median(amps) - amps.min()) / (np.median(amps) + 1e-30)
     ax.set_title(f"PUCQ4 band, gain={GAIN}, {RES_LENGTH} us x {REPS} reps "
                  f"-- depth {contrast * 100:.1f}%  (dotted = VNA values)")
@@ -194,9 +230,25 @@ def main():
     # Report
     # ------------------------------------------------------------------
     print("\n" + "=" * 74)
-    print(f"Deepest feature in the PUCQ4 band: "
-          f"{freqs[int(np.argmin(amps))]:.3f} MHz, "
-          f"{contrast * 100:.1f}% below median")
+    print(f"Found {len(found)} dips (expected {P.NUM_RES})")
+    print(f"{'':4} {'VNA (MHz)':>12} {'measured':>12} {'shift':>10} {'depth':>9}")
+    for i, vna in enumerate(P.RES_FREQS_VNA):
+        if matched is not None and i < len(matched):
+            m = matched[i]
+            d = depths[int(np.argmin(np.abs(found - m)))]
+            print(f"M{i + 1:<3} {vna:>12.1f} {m:>12.3f} "
+                  f"{m - vna:>+10.3f} {d * 100:>8.1f}%")
+        else:
+            print(f"M{i + 1:<3} {vna:>12.1f} {'--':>12}")
+
+    if len(found) == P.NUM_RES:
+        print("\nPaste into system_config.py as res_freq_ge:")
+        print("  [" + ", ".join(f"{f:.3f}" for f in np.sort(matched)) + "]")
+        print("\nThese are still COARSE (F_STEP = "
+              f"{F_STEP} MHz) and taken at high power. Next:")
+        print("  1. Narrow F_START/F_STOP around each dip, F_STEP ~0.02")
+        print("  2. Sweep GAIN down to find the punched-out frequencies")
+
     if ctl_amps is not None:
         print(f"Control band deepest feature: "
               f"{ctl_freqs[int(np.argmin(ctl_amps))]:.3f} MHz, "
