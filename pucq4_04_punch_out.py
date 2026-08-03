@@ -43,11 +43,22 @@ RESONATORS = [0]       # start with ONE. All six at these settings is hours.
 # 4, 4, 4, 4, 10, 5 MHz for M1..M6, so the dressed resonance can sit up to
 # ~10 MHz from the bare one (M5 is the big one). Do not narrow this below ~8 --
 # chi (~250 kHz) is the qubit-STATE-dependent shift and a different quantity.
-SPAN = 8.0             # [MHz] +/- around each measured resonator frequency
+SPAN = 6.0             # [MHz] covers the expected g^2/Delta ~ -4.2 MHz for M1
 STEP = 0.2             # [MHz] plenty against a multi-MHz shift
 
-GAIN_START = 0.02      # punch-out usually happens well below 1.0
-GAIN_STOP = 1.0
+# The first sweep (0.02-1.0) showed the dip dead vertical from gain 1.0 down to
+# ~0.1 -- that whole decade is wasted. It only began moving below 0.06, and the
+# +0.4 MHz seen by gain 0.02 is the WRONG SIGN for punch-out: with the qubit
+# ~3.4 GHz below the resonator and g/2pi ~120 MHz, the dressed resonance should
+# sit g^2/Delta ~ -4.2 MHz BELOW the bare one (matching the deck's 4 MHz Lamb
+# shift for M1). A small positive shift is more likely Kerr at high power. So
+# the real transition is below 0.02 and this sweep goes after it.
+#
+# 0.005 is about the floor: even at MAX_TOTAL_AVERAGES it gives only ~half the
+# SNR of the gain-0.02 row that worked. Rows below the noise are gated out and
+# drawn as grey x, so pushing lower just wastes time rather than misleading you.
+GAIN_START = 0.005
+GAIN_STOP = 0.1
 N_GAINS = 8            # log spaced
 
 # Adaptive averaging. Signal scales with gain, noise with 1/sqrt(reps), so
@@ -62,7 +73,7 @@ REPS_AT_FULL_GAIN = 600
 # Averaging beyond MAX_REPS is done with rounds instead (a few extra Pyro round
 # trips, negligible next to seconds of measurement at these rep counts).
 MAX_REPS = 8192
-MAX_TOTAL_AVERAGES = 16384
+MAX_TOTAL_AVERAGES = 65536
 RES_LENGTH = 10.0      # [us]
 # No qubit is driven here and the resonator rings down in ~1 us (kappa <1 MHz),
 # so this only needs to be a few ring-down times. It was 50 us, which at 16384
