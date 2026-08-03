@@ -3,12 +3,34 @@ import numpy as np
 FRIDGE = "BOB"
 
 if FRIDGE == "QUIET" or FRIDGE == "BOB":
-    VNA_res = np.array([7149,7171,7204,7228.9, 7264.4,7287.54])#[7148.588, 7170.546, 7203.351, 7228.059, 7263.744 ,7286.719])#*1000  # run 5
-    VNA_qubit = np.array([2764, 2980, 2876, 3096, 3043.32, 3095.44]) #[2766, 2980, 2873, 3096, 3043, 3093] # Freqs of Qubit g/e Transition
-    ef_freqs = np.array([2616, 2830, 2723, 2946, 2893, 2929.37]) # Freqs of Qubit e/f Transition, updated for run 7
-    fh_freqs = np.array([2466, 2680, 2573, 2796, 2900, 2744])
+    # ---- squill (previous chip), kept for reference -------------------------
+    #VNA_res = np.array([7149,7171,7204,7228.9, 7264.4,7287.54])#[7148.588, 7170.546, 7203.351, 7228.059, 7263.744 ,7286.719])#*1000  # run 5
+    #VNA_qubit = np.array([2764, 2980, 2876, 3096, 3043.32, 3095.44]) #[2766, 2980, 2873, 3096, 3043, 3093] # Freqs of Qubit g/e Transition
+    #ef_freqs = np.array([2616, 2830, 2723, 2946, 2893, 2929.37]) # Freqs of Qubit e/f Transition, updated for run 7
+    #fh_freqs = np.array([2466, 2680, 2573, 2796, 2900, 2744])
+
+    # ---- PUCQ4 --------------------------------------------------------------
+    # From "PUCQ4 Initial Characterization.pptx", rows M1..M6.
+    # FLUX TUNABLE: the qubit numbers are only valid at the DC bias the VNA
+    # sweep used. The resonators move ~7 MHz across +/-10 mA; the qubits move
+    # GHz. See YOKOGS200.py for the current-source driver.
+    VNA_res = np.array([8920, 8951, 8975, 9000, 9015, 9059])
+    VNA_qubit = np.array([5507, 5411, 5487, 5575, 7036, 6401])
+    ef_freqs = np.array([5287, 5201, 5269, 5357, 6822, 6185])  # f_ge - alpha
+    fh_freqs = np.array([5067, 4991, 5051, 5139, 6608, 5969])  # rough guess
     # Set this for your experiment
     tot_num_of_qubits = 6
+
+    # FIRST_LIGHT widens res_spec and qubit_spec_ge so you can FIND the features
+    # on a chip you have never measured. Set it back to False once you know
+    # where everything is -- the wide scans are slow and the round robin only
+    # needs to track, not search.
+    #
+    # It matters most for qubit spec: PUCQ4's qubit linewidths are 20-40 MHz
+    # (deck: M2 ~20, M3-M4 20-30, M1/M5/M6 ~40), and the tracking config sweeps
+    # +/-2 MHz. That is narrower than the feature you are hunting for, so it
+    # would read as a flat line even when perfectly centred.
+    FIRST_LIGHT = True
 
     gain_start = 0.000001
     gain_stop = 0.04
@@ -26,10 +48,13 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
 
         "res_spec": {
             "reps": 1, #shots at one freq
-            "rounds": 600, #sweeps through each freq and average
-            "start": -0.7, #[MHz]
-            "step_size": 0.01,  # [MHz]
-            "steps": 150,
+            # Wide search vs narrow tracking. Wide covers +/-15 MHz, which is
+            # comfortably more than the ~7 MHz the resonators move across the
+            # full +/-10 mA flux range -- so it finds them at ANY bias.
+            "rounds": 100 if FIRST_LIGHT else 600,
+            "start": -15.0 if FIRST_LIGHT else -0.7,  # [MHz]
+            "step_size": 0.1 if FIRST_LIGHT else 0.01,  # [MHz]
+            "steps": 300 if FIRST_LIGHT else 150,
             "relax_delay": 100,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
@@ -61,11 +86,15 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         #     "list_of_all_qubits": list_of_all_qubits,
         # },
         "qubit_spec_ge": {
-            "reps": 2000,
-            "rounds": 1,  # 3
-            "start": list(VNA_qubit - 2),  # [MHz]0.8
-            "stop": list(VNA_qubit + 2),  # [MHz] 0.8
-            "steps": 300,
+            "reps": 500 if FIRST_LIGHT else 2000,
+            "rounds": 4 if FIRST_LIGHT else 1,  # 3
+            # PUCQ4 lines are 20-40 MHz wide, so +/-2 MHz cannot resolve them.
+            # +/-150 MHz also gives the flux bias some room to be wrong.
+            # If a wide scan still finds nothing, suspect the DC bias before
+            # you suspect the code -- Q4 alone spans 5850-7110 MHz.
+            "start": list(VNA_qubit - (150 if FIRST_LIGHT else 2)),  # [MHz]0.8
+            "stop": list(VNA_qubit + (150 if FIRST_LIGHT else 2)),  # [MHz] 0.8
+            "steps": 400 if FIRST_LIGHT else 300,
             "relax_delay": 100,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },

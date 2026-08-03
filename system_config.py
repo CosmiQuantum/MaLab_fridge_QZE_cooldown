@@ -58,7 +58,10 @@ class QICK_experiment:
             "qubit_ampl_ch": self.FSGEN_AMPL_CH ,
             "res_ch": self.MIXMUXGEN_CH ,  # Single Tone Readout Port, MUX DAC
             "qubit_ch_ef": self.FSGEN_CH, # Qubit ef Channel, Full-speed DAC
-            "nqz_qubit": 1,
+            # PUCQ4: qubits are 5411-7036 MHz, which is Nyquist zone 2 on the
+            # full-speed DAC (was zone 1 for the old 2.7-3.1 GHz chip).
+            # Confirm against soccfg with pucq4_00_check_board.py.
+            "nqz_qubit": 2,  # PUCQ4. Was 1 for squill.
             "nqz_res": 2,
             # ADC
             "ro_ch": self.MUXRO_CH,  # MUX readout channel
@@ -70,11 +73,16 @@ class QICK_experiment:
             "trig_time": 0.4,  # [Clock ticks] - get this value from TOF experiment (updated by Sara July 22 2025 QICK box)
 
             # Changes related to the resonator output channel
-            "mixer_freq": 6000,  # [MHz]
+            #"mixer_freq": 6000,  # [MHz] squill
+            "mixer_freq": 8990,  # [MHz] PUCQ4, centred on the 8920-9059 comb
             #"res_freq_ge": [6217, 6276, 6335, 6407, 6476, 6538],  # MHz, run 5
             #'res_freq_ge': [6217.011, 6275.7973, 6335.1068, 6407.052, 6476.1091, 6538], # Arianna 3/27/
             #'res_freq_ge': [6216.811, 6275.9373, 6335, 6407.0338, 6475.8835, 6538], #Joyce 3/11
-            'res_freq_ge': [7149,7171,7204,7228.9, 7264.22, 7287.54],#[7148.588, 7170.546, 7203.351, 7228.059, 7263.744 ,7286.719], #updated by Kester for run 7, Qick board, 6418.4 R5
+            #'res_freq_ge': [7149,7171,7204,7228.9, 7264.22, 7287.54],#[7148.588, 7170.546, 7203.351, 7228.059, 7263.744 ,7286.719], #updated by Kester for run 7, Qick board, 6418.4 R5
+            # PUCQ4 from "PUCQ4 Initial Characterization.pptx" (M1..M6).
+            # These are the HIGH-POWER VNA values -- replace with the punched
+            # out frequencies once you have run a power sweep.
+            'res_freq_ge': [8920, 8951, 8975, 9000, 9015, 9059],  # PUCQ4
             #'res_freq_ge': [6219.097, 6284.55, 6343.95, 6414.934, 6418.4, 6547.25],  # updated by Kester for run 7, QICK box
 
             # "res_freq_ge": [6191.419, 6216.1, 6292.361, 6405.77, 6432.759, 6468.481],  # MHz, run 4a
@@ -85,9 +93,11 @@ class QICK_experiment:
             # "res_gain_ge": [1,1,0.7,0.7,0.7,1], #[0.4287450656184295, 0.4903077560386716, 0.4903077560386716, 0.3941941738241592, 0.3941941738241592, 0.4903077560386716],  # DAC units
             # "res_freq_ef": [7149.44, 0, 0, 0, 0, 0], # [MHz]
             # "res_gain_ef": [0.6, 0, 0, 0, 0, 0], # [DAC units]
-            "res_freq_ef": [6223.016, 6284.544, 6343.861, 6414.893, 7264.4, 7287.45],  # [MHz] updated by arianna for run 7
+            #"res_freq_ef": [6223.016, 6284.544, 6343.861, 6414.893, 7264.4, 7287.45],  # [MHz] updated by arianna for run 7
+            "res_freq_ef": [8920, 8951, 8975, 9000, 9015, 9059],  # PUCQ4, start at the ge values
             "res_gain_ef": [0.95,0.9,0.95,0.55,0.55,0.95],  # [DAC units]
-            "res_freq_fh": [6223.016, 6284.544, 6343.861, 6414.893, 6414.893, 6546.754],  # [MHz]
+            #"res_freq_fh": [6223.016, 6284.544, 6343.861, 6414.893, 6414.893, 6546.754],  # [MHz]
+            "res_freq_fh": [8920, 8951, 8975, 9000, 9015, 9059],  # PUCQ4, start at the ge values
             "res_gain_fh": [0.95,0.9,0.95,0.55,0.55,0.95],  # [DAC units]
             "res_length": 4.0,  # [us] (1.0 for res spec)
             "res_phase": 0,#[ -180+((1.281174-2.6703) * 180/np.pi), -10, 85,
@@ -110,7 +120,14 @@ class QICK_experiment:
 
         # Qubit Configuration
         self.qubit_cfg = {
-            "qubit_freq_ge": [2764, 2980, 2876, 3096, 3043.32, 3095.65],#[2766, 2980, 2873, 3096, 3043, 3093],  # Joyce 3/11
+            #"qubit_freq_ge": [2764, 2980, 2876, 3096, 3043.32, 3095.65],#[2766, 2980, 2873, 3096, 3043, 3093],  # Joyce 3/11
+            # PUCQ4. *** FLUX TUNABLE -- these are only valid at the DC bias the
+            # VNA characterization was taken at. Q4 moves 5850-7110 MHz across
+            # +/-10 mA, so at the wrong bias these numbers are meaningless. ***
+            # Also note the resonator<->qubit mapping is NOT settled: the deck
+            # says M5->Q4 and M6->Q6, but the avoided-crossing data suggests
+            # Q4->M1 and Q6->M2. Row order here follows the deck's table.
+            "qubit_freq_ge": [5507, 5411, 5487, 5575, 7036, 6401],  # PUCQ4
             "qubit_freq_chevron_detuned_ge": [4189.7582, 3820.4723, 4161.3726, 4463.15226, 4471.43854, 4997.86], # Olivia May 17
             "qubit_freq_ge_starked": [4189.737678, 3820.4723, 4161.3726, 4463.15226, 4471.4469, 4997.86], # Olivia 4/04 for zeno/stark tone
             "fwhm_w01_starked": None, #for err bars
@@ -121,9 +138,16 @@ class QICK_experiment:
             "qubit_pi_len": 0.11, # Olivia May 17th
             # [0.4287450656184295, 0.4287450656184295, 0.4903077560386716, 0.6, 0.4903077560386716, 0.4287450656184295], # For spec pulse
             "qubit_length_ge": 20,  # 5 [us] for spec Pulse
-            "qubit_freq_ef": [2764, 2980, 2876, 3096, 3043.32, 3095.65], #Q4 not fixed, looks like it shifted quite a lot
+            #"qubit_freq_ef": [2764, 2980, 2876, 3096, 3043.32, 3095.65], #Q4 not fixed, looks like it shifted quite a lot
+            # PUCQ4: f_ef = f_ge - alpha, with alpha from the deck
+            # (220, 210, 218, 218, 214, 216 MHz). Cross-checks against the
+            # measured f_gf/2 column to <0.5 MHz on every row.
+            "qubit_freq_ef": [5287, 5201, 5269, 5357, 6822, 6185],  # PUCQ4
             # [MHz] Freqs of Qubit e/f Transition
-            "qubit_freq_fh": [4016.3, 3450.8, 3988.44, 4292.73, 4292.73, 4833.17],
+            #"qubit_freq_fh": [4016.3, 3450.8, 3988.44, 4292.73, 4292.73, 4833.17],
+            # PUCQ4: rough guess only, f_fh ~ f_ef - alpha. The f-h anharmonicity
+            # is larger than alpha, so expect these to be off by tens of MHz.
+            "qubit_freq_fh": [5067, 4991, 5051, 5139, 6608, 5969],  # PUCQ4
             "qubit_freq_ftores": [4016.3, 3644.76, 3988.44, 4292.73, 4303.18, 4833.17],
             "qubit_gain_ef":  [0.003,0.002,0.002,0.0005,0.002, 0.004],# [0.03, 0.14, 0.04, 0.1, 0.15, 0.08],#
             "qubit_gain_fh": [0.001, 0.015, 0.0075, 0.1, 0.15, 0.006],
@@ -148,7 +172,8 @@ class QICK_experiment:
             #"pi_amp": [0.7, 0.95, 0.75, 0.78, 0.77, 0.8],  # With shorter sigma (5+4 DAC instead of 5+5 DAC atten for qubit)
             "pi_ef_amp": [0.563, 0.673, 0.511, 0.7018, 0.6751, 0.758], # Arianna 3/27
             "pi_fh_amp": [0.563, 0.8023, 0.511, 0.7018, 0.6751, 0.595],  # 0.589, 0.61, .6
-            "qubit_mixer_freq": 4300,  # [MHz]
+            #"qubit_mixer_freq": 4300,  # [MHz] squill
+            "qubit_mixer_freq": 6200,  # [MHz] PUCQ4, centred on 5411-7036
 
         }
 
