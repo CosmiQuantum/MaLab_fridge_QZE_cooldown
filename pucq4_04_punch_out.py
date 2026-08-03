@@ -37,19 +37,37 @@ from socProxy import makeProxy
 import pucq4_config as P
 
 # ---------------------------------------------------------------- knobs -----
-RESONATORS = [0, 1, 2, 3, 4, 5]
+RESONATORS = [0]       # start with ONE. All six at these settings is hours.
 
-SPAN = 4.0             # [MHz] +/- around each measured resonator frequency
-STEP = 0.05            # [MHz]
+# The punch-out shift is the LAMB SHIFT, not chi. The deck lists Lamb shifts of
+# 4, 4, 4, 4, 10, 5 MHz for M1..M6, so the dressed resonance can sit up to
+# ~10 MHz from the bare one (M5 is the big one). Do not narrow this below ~8 --
+# chi (~250 kHz) is the qubit-STATE-dependent shift and a different quantity.
+SPAN = 8.0             # [MHz] +/- around each measured resonator frequency
+STEP = 0.2             # [MHz] plenty against a multi-MHz shift
 
 GAIN_START = 0.02      # punch-out usually happens well below 1.0
 GAIN_STOP = 1.0
-N_GAINS = 12           # log spaced
+N_GAINS = 8            # log spaced
 
-REPS = 600             # hardware averaging -- one round trip per point
-ROUNDS = 1
+# Adaptive averaging. Signal scales with gain, noise with 1/sqrt(reps), so
+# reps ~ 1/gain^2 holds SNR constant across the power sweep. Without this the
+# low-power rows are pure noise -- which is exactly what happened on the first
+# run: every row below gain ~0.04 was speckle, and the analysis then read the
+# bottom row as the "low power" resonance and reported multi-MHz shifts that
+# were not real.
+REPS_AT_FULL_GAIN = 600
+# The avg buffer holds 16384 accumulated samples and each rep writes one, so
+# reps CANNOT exceed that -- the previous cap of 20000 would have overflowed it.
+# Averaging beyond MAX_REPS is done with rounds instead (a few extra Pyro round
+# trips, negligible next to seconds of measurement at these rep counts).
+MAX_REPS = 8192
+MAX_TOTAL_AVERAGES = 16384
 RES_LENGTH = 10.0      # [us]
-RELAX_DELAY = 50       # [us]
+# No qubit is driven here and the resonator rings down in ~1 us (kappa <1 MHz),
+# so this only needs to be a few ring-down times. It was 50 us, which at 16384
+# averages was costing more than the measurement itself.
+RELAX_DELAY = 10       # [us]
 
 study = "pucq4_first_light"
 sub_study = "punch_out"
@@ -70,6 +88,40 @@ class ResSpecProgram(AveragerProgramV2):
         self.pulse(ch=cfg["res_ch"], name="res_pulse", t=0)
 
 
+def averaging_for_gain(gain):
+    """(reps, rounds) giving ~constant SNR across the power sweep.
+
+    Signal scales with gain and noise with 1/sqrt(total averages), so the total
+    goes as 1/gain^2. Split it so reps stays within the 16384-sample avg buffer
+    and the remainder goes to rounds.
+    """
+    total = REPS_AT_FULL_GAIN / max(gain, 1e-6) ** 2
+    total = int(np.clip(total, REPS_AT_FULL_GAIN, MAX_TOTAL_AVERAGES))
+    reps = min(total, MAX_REPS)
+    rounds = max(1, int(np.ceil(total / reps)))
+    return reps, rounds
+
+
+def dip_if_significant(freqs, amps, n_sigma=5.0):
+    """(dip frequency, depth, snr) or (None, ...) if the row is just noise.
+
+    Rows below the noise floor still have a minimum, and taking it blindly is
+    what produced the bogus multi-MHz punch-out shifts. A row only counts if
+    its dip is deep compared with the point-to-point scatter.
+    """
+    amps = np.asarray(amps, float)
+    sigma = 1.4826 * np.median(np.abs(np.diff(amps))) / np.sqrt(2)
+    base = np.median(amps)
+    i = int(np.argmin(amps))
+    depth = base - amps[i]
+    if sigma <= 0:
+        return None, 0.0, 0.0
+    snr = depth / sigma
+    if snr < n_sigma:
+        return None, float(depth), float(snr)
+    return float(freqs[i]), float(depth), float(snr)
+
+
 def steepest_point(freqs, amps):
     """Frequency of maximum |d|IQ|/df| -- the best readout point.
 
@@ -84,7 +136,7 @@ def steepest_point(freqs, amps):
 def main():
     soc, soccfg = makeProxy()
 
-    centers = np.asarray(P.RES_FREQS_VNA, dtype=float)
+    centers = np.asarray(P.RES_FREQS_MEASURED, dtype=float)
     offsets = np.arange(-SPAN, SPAN + STEP / 2, STEP)
     gains = np.logspace(np.log10(GAIN_START), np.log10(GAIN_STOP), N_GAINS)
 
@@ -107,15 +159,19 @@ def main():
         t0 = time.time()
         block = np.zeros((len(gains), len(offsets)))
         for gi, g in enumerate(gains):
-            for fi, df in enumerate(tqdm(offsets, desc=f"M{ri+1} g={g:.3f}",
+            for fi, df in enumerate(tqdm(offsets,
+                                         desc=f"M{ri+1} g={g:.3f} "
+                                              f"({averaging_for_gain(g)[0]}x"
+                                              f"{averaging_for_gain(g)[1]})",
                                          leave=False)):
                 c = dict(cfg)
                 c["_freq"] = float(centers[ri] + df)
                 c["_gain"] = float(g)
-                prog = ResSpecProgram(soccfg, reps=REPS,
+                reps, rounds = averaging_for_gain(g)
+                prog = ResSpecProgram(soccfg, reps=reps,
                                       final_delay=RELAX_DELAY, cfg=c)
                 block[gi, fi] = P.amp_from_iq(
-                    prog.acquire(soc, rounds=ROUNDS, progress=False))
+                    prog.acquire(soc, rounds=rounds, progress=False))
         all_amps[ri] = block
         print(f"  M{ri+1} done ({time.time()-t0:.0f} s)")
 
@@ -133,32 +189,50 @@ def main():
         freqs = centers[ri] + offsets
         # Normalise each power row so low and high power are comparable.
         norm = block / (np.median(block, axis=1, keepdims=True) + 1e-30)
-        dips = freqs[np.argmin(block, axis=1)]
+
+        # Only rows whose dip beats the noise are usable.
+        dips, usable = [], []
+        for gi in range(len(gains)):
+            f_d, depth, snr = dip_if_significant(freqs, block[gi])
+            dips.append(f_d if f_d is not None else np.nan)
+            usable.append(f_d is not None)
+        dips = np.array(dips, dtype=float)
+        usable = np.array(usable)
 
         im = ax.pcolormesh(freqs, gains, norm, shading="auto")
-        ax.plot(dips, gains, "r.-", linewidth=1.2, markersize=5)
+        ax.plot(dips[usable], gains[usable], "r.-", linewidth=1.4,
+                markersize=6, label="resolved dip")
+        if (~usable).any():
+            ax.plot(np.full((~usable).sum(), np.nanmedian(dips[usable])
+                            if usable.any() else freqs[len(freqs)//2]),
+                    gains[~usable], "x", color="0.6", markersize=5,
+                    label="below noise floor")
+        ax.legend(fontsize=7, loc="upper left")
         ax.set_yscale("log")
         ax.set_xlabel("Frequency (MHz)")
         ax.set_ylabel("Drive gain")
         fig.colorbar(im, ax=ax, label="|IQ| / row median")
 
-        f_lo, f_hi = float(dips[0]), float(dips[-1])
-        shift = f_lo - f_hi
-        # Punch-out power: the gain where the dip has moved halfway.
-        half = f_hi + 0.5 * shift
-        pidx = int(np.argmin(np.abs(dips - half)))
-        g_punch = float(gains[pidx])
+        if usable.sum() >= 2:
+            g_ok = gains[usable]
+            d_ok = dips[usable]
+            f_lo, f_hi = float(d_ok[0]), float(d_ok[-1])   # lowest usable power
+            shift = f_lo - f_hi
+            g_floor = float(g_ok.min())
+            f_steep, slope = steepest_point(freqs, block[np.flatnonzero(usable)[0]])
+        else:
+            f_lo = f_hi = shift = np.nan
+            g_floor = np.nan
+            f_steep, slope = steepest_point(freqs, block[-1])
 
-        # Best readout point on the LOWEST power trace.
-        f_steep, slope = steepest_point(freqs, block[0])
-        summary.append((ri, f_lo, f_hi, shift, g_punch, f_steep))
-
-        ax.set_title(f"M{ri+1}: low-P {f_lo:.3f}  high-P {f_hi:.3f}  "
-                     f"shift {shift:+.3f} MHz\npunch-out near gain "
-                     f"{g_punch:.3f}")
-        logger.info(f"M{ri+1}: dressed {f_lo:.3f}, bare {f_hi:.3f}, "
-                    f"shift {shift:+.3f} MHz, punch-out gain {g_punch:.3f}, "
-                    f"steepest {f_steep:.3f}")
+        summary.append((ri, f_lo, f_hi, shift, g_floor, f_steep))
+        ax.set_title(f"M{ri+1}: usable down to gain {g_floor:.3f}  "
+                     f"shift over usable range {shift:+.3f} MHz\n"
+                     f"read at {f_steep:.3f} MHz")
+        logger.info(f"M{ri+1}: lowest usable gain {g_floor:.4f}, "
+                    f"dip {f_lo:.3f} -> {f_hi:.3f}, shift {shift:+.3f} MHz, "
+                    f"steepest {f_steep:.3f}, "
+                    f"{usable.sum()}/{len(gains)} rows usable")
 
     for ax in axes.flat[len(RESONATORS):]:
         ax.set_visible(False)

@@ -33,6 +33,13 @@ import numpy as np
 RES_FREQS_VNA = np.array([8920.0, 8951.0, 8975.0, 9000.0, 9015.0, 9059.0])  # MHz
 RES_FREQS_DESIGN = np.array([7437.0, 7467.0, 7501.0, 7528.0, 7562.0, 7598.0])  # MHz
 
+# Measured on QICK by pucq4_04_punch_out.py, read off the high-gain rows where
+# the dip is well resolved (the low-gain rows were below the noise floor).
+# Up to 0.7 MHz from the VNA values -- which matters, because the resonators
+# are under 1 MHz wide, so using the VNA numbers puts you most of a linewidth
+# off. Use THESE for parking the readout.
+RES_FREQS_MEASURED = np.array([8919.6, 8951.6, 8974.8, 8999.85, 9014.3, 9058.85])
+
 # Qubit g-e frequencies, same row order as the resonators above.
 # WARNING: the resonator <-> qubit mapping is NOT settled. The deck labels
 # M5->Q4 and M6->Q6, but the avoided-crossing data suggests Q4 couples to M1

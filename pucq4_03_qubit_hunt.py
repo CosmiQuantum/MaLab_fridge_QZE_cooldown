@@ -176,7 +176,7 @@ def load_res_freqs():
     path = os.path.join(P.DATA_ROOT, "")  # placeholder, see below
     # The npz lives under the timestamped tree, so just use the VNA values
     # unless RES_FREQS_MEASURED has been filled in by hand.
-    return np.asarray(P.RES_FREQS_VNA, dtype=float)
+    return np.asarray(P.RES_FREQS_MEASURED, dtype=float)
 
 
 def main():
