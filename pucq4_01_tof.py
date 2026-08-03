@@ -37,6 +37,14 @@ CAPTURE_LENGTH = 1.5    # [us] capture window, must exceed the cable delay
 SOFT_AVGS = 400
 GAIN = 0.9              # near max -- PUCQ4 needs it, see 00_check_board
 COMPARE_FREQ = 7200.0   # [MHz] old chip's band, as a control. None to skip.
+
+# Data saving -- same tree as the round robin scripts. Root, run name and
+# device name live in pucq4_config.py.
+study = "pucq4_first_light"
+sub_study = "tof"
+substudy_txt_notes = ("PUCQ4 time of flight, one resonator at a time. "
+                      "Includes a 7200 MHz control tone in the old chip's "
+                      "band to separate RF-chain problems from config ones.")
 # -----------------------------------------------------------------------------
 
 
@@ -88,8 +96,14 @@ def main():
     if COMPARE_FREQ is not None:
         targets.append(("control", float(COMPARE_FREQ)))
 
-    outdir = P.make_output_folder("01_tof")
+    folders = P.setup_data_folders(study, sub_study, substudy_txt_notes)
+    outdir = folders["studyDataFolder"]
+    logger = folders["logger"]
+    logger.info(f"TOF start: gain={GAIN}, rounds={SOFT_AVGS}, "
+                f"capture={CAPTURE_LENGTH} us, cfg={cfg}")
+
     results, estimates = [], []
+    traces = {}
 
     ncol = 2
     nrow = int(np.ceil(len(targets) / ncol))
@@ -101,6 +115,8 @@ def main():
         tof, floor, peak = edge_estimate(t, mag)
         snr = peak / (floor + 1e-30)
         results.append((label, freq, tof, snr))
+        traces[label] = np.stack([t, I, Q], axis=0)
+        logger.info(f"{label} {freq:.1f} MHz: tof={tof}, peak/floor={snr:.2f}")
 
         ax.plot(t, I, linewidth=0.9, label="I")
         ax.plot(t, Q, linewidth=0.9, label="Q")
@@ -122,8 +138,16 @@ def main():
     fig.suptitle(f"PUCQ4 time of flight, gain={GAIN}", fontsize=15)
     fig.tight_layout()
     path = os.path.join(outdir, "tof.png")
-    fig.savefig(path, dpi=150)
+    fig.savefig(path, dpi=200)
+    fig.savefig(os.path.join(outdir, "tof.pdf"), dpi=200)
     plt.close(fig)
+
+    np.savez(os.path.join(outdir, "tof.npz"),
+             gain=GAIN, rounds=SOFT_AVGS, capture_length=CAPTURE_LENGTH,
+             labels=np.array([r[0] for r in results]),
+             freqs=np.array([r[1] for r in results]),
+             snr=np.array([r[3] for r in results]),
+             **{f"trace_{k}": v for k, v in traces.items()})
 
     print("\n" + "=" * 70)
     print(f"{'':10}{'freq (MHz)':>12}{'TOF (us)':>12}{'peak/floor':>13}")

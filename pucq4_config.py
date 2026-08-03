@@ -21,6 +21,9 @@ are self-contained so they can't break the config for the other chip.
 """
 
 import os
+import datetime
+import logging
+
 import numpy as np
 
 # ----------------------------------------------------------------------------
@@ -79,7 +82,18 @@ RES_LENGTH = 2.0             # [us] readout pulse / capture length
 TRIG_TIME = 0.4              # [us] ADC trigger delay -- CONFIRM with 01_tof
 RELAX_DELAY = 100.0          # [us]
 
-OUTPUT_FOLDER = "pucq4_data"
+# ----------------------------------------------------------------------------
+# Data saving -- mirrors round_robin_benchmark_res_spec_simple.py exactly:
+#
+#   M:/_Data/20250822 - Olivia/{RUN_NAME}/{DEVICE_NAME}/{study}/{sub_study}/
+#       {timestamp}/
+#           optimization/
+#           study_data/          <- plots and .npz
+#           documentation/       <- sub_study_notes.txt, RR_script.log
+# ----------------------------------------------------------------------------
+DATA_ROOT = "M:/_Data/20250822 - Olivia"
+RUN_NAME = "pucq4_run_started_Aug_3"
+DEVICE_NAME = "PUCQ4"
 
 
 def base_cfg():
@@ -141,7 +155,53 @@ def nyquist_zone(freq_mhz, fs_mhz):
     return int(np.floor(freq_mhz / (fs_mhz / 2.0))) + 1
 
 
-def make_output_folder(name):
-    path = os.path.join(OUTPUT_FOLDER, name)
-    os.makedirs(path, exist_ok=True)
-    return path
+def setup_data_folders(study, sub_study, substudy_txt_notes, log_name="RR_script.log"):
+    """Build the round robin folder tree and return the folders + a logger.
+
+    Same layout and the same variable names as
+    round_robin_benchmark_res_spec_simple.py, so PUCQ4 helper output lands
+    alongside the round robin data instead of in the repo directory.
+
+    Returns a dict with dataSetFolder, optimizationFolder, studyDataFolder,
+    studyDocumentationFolder, and logger.
+    """
+    data_set = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+    runFolder = os.path.join(DATA_ROOT, RUN_NAME)
+    deviceFolder = os.path.join(runFolder, DEVICE_NAME)
+    studyFolder = os.path.join(deviceFolder, study)
+    subStudyFolder = os.path.join(studyFolder, sub_study)
+
+    dataSetFolder = os.path.join(subStudyFolder, data_set)
+    optimizationFolder = os.path.join(dataSetFolder, "optimization")
+    studyDataFolder = os.path.join(dataSetFolder, "study_data")
+    studyDocumentationFolder = os.path.join(dataSetFolder, "documentation")
+
+    for folder in (runFolder, deviceFolder, studyFolder, subStudyFolder,
+                   dataSetFolder, optimizationFolder, studyDataFolder,
+                   studyDocumentationFolder):
+        os.makedirs(folder, exist_ok=True)
+
+    with open(os.path.join(studyDocumentationFolder, "sub_study_notes.txt"),
+              "w", encoding="utf-8") as f:
+        f.write(substudy_txt_notes)
+
+    # Custom logger with propagation disabled, so the underlying qick package's
+    # own logs stay out of this file -- same reasoning as the RR script.
+    logger = logging.getLogger("custom_logger_for_rr_only")
+    logger.setLevel(logging.DEBUG)
+    handler = logging.FileHandler(
+        os.path.join(studyDocumentationFolder, log_name), mode="a")
+    handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+    logger.addHandler(handler)
+    logger.propagate = False
+
+    print(f"\nSaving to: {dataSetFolder}\n")
+    return {
+        "dataSetFolder": dataSetFolder,
+        "optimizationFolder": optimizationFolder,
+        "studyDataFolder": studyDataFolder,
+        "studyDocumentationFolder": studyDocumentationFolder,
+        "logger": logger,
+    }
