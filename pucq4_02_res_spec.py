@@ -10,20 +10,22 @@ WHY THIS SHOULD WORK WHERE TOF DID NOT
 pucq4_01_tof.py saw nothing at 9 GHz, but that measurement is the worst case:
 acquire_decimated captures a raw trace at the full 553 MHz decimated bandwidth.
 This script uses the accumulated readout, which integrates over RES_LENGTH and
-then averages ROUNDS times. Against the TOF run that is roughly:
+then averages REPS*ROUNDS times. Against the TOF run that is roughly:
 
     10*log10(553e6 / (1/RES_LENGTH))   narrower noise bandwidth
-  + 10*log10(ROUNDS / 400)             relative averaging
+  + 10*log10(REPS*ROUNDS / 400)        relative averaging
 
 which at the defaults below is ~40 dB. The gap TOF revealed was ~18 dB, and the
 VNA that DID see these resonators was only ~31 dB ahead of the TOF run. So
-there is comfortable margin -- but if you still see nothing, raise ROUNDS and
+there is comfortable margin -- but if you still see nothing, raise REPS and
 RES_LENGTH before concluding anything. The script prints its own budget.
 
     python pucq4_02_res_spec.py
 """
 
 import os
+import time
+
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
@@ -43,7 +45,13 @@ F_STEP = 0.2            # [MHz] coarse first pass; resonators are <1 MHz wide,
 RES_LENGTH = 10.0       # [us] integration window. Max is 29.6 us on this
                         # firmware (16384 samples at 552.96 MHz). Every
                         # doubling buys 3 dB.
-ROUNDS = 1000           # averages per point. Every 4x buys 6 dB.
+# Averaging. REPS is a hardware loop inside the tProc: the whole average costs
+# ONE Pyro round trip. ROUNDS is a software loop in QICK's acquire(), costing a
+# round trip EACH -- at ~8 ms of network latency apiece, rounds=1000 made every
+# frequency point take 8.4 s to do 30 ms of measuring. Put the averaging in
+# REPS and leave ROUNDS at 1.
+REPS = 1000
+ROUNDS = 1
 GAIN = 0.9              # near max; PUCQ4 sits ~11 dB down the sin(x)/x curve
 RELAX_DELAY = 20        # [us] no qubit is being excited, so this can be short
 
@@ -76,7 +84,7 @@ def sweep(soc, soccfg, cfg, freqs, label):
         c = dict(cfg)
         c["_freq"] = float(f)
         c["_gain"] = float(GAIN)
-        prog = ResSpecProgram(soccfg, reps=1,
+        prog = ResSpecProgram(soccfg, reps=REPS,
                               final_delay=c["relax_delay"], cfg=c)
         amps[i] = P.amp_from_iq(prog.acquire(soc, rounds=ROUNDS,
                                              progress=False))
@@ -84,11 +92,15 @@ def sweep(soc, soccfg, cfg, freqs, label):
 
 
 def sensitivity_budget():
-    """dB improvement over the pucq4_01_tof.py run, printed up front."""
+    """dB improvement over the pucq4_01_tof.py run, printed up front.
+
+    REPS and ROUNDS both average, so the total is their product -- they differ
+    only in where the loop runs, not in the noise they remove.
+    """
     tof_bw, tof_avgs = 552.96e6, 400.0
     this_bw = 1.0 / (RES_LENGTH * 1e-6)
     return (10 * np.log10(tof_bw / this_bw)
-            + 10 * np.log10(ROUNDS / tof_avgs))
+            + 10 * np.log10((REPS * ROUNDS) / tof_avgs))
 
 
 def main():
@@ -107,16 +119,29 @@ def main():
     freqs = np.arange(F_START, F_STOP + F_STEP / 2, F_STEP)
 
     print(f"\nSensitivity vs the TOF run: +{gain_db:.0f} dB")
-    print(f"  ({RES_LENGTH} us integration, {ROUNDS} rounds)")
+    print(f"  ({RES_LENGTH} us integration, {REPS} reps x {ROUNDS} rounds)")
     print(f"PUCQ4 sweep: {len(freqs)} points, {F_START}-{F_STOP} MHz")
     if CONTROL_BAND:
         n_ctl = int((CONTROL_BAND[1] - CONTROL_BAND[0]) / F_STEP) + 1
         print(f"Control sweep: {n_ctl} points, "
               f"{CONTROL_BAND[0]}-{CONTROL_BAND[1]} MHz")
-    print(f"Rough runtime: {(len(freqs)) * 0.4 / 60:.0f}-"
-          f"{(len(freqs)) * 1.0 / 60:.0f} min for the main sweep\n")
+    # Time one real point rather than guessing. Per-point cost is dominated by
+    # Pyro latency and program compilation, not by the measurement, so it is
+    # not something to estimate from first principles.
+    t0 = time.time()
+    sweep(soc, soccfg, cfg, freqs[:1], "timing")
+    per_point = time.time() - t0
+    total = per_point * len(freqs)
+    if CONTROL_BAND is not None:
+        total += per_point * (int((CONTROL_BAND[1] - CONTROL_BAND[0]) / F_STEP) + 1)
+    print(f"\nMeasured {per_point:.2f} s/point "
+          f"(measurement itself is {REPS * (RES_LENGTH + RELAX_DELAY) / 1e3:.0f} ms)")
+    print(f"Estimated total: {total / 60:.0f} min\n")
+    if per_point > 2.0:
+        print("  That is slow. If ROUNDS > 1, move the averaging into REPS --")
+        print("  ROUNDS costs a network round trip each, REPS does not.\n")
     logger.info(f"res spec: {F_START}-{F_STOP} MHz step {F_STEP}, "
-                f"res_length={RES_LENGTH}, rounds={ROUNDS}, gain={GAIN}, "
+                f"res_length={RES_LENGTH}, reps={REPS}, rounds={ROUNDS}, gain={GAIN}, "
                 f"budget=+{gain_db:.1f} dB vs TOF")
 
     amps = sweep(soc, soccfg, cfg, freqs, "PUCQ4 band")
@@ -140,7 +165,7 @@ def main():
         ax.text(f, ax.get_ylim()[1], f" M{i + 1}", fontsize=8,
                 va="top", color="grey")
     contrast = (np.median(amps) - amps.min()) / (np.median(amps) + 1e-30)
-    ax.set_title(f"PUCQ4 band, gain={GAIN}, {RES_LENGTH} us x {ROUNDS} rounds "
+    ax.set_title(f"PUCQ4 band, gain={GAIN}, {RES_LENGTH} us x {REPS} reps "
                  f"-- depth {contrast * 100:.1f}%  (dotted = VNA values)")
     ax.set_xlabel("Frequency (MHz)")
     ax.set_ylabel("|IQ| (a.u.)")
@@ -183,7 +208,7 @@ def main():
     else:
         print("Nothing clear in the PUCQ4 band yet. Before concluding the")
         print("chain cannot reach 9 GHz, spend the cheap dB:")
-        print(f"  - ROUNDS {ROUNDS} -> {ROUNDS * 4} buys 6 dB")
+        print(f"  - REPS {REPS} -> {REPS * 4} buys 6 dB (cheap: it is a board-side loop)")
         print(f"  - RES_LENGTH {RES_LENGTH} -> 25 us buys "
               f"{10 * np.log10(25 / RES_LENGTH):.0f} dB (29.6 us is the max)")
         print("  - GAIN 0.9 -> 1.0 buys 1 dB")
