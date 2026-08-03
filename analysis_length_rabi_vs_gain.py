@@ -29,8 +29,8 @@ from section_008_save_data_to_h5 import Data_H5
 # ----------------------------------------------------------------------------------------
 # Which dataset to load  (match longitudinal_qze_005_ge_length_rabi_vs_gain.py)
 # ----------------------------------------------------------------------------------------
-run_name = 'bob_run_started_Feb_11'
-device_name = 'squill'
+run_name = 'bob_run_started_Aug_3_2026'
+device_name = 'PUCQ4_flux_tunable_device'
 study = 'length_rabi_chevron2'
 sub_study = 'all_qubits'
 QubitIndex = 4                 # 0-indexed -> this is Q5

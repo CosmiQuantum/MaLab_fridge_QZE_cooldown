@@ -44,8 +44,8 @@ multiply_qubit_reps_by = 2           # only has impact if the line two above is 
 Qs_to_look_at = [5]        # only list the qubits you want to do the RR for
 
 #Data saving info
-run_name = 'bob_run_started_Feb_11'
-device_name = 'squill'
+run_name = 'bob_run_started_Aug_3_2026'
+device_name = 'PUCQ4_flux_tunable_device'
 substudy_txt_notes = ('testing')
 
 study = 'ramsey_n_bar_calibration_more_fringes'

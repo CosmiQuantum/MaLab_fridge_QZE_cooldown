@@ -18,7 +18,7 @@ dates_t1_gains=[]
 delay_times_t1_gains=[]
 for qubit in qubits:
     for gain in gains:
-        run_name = f'bob_run_started_Feb_11/squill/{path}/{gain}/'
+        run_name = f'bob_run_started_Aug_3_2026/squill/{path}/{gain}/'
         p = Path('M:/_Data/20250822 - Olivia/'+run_name)
         top_folder_dates = [item.name for item in p.iterdir() if item.is_dir() and "qubit" in item.name]
         # # QSpec Analysis
@@ -28,7 +28,7 @@ for qubit in qubits:
         #     exp_extension='_ge', scaling=True)
         #
         # q_vs_time.plot_all_q_heatmaps_single_gain(amps_qspec_hg, dates_qspec_hg, rounds_qspec_hg, freqs_qspec_hg,
-        #                                                   f'M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/all_qubits/analysis/',
+        #                                                   f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_3_2026/squill/{path}/all_qubits/analysis/',
         #                                                 save_individual_plots=save_individual_qspec)
 
 
@@ -40,12 +40,12 @@ for qubit in qubits:
         dates_t1_gains.append(dates_t1)
         delay_times_t1_gains.append(delay_times_t1)
         # t1_vs_time.plot_t1_heatmap_single_gain(amps_t1, dates_t1, delay_times_t1,
-        #                                           f'M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/{gain}/analysis/', q_key=qubits[0],
+        #                                           f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_3_2026/squill/{path}/{gain}/analysis/', q_key=qubits[0],
         #                                        gain=gain)
         # t1_vs_time.plot_t1_scatter_single_gain(amps_t1, dates_t1, delay_times_t1,
-        #                                        f'M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/{gain}/analysis/',
+        #                                        f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_3_2026/squill/{path}/{gain}/analysis/',
         #                                        q_key=qubits[0],
         #                                        gain=gain)
     t1_vs_time.plot_t1_scatter_multi_gain_by_round(amps_t1_gains, dates_t1_gains, delay_times_t1_gains,gains,
-                                               f'M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/{gain}/analysis/',
+                                               f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_3_2026/squill/{path}/{gain}/analysis/',
                                                q_key=qubits[0])

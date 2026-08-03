@@ -24,9 +24,9 @@ qubits = [5]
 round_id = 0
 
 path = '2d_test_high_res'
-ramsey_nbar_path = '/bob_run_started_Feb_11/squill/ramsey_n_bar_calibration_more_fringes/run/'
+ramsey_nbar_path = '/bob_run_started_Aug_3_2026/squill/ramsey_n_bar_calibration_more_fringes/run/'
 
-save_dir = f"M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/all_qubits/analysis_extracted_t2/"
+save_dir = f"M:/_Data/20250822 - Olivia/bob_run_started_Aug_3_2026/squill/{path}/all_qubits/analysis_extracted_t2/"
 os.makedirs(save_dir, exist_ok=True)
 
 # qspec -> nbar conversion uses Delta f = 2 chi nbar
@@ -415,7 +415,7 @@ def build_approx_gammaq_from_measured_gamma(nbar_vals, gamma_vals, chi_MHz=-0.13
 # Main
 # =========================
 for qubit in qubits:
-    run_name = f'bob_run_started_Feb_11/squill/{path}/all_qubits/'
+    run_name = f'bob_run_started_Aug_3_2026/squill/{path}/all_qubits/'
     top_folder_dates = [f'qubit_{qubit}round{round_id}']
 
     # -------------------------

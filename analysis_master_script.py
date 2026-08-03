@@ -33,7 +33,7 @@ signal = 'None'
 run_number = 3 #starting from first run with qubits. Run 1 = run4a at quiet, run 2 = run5a at quiet, etc
 figure_quality = 100 #ramp this up to like 500 for presentation plots
 final_figure_quality = 200
-run_name = 'bob_run_started_Feb_11/squill/resonator_tracking_gef_shorter_pulse_len/pulse_len_test'
+run_name = 'bob_run_started_Aug_3_2026/squill/resonator_tracking_gef_shorter_pulse_len/pulse_len_test'
 #run_name = 'run6/6transmon/QZE/QZE_measurement/Optimization/'
 FRIDGE = "QUIET"
 run_notes = ('Added IR shielding, better cryo terminators, thermalizing with 0dB attenuator ') #please make it brief for the plot

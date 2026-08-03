@@ -9,7 +9,7 @@ only needs the saved HDF5 data folders and common scientific Python packages:
 Typical command-line use:
 
     python data_loading_and_analysis_scripts_for_le.py \
-        --data-root "M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/2d_more_stats/all_qubits" \
+        --data-root "M:/_Data/20250822 - Olivia/bob_run_started_Aug_3_2026/squill/2d_more_stats/all_qubits" \
         --qubit 5 \
         --rounds 0:47 \
         --out analysis_for_le_outputs
@@ -71,7 +71,7 @@ try:
 except ImportError:  # The script can still show --help without h5py.
     h5py = None
 
-data_path_name = "M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/2d_more_stats/qubit_5"
+data_path_name = "M:/_Data/20250822 - Olivia/bob_run_started_Aug_3_2026/squill/2d_more_stats/qubit_5"
 DEFAULT_DATA_ROOT = Path(
     data_path_name
 )

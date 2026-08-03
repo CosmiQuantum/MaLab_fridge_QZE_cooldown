@@ -49,8 +49,8 @@ Qs_to_look_at = [4]        # only list the qubits you want to do the RR for
 gain_updated = [0,0.08]
 
 #Data saving info
-run_name = 'bob_run_started_Feb_11'
-device_name = 'squill'
+run_name = 'bob_run_started_Aug_3_2026'
+device_name = 'PUCQ4_flux_tunable_device'
 substudy_txt_notes = ('script longitudinal_qze_005_ge_ramsey_fixed_gain.py')
 
 study = 'repeat_t1_fluctuations_interweaved_gains_overnight'

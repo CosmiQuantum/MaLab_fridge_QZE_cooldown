@@ -13,7 +13,7 @@ number_of_qubits = 6  #currently 4 for NEXUS, 6 for QUIET
 # sweep_DAC_attenuator2 =[10]#[15,20,25,30] #np.linspace(5,20,4)
 
 substudy = 'punchout'
-outerFolder = os.path.join(f"M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{substudy}/{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}/")
+outerFolder = os.path.join(f"M:/_Data/20250822 - Olivia/bob_run_started_Aug_3_2026/squill/{substudy}/{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}/")
 outerfolder_plots = outerFolder + "/documentation/"
 
 DAC_att_1=10

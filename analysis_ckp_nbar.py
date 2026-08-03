@@ -68,7 +68,7 @@ date = "2026-04-20_11-32-25"
 
 # Path to the directory containing the CKP h5 file.
 H5_DIR = (
-    r"M:\_Data\20250822 - Olivia\bob_run_started_Feb_11\squill"
+    r"M:\_Data\20250822 - Olivia\bob_run_started_Aug_3_2026\squill"
     rf"\ckp_nbar_calibration\q5\{date}"
     r"\study_data\Data_h5\ckp_calibration"
 )
@@ -101,7 +101,7 @@ CHI_CONFIG = -0.234 / 2  # MHz -> -0.117 MHz
 SAVE_FIGS = True
 SHOW_FIGS = True
 
-run_name = "bob_run_started_Feb_11"
+run_name = "bob_run_started_Aug_3_2026"
 device_name = "squill"
 study = "ckp_nbar_calibration"
 sub_study = "q5"

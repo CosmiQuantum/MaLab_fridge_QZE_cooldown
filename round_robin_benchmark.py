@@ -59,15 +59,15 @@ multiply_qubit_reps_by = 2           # only has impact if the line two above is 
 Qs_to_look_at = [5]     # only list the qubits you want to do the RR for
 
 #Data saving info
-run_name = 'bob_run_started_Feb_11'
-device_name = 'squill'
+run_name = 'bob_run_started_Aug_3_2026'
+device_name = 'PUCQ4_flux_tunable_device'
 substudy_txt_notes = ('track res and q spec')
-study ='tls_qspec'
-sub_study = f'pulse_len_test'
+study ='initial characterization'
+sub_study = f'seeing_freqs'
 data_set = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 # set which of the following you'd like to run to 'True'
-run_flags = {"tof": False, "res_spec": False, "q_spec": True, "ss":  False, "rabi":  False, "len_rabi": False, "ss_gef": False, "test_act": False, "fh_rabi": False,
+run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss":  False, "rabi":  False, "len_rabi": False, "ss_gef": False, "test_act": False, "fh_rabi": False,
              "t1":  False, "t2r": False, "t2r_correction":False, "t2e":  False, "ef_res_spec":  False, "ef_q_spec":  False, "fh_q_spec":False,
              "rabi_pop_meas": False, "ef_Rabi":  False, "ef_ss": False, "res_spec_fh":  False}
 

@@ -45,7 +45,7 @@ rounds_qspec = {i: [] for i in range(6)}
 freqs_qspec = {i: [] for i in range(6)}
 path= 'QZE_IBM_time_phase_bug_fixed_overnight_test'
 for qubit in qubits:
-    run_name = f'bob_run_started_Feb_11/squill/{path}/all_qubits/'
+    run_name = f'bob_run_started_Aug_3_2026/squill/{path}/all_qubits/'
     top_folder_dates = []
     for round in range(4):
         top_folder_dates.append(f'qubit_{qubit}round{round}')
@@ -70,11 +70,11 @@ for qubit in qubits:
     Qg_calibration[qubit] = Qg_calibration1[qubit]
     from section_005_single_shot_ge import SingleShot
 
-    ss = SingleShot(qubit, 6, f'M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/all_qubits/analysis/',
+    ss = SingleShot(qubit, 6, f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_3_2026/squill/{path}/all_qubits/analysis/',
                     0, True)
 
     best_calibration_dict = t1_vs_time.plot_best_ssf_only(amps, gains, rounds, delay_times,
-                                  f'M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/all_qubits/analysis/single_calibration/',
+                                  f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_3_2026/squill/{path}/all_qubits/analysis/single_calibration/',
                                   ss_class_instance=ss,  # your object that has hist_ssf(...)
                                   ss_cfg={"steps": steps},
                                   Ig_calibration=Ig_calibration,
@@ -88,12 +88,12 @@ for qubit in qubits:
     Qg_calibration1=np.asarray(best_calibration_dict['Qg'], dtype=float).ravel()
     t1_vs_time.plot_all_t1_heatmaps_single_calibration(Is, Qs, Ig_calibration1, \
         Ie_calibration1, Qe_calibration1, Qg_calibration1, gains, rounds, delay_times,
-                                    f'M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/all_qubits/analysis/single_calibration/')
+                                    f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_3_2026/squill/{path}/all_qubits/analysis/single_calibration/')
 
     t1_vs_time.plot_all_t1_heatmaps_single_calibration_IQ(Is, Qs, Ig_calibration1, \
                                                        Ie_calibration1, Qe_calibration1, Qg_calibration1, gains, rounds,
                                                        delay_times,
-                                                       f'M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/all_qubits/analysis/single_calibration/')
+                                                       f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_3_2026/squill/{path}/all_qubits/analysis/single_calibration/')
 
     t2_vs_time = T2rVsTime(figure_quality, final_figure_quality, tot_num_of_qubits, top_folder_dates, save_figs,
                           fit_saved,
@@ -111,11 +111,11 @@ for qubit in qubits:
 
     t2_vs_time.plot_all_t2_heatmaps_single_calibration(Is_t2, Qs_t2, Ig_calibration1, \
         Ie_calibration1, Qe_calibration1, Qg_calibration1, gains_t2, rounds_t2, delay_times_t2,
-                                               f'M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/all_qubits/analysis/single_calibration/')
+                                               f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_3_2026/squill/{path}/all_qubits/analysis/single_calibration/')
     t2_vs_time.plot_all_t2_heatmaps_single_calibration_IQ(Is_t2, Qs_t2, Ig_calibration1, \
                                                        Ie_calibration1, Qe_calibration1, Qg_calibration1, gains_t2,
                                                        rounds_t2, delay_times_t2,
-                                                       f'M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/all_qubits/analysis/single_calibration/')
+                                                       f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_3_2026/squill/{path}/all_qubits/analysis/single_calibration/')
 
     q_vs_time = QubitFreqsVsTime(figure_quality, final_figure_quality, tot_num_of_qubits, top_folder_dates, save_figs,
                            fit_saved,
@@ -134,8 +134,8 @@ for qubit in qubits:
 
     q_vs_time.plot_all_q_heatmaps_single_calibration(Is_qspec, Qs_qspec, Ig_calibration1, \
         Ie_calibration1, Qe_calibration1, Qg_calibration1, gains_qspec, rounds_qspec, freqs_qspec,
-                                               f'M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/all_qubits/analysis/single_calibration/')
+                                               f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_3_2026/squill/{path}/all_qubits/analysis/single_calibration/')
     q_vs_time.plot_all_q_heatmaps_single_calibration_IQ(Is_qspec, Qs_qspec, Ig_calibration1, \
                                                      Ie_calibration1, Qe_calibration1, Qg_calibration1, gains_qspec,
                                                      rounds_qspec, freqs_qspec,
-                                                     f'M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/all_qubits/analysis/single_calibration/')
+                                                     f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_3_2026/squill/{path}/all_qubits/analysis/single_calibration/')

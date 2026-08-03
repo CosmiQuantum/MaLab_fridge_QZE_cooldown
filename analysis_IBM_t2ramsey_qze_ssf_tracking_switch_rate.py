@@ -52,7 +52,7 @@ rounds_qspec = {i: [] for i in range(6)}
 freqs_qspec = {i: [] for i in range(6)}
 path= 'QZE_IBM_q5_rotated_phase'
 for qubit in qubits:
-    run_name = f'bob_run_started_Feb_11/squill/{path}/all_qubits/'
+    run_name = f'bob_run_started_Aug_3_2026/squill/{path}/all_qubits/'
     top_folder_dates = []
     for round in range(4):
         top_folder_dates.append(f'qubit_{qubit}round{round}')
@@ -75,10 +75,10 @@ for qubit in qubits:
     delay_times[qubit]=delay_times1[qubit]
 
     from section_005_single_shot_ge import SingleShot
-    ss = SingleShot(qubit, 6, f'M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/all_qubits/analysis/', 0, True)
+    ss = SingleShot(qubit, 6, f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_3_2026/squill/{path}/all_qubits/analysis/', 0, True)
 
     t1_vs_time.plot_all_t1_heatmaps_with_singular_ssf_vs_time_plotting(amps, gains, rounds, delay_times,
-                                    f'M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/all_qubits/analysis/',ss_class_instance=ss,            # your object that has hist_ssf(...)
+                                    f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_3_2026/squill/{path}/all_qubits/analysis/',ss_class_instance=ss,            # your object that has hist_ssf(...)
                                     ss_cfg={"steps": steps}, max_ylabels=6,
                                     Ig_calibration=Ig_calibration,
                                     Ie_calibration=Ie_calibration,

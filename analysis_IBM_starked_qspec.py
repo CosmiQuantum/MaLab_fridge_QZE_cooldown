@@ -39,7 +39,7 @@ rounds_qspec = {i: [] for i in range(6)}
 freqs_qspec = {i: [] for i in range(6)}
 path= 'finer_steps_t2'
 for qubit in qubits:
-    run_name = f'bob_run_started_Feb_11/squill/{path}/all_qubits/'
+    run_name = f'bob_run_started_Aug_3_2026/squill/{path}/all_qubits/'
     top_folder_dates = []
     for round in range(4):
         top_folder_dates.append(f'qubit_{qubit}round{round}')
@@ -56,5 +56,5 @@ for qubit in qubits:
     freqs_qspec[qubit] = delay_times1[qubit]
 
     q_vs_time.plot_all_q_heatmaps_nbar(amps_qspec, gains_qspec, rounds_qspec, freqs_qspec,
-                                               f'M:/_Data/20250822 - Olivia/bob_run_started_Feb_11/squill/{path}/all_qubits/analysis/',
+                                               f'M:/_Data/20250822 - Olivia/bob_run_started_Aug_3_2026/squill/{path}/all_qubits/analysis/',
                                        chi_MHz=-0.137) #used 1/2 of 2X
