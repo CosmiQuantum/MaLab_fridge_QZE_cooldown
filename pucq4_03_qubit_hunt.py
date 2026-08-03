@@ -51,8 +51,19 @@ REPS = 200
 ROUNDS = 1               # hardware freq sweep, so this stays 1
 RELAX_DELAY = 100        # [us]
 
-RES_GAIN = 0.9
+# Readout settings. BOTH of these were wrong on the first run:
+#
+#  - RES_GAIN 0.9 is very likely above punch-out, which decouples the qubit
+#    from the resonator entirely. Run pucq4_04_punch_out.py and use ~1/3 of the
+#    punch-out gain here.
+#  - READOUT_OFFSET parks the readout off the dip minimum. A dispersive shift
+#    changes |IQ| by (slope x shift), and the slope is ZERO at the bottom of
+#    the dip -- the worst place to sit, and where the least light comes back
+#    (the first hunt run read 0.75 |IQ| on M6 against an 18-25 off-resonance
+#    baseline). punch_out.py prints the steepest point for each resonator.
+RES_GAIN = 0.1
 RES_LENGTH = 10.0
+READOUT_OFFSET = 0.3     # [MHz] from the resonator centre, onto the slope
 
 study = "pucq4_first_light"
 sub_study = "qubit_hunt"
@@ -103,6 +114,63 @@ def nyquist_chunks(f_start, f_stop, fs):
     return chunks
 
 
+def find_feature(freqs, amps, n_sigma=6.0, min_width=3):
+    """Real spectroscopic feature, or (None, contrast) if it is just noise.
+
+    The first version of this used max|amp - median| / median and flagged a
+    CANDIDATE on all six resonators when every trace was pure noise -- that
+    metric is trivially >5% on any noisy data. A qubit line is not one outlying
+    sample: it is a run of consecutive points displaced from the baseline by
+    much more than the point-to-point scatter.
+
+    Noise is estimated from the median absolute successive difference, which is
+    insensitive to the feature itself (unlike a plain std over the whole trace).
+    """
+    amps = np.asarray(amps, dtype=float)
+
+    # Robust per-point noise, immune to a real feature sitting in the trace.
+    sigma = 1.4826 * np.median(np.abs(np.diff(amps))) / np.sqrt(2)
+    if sigma <= 0:
+        return None, 0.0
+
+    base = np.median(amps)
+    contrast = float(np.abs(amps - base).max() / (abs(base) + 1e-30))
+
+    # Smooth to roughly the expected linewidth before testing. A qubit line
+    # spans many points (20-40 MHz at a 4 MHz step), so averaging over that
+    # width cuts the noise by sqrt(w) while leaving the feature intact. Testing
+    # raw single samples throws away exactly the advantage a wide line gives
+    # you, and misses real lines that are only a few sigma per point.
+    w = max(int(min_width), 5)
+    kernel = np.ones(w) / w
+    smooth = np.convolve(amps, kernel, mode="same")
+    sigma_s = sigma / np.sqrt(w)
+
+    # Baseline from a wide rolling median, so a slow tilt across the band is
+    # not mistaken for a feature.
+    half = max(w * 8, 25)
+    base_roll = np.array([
+        np.median(amps[max(0, i - half):i + half + 1])
+        for i in range(len(amps))])
+
+    dev = np.abs(smooth - base_roll)
+    # Ignore edges, where 'same' convolution and the rolling median are biased.
+    valid = slice(w, len(amps) - w)
+    flagged = np.zeros(len(amps), dtype=bool)
+    flagged[valid] = dev[valid] > n_sigma * sigma_s
+    if not flagged.any():
+        return None, contrast
+
+    idx = np.flatnonzero(flagged)
+    runs = np.split(idx, np.flatnonzero(np.diff(idx) != 1) + 1)
+    good = [r for r in runs if len(r) >= min_width]
+    if not good:
+        return None, contrast
+
+    best = max(good, key=lambda r: dev[r].max())
+    return float(freqs[best[int(np.argmax(dev[best]))]]), contrast
+
+
 def load_res_freqs():
     """Prefer the frequencies pucq4_02 actually measured."""
     path = os.path.join(P.DATA_ROOT, "")  # placeholder, see below
@@ -146,7 +214,7 @@ def main():
             cfg["qubit_length_ge"] = DRIVE_LENGTH
             cfg["qubit_gain_ge"] = DRIVE_GAIN
             cfg["qubit_freq_ge"] = QickSweep1D("freqloop", lo, hi)
-            cfg["_res_freq"] = float(res_freqs[ri])
+            cfg["_res_freq"] = float(res_freqs[ri]) + READOUT_OFFSET
             cfg["_res_gain"] = RES_GAIN
 
             prog = QubitHuntProgram(soccfg, reps=REPS,
@@ -161,14 +229,12 @@ def main():
         amps = np.concatenate(amps_all)
         results[ri] = (freqs, amps)
 
-        base = np.median(amps)
-        dev = np.abs(amps - base)
-        contrast = dev.max() / (base + 1e-30)
-        f_best = float(freqs[int(np.argmax(dev))])
-        logger.info(f"M{ri+1}: contrast {contrast*100:.1f}% at {f_best:.1f} MHz "
+        f_best, contrast = find_feature(freqs, amps)
+        logger.info(f"M{ri+1}: feature {contrast*100:.1f}% at {f_best} MHz "
                     f"({time.time()-t0:.0f} s)")
-        print(f"  M{ri+1}: biggest deviation {contrast*100:.1f}% "
-              f"at {f_best:.1f} MHz  ({time.time()-t0:.0f} s)")
+        print(f"  M{ri+1}: " + (f"feature {contrast*100:.1f}% at {f_best:.1f} MHz"
+              if f_best is not None else "nothing above noise")
+              + f"  ({time.time()-t0:.0f} s)")
 
     # ------------------------------------------------------------------
     # Plot: one panel per resonator, VNA qubit guesses marked
@@ -179,21 +245,19 @@ def main():
     summary = []
     for ax, ri in zip(axes[:, 0], RESONATORS):
         freqs, amps = results[ri]
-        base = np.median(amps)
-        dev = np.abs(amps - base)
-        contrast = dev.max() / (base + 1e-30)
-        f_best = float(freqs[int(np.argmax(dev))])
+        f_best, contrast = find_feature(freqs, amps)
         summary.append((ri, f_best, contrast))
 
         ax.plot(freqs, amps, linewidth=0.8)
-        for qi, qf in enumerate(P.QUBIT_FREQS_VNA):
+        for qf in P.QUBIT_FREQS_VNA:
             ax.axvline(qf, linestyle=":", color="grey", linewidth=0.8)
-        if contrast > 0.05:
+        if f_best is not None:
             ax.axvline(f_best, linestyle="--", color="tab:red")
         ax.set_ylabel("|IQ|")
-        ax.set_title(f"readout on M{ri+1} ({res_freqs[ri]:.0f} MHz) -- "
-                     f"max deviation {contrast*100:.1f}% at {f_best:.0f} MHz"
-                     + ("   <-- CANDIDATE" if contrast > 0.05 else ""))
+        ax.set_title(f"readout on M{ri+1} ({res_freqs[ri]+READOUT_OFFSET:.1f} MHz) -- "
+                     + (f"feature {contrast*100:.1f}% at {f_best:.0f} MHz"
+                        "   <-- CANDIDATE" if f_best is not None
+                        else "nothing above noise"))
     axes[-1, 0].set_xlabel("Qubit drive frequency (MHz)")
     fig.suptitle(f"PUCQ4 qubit hunt, drive gain {DRIVE_GAIN} "
                  f"(dotted = VNA qubit values)", fontsize=14)
@@ -210,7 +274,7 @@ def main():
              **{f"amps_M{ri+1}": results[ri][1] for ri in RESONATORS})
 
     print("\n" + "=" * 74)
-    hits = [(ri, f, c) for ri, f, c in summary if c > 0.05]
+    hits = [(ri, f, c) for ri, f, c in summary if f is not None]
     if hits:
         print("CANDIDATES (readout resonator -> qubit frequency):")
         for ri, f, c in hits:
