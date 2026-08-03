@@ -34,22 +34,33 @@ from socProxy import makeProxy
 import pucq4_config as P
 
 # ---------------------------------------------------------------- knobs -----
-RESONATORS = [0, 1, 2, 3, 4, 5]   # which resonators to park readout on
+# Start with M1 alone: it is the only resonator with punch-out data, so it is
+# the only one whose READOUT_OFFSET below is measured rather than guessed.
+# ~15 min. Widen to all six once M1 either finds a qubit or rules one out.
+RESONATORS = [0]
 
 # Full band to hunt over. The VNA table spans 5411-7036 MHz; this is wide
 # enough to cover being at the wrong flux bias by a long way.
 DRIVE_START = 4200.0     # [MHz]
 DRIVE_STOP = 7800.0      # [MHz]
-DRIVE_STEP = 4.0         # [MHz] lines are 20-40 MHz wide, so this cannot miss
+DRIVE_STEP = 8.0         # [MHz] lines are 20-40 MHz wide, so this cannot miss.
+                         # Coarser than the first run to buy averaging time --
+                         # still 3-5 points across any real line.
 
 DRIVE_GAIN = 0.5         # MUCH higher than squill's 0.002-0.03. Power
                          # broadening is a feature here: it widens the line so
                          # a coarse sweep cannot fall between points.
 DRIVE_LENGTH = 10.0      # [us] probe pulse
 
-REPS = 200
-ROUNDS = 1               # hardware freq sweep, so this stays 1
-RELAX_DELAY = 100        # [us]
+# *** This was 200 on the run that found nothing. ***
+# Punch-out needed 65536 averages per point to resolve a resonance dip on this
+# chip; the hunt is trying to see a ~25% amplitude change and had 200. That is
+# ~18x worse SNR than the measurement that works, which alone explains a flat
+# trace. The avg buffer is 16384 deep so reps stays under it, with the rest in
+# rounds.
+REPS = 4096
+ROUNDS = 4               # total 16384 averages/point
+RELAX_DELAY = 100        # [us] T1 unknown; keep generous to avoid saturating
 
 # Readout settings. BOTH of these were wrong on the first run:
 #
@@ -61,9 +72,16 @@ RELAX_DELAY = 100        # [us]
 #    the dip -- the worst place to sit, and where the least light comes back
 #    (the first hunt run read 0.75 |IQ| on M6 against an 18-25 off-resonance
 #    baseline). punch_out.py prints the steepest point for each resonator.
-RES_GAIN = 0.1
+# Punch-out found NO shift from gain 0.008 to 1.0 -- 42 dB with the resonance
+# fixed -- so this chip sits below punch-out at every accessible power (n_crit
+# ~200 photons, and 30 dB of loss means even gain 1.0 does not reach it).
+# Readout gain is therefore free to be high for SNR; 0.2 stays clear of the
+# mild Kerr-looking pull seen above 0.1.
+RES_GAIN = 0.2
 RES_LENGTH = 10.0
-READOUT_OFFSET = 0.3     # [MHz] from the resonator centre, onto the slope
+# Park on the steepest part of the resonance, where d|IQ|/df is largest.
+# punch_out.py reported 8919.400 MHz for M1 against a dip at ~8919.8.
+READOUT_OFFSET = -0.4    # [MHz] from the resonator centre, onto the slope
 
 study = "pucq4_first_light"
 sub_study = "qubit_hunt"
