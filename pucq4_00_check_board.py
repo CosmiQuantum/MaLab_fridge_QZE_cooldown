@@ -34,10 +34,21 @@ def describe_converters(soccfg):
     for i, r in enumerate(soccfg["readouts"]):
         ros.append({
             "ch": i,
-            "type": r.get("type", "?"),
+            # axis_dyn_readout_v1 reports its name under 'ro_type', not 'type'.
+            "type": r.get("type", r.get("ro_type", "?")),
             "fs": r.get("fs", float("nan")),
         })
     return gens, ros
+
+
+def sinc_rolloff_db(freq_mhz, fs_mhz):
+    """DAC sin(x)/x output rolloff at freq, in dB relative to DC.
+
+    A zero-order-hold DAC has a null at fs, so a tone high in Nyquist zone 2
+    comes out far weaker than one lower down -- at the same gain setting.
+    """
+    x = np.pi * freq_mhz / fs_mhz
+    return 20.0 * np.log10(abs(np.sin(x) / x))
 
 
 def main():
@@ -155,13 +166,36 @@ def main():
     # 3. Analog roll-off warning
     # ------------------------------------------------------------------
     print("\n" + "-" * 78)
-    print("ANALOG BANDWIDTH")
+    print("ANALOG BANDWIDTH AND DAC ROLLOFF")
     print("-" * 78)
-    print("  Nyquist zone arithmetic only tells you the tone is representable.")
-    print("  It says nothing about how much signal actually survives the")
-    print("  analog front end at 9 GHz, which is high for an RFSoC4x2 ADC.")
-    print("  pucq4_01_tof.py is the real test -- if you see no ringdown there,")
-    print("  the problem is analog, not configuration.")
+
+    fs_res = res_gen["fs"]
+    old_chip = 7200.0  # the previous chip's readout band, for comparison
+    print(f"\n  DAC sin(x)/x rolloff (fs = {fs_res:.1f} MHz):")
+    print(f"    {old_chip:.0f} MHz (previous chip): "
+          f"{sinc_rolloff_db(old_chip, fs_res):6.1f} dB")
+    for i, f in enumerate(P.RES_FREQS_VNA):
+        print(f"    {f:.0f} MHz (M{i + 1}):{'':13}"
+              f"{sinc_rolloff_db(f, fs_res):6.1f} dB")
+
+    penalty = (sinc_rolloff_db(float(np.mean(P.RES_FREQS_VNA)), fs_res)
+               - sinc_rolloff_db(old_chip, fs_res))
+    print(f"\n  PUCQ4 is about {abs(penalty):.0f} dB weaker out of the DAC than")
+    print(f"  the previous chip at the SAME gain setting, purely from being")
+    print(f"  closer to the sin(x)/x null at fs. Budget for it: a gain of 0.25")
+    print(f"  becomes roughly {0.25 * 10 ** (abs(penalty) / 20):.2f} for equal power, "
+          f"and max gain is 1.0.")
+
+    print("\n  Things Nyquist arithmetic cannot tell you:")
+    print("    - RFSoC4x2 ADC analog input is nominally good to ~6 GHz. The")
+    print("      previous chip at 7.2 GHz was already past that; 9 GHz is a")
+    print("      full Nyquist zone further out.")
+    print("    - Your HEMT and TWPA are almost certainly 4-8 GHz parts, and so")
+    print("      are the circulators and isolators. At 9 GHz you may be above")
+    print("      the band of the entire cryogenic amplification chain. Nothing")
+    print("      in software fixes that.")
+    print("\n  pucq4_01_tof.py is the real test. If you see no ringdown there,")
+    print("  the problem is the RF chain, not the configuration.")
     print("=" * 78 + "\n")
 
 

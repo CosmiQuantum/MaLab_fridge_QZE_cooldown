@@ -89,11 +89,14 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "reps": 500 if FIRST_LIGHT else 2000,
             "rounds": 4 if FIRST_LIGHT else 1,  # 3
             # PUCQ4 lines are 20-40 MHz wide, so +/-2 MHz cannot resolve them.
-            # +/-150 MHz also gives the flux bias some room to be wrong.
-            # If a wide scan still finds nothing, suspect the DC bias before
-            # you suspect the code -- Q4 alone spans 5850-7110 MHz.
-            "start": list(VNA_qubit - (150 if FIRST_LIGHT else 2)),  # [MHz]0.8
-            "stop": list(VNA_qubit + (150 if FIRST_LIGHT else 2)),  # [MHz] 0.8
+            # +/-500 MHz because VNA_qubit is only valid at the bias the VNA
+            # sweep used, and we are currently at -4 mA. Reading Q4 off the
+            # student's flux scan: ~7040 MHz at the table's bias but ~6600 MHz
+            # at -4 mA, so a +/-150 MHz window would have missed it entirely.
+            # 500 MHz / 400 steps = 2.5 MHz per point, still fine against a
+            # 20-40 MHz linewidth.
+            "start": list(VNA_qubit - (500 if FIRST_LIGHT else 2)),  # [MHz]0.8
+            "stop": list(VNA_qubit + (500 if FIRST_LIGHT else 2)),  # [MHz] 0.8
             "steps": 400 if FIRST_LIGHT else 300,
             "relax_delay": 100,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
