@@ -21,16 +21,16 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
     # Set this for your experiment
     tot_num_of_qubits = 6
 
-    # FIRST_LIGHT widens res_spec and qubit_spec_ge so you can FIND the features
-    # on a chip you have never measured. Set it back to False once you know
-    # where everything is -- the wide scans are slow and the round robin only
-    # needs to track, not search.
+    # Wide SEARCH scans vs narrow TRACKING scans. Separate flags because the
+    # resonators are now found (pucq4_02_res_spec.py located all six at
+    # 8920-9059 MHz) but the qubits are not.
     #
-    # It matters most for qubit spec: PUCQ4's qubit linewidths are 20-40 MHz
+    # WIDE_QUBIT_SCAN matters most: PUCQ4's qubit linewidths are 20-40 MHz
     # (deck: M2 ~20, M3-M4 20-30, M1/M5/M6 ~40), and the tracking config sweeps
     # +/-2 MHz. That is narrower than the feature you are hunting for, so it
     # would read as a flat line even when perfectly centred.
-    FIRST_LIGHT = True
+    WIDE_RES_SCAN = False    # resonators located; track them now
+    WIDE_QUBIT_SCAN = True   # qubits still unfound at this flux bias
 
     gain_start = 0.000001
     gain_stop = 0.04
@@ -47,14 +47,22 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "res_spec": {
-            "reps": 1, #shots at one freq
-            # Wide search vs narrow tracking. Wide covers +/-15 MHz, which is
-            # comfortably more than the ~7 MHz the resonators move across the
-            # full +/-10 mA flux range -- so it finds them at ANY bias.
-            "rounds": 100 if FIRST_LIGHT else 600,
-            "start": -15.0 if FIRST_LIGHT else -0.7,  # [MHz]
-            "step_size": 0.1 if FIRST_LIGHT else 0.01,  # [MHz]
-            "steps": 300 if FIRST_LIGHT else 150,
+            # *** reps, NOT rounds. ***
+            # res_spec loops frequency in PYTHON, so every point is a separate
+            # program upload. 'reps' averages on the tProc for one Pyro round
+            # trip; 'rounds' averages in QICK's acquire() at one round trip
+            # EACH (~8 ms of network latency). The original reps=1/rounds=600
+            # meant 600 round trips per point: with 150 points x 6 qubits that
+            # is over an hour of pure latency for ~30 s of measurement.
+            # Same averaging, same SNR, ~600x less waiting.
+            "reps": 600,
+            "rounds": 1,
+            # Wide covers +/-15 MHz, comfortably more than the ~7 MHz the
+            # resonators move across the full +/-10 mA flux range, so it finds
+            # them at ANY bias. Narrow just tracks a known frequency.
+            "start": -15.0 if WIDE_RES_SCAN else -3.0,  # [MHz]
+            "step_size": 0.1 if WIDE_RES_SCAN else 0.05,  # [MHz]
+            "steps": 300 if WIDE_RES_SCAN else 120,
             "relax_delay": 100,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
@@ -86,8 +94,11 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         #     "list_of_all_qubits": list_of_all_qubits,
         # },
         "qubit_spec_ge": {
-            "reps": 500 if FIRST_LIGHT else 2000,
-            "rounds": 4 if FIRST_LIGHT else 1,  # 3
+            # qubit spec sweeps frequency in HARDWARE (add_loop 'freqloop'), so
+            # rounds here costs only a few round trips for the whole sweep --
+            # unlike res_spec above, this one is fine as written.
+            "reps": 500 if WIDE_QUBIT_SCAN else 2000,
+            "rounds": 4 if WIDE_QUBIT_SCAN else 1,  # 3
             # PUCQ4 lines are 20-40 MHz wide, so +/-2 MHz cannot resolve them.
             # +/-500 MHz because VNA_qubit is only valid at the bias the VNA
             # sweep used, and the flux lines are now ramped to 0 mA. Reading Q4
@@ -98,9 +109,9 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             # 20-40 MHz linewidth.
             # NOTE: 0 mA is NOT a sweet spot. Q4's is around +4 mA / 7110 MHz.
             # Move there before measuring T1/T2 -- see the note in the deck.
-            "start": list(VNA_qubit - (500 if FIRST_LIGHT else 2)),  # [MHz]0.8
-            "stop": list(VNA_qubit + (500 if FIRST_LIGHT else 2)),  # [MHz] 0.8
-            "steps": 400 if FIRST_LIGHT else 300,
+            "start": list(VNA_qubit - (500 if WIDE_QUBIT_SCAN else 2)),  # [MHz]0.8
+            "stop": list(VNA_qubit + (500 if WIDE_QUBIT_SCAN else 2)),  # [MHz] 0.8
+            "steps": 400 if WIDE_QUBIT_SCAN else 300,
             "relax_delay": 100,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },

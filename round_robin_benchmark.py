@@ -56,26 +56,32 @@ unmask = True                        # Do you want to use the unmasking feature 
 qubit_to_increase_reps_for = 0       # only has impact if previous line is True
 multiply_qubit_reps_by = 2           # only has impact if the line two above is True
 
-Qs_to_look_at = [5]     # only list the qubits you want to do the RR for
+Qs_to_look_at = [0, 1, 2, 3, 4, 5]     # only list the qubits you want to do the RR for
 
 #Data saving info
-run_name = 'bob_run_started_Feb_11'
-device_name = 'squill'
-substudy_txt_notes = ('track res and q spec')
-study ='tls_qspec'
-sub_study = f'pulse_len_test'
+run_name = 'pucq4_run_started_Aug_3'
+device_name = 'PUCQ4'
+substudy_txt_notes = ('PUCQ4 first light: res spec + qubit spec + amplitude '
+                      'rabi on all six qubits. Flux lines at 0 mA. Resonators '
+                      'confirmed at 8920-9059 MHz by pucq4_02_res_spec.py; '
+                      'qubit frequencies are VNA guesses only and the flux '
+                      'bias is NOT the one the VNA table was taken at.')
+study ='pucq4_first_light'
+sub_study = f'res_qspec_rabi_all_qubits'
 data_set = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 # set which of the following you'd like to run to 'True'
-run_flags = {"tof": False, "res_spec": False, "q_spec": True, "ss":  False, "rabi":  False, "len_rabi": False, "ss_gef": False, "test_act": False, "fh_rabi": False,
+run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss":  False, "rabi":  True, "len_rabi": False, "ss_gef": False, "test_act": False, "fh_rabi": False,
              "t1":  False, "t2r": False, "t2r_correction":False, "t2e":  False, "ef_res_spec":  False, "ef_q_spec":  False, "fh_q_spec":False,
              "rabi_pop_meas": False, "ef_Rabi":  False, "ef_ss": False, "res_spec_fh":  False}
 
 
-# optimization outputs from qick board, unmasking set to true
-res_leng_vals = [9]*6
-res_gain = [0.25,0.25,0.25,0.25,0.24,0.2133]
-freq_offsets = [0,0,0,0,-0.25,-0.16]
+# PUCQ4 readout settings. The 9 GHz band comes back ~30 dB weaker than the old
+# 7.2 GHz chip (~11 dB of DAC sin(x)/x rolloff plus ~19 dB of analog loss), so
+# these are much longer and louder than squill's 9 us / 0.25.
+res_leng_vals = [10]*6
+res_gain = [0.9]*6
+freq_offsets = [0]*6   # no per-qubit offsets known yet for PUCQ4
 
 qubit_freqs_ef = [None]*6
 increase_steps_to_ef = 600
@@ -441,11 +447,19 @@ while j < n:
         experiment.qubit_cfg['qubit_gain_fh'] = experiment.qubit_cfg['qubit_gain_fh'][QubitIndex]
 
 
-        # experiment.readout_cfg['res_freq_ge'] = freq_offsets[QubitIndex] + 7267.56
-        # experiment.readout_cfg['res_freq_ef'] = 7267.56-0.2
-        experiment.readout_cfg['res_freq_ge'] = freq_offsets[QubitIndex] + 7287.6
-        experiment.qubit_cfg['qubit_freq_ef'] = float(2929.37)
-        experiment.qubit_cfg['qubit_freq_ge'] = float(3095.44)
+        # NOTE: three hardcoded squill frequencies used to live here, left over
+        # from a single-qubit TLS study (Qs_to_look_at = [5], study 'tls_qspec'):
+        #     res_freq_ge = freq_offsets[QubitIndex] + 7287.6
+        #     qubit_freq_ef = 2929.37
+        #     qubit_freq_ge = 3095.44
+        # They ran AFTER the per-qubit indexing above and silently overwrote it,
+        # so every qubit got Q6's squill frequencies regardless of system_config.
+        # Removed for PUCQ4. If you need to pin a frequency for a one-off study,
+        # do it here and DELETE IT AFTERWARDS.
+        experiment.readout_cfg['res_freq_ge'] = (
+            freq_offsets[QubitIndex] + experiment.readout_cfg['res_freq_ge'])
+        experiment.qubit_cfg['qubit_freq_ef'] = experiment.qubit_cfg['qubit_freq_ef'][QubitIndex]
+        experiment.qubit_cfg['qubit_gain_ef'] = experiment.qubit_cfg['qubit_gain_ef'][QubitIndex]
         experiment.qubit_cfg['pi_amp'] =  experiment.qubit_cfg['pi_amp'][QubitIndex]
         experiment.qubit_cfg['pi_ef_amp'] = experiment.qubit_cfg['pi_ef_amp'][QubitIndex]
         ###################################################### TOF #####################################################
