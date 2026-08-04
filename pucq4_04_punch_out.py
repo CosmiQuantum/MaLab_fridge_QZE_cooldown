@@ -37,14 +37,17 @@ from socProxy import makeProxy
 import pucq4_config as P
 
 # ---------------------------------------------------------------- knobs -----
-RESONATORS = [0]       # start with ONE. All six at these settings is hours.
+RESONATORS = [0, 1, 2, 3, 4, 5]
 
 # The punch-out shift is the LAMB SHIFT, not chi. The deck lists Lamb shifts of
 # 4, 4, 4, 4, 10, 5 MHz for M1..M6, so the dressed resonance can sit up to
 # ~10 MHz from the bare one (M5 is the big one). Do not narrow this below ~8 --
 # chi (~250 kHz) is the qubit-STATE-dependent shift and a different quantity.
-SPAN = 6.0             # [MHz] covers the expected g^2/Delta ~ -4.2 MHz for M1
-STEP = 0.2             # [MHz] plenty against a multi-MHz shift
+# Zoomed in. The wide sweeps established the resonance does not move over
+# 42 dB of power, so there is no point scanning +/-6 MHz of empty spectrum --
+# spend the points resolving the lineshape instead.
+SPAN = 3.0             # [MHz]
+STEP = 0.1             # [MHz] twice the resolution of the +/-6 MHz sweep
 
 # The first sweep (0.02-1.0) showed the dip dead vertical from gain 1.0 down to
 # ~0.1 -- that whole decade is wasted. It only began moving below 0.06, and the
@@ -57,9 +60,12 @@ STEP = 0.2             # [MHz] plenty against a multi-MHz shift
 # 0.005 is about the floor: even at MAX_TOTAL_AVERAGES it gives only ~half the
 # SNR of the gain-0.02 row that worked. Rows below the noise are gated out and
 # drawn as grey x, so pushing lower just wastes time rather than misleading you.
-GAIN_START = 0.005
-GAIN_STOP = 0.1
-N_GAINS = 8            # log spaced
+# 0.006 because the 0.005 row was gated out as below the noise floor last run.
+# Top raised past 0.1 to re-cover the region where the mild Kerr-looking pull
+# appeared, now with proper averaging behind it.
+GAIN_START = 0.006
+GAIN_STOP = 0.3
+N_GAINS = 6            # log spaced
 
 # Adaptive averaging. Signal scales with gain, noise with 1/sqrt(reps), so
 # reps ~ 1/gain^2 holds SNR constant across the power sweep. Without this the
@@ -72,9 +78,17 @@ REPS_AT_FULL_GAIN = 600
 # reps CANNOT exceed that -- the previous cap of 20000 would have overflowed it.
 # Averaging beyond MAX_REPS is done with rounds instead (a few extra Pyro round
 # trips, negligible next to seconds of measurement at these rep counts).
-MAX_REPS = 8192
+# The avg buffer is 16384 accumulated samples deep, so reps can go right up to
+# it. Using the full depth halves the number of rounds -- and therefore the
+# Pyro round trips -- at these averaging levels.
+MAX_REPS = 16384
 MAX_TOTAL_AVERAGES = 65536
-RES_LENGTH = 10.0      # [us]
+# Longer readout rather than more averages. SNR goes as sqrt(N_avg * T_int),
+# but each average also pays RELAX_DELAY of dead time -- so stretching the
+# integration is cheaper than adding averages for the same gain: 25 us here is
+# 1.58x the SNR of the 10 us run for 1.75x the time, where doubling the
+# averages would give only 1.41x for 2.0x. Buffer max is 29.6 us.
+RES_LENGTH = 25.0      # [us]
 # No qubit is driven here and the resonator rings down in ~1 us (kappa <1 MHz),
 # so this only needs to be a few ring-down times. It was 50 us, which at 16384
 # averages was costing more than the measurement itself.
