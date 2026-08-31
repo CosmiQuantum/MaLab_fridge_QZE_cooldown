@@ -26,6 +26,7 @@ down at 9 GHz. Expect to trade integration time for it.
 
 import os
 import time
+import datetime
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
@@ -158,8 +159,9 @@ def steepest_point(freqs, amps):
     return float(freqs[int(np.argmax(d))]), float(np.max(d))
 
 
-def main():
-    soc, soccfg = makeProxy()
+def main(experiment=None):
+    soc, soccfg = ((experiment.soc, experiment.soccfg)
+                   if experiment is not None else makeProxy())
 
     centers = np.asarray(P.RES_FREQS_MEASURED, dtype=float)
     offsets = np.arange(-SPAN, SPAN + STEP / 2, STEP)
@@ -167,7 +169,7 @@ def main():
 
     folders = P.setup_data_folders(study, sub_study, substudy_txt_notes)
     plotdir = folders["studyDocumentationFolder"]
-    datadir = folders["studyDataFolder"]
+    datadir = folders["subStudyDataFolder"]
     logger = folders["logger"]
 
     n = len(offsets) * len(gains) * len(RESONATORS)
@@ -175,7 +177,7 @@ def main():
           f"{len(RESONATORS)} resonators = {n} points")
     print(f"Gains: {', '.join(f'{g:.3f}' for g in gains)}\n")
 
-    cfg = P.base_cfg()
+    cfg = P.base_cfg(experiment)
     cfg["res_length"] = RES_LENGTH
     cfg["relax_delay"] = RELAX_DELAY
 
@@ -269,9 +271,25 @@ def main():
     fig.savefig(os.path.join(plotdir, "punch_out.pdf"), dpi=200)
     plt.close(fig)
 
-    np.savez(os.path.join(datadir, "punch_out.npz"),
-             gains=gains, offsets=offsets, centers=centers,
-             **{f"amps_M{ri+1}": all_amps[ri] for ri in RESONATORS})
+    keys = ["Dates", "Gains", "Offsets", "Frequencies", "Amps",
+            "Round Num", "Batch Num", "Exp Config", "Syst Config"]
+    punch_data = P.create_data_dict(keys)
+    now = time.mktime(datetime.datetime.now().timetuple())
+    for ri in RESONATORS:
+        punch_data[ri]["Dates"][0] = now
+        punch_data[ri]["Gains"][0] = gains
+        punch_data[ri]["Offsets"][0] = offsets
+        punch_data[ri]["Frequencies"][0] = centers[ri] + offsets
+        punch_data[ri]["Amps"][0] = all_amps[ri]
+        punch_data[ri]["Round Num"][0] = 1
+        punch_data[ri]["Batch Num"][0] = 1
+        punch_data[ri]["Exp Config"][0] = {
+            "span": SPAN, "step": STEP, "gain_start": GAIN_START,
+            "gain_stop": GAIN_STOP, "n_gains": N_GAINS,
+            "res_length": RES_LENGTH,
+        }
+        punch_data[ri]["Syst Config"][0] = cfg
+    P.save_h5(datadir, punch_data, "punch_out")
 
     # ------------------------------------------------------------------
     print("\n" + "=" * 78)
@@ -303,6 +321,24 @@ def main():
         print("Try GAIN_START = 0.002 before concluding anything.")
     print(f"\nPlots: {path}")
     print("=" * 78 + "\n")
+
+
+class PUCQ4PunchOut:
+    """Round-robin-compatible wrapper around the PUCQ4 power sweep."""
+
+    def __init__(self, QubitIndex, number_of_qubits, outerFolder, round_num,
+                 save_figs=True, experiment=None):
+        self.QubitIndex = QubitIndex
+        self.number_of_qubits = number_of_qubits
+        self.outerFolder = outerFolder
+        self.round_num = round_num
+        self.save_figs = save_figs
+        self.experiment = experiment
+        self.expt_name = "punch_out"
+        self.exp_cfg = P.base_cfg(experiment)
+
+    def run(self):
+        return main(experiment=self.experiment)
 
 
 if __name__ == "__main__":

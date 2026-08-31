@@ -37,7 +37,7 @@ from expt_config import expt_cfg, list_of_all_qubits, tot_num_of_qubits, FRIDGE
 ################################################ Run Configurations ####################################################
 st = time.time()
 #
-n= 1000000
+n = 1                              # one calibration/coherence round
 pre_optimize = False
 freq_offset_steps = 10
 ssf_avgs_per_opt_pt = 5
@@ -49,39 +49,55 @@ fit_data = True                      # fit the data here and save or plot the fi
 save_data_h5 = True                  # save all of the data to h5 files?
 verbose = True                       # print everything to the console in real time, good for debugging, bad for memory
 qick_verbose = True                  # qick verbose prints the progress bar for each qick experiment as it is happening (the red bar that fills out as more experiment rounds/reps are being done)
-debug_mode = False                    # if True, it disables the continuing function of RR if an error pops up in a class -- errors now stop the RR script
+debug_mode = True                    # if True, it disables the continuing function of RR if an error pops up in a class -- errors now stop the RR script
 thresholding = False                 # use internal QICK threshold for ratio of Binary values on y for rabi/t1/t2r/t2e, or analog avg when false
 increase_qubit_reps = False          # if you want to increase the reps for a qubit, set to True
 unmask = True                        # Do you want to use the unmasking feature to increase resonator gain?
 qubit_to_increase_reps_for = 0       # only has impact if previous line is True
 multiply_qubit_reps_by = 2           # only has impact if the line two above is True
 
-Qs_to_look_at = [0, 1, 2, 3, 4, 5]     # only list the qubits you want to do the RR for
+Qs_to_look_at = [0, 1, 2, 4, 5]  # five validated PUCQ4 rows; M4/index 3 excluded
+
+# Optional environment overrides are used by the bounded PUCQ4 flux controller.
+# Ordinary interactive runs see exactly the defaults above. Values are explicit
+# and unit-labelled so the controller can reuse this orchestrator and all of its
+# normal plot/HDF5 paths without changing any underlying QICK program.
+if os.environ.get('PUCQ4_QS'):
+    Qs_to_look_at = [int(value) for value in os.environ['PUCQ4_QS'].split(',')]
 
 #Data saving info
 run_name = 'pucq4_run_started_Aug_3'
 device_name = 'PUCQ4'
-substudy_txt_notes = ('PUCQ4 first light: res spec + qubit spec + amplitude '
-                      'rabi on all six qubits. Flux lines at 0 mA. Resonators '
-                      'confirmed at 8920-9059 MHz by pucq4_02_res_spec.py; '
-                      'qubit frequencies are VNA guesses only and the flux '
-                      'bias is NOT the one the VNA table was taken at.')
+substudy_txt_notes = ('Final zero-current five-mode chain after qspec, Rabi, and '
+                      'iterative single-shot readout optimization.')
 study ='pucq4_first_light'
-sub_study = f'res_qspec_rabi_all_qubits'
+sub_study = 'rr_full5_optimized_0mA'
+sub_study = os.environ.get('PUCQ4_SUB_STUDY', sub_study)
 data_set = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 # set which of the following you'd like to run to 'True'
-run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss":  False, "rabi":  True, "len_rabi": False, "ss_gef": False, "test_act": False, "fh_rabi": False,
-             "t1":  False, "t2r": False, "t2r_correction":False, "t2e":  False, "ef_res_spec":  False, "ef_q_spec":  False, "fh_q_spec":False,
+run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss": True, "rabi": True, "len_rabi": False, "ss_gef": False, "test_act": False, "fh_rabi": False,
+             "t1": True, "t2r": True, "t2r_correction":False, "t2e": True, "ef_res_spec":  False, "ef_q_spec":  False, "fh_q_spec":False,
              "rabi_pop_meas": False, "ef_Rabi":  False, "ef_ss": False, "res_spec_fh":  False}
+if os.environ.get('PUCQ4_RUN_FLAGS'):
+    enabled = {name.strip() for name in os.environ['PUCQ4_RUN_FLAGS'].split(',') if name.strip()}
+    run_flags = {name: name in enabled for name in run_flags}
 
 
 # PUCQ4 readout settings. The 9 GHz band comes back ~30 dB weaker than the old
 # 7.2 GHz chip (~11 dB of DAC sin(x)/x rolloff plus ~19 dB of analog loss), so
 # these are much longer and louder than squill's 9 us / 0.25.
-res_leng_vals = [10]*6
-res_gain = [0.9]*6
-freq_offsets = [0]*6   # no per-qubit offsets known yet for PUCQ4
+res_leng_vals = [10.0, 5.0, 12.0, 10.0, 5.0, 3.0]
+res_gain = [0.48, 0.56, 0.41, 0.30, 0.33, 0.60]
+# Iterative 2026-08-28 single-shot optimized offsets (MHz).
+freq_offsets = [-0.52, -0.40, -0.08, 0.40, 0.44, -0.04]
+for _override_index in Qs_to_look_at:
+    if os.environ.get('PUCQ4_READOUT_LENGTH_US'):
+        res_leng_vals[_override_index] = float(os.environ['PUCQ4_READOUT_LENGTH_US'])
+    if os.environ.get('PUCQ4_READOUT_GAIN'):
+        res_gain[_override_index] = float(os.environ['PUCQ4_READOUT_GAIN'])
+    if os.environ.get('PUCQ4_READOUT_OFFSET_MHZ'):
+        freq_offsets[_override_index] = float(os.environ['PUCQ4_READOUT_OFFSET_MHZ'])
 
 qubit_freqs_ef = [None]*6
 increase_steps_to_ef = 600
@@ -432,7 +448,7 @@ while j < n:
 
         #Get the config for this qubit
         experiment = QICK_experiment(optimizationFolder, DAC_attenuator1 = 10, DAC_attenuator2 = 15, qubit_DAC_attenuator1 = 5,
-                                     qubit_DAC_attenuator2 = 4, ADC_attenuator = 30, fridge=FRIDGE) # ADC_attenuator MUST be above 16dB
+                                     qubit_DAC_attenuator2 = 4, ADC_attenuator = 17, fridge=FRIDGE) # ADC_attenuator MUST be above 16dB
         experiment.create_folder_if_not_exists(optimizationFolder)
 
         experiment.readout_cfg['res_gain_ge'] = res_gain[QubitIndex]
@@ -462,6 +478,26 @@ while j < n:
         experiment.qubit_cfg['qubit_gain_ef'] = experiment.qubit_cfg['qubit_gain_ef'][QubitIndex]
         experiment.qubit_cfg['pi_amp'] =  experiment.qubit_cfg['pi_amp'][QubitIndex]
         experiment.qubit_cfg['pi_ef_amp'] = experiment.qubit_cfg['pi_ef_amp'][QubitIndex]
+
+        qfreq_override = os.environ.get('PUCQ4_QFREQ_MHZ')
+        if qfreq_override is not None:
+            experiment.qubit_cfg['qubit_freq_ge'] = float(qfreq_override)
+        qgain_override = os.environ.get('PUCQ4_QSPEC_GAIN')
+        if qgain_override is not None:
+            experiment.qubit_cfg['qubit_gain_ge'] = float(qgain_override)
+        sigma_override = os.environ.get('PUCQ4_SIGMA_US')
+        if sigma_override is not None:
+            sigma_cfg = experiment.qubit_cfg['sigma']
+            if isinstance(sigma_cfg, (list, tuple, np.ndarray)):
+                sigma_cfg[QubitIndex] = float(sigma_override)
+            else:
+                experiment.qubit_cfg['sigma'] = float(sigma_override)
+        pi_override = os.environ.get('PUCQ4_PI_AMP')
+        if pi_override is not None:
+            experiment.qubit_cfg['pi_amp'] = float(pi_override)
+        res_override = os.environ.get('PUCQ4_RES_FREQ_MHZ')
+        if res_override is not None:
+            experiment.readout_cfg['res_freq_ge'] = float(res_override)
         ###################################################### TOF #####################################################
         if run_flags["tof"]:
             tof        = TOFExperiment(QubitIndex, studyDocumentationFolder, experiment, j, save_figs, unmasking_resgain = unmask)
@@ -474,6 +510,7 @@ while j < n:
                 res_spec   = ResonanceSpectroscopy(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j, save_figs,
                                                    experiment = experiment, verbose = verbose, logger = rr_logger, unmasking_resgain = unmask)
                 res_freqs, freq_pts, freq_center, amps, sys_config_rspec = res_spec.run()
+                print(f'g-e Resonator {QubitIndex + 1} frequency: {res_freqs[0]}')
 
                 offset = freq_offsets[QubitIndex] #use optimized offset values or whats set at top of script based on pre_optimize flag
                 offset_res_freqs = [r + offset for r in res_freqs]
@@ -501,13 +538,35 @@ while j < n:
         ################################################## g-e Qubit spec ##################################################
         if run_flags["q_spec"]:
             try:
+                qspec_half_span = os.environ.get('PUCQ4_QSPEC_HALF_SPAN_MHZ')
+                if qspec_half_span is not None:
+                    half_span = float(qspec_half_span)
+                    center = float(experiment.qubit_cfg['qubit_freq_ge'])
+                    expt_cfg['qubit_spec_ge']['start'][QubitIndex] = center - half_span
+                    expt_cfg['qubit_spec_ge']['stop'][QubitIndex] = center + half_span
+                if os.environ.get('PUCQ4_QSPEC_STEPS'):
+                    expt_cfg['qubit_spec_ge']['steps'] = int(os.environ['PUCQ4_QSPEC_STEPS'])
+                if os.environ.get('PUCQ4_QSPEC_REPS'):
+                    expt_cfg['qubit_spec_ge']['reps'] = int(os.environ['PUCQ4_QSPEC_REPS'])
+                if os.environ.get('PUCQ4_QSPEC_LENGTH_US'):
+                    experiment.qubit_cfg['qubit_length_ge'] = float(os.environ['PUCQ4_QSPEC_LENGTH_US'])
                 q_spec = QubitSpectroscopy(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j,
                                            signal, save_figs, plot_fit=True, experiment=experiment,
                                            live_plot=live_plot, verbose=verbose, logger=rr_logger,
                                            unmasking_resgain=unmask)
-                (qspec_I, qspec_Q, qspec_freqs, qspec_fit, qubit_freq, sys_config_qspec, ss_Q_e_qspec, ss_Q_g_qspec,
-                 ss_I_e_qspec,
-                 ss_I_g_qspec, I_shots_qspec, Q_shots_qspec) = q_spec.run(scaling=True)
+                qspec_scaling = os.environ.get('PUCQ4_QSPEC_SCALING', 'true').strip().lower() not in {
+                    '0', 'false', 'no', 'off'
+                }
+                qspec_result = q_spec.run(return_fwhm=True, scaling=qspec_scaling)
+                if qspec_scaling:
+                    (qspec_I, qspec_Q, qspec_freqs, qspec_fit, qubit_freq, sys_config_qspec, qspec_fwhm,
+                     ss_Q_e_qspec, ss_Q_g_qspec, ss_I_e_qspec, ss_I_g_qspec,
+                     I_shots_qspec, Q_shots_qspec) = qspec_result
+                else:
+                    (qspec_I, qspec_Q, qspec_freqs, qspec_I_fit, qspec_Q_fit, qubit_freq,
+                     sys_config_qspec, qspec_fwhm, I_shots_qspec, Q_shots_qspec) = qspec_result
+                    qspec_fit = (qspec_I_fit, qspec_Q_fit)
+                    ss_Q_e_qspec = ss_Q_g_qspec = ss_I_e_qspec = ss_I_g_qspec = None
 
                 if qubit_freq is None:
                     if stored_qspec_list[QubitIndex] is not None:
@@ -532,6 +591,7 @@ while j < n:
                 rr_logger.info(f"g-e Qubit {QubitIndex + 1} frequency: {float(qubit_freq)}")
                 if verbose:
                     print(f"g-e Qubit {QubitIndex + 1} frequency: {float(qubit_freq)}")
+                    print(f"g-e Qubit {QubitIndex + 1} FWHM: {float(qspec_fwhm)} MHz")
                 del q_spec
 
             except Exception as e:
@@ -551,9 +611,21 @@ while j < n:
                                            qubit_to_increase_reps_for=qubit_to_increase_reps_for,
                                            multiply_qubit_reps_by=multiply_qubit_reps_by,
                                            verbose=verbose, logger=rr_logger, unmasking_resgain=unmask)
-            (rabi_I, rabi_Q, rabi_gains, rabi_fit, pi_amp,
-             sys_config_rabi, ss_Q_e, ss_Q_g, ss_I_e, ss_I_g, rabi_I_shots, rabi_Q_shots) = rabi.run(
-                thresholding=thresholding, scaling=True)
+            rabi_reps_override = os.environ.get('PUCQ4_RABI_REPS')
+            if rabi_reps_override is not None:
+                rabi.config['reps'] = int(rabi_reps_override)
+            rabi_scaling = os.environ.get('PUCQ4_RABI_SCALING', 'true').strip().lower() not in {
+                '0', 'false', 'no', 'off'
+            }
+            rabi_result = rabi.run(thresholding=thresholding, scaling=rabi_scaling)
+            if rabi_scaling:
+                (rabi_I, rabi_Q, rabi_gains, rabi_fit, pi_amp,
+                 sys_config_rabi, ss_Q_e, ss_Q_g, ss_I_e, ss_I_g,
+                 rabi_I_shots, rabi_Q_shots) = rabi_result
+            else:
+                (rabi_I, rabi_Q, rabi_gains, rabi_fit, pi_amp,
+                 sys_config_rabi, rabi_I_shots, rabi_Q_shots) = rabi_result
+                ss_Q_e = ss_Q_g = ss_I_e = ss_I_g = None
 
             # if these are None, fit didnt work
             if (rabi_fit is None and pi_amp is None):

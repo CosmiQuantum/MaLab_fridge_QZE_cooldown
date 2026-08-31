@@ -298,7 +298,7 @@ class SingleShot:
         iq_list_e = ssp_e.acquire(soc, rounds=1, progress=False)
 
         # Use the fidelity calculation from SingleShotGE
-        fidelity, _, _, _,_ = self.hist_ssf(
+        fidelity, _, _, _, _, _, _ = self.hist_ssf(
             data=[iq_list_g[0][0].T[0], iq_list_g[0][0].T[1],
                   iq_list_e[0][0].T[0], iq_list_e[0][0].T[1]],
             cfg=self.config, plot=False)
@@ -1250,23 +1250,19 @@ class GainFrequencySweep:
         return res_gain_ge
 
     def run_sweep(self, freq_range, gain_range, freq_steps, gain_steps):
-        freq_step_size = (freq_range[1] - freq_range[0]) / freq_steps
-        gain_step_size = (gain_range[1] - gain_range[0]) / gain_steps
+        frequencies = np.linspace(freq_range[0], freq_range[1], freq_steps)
+        gains = np.linspace(gain_range[0], gain_range[1], gain_steps)
         results = []
 
         # Use the optimal readout length for the current qubit
         readout_length = self.optimal_lengths[self.qubit_index]
-        for freq_step in range(freq_steps):
-            freq = freq_range[0] + freq_step * freq_step_size
+        for freq in frequencies:
             #print('Running for res_freq: ', freq, '...')
             fid_results = []
-            for gain_step in range(gain_steps):
+            for gain in gains:
                 #experiment = QICK_experiment(self.output_folder)
                 #experiment = QICK_experiment(self.output_folder, DAC_attenuator1=10, DAC_attenuator2=5, ADC_attenuator=10)
                 fresh_experiment = copy.deepcopy(self.experiment)
-                gain = gain_range[0] + gain_step * gain_step_size
-
-
                 # Update config with current gain and frequency values
                 fresh_experiment.readout_cfg['res_freq_ge']= freq
                 fresh_experiment.readout_cfg['res_length'] = readout_length  # Set the optimal readout length for the qubit
@@ -1278,7 +1274,8 @@ class GainFrequencySweep:
                 save_figs = True
                 import time
 
-                while True:
+                max_attempts = 3
+                for attempt in range(1, max_attempts + 1):
                     try:
                         single_shot = SingleShot(
                             self.qubit_index, self.number_of_qubits, self.output_folder,
@@ -1288,6 +1285,10 @@ class GainFrequencySweep:
                         fidelity = single_shot.fidelity_test(fresh_experiment.soccfg, fresh_experiment.soc)
                         break  #it worked
                     except Exception as e:
+                        if attempt == max_attempts:
+                            raise RuntimeError(
+                                f"SingleShot failed after {max_attempts} attempts"
+                            ) from e
                         print(f"[retry] SingleShot failed: {e}. Trying again in 2s…")
                         time.sleep(2)
                 fid_results.append(fidelity)

@@ -22,6 +22,8 @@ answer -- the board is fine and the signal is dying in the analog chain.
 """
 
 import os
+import datetime
+import time
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
@@ -108,10 +110,11 @@ def edge_estimate(t, mag):
     return float(t[longest[0]]), floor, peak
 
 
-def main():
-    soc, soccfg = makeProxy()
+def main(experiment=None):
+    soc, soccfg = ((experiment.soc, experiment.soccfg)
+                   if experiment is not None else makeProxy())
 
-    cfg = P.base_cfg()
+    cfg = P.base_cfg(experiment)
     cfg["res_length"] = CAPTURE_LENGTH   # declare_readout capture window
 
     targets = [(f"M{i + 1}", f) for i, f in enumerate(P.RES_FREQS_VNA)]
@@ -121,7 +124,7 @@ def main():
     folders = P.setup_data_folders(study, sub_study, substudy_txt_notes)
     # Convention: plots go in documentation/, raw data goes in study_data/.
     plotdir = folders["studyDocumentationFolder"]
-    datadir = folders["studyDataFolder"]
+    datadir = folders["subStudyDataFolder"]
     logger = folders["logger"]
     logger.info(f"TOF start: gain={GAIN}, rounds={SOFT_AVGS}, "
                 f"capture={CAPTURE_LENGTH} us, cfg={cfg}")
@@ -170,12 +173,26 @@ def main():
     fig.savefig(os.path.join(plotdir, "tof.pdf"), dpi=200)
     plt.close(fig)
 
-    np.savez(os.path.join(datadir, "tof.npz"),
-             gain=GAIN, rounds=SOFT_AVGS, capture_length=CAPTURE_LENGTH,
-             labels=np.array([r[0] for r in results]),
-             freqs=np.array([r[1] for r in results]),
-             snr=np.array([r[3] for r in results]),
-             **{f"trace_{k}": v for k, v in traces.items()})
+    keys = ["Dates", "iq_list", "t", "Frequency", "Label", "Peak/Floor",
+            "Round Num", "Batch Num", "Exp Config", "Syst Config"]
+    tof_data = P.create_data_dict(keys, qubits=len(results))
+    now = time.mktime(datetime.datetime.now().timetuple())
+    for index, (label, freq, _tof, snr) in enumerate(results):
+        trace = traces[label]
+        tof_data[index]["Dates"][0] = now
+        tof_data[index]["iq_list"][0] = trace[1:]
+        tof_data[index]["t"][0] = trace[0]
+        tof_data[index]["Frequency"][0] = freq
+        tof_data[index]["Label"][0] = label
+        tof_data[index]["Peak/Floor"][0] = snr
+        tof_data[index]["Round Num"][0] = 1
+        tof_data[index]["Batch Num"][0] = 1
+        tof_data[index]["Exp Config"][0] = {
+            "gain": GAIN, "soft_avgs": SOFT_AVGS,
+            "capture_length": CAPTURE_LENGTH,
+        }
+        tof_data[index]["Syst Config"][0] = cfg
+    P.save_h5(datadir, tof_data, "tof")
 
     print("\n" + "=" * 70)
     print(f"{'':10}{'freq (MHz)':>12}{'TOF (us)':>12}{'peak/floor':>13}")
@@ -209,6 +226,23 @@ def main():
         print("  3. Re-run pucq4_00_check_board.py and confirm nqz_res = 2.")
     print(f"\nSaved: {path}")
     print("=" * 70 + "\n")
+
+
+class PUCQ4TimeOfFlight:
+    """Round-robin-compatible wrapper around the PUCQ4 TOF diagnostic."""
+
+    def __init__(self, QubitIndex, number_of_qubits, outerFolder, round_num,
+                 save_figs=True, experiment=None):
+        self.QubitIndex = QubitIndex
+        self.number_of_qubits = number_of_qubits
+        self.outerFolder = outerFolder
+        self.round_num = round_num
+        self.save_figs = save_figs
+        self.experiment = experiment
+        self.expt_name = "tof"
+
+    def run(self):
+        return main(experiment=self.experiment)
 
 
 if __name__ == "__main__":

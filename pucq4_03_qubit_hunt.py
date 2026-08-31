@@ -24,6 +24,7 @@ Start with RESONATORS = [0] to check one before committing to all six.
 
 import os
 import time
+import datetime
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
@@ -34,20 +35,23 @@ from socProxy import makeProxy
 import pucq4_config as P
 
 # ---------------------------------------------------------------- knobs -----
-# Start with M1 alone: it is the only resonator with punch-out data, so it is
-# the only one whose READOUT_OFFSET below is measured rather than guessed.
-# ~15 min. Widen to all six once M1 either finds a qubit or rules one out.
-RESONATORS = [0]
+# M4 was the only unresolved resonator after the coarse and refinement passes.
+RESONATORS = [3]
 
-# Full band to hunt over. The VNA table spans 5411-7036 MHz; this is wide
-# enough to cover being at the wrong flux bias by a long way.
-DRIVE_START = 4200.0     # [MHz]
-DRIVE_STOP = 7800.0      # [MHz]
-DRIVE_STEP = 8.0         # [MHz] lines are 20-40 MHz wide, so this cannot miss.
-                         # Coarser than the first run to buy averaging time --
-                         # still 3-5 points across any real line.
+# Targeted windows centered on the PowerPoint table/zero-current Q4 curve.
+# Each is +/-200 MHz, far wider than the quoted 20-40 MHz linewidth.
+DRIVE_WINDOWS = {
+    0: (5505.0, 5540.0),  # M1 coarse candidate 5522.2 MHz
+    1: (5420.0, 5455.0),  # M2 coarse candidate 5438.4 MHz
+    2: (5540.0, 5575.0),  # M3 coarse candidate 5558.8 MHz
+    3: (5485.0, 5500.0),  # M4 coherent Q excursion at 5492.34 MHz
+    4: (7060.0, 7100.0),  # M5/Q4 repeated feature near 7080 MHz
+}
+DRIVE_START = min(DRIVE_WINDOWS[ri][0] for ri in RESONATORS)
+DRIVE_STOP = max(DRIVE_WINDOWS[ri][1] for ri in RESONATORS)
+DRIVE_STEP = 0.25        # [MHz], resolve the narrow coherent M4 excursion
 
-DRIVE_GAIN = 0.5         # MUCH higher than squill's 0.002-0.03. Power
+DRIVE_GAIN = 1.0         # M4-only retry at maximum available drive power.
                          # broadening is a feature here: it widens the line so
                          # a coarse sweep cannot fall between points.
 DRIVE_LENGTH = 10.0      # [us] probe pulse
@@ -77,19 +81,19 @@ RELAX_DELAY = 100        # [us] T1 unknown; keep generous to avoid saturating
 # ~200 photons, and 30 dB of loss means even gain 1.0 does not reach it).
 # Readout gain is therefore free to be high for SNR; 0.2 stays clear of the
 # mild Kerr-looking pull seen above 0.1.
-RES_GAIN = 0.2
+RES_GAIN = 0.3
 RES_LENGTH = 10.0
 # Park on the steepest part of the resonance, where d|IQ|/df is largest.
 # punch_out.py reported 8919.400 MHz for M1 against a dip at ~8919.8.
-READOUT_OFFSET = -0.4    # [MHz] from the resonator centre, onto the slope
+# Per-resonator steepest-slope offsets measured from the wide resonator scan.
+READOUT_OFFSETS = P.RES_READOUT_OFFSETS
 
 study = "pucq4_first_light"
-sub_study = "qubit_hunt"
+sub_study = "q4_qubit_refine_0mA"
 substudy_txt_notes = (
-    "Wide qubit hunt, 4200-7800 MHz drive, one resonator at a time. Makes no "
-    "assumption about which qubit pairs with which resonator -- whatever "
-    "responds while reading out resonator N is the qubit coupled to N. "
-    "Flux lines at 0 mA.")
+    "M4-only 0.25 MHz refinement of the coherent I/Q excursion observed at "
+    "5492.34 MHz at 0 mA, using M4's measured steepest-slope readout offset. "
+    "Yoko 3/Q4 and Yoko 4/Q6 were both verified at 0 A with outputs off.")
 # -----------------------------------------------------------------------------
 
 
@@ -197,34 +201,33 @@ def load_res_freqs():
     return np.asarray(P.RES_FREQS_MEASURED, dtype=float)
 
 
-def main():
-    soc, soccfg = makeProxy()
+def main(experiment=None):
+    soc, soccfg = ((experiment.soc, experiment.soccfg)
+                   if experiment is not None else makeProxy())
     fs_q = soccfg["gens"][P.QUBIT_CH]["fs"]
 
     res_freqs = load_res_freqs()
-    chunks = nyquist_chunks(DRIVE_START, DRIVE_STOP, fs_q)
-
     folders = P.setup_data_folders(study, sub_study, substudy_txt_notes)
     plotdir = folders["studyDocumentationFolder"]
-    datadir = folders["studyDataFolder"]
+    datadir = folders["subStudyDataFolder"]
     logger = folders["logger"]
 
-    print(f"\nDrive band {DRIVE_START}-{DRIVE_STOP} MHz at {DRIVE_STEP} MHz, "
-          f"gain {DRIVE_GAIN}")
-    print(f"Split into {len(chunks)} Nyquist chunk(s):")
-    for lo, hi, z in chunks:
-        print(f"  {lo:.0f}-{hi:.0f} MHz  (nqz {z}, "
-              f"{int((hi - lo) / DRIVE_STEP)} points)")
+    print(f"\nTargeted drive windows at {DRIVE_STEP} MHz spacing, gain {DRIVE_GAIN}")
+    for ri in RESONATORS:
+        lo, hi = DRIVE_WINDOWS[ri]
+        print(f"  M{ri+1}: {lo:.0f}-{hi:.0f} MHz")
     print(f"Resonators: {[f'M{i+1}' for i in RESONATORS]}\n")
 
     results = {}
     for ri in RESONATORS:
-        freqs_all, amps_all = [], []
+        freqs_all, i_all, q_all, amps_all = [], [], [], []
         t0 = time.time()
+        drive_start, drive_stop = DRIVE_WINDOWS[ri]
+        chunks = nyquist_chunks(drive_start, drive_stop, fs_q)
 
         for lo, hi, zone in chunks:
             steps = max(2, int((hi - lo) / DRIVE_STEP))
-            cfg = P.base_cfg()
+            cfg = P.base_cfg(experiment)
             cfg["res_length"] = RES_LENGTH
             cfg["relax_delay"] = RELAX_DELAY
             cfg["nqz_qubit"] = zone
@@ -232,7 +235,7 @@ def main():
             cfg["qubit_length_ge"] = DRIVE_LENGTH
             cfg["qubit_gain_ge"] = DRIVE_GAIN
             cfg["qubit_freq_ge"] = QickSweep1D("freqloop", lo, hi)
-            cfg["_res_freq"] = float(res_freqs[ri]) + READOUT_OFFSET
+            cfg["_res_freq"] = float(res_freqs[ri]) + READOUT_OFFSETS[ri]
             cfg["_res_gain"] = RES_GAIN
 
             prog = QubitHuntProgram(soccfg, reps=REPS,
@@ -240,12 +243,16 @@ def main():
             iq = prog.acquire(soc, rounds=ROUNDS, progress=True)
 
             a = np.asarray(iq[0], dtype=float).reshape(-1, 2)
+            i_all.append(a[:, 0])
+            q_all.append(a[:, 1])
             amps_all.append(np.abs(a[:, 0] + 1j * a[:, 1]))
             freqs_all.append(np.linspace(lo, hi, len(amps_all[-1])))
 
         freqs = np.concatenate(freqs_all)
+        i_values = np.concatenate(i_all)
+        q_values = np.concatenate(q_all)
         amps = np.concatenate(amps_all)
-        results[ri] = (freqs, amps)
+        results[ri] = (freqs, i_values, q_values, amps)
 
         f_best, contrast = find_feature(freqs, amps)
         logger.info(f"M{ri+1}: feature {contrast*100:.1f}% at {f_best} MHz "
@@ -262,7 +269,7 @@ def main():
                              sharex=True)
     summary = []
     for ax, ri in zip(axes[:, 0], RESONATORS):
-        freqs, amps = results[ri]
+        freqs, _i_values, _q_values, amps = results[ri]
         f_best, contrast = find_feature(freqs, amps)
         summary.append((ri, f_best, contrast))
 
@@ -272,7 +279,7 @@ def main():
         if f_best is not None:
             ax.axvline(f_best, linestyle="--", color="tab:red")
         ax.set_ylabel("|IQ|")
-        ax.set_title(f"readout on M{ri+1} ({res_freqs[ri]+READOUT_OFFSET:.1f} MHz) -- "
+        ax.set_title(f"readout on M{ri+1} ({res_freqs[ri]+READOUT_OFFSETS[ri]:.1f} MHz) -- "
                      + (f"feature {contrast*100:.1f}% at {f_best:.0f} MHz"
                         "   <-- CANDIDATE" if f_best is not None
                         else "nothing above noise"))
@@ -286,10 +293,30 @@ def main():
     fig.savefig(os.path.join(plotdir, "qubit_hunt.pdf"), dpi=200)
     plt.close(fig)
 
-    np.savez(os.path.join(datadir, "qubit_hunt.npz"),
-             res_freqs=res_freqs, drive_gain=DRIVE_GAIN,
-             **{f"freqs_M{ri+1}": results[ri][0] for ri in RESONATORS},
-             **{f"amps_M{ri+1}": results[ri][1] for ri in RESONATORS})
+    keys = ["Dates", "I", "Q", "Amps", "Frequencies", "Found Freq",
+            "Readout Frequency", "Round Num", "Batch Num", "Exp Config",
+            "Syst Config"]
+    qspec_data = P.create_data_dict(keys)
+    now = time.mktime(datetime.datetime.now().timetuple())
+    for ri in RESONATORS:
+        run_freqs, run_i, run_q, run_amps = results[ri]
+        found_freq, _contrast = find_feature(run_freqs, run_amps)
+        qspec_data[ri]["Dates"][0] = now
+        qspec_data[ri]["I"][0] = run_i
+        qspec_data[ri]["Q"][0] = run_q
+        qspec_data[ri]["Amps"][0] = run_amps
+        qspec_data[ri]["Frequencies"][0] = run_freqs
+        qspec_data[ri]["Found Freq"][0] = found_freq
+        qspec_data[ri]["Readout Frequency"][0] = (
+            res_freqs[ri] + READOUT_OFFSETS[ri])
+        qspec_data[ri]["Round Num"][0] = 1
+        qspec_data[ri]["Batch Num"][0] = 1
+        qspec_data[ri]["Exp Config"][0] = {
+            "start": DRIVE_START, "stop": DRIVE_STOP, "step": DRIVE_STEP,
+            "gain": DRIVE_GAIN, "reps": REPS, "rounds": ROUNDS,
+        }
+        qspec_data[ri]["Syst Config"][0] = P.base_cfg(experiment)
+    P.save_h5(datadir, qspec_data, "qspec_ge")
 
     print("\n" + "=" * 74)
     hits = [(ri, f, c) for ri, f, c in summary if f is not None]
@@ -314,6 +341,25 @@ def main():
         print("     dispersive shift may be under the noise. Raise REPS.")
     print(f"\nPlots: {path}")
     print("=" * 74 + "\n")
+
+
+class PUCQ4QubitHunt:
+    """Round-robin-compatible wrapper around the wide qubit search."""
+
+    def __init__(self, QubitIndex, number_of_qubits, outerFolder, round_num,
+                 signal, save_figs=True, experiment=None):
+        self.QubitIndex = QubitIndex
+        self.number_of_qubits = number_of_qubits
+        self.outerFolder = outerFolder
+        self.round_num = round_num
+        self.signal = signal
+        self.save_figs = save_figs
+        self.experiment = experiment
+        self.expt_name = "qubit_spec_ge"
+        self.exp_cfg = P.base_cfg(experiment)
+
+    def run(self):
+        return main(experiment=self.experiment)
 
 
 if __name__ == "__main__":

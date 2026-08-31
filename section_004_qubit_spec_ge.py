@@ -200,7 +200,7 @@ class QubitSpectroscopy:
             ydata = pop_norm
 
             freqs = np.array(freqs)
-            freq_q = np.argmax(ydata)
+            freq_q = freqs[np.argmax(ydata)]
 
             mean_y_data,y_data_fit, largest_amp_curve_mean, largest_amp_curve_fwhm, fit_err = self.fit_lorenzian_scaled(
                 ydata, freqs,
@@ -210,7 +210,9 @@ class QubitSpectroscopy:
             if (mean_y_data is None and y_data_fit is None
                     and largest_amp_curve_mean is None and largest_amp_curve_fwhm is None):
                 # If so, return None for the values in this definition as well
-                return None, None, None
+                if return_fwhm:
+                    return None, None, None
+                return None, None
 
             # If we get here, the fit was successful and we can proceed with plotting
             fig, (ax1) = plt.subplots(1, 1, figsize=(10, 5))
@@ -287,6 +289,8 @@ class QubitSpectroscopy:
             if (mean_I is None and mean_Q is None and I_fit is None and Q_fit is None
                     and largest_amp_curve_mean is None and largest_amp_curve_fwhm is None):
                 # If so, return None for the values in this definition as well
+                if return_fwhm:
+                    return None, None, None, np.nan
                 return None, None, None
 
             # If we get here, the fit was successful and we can proceed with plotting
@@ -483,20 +487,36 @@ class QubitSpectroscopy:
 
     def fit_lorenzian_scaled(self, y_data, freqs, freq_q, sigma_guess = 1):
         try:
+            frequency_step = abs(freqs[1] - freqs[0])
+            frequency_span = abs(freqs[-1] - freqs[0])
+            fit_bounds = (
+                [np.min(freqs), frequency_step / 4.0, -np.inf, -np.inf],
+                [np.max(freqs), frequency_span, np.inf, np.inf],
+            )
             # Initial guesse
-            initial_guess_y_data = [freq_q, sigma_guess, np.max(y_data), np.min(y_data)]
+            initial_guess_y_data = [freq_q, sigma_guess,
+                                    np.max(y_data) - np.median(y_data),
+                                    np.median(y_data)]
 
 
             # First round of fits (to get rough estimates)
-            params_y_data, _ = curve_fit(self.lorentzian, freqs, y_data, p0=initial_guess_y_data)
+            params_y_data, _ = curve_fit(
+                self.lorentzian, freqs, y_data, p0=initial_guess_y_data,
+                bounds=fit_bounds,
+            )
 
             # Use these fits to refine guesses
             x_max_diff_y_data, max_diff_y_data = self.max_offset_difference_with_x(freqs, y_data, params_y_data[3])
-            initial_guess_y_data = [x_max_diff_y_data, sigma_guess, np.max(y_data), np.min(y_data)]
+            initial_guess_y_data = [x_max_diff_y_data, sigma_guess,
+                                    np.max(y_data) - np.median(y_data),
+                                    np.median(y_data)]
 
 
             # Second (refined) round of fits, this time capturing the covariance matrices
-            params_y_data, cov_y_data = curve_fit(self.lorentzian, freqs, y_data, p0=initial_guess_y_data)
+            params_y_data, cov_y_data = curve_fit(
+                self.lorentzian, freqs, y_data, p0=initial_guess_y_data,
+                bounds=fit_bounds,
+            )
 
             # Create the fitted curves
             y_data_fit = self.lorentzian(freqs, *params_y_data)
@@ -522,7 +542,7 @@ class QubitSpectroscopy:
             if self.verbose: print("Error during Lorentzian fit:", e)
             self.logger.info(f'Error during Lorentzian fit: {e}')
             # Return all desired results including the error on the Q fit
-            mean_y_data, y_data_fit, largest_amp_curve_mean, largest_amp_curve_fwhm, qspec_fit_err = None, None, None, None, None,None,None
+            mean_y_data, y_data_fit, largest_amp_curve_mean, largest_amp_curve_fwhm, qspec_fit_err = None, None, None, None, None
         return mean_y_data, y_data_fit, largest_amp_curve_mean, largest_amp_curve_fwhm, qspec_fit_err
 
     def fit_lorenzian_two_peaks(self, I, Q, freqs ):

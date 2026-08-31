@@ -338,6 +338,7 @@ class T2RMeasurement:
             x,
             y,
             p0=[1, 1, 1, guess_phase, 1, 1],
+            maxfev=20000,
         )
 
         # T2 = popt[4]

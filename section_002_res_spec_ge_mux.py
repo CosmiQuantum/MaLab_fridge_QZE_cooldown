@@ -6,6 +6,7 @@ from expt_config import *
 import copy
 import datetime
 import logging
+import os
 
 
 class SingleToneSpectroscopyProgram(AveragerProgramV2):
@@ -93,7 +94,11 @@ class ResonanceSpectroscopy:
         plt.subplot(2, 3, 1)
         # plt.plot(fpts + fcenter[i], amps[i], '-', linewidth=1.5)
         plt.plot([f + fcenter[0] for f in fpts], amps[0], '-', linewidth=1.5)
-        freq_r = fpts[np.argmin(amps)] + fcenter[0]
+        extremum = os.environ.get("PUCQ4_RES_EXTREMUM", "dip").strip().lower()
+        if extremum not in {"dip", "peak"}:
+            raise ValueError("PUCQ4_RES_EXTREMUM must be 'dip' or 'peak'")
+        index = np.argmax(amps) if extremum == "peak" else np.argmin(amps)
+        freq_r = fpts[index] + fcenter[0]
 
         print(freq_r)
 
@@ -142,7 +147,11 @@ class ResonanceSpectroscopy:
         plt.subplot(2, 3, 1)
         # plt.plot(fpts + fcenter[i], amps[i], '-', linewidth=1.5)
         plt.plot([f + fcenter for f in fpts], amps, '-', linewidth=1.5)
-        freq_r = fpts[np.argmin(amps)] + fcenter
+        extremum = os.environ.get("PUCQ4_RES_EXTREMUM", "dip").strip().lower()
+        if extremum not in {"dip", "peak"}:
+            raise ValueError("PUCQ4_RES_EXTREMUM must be 'dip' or 'peak'")
+        index = np.argmax(amps) if extremum == "peak" else np.argmin(amps)
+        freq_r = fpts[index] + fcenter
 
         print(freq_r)
 

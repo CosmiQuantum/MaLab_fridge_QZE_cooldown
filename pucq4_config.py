@@ -26,6 +26,8 @@ import logging
 
 import numpy as np
 
+from section_008_save_data_to_h5 import Data_H5
+
 # ----------------------------------------------------------------------------
 # Device: measured values from the pptx table
 # ----------------------------------------------------------------------------
@@ -38,13 +40,25 @@ RES_FREQS_DESIGN = np.array([7437.0, 7467.0, 7501.0, 7528.0, 7562.0, 7598.0])  #
 # Up to 0.7 MHz from the VNA values -- which matters, because the resonators
 # are under 1 MHz wide, so using the VNA numbers puts you most of a linewidth
 # off. Use THESE for parking the readout.
-RES_FREQS_MEASURED = np.array([8919.6, 8951.6, 8974.8, 8999.85, 9014.3, 9058.85])
+# Coarse high-power centers measured by pucq4_02_res_spec.py on 2026-08-27
+# (0.2 MHz step, gain 0.9). All six dips were resolved; refine at lower power
+# before treating these as dressed readout frequencies.
+RES_FREQS_MEASURED = np.array([8919.85, 8951.65, 8975.00, 8999.95, 9014.95, 9059.45])
+# Steepest |IQ| slope relative to the centers above, extracted from the
+# 2026-08-27 wide resonator scan. Use these for qubit readout contrast.
+RES_READOUT_OFFSETS = np.array([-0.4, -0.4, -0.2, 0.4, 0.2, 0.2])
 
 # Qubit g-e frequencies, same row order as the resonators above.
 # WARNING: the resonator <-> qubit mapping is NOT settled. The deck labels
 # M5->Q4 and M6->Q6, but the avoided-crossing data suggests Q4 couples to M1
 # and Q6 to M2. Do not build a mapping into anything downstream yet.
 QUBIT_FREQS_VNA = np.array([5507.0, 5411.0, 5487.0, 5575.0, 7036.0, 6401.0])  # MHz
+# Zero-current results in resonator-row order. M4 has no assigned physical qubit
+# and produced no reproducible feature, so it remains NaN. The deck maps
+# physical Q4 to M5 (7084.7191 MHz) and physical Q6 to M6 (6522.4767 MHz).
+QUBIT_FREQS_MEASURED_0MA = np.array(
+    [5517.70, 5438.72, 5557.33, np.nan, 7084.77, 6522.4773]
+)
 QUBIT_FREQS_GF2 = np.array([5397.0, 5306.0, 5378.0, 5466.0, 6929.0, 6293.0])  # MHz
 ANHARMONICITY = np.array([220.0, 210.0, 218.0, 218.0, 214.0, 216.0])  # MHz
 
@@ -106,15 +120,20 @@ RUN_NAME = "pucq4_run_started_Aug_3"
 DEVICE_NAME = "PUCQ4"
 
 
-def base_cfg():
-    """Config dict shared by the PUCQ4 helper scripts."""
-    return {
+def base_cfg(experiment=None):
+    """Config dict shared by PUCQ4 scripts and round-robin wrappers.
+
+    When a standard ``QICK_experiment`` is supplied, use its hardware and
+    readout configuration as the source of truth. Standalone characterization
+    scripts retain the PUCQ4 defaults below so they can bootstrap a new device.
+    """
+    cfg = {
         "res_ch": RES_CH,
         "ro_ch": RO_CH,
         "qubit_ch": QUBIT_CH,
         "nqz_res": NQZ_RES,
         "nqz_qubit": NQZ_QUBIT,
-        "res_freq_ge": list(RES_FREQS_VNA),
+        "res_freq_ge": list(RES_FREQS_MEASURED),
         "res_gain_ge": list(RES_GAIN),
         "res_phase": list(RES_PHASE),
         "ro_phase": list(RO_PHASE),
@@ -123,6 +142,21 @@ def base_cfg():
         "relax_delay": RELAX_DELAY,
         "list_of_all_qubits": list(range(NUM_RES)),
     }
+    if experiment is not None:
+        hw = experiment.hw_cfg
+        readout = experiment.readout_cfg
+        cfg.update({
+            "res_ch": hw["res_ch"],
+            "ro_ch": hw["ro_ch"][0] if isinstance(hw["ro_ch"], list) else hw["ro_ch"],
+            "qubit_ch": hw["qubit_ch"],
+            "nqz_res": hw["nqz_res"],
+            "nqz_qubit": hw["nqz_qubit"],
+            "res_freq_ge": readout["res_freq_ge"],
+            "res_gain_ge": readout["res_gain_ge"],
+            "res_length": readout["res_length"],
+            "trig_time": readout["trig_time"],
+        })
+    return cfg
 
 
 def declare_res_single(prog, cfg, freq, gain, pulse_length):
@@ -160,6 +194,20 @@ def amp_from_iq(iq_list, ro_index=0):
     return float(np.abs(a[0] + 1j * a[1]))
 
 
+def create_data_dict(keys, save_r=1, qubits=NUM_RES):
+    """Create the object-array structure used by round_robin_benchmark.py."""
+    return {
+        qubit: {key: np.empty(save_r, dtype=object) for key in keys}
+        for qubit in range(qubits)
+    }
+
+
+def save_h5(subStudyDataFolder, data, data_type, batch_num=1, save_r=1):
+    """Save through the repository's canonical round-robin HDF5 writer."""
+    saver = Data_H5(subStudyDataFolder, data, batch_num, save_r)
+    saver.save_to_h5(data_type, save_dataset_clean=True)
+
+
 def nyquist_zone(freq_mhz, fs_mhz):
     """Which Nyquist zone freq lands in for a converter running at fs."""
     return int(np.floor(freq_mhz / (fs_mhz / 2.0))) + 1
@@ -172,7 +220,7 @@ def setup_data_folders(study, sub_study, substudy_txt_notes, log_name="RR_script
     round_robin_benchmark_res_spec_simple.py, so PUCQ4 helper output lands
     alongside the round robin data instead of in the repo directory.
 
-    Returns a dict with dataSetFolder, optimizationFolder, studyDataFolder,
+    Returns a dict with dataSetFolder, optimizationFolder, subStudyDataFolder,
     studyDocumentationFolder, and logger.
     """
     data_set = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -211,7 +259,8 @@ def setup_data_folders(study, sub_study, substudy_txt_notes, log_name="RR_script
     return {
         "dataSetFolder": dataSetFolder,
         "optimizationFolder": optimizationFolder,
-        "studyDataFolder": studyDataFolder,
+        "studyDataFolder": studyDataFolder,  # compatibility with older runs
+        "subStudyDataFolder": studyDataFolder,
         "studyDocumentationFolder": studyDocumentationFolder,
         "logger": logger,
     }

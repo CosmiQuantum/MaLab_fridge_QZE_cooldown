@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "project": "MaLab_fridge_QZE_cooldown",
+  "python_target": "3.9",
+  "entrypoints": {
+    "primary_orchestrator": "round_robin_benchmark.py",
+    "offline_verifier": "tools/harness_check.py",
+    "persistent_log": "docs/harness-log.md"
+  },
+  "required_documents": [
+    "harness_engineering/README.md",
+    "harness_engineering/TASK_TEMPLATE.md",
+    "harness_engineering/REPOSITORY_MAP.md",
+    "harness_engineering/EXPERIMENT_CONTRACTS.md",
+    "harness_engineering/ENVIRONMENT_AND_SAFETY.md",
+    "harness_engineering/VERIFICATION.md",
+    "harness_engineering/PUCQ4_STATE.md",
+    "harness_engineering/FAILURE_MODES.md",
+    "harness_engineering/SOURCES.md",
+    "docs/harness-log.md"
+  ],
+  "five_defense_layers": {
+    "task_specification": [
+      "harness_engineering/TASK_TEMPLATE.md"
+    ],
+    "context_provision": [
+      "harness_engineering/REPOSITORY_MAP.md",
+      "harness_engineering/EXPERIMENT_CONTRACTS.md"
+    ],
+    "execution_environment": [
+      "harness_engineering/ENVIRONMENT_AND_SAFETY.md"
+    ],
+    "verification_feedback": [
+      "harness_engineering/VERIFICATION.md",
+      "tools/harness_check.py"
+    ],
+    "state_management": [
+      "harness_engineering/PUCQ4_STATE.md",
+      "harness_engineering/FAILURE_MODES.md",
+      "docs/harness-log.md"
+    ]
+  },
+  "hardware_requires_explicit_authorization": true,
+  "unsafe_to_import": [
+    "round_robin_benchmark.py",
+    "round_robin_benchmark_qspec_simple.py",
+    "round_robin_benchmark_res_spec_simple.py"
+  ],
+  "canonical_data_hierarchy": "<data root>/<run>/<device>/<study>/<sub-study>/<timestamp>/{optimization,study_data,documentation}",
+  "evidence_labels": [
+    "executable-config",
+    "validated-measurement",
+    "deck-seed",
+    "rejected-candidate",
+    "acceptance-target"
+  ]
+}

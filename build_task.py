@@ -25,18 +25,20 @@ def add_single_qubit_experiment(expt_cfg, expt_name, QubitIndex):
     # # Simple Single Parameter Experiments
     if "stop" in exp_cfg:
         # print(exp_cfg["start"],exp_cfg["stop"])
-        if isinstance(exp_cfg["start"], int) or isinstance(exp_cfg["start"], float):
-            start = exp_cfg["start"]
-            stop = exp_cfg["stop"]
-        else:
-            start = exp_cfg["start"][QubitIndex]
-            stop = exp_cfg["stop"][QubitIndex]
+        start_cfg = exp_cfg["start"]
+        stop_cfg = exp_cfg["stop"]
+        start = (start_cfg if isinstance(start_cfg, (int, float))
+                 else start_cfg[QubitIndex])
+        stop = (stop_cfg if isinstance(stop_cfg, (int, float))
+                else stop_cfg[QubitIndex])
     
         # np.arrange only support "start" > "stop"
         if start >= stop:
             print("Warning: Start value is smaller than Stop value, and it will cause 'expts' = 0.")
 
         exp_cfg.update([("start",start), ("stop", stop)]) #this line is perminantly updating tprocv2_demos.qick_tprocv2_experiments_mux.expt_config import expt_cfg
+        if isinstance(exp_cfg.get("steps"), (list, tuple, np.ndarray)):
+            exp_cfg["steps"] = exp_cfg["steps"][QubitIndex]
 
 
     elif "start" in exp_cfg: # for time rabi

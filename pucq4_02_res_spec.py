@@ -25,6 +25,7 @@ RES_LENGTH before concluding anything. The script prints its own budget.
 
 import os
 import time
+import datetime
 
 import numpy as np
 import matplotlib
@@ -135,16 +136,17 @@ def sensitivity_budget():
             + 10 * np.log10((REPS * ROUNDS) / tof_avgs))
 
 
-def main():
-    soc, soccfg = makeProxy()
+def main(experiment=None):
+    soc, soccfg = ((experiment.soc, experiment.soccfg)
+                   if experiment is not None else makeProxy())
 
-    cfg = P.base_cfg()
+    cfg = P.base_cfg(experiment)
     cfg["res_length"] = RES_LENGTH
     cfg["relax_delay"] = RELAX_DELAY
 
     folders = P.setup_data_folders(study, sub_study, substudy_txt_notes)
     plotdir = folders["studyDocumentationFolder"]
-    datadir = folders["studyDataFolder"]
+    datadir = folders["subStudyDataFolder"]
     logger = folders["logger"]
 
     gain_db = sensitivity_budget()
@@ -220,11 +222,30 @@ def main():
     fig.savefig(os.path.join(plotdir, "res_spec_wide.pdf"), dpi=200)
     plt.close(fig)
 
-    np.savez(os.path.join(datadir, "res_spec_wide.npz"),
-             freqs=freqs, amps=amps,
-             ctl_freqs=ctl_freqs if ctl_freqs is not None else np.array([]),
-             ctl_amps=ctl_amps if ctl_amps is not None else np.array([]),
-             gain=GAIN, rounds=ROUNDS, res_length=RES_LENGTH)
+    keys = ["Dates", "freq_pts", "freq_center", "Amps", "Found Freqs",
+            "Control Frequencies", "Control Amps", "Round Num", "Batch Num",
+            "Exp Config", "Syst Config"]
+    res_data = P.create_data_dict(keys)
+    now = time.mktime(datetime.datetime.now().timetuple())
+    for qubit in range(P.NUM_RES):
+        res_data[qubit]["Dates"][0] = now
+        res_data[qubit]["freq_pts"][0] = freqs
+        res_data[qubit]["freq_center"][0] = P.RES_FREQS_VNA[qubit]
+        res_data[qubit]["Amps"][0] = amps
+        res_data[qubit]["Found Freqs"][0] = matched[qubit]
+        res_data[qubit]["Control Frequencies"][0] = (
+            ctl_freqs if ctl_freqs is not None else np.array([]))
+        res_data[qubit]["Control Amps"][0] = (
+            ctl_amps if ctl_amps is not None else np.array([]))
+        res_data[qubit]["Round Num"][0] = 1
+        res_data[qubit]["Batch Num"][0] = 1
+        res_data[qubit]["Exp Config"][0] = {
+            "start": F_START, "stop": F_STOP, "step": F_STEP,
+            "gain": GAIN, "reps": REPS, "rounds": ROUNDS,
+            "res_length": RES_LENGTH,
+        }
+        res_data[qubit]["Syst Config"][0] = cfg
+    P.save_h5(datadir, res_data, "res_ge")
 
     # ------------------------------------------------------------------
     # Report
@@ -267,8 +288,26 @@ def main():
         print("If the control band shows clean dips and PUCQ4 stays flat after")
         print("all that, the answer is the RF chain and it needs hardware.")
     print(f"\nPlots: {path}")
-    print(f"Data:  {os.path.join(datadir, 'res_spec_wide.npz')}")
+    print(f"Data:  {os.path.join(datadir, 'Data_h5', 'res_ge')}")
     print("=" * 74 + "\n")
+
+
+class PUCQ4ResonatorSpectroscopy:
+    """Round-robin-compatible wrapper around wide resonator spectroscopy."""
+
+    def __init__(self, QubitIndex, number_of_qubits, outerFolder, round_num,
+                 save_figs=True, experiment=None):
+        self.QubitIndex = QubitIndex
+        self.number_of_qubits = number_of_qubits
+        self.outerFolder = outerFolder
+        self.round_num = round_num
+        self.save_figs = save_figs
+        self.experiment = experiment
+        self.expt_name = "res_spec"
+        self.exp_cfg = P.base_cfg(experiment)
+
+    def run(self):
+        return main(experiment=self.experiment)
 
 
 if __name__ == "__main__":

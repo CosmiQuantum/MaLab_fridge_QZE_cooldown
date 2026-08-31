@@ -14,8 +14,13 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
     # FLUX TUNABLE: the qubit numbers are only valid at the DC bias the VNA
     # sweep used. The resonators move ~7 MHz across +/-10 mA; the qubits move
     # GHz. See YOKOGS200.py for the current-source driver.
-    VNA_res = np.array([8920, 8951, 8975, 9000, 9015, 9059])
-    VNA_qubit = np.array([5507, 5411, 5487, 5575, 7036, 6401])
+    # Coarse high-power QICK centers measured 2026-08-27 (gain 0.9,
+    # 0.2 MHz steps); keep the historical variable name for existing callers.
+    VNA_res = np.array([8919.85, 8951.65, 8975.00, 8999.95, 9014.95, 9059.45])
+    # Row order is M1..M6. M4 remains the 5575 MHz unassigned deck estimate;
+    # physical Q4 is M5 and physical Q6 is M6 in the characterization deck.
+    VNA_qubit = np.array([5517.70, 5438.72, 5557.33, 5575.00,
+                          7084.77, 6522.4773])
     ef_freqs = np.array([5287, 5201, 5269, 5357, 6822, 6185])  # f_ge - alpha
     fh_freqs = np.array([5067, 4991, 5051, 5139, 6608, 5969])  # rough guess
     # Set this for your experiment
@@ -30,7 +35,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
     # +/-2 MHz. That is narrower than the feature you are hunting for, so it
     # would read as a flat line even when perfectly centred.
     WIDE_RES_SCAN = False    # resonators located; track them now
-    WIDE_QUBIT_SCAN = True   # qubits still unfound at this flux bias
+    WIDE_QUBIT_SCAN = False  # precision scans around the five validated 0 mA lines
+    QSPEC_HALF_SPAN = np.array([0.8, 0.8, 0.8, 2.0, 0.8, 0.8])  # [MHz]
 
     gain_start = 0.000001
     gain_stop = 0.04
@@ -97,7 +103,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             # qubit spec sweeps frequency in HARDWARE (add_loop 'freqloop'), so
             # rounds here costs only a few round trips for the whole sweep --
             # unlike res_spec above, this one is fine as written.
-            "reps": 500 if WIDE_QUBIT_SCAN else 2000,
+            "reps": 5000,
             "rounds": 4 if WIDE_QUBIT_SCAN else 1,  # 3
             # PUCQ4 lines are 20-40 MHz wide, so +/-2 MHz cannot resolve them.
             # +/-500 MHz because VNA_qubit is only valid at the bias the VNA
@@ -109,9 +115,9 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             # 20-40 MHz linewidth.
             # NOTE: 0 mA is NOT a sweet spot. Q4's is around +4 mA / 7110 MHz.
             # Move there before measuring T1/T2 -- see the note in the deck.
-            "start": list(VNA_qubit - (500 if WIDE_QUBIT_SCAN else 2)),  # [MHz]0.8
-            "stop": list(VNA_qubit + (500 if WIDE_QUBIT_SCAN else 2)),  # [MHz] 0.8
-            "steps": 400 if WIDE_QUBIT_SCAN else 300,
+            "start": list(VNA_qubit - (500 if WIDE_QUBIT_SCAN else QSPEC_HALF_SPAN)),  # [MHz]
+            "stop": list(VNA_qubit + (500 if WIDE_QUBIT_SCAN else QSPEC_HALF_SPAN)),  # [MHz]
+            "steps": 301,
             "relax_delay": 100,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
@@ -243,8 +249,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "reps": 200,  # 300,
             "rounds": 1,  # 10,
             "start": 0,  # [DAC units]
-            "stop": 0.6,  # 0.08 [DAC units]
-            "steps": 50,
+            "stop": 0.85,  # [DAC units], just beyond the expected pi point
+            "steps": 86,
             "relax_delay": 4000,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
@@ -370,12 +376,12 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "relax_delay": 4000,  # [us]
         },
         "T1_ge": {
-            "reps": 300,#,50, #300
+            "reps": 800,
             "rounds": 1, #1
             "start":  0.01,  # [us]
-            "stop": 500,  # [us] ### Should be ~10x T1! Should change this per qubit.
-            "steps": 200,
-            "relax_delay": 4000,  # [us] ### Should be >10x T1!
+            "stop": [100, 60, 150, 50, 40, 15],  # [us], M1..M6
+            "steps": [201, 121, 301, 101, 161, 61],  # <=0.5 us spacing
+            "relax_delay": 250,  # [us], >7x the longest measured PUCQ4 T1
             "wait_time": 0.0,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
@@ -552,13 +558,13 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "Ramsey_ge": {
-            "reps": 100,
+            "reps": 1000,
             "rounds": 1,
             "start": 0.0, # [us]
-            "stop":  150, # [us]
-            "steps": 100,
+            "stop": [60, 40, 80, 50, 15, 10],  # [us], M1..M6
+            "steps": [301, 201, 401, 251, 151, 101],  # >=10 points/fringe
             "ramsey_freq": 0.5,  # [MHz]
-            "relax_delay": 4000, # [us] the time to wait to let the qubit to relax to gnd again after exciting it (make it way above T1)
+            "relax_delay": 250, # [us], >7x the longest measured PUCQ4 T1
             "wait_time": 0.0, # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
@@ -607,13 +613,13 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
         },
 
         "SpinEcho_ge": {
-            "reps": 100,#20,
+            "reps": 1000,
             "rounds": 1,
             "start": 0.01, # [us]
-            "stop":  150,#20, # [us]
-            "steps": 100,
-            "ramsey_freq": 0.5,  #0.12 [MHz]
-            "relax_delay": 4000, # [us]
+            "stop": [100, 60, 150, 50, 30, 15],  # [us], M1..M6
+            "steps": [501, 301, 751, 251, 301, 151],  # >=10 points/fringe
+            "ramsey_freq": 0.5,  # [MHz]
+            "relax_delay": 250, # [us], >7x the longest measured PUCQ4 T1
             "wait_time": 0.0, # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
@@ -708,7 +714,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             "freq_start" : [6176.0, 0, 0, 0],
             "freq_stop" : [6178.0, 0, 0, 0],
             "freq_step" : 0.1,
-            "relax_delay": 1000,#600, # [us]
+            "relax_delay": 250,  # [us], >5x the longest measured PUCQ4 T1
             "list_of_all_qubits": list_of_all_qubits,
         },
 

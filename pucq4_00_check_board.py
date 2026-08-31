@@ -109,7 +109,7 @@ def main():
     print("-" * 78)
 
     res_gen = mux_gens[0] if mux_gens else gens[P.RES_CH]
-    ro = ros[P.RO_CHS[0]]
+    ro = ros[P.RO_CH]
 
     print(f"\nResonators 8920-9059 MHz, on DAC ch {res_gen['ch']} "
           f"(fs = {res_gen['fs']:.1f}) and ADC ch {ro['ch']} (fs = {ro['fs']:.1f}):")
