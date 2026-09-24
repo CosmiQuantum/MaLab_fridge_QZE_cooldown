@@ -1,6 +1,8 @@
 import copy
 import sys
 import os
+import atexit
+import json
 import numpy as np
 
 # from long_qubit_spectroscopy import fh_config
@@ -31,9 +33,45 @@ from section_005_single_shot_ef import SingleShot_ef
 from section_008_save_data_to_h5 import Data_H5
 from section_009_T2R_ge import T2RMeasurement
 from section_010_T2E_ge import T2EMeasurement
-from system_config import QICK_experiment
+from system_config import (QICK_experiment, get_pucq4_flux_calibration,
+                           resolve_pucq4_flux_config, normalize_pucq4_flux_current)
+from malab_yokogawa_gs200 import YokogawaGS200
 from section_003_punch_out_ge_mux import PunchOut
-from expt_config import expt_cfg, list_of_all_qubits, tot_num_of_qubits, FRIDGE
+from expt_config import (expt_cfg, list_of_all_qubits, tot_num_of_qubits, FRIDGE,
+                         apply_pucq4_flux_experiment_config,
+                         pucq4_round_robin_profile, apply_pucq4_round_robin_profile)
+
+
+def set_yoko_bias(yoko3_mA=0.0, yoko4_mA=0.0):
+    """Set the documented biases at 0.5 mA/s; zero means output off."""
+    currents = tuple(normalize_pucq4_flux_current(i) for i in (yoko3_mA, yoko4_mA))
+    states, errors = [], []
+    for ip, current in zip(("192.168.1.73", "192.168.1.77"), currents):
+        try:
+            with YokogawaGS200(ip, max_current=0.010) as source:
+                if source.get_mode() != "CURR" or abs(source.get_range() - 0.01) > 1e-9:
+                    raise RuntimeError("%s must already be in current mode / 10 mA range" % ip)
+                if not source.get_output():
+                    source.set_current(0.0)  # enable only from zero
+                    if current:
+                        source.set_output(True)
+                source.ramp_current(current * 1e-3, sweeprate=0.0005)
+                source.set_output(bool(current))
+                state = dict(ip=ip, identity=source.get_id(), mode=source.get_mode(),
+                             current_A=source.get_current(), output=source.get_output(),
+                             range_A=source.get_range(), voltage_limit_V=source.get_voltage_limit())
+                if abs(state["current_A"] - current * 1e-3) > 1e-7 or state["output"] != bool(current):
+                    raise RuntimeError("Yoko readback mismatch: %s" % state)
+                states.append(state)
+        except Exception as exc:
+            errors.append("%s: %s" % (ip, exc))
+            if any(currents):
+                raise
+    if errors:  # zeroing still attempts BOTH sources if one connection fails
+        raise RuntimeError("; ".join(errors))
+    print("Verified Yoko biases: " + json.dumps(states), flush=True)
+    return states
+
 ################################################ Run Configurations ####################################################
 st = time.time()
 #
@@ -56,7 +94,14 @@ unmask = True                        # Do you want to use the unmasking feature 
 qubit_to_increase_reps_for = 0       # only has impact if previous line is True
 multiply_qubit_reps_by = 2           # only has impact if the line two above is True
 
-Qs_to_look_at = [0, 1, 2, 4, 5]  # five validated PUCQ4 rows; M4/index 3 excluded
+Qs_to_look_at = [0, 1, 2, 3, 4, 5]  # M1..M6; physical Q4 is index 4, Q6 is index 5
+
+# Set these two values, then run: the script ramps/verifies the sources and
+# selects the matching pulse/readout/acquisition settings. Both return to zero
+# with outputs off when finished. Only the nine documented grid values work.
+# Current-sweep calibrations use one nonzero Yoko at a time; joint biases are unverified.
+YOKO3_CURRENT_MA = 0.0  # physical Q4, resonator row M5, Python index 4
+YOKO4_CURRENT_MA = 0.0  # physical Q6, resonator row M6, Python index 5
 
 # Optional environment overrides are used by the bounded PUCQ4 flux controller.
 # Ordinary interactive runs see exactly the defaults above. Values are explicit
@@ -64,14 +109,48 @@ Qs_to_look_at = [0, 1, 2, 4, 5]  # five validated PUCQ4 rows; M4/index 3 exclude
 # normal plot/HDF5 paths without changing any underlying QICK program.
 if os.environ.get('PUCQ4_QS'):
     Qs_to_look_at = [int(value) for value in os.environ['PUCQ4_QS'].split(',')]
+YOKO3_CURRENT_MA = float(os.environ.get('PUCQ4_YOKO3_CURRENT_MA', YOKO3_CURRENT_MA))
+YOKO4_CURRENT_MA = float(os.environ.get('PUCQ4_YOKO4_CURRENT_MA', YOKO4_CURRENT_MA))
+# Use a consistent endpoint settling interval after the verified ramp.
+# Matched endpoint runs retain qspec to track observed frequency variation.
+YOKO_SETTLE_SECONDS = 600 if YOKO3_CURRENT_MA in (-10.0, 10.0) else 0
+selected_flux_calibration = get_pucq4_flux_calibration(
+    yoko3_current_mA=YOKO3_CURRENT_MA,
+    yoko4_current_mA=YOKO4_CURRENT_MA,
+)
+selected_flux_config = resolve_pucq4_flux_config(
+    yoko3_current_mA=YOKO3_CURRENT_MA,
+    yoko4_current_mA=YOKO4_CURRENT_MA,
+)
+apply_pucq4_flux_experiment_config(selected_flux_calibration)
 
 #Data saving info
 run_name = 'pucq4_run_started_Aug_3'
 device_name = 'PUCQ4'
-substudy_txt_notes = ('Final zero-current five-mode chain after qspec, Rabi, and '
-                      'iterative single-shot readout optimization.')
+_bias_description = (
+    'zero-current' if YOKO3_CURRENT_MA == 0.0 and YOKO4_CURRENT_MA == 0.0
+    else 'selected-current'
+)
+substudy_txt_notes = ('PUCQ4 %s round-robin reproduction using persistent '
+                      'pulse, readout, averaging and coherence timing profiles.'
+                      % _bias_description)
+substudy_txt_notes = os.environ.get(
+    'PUCQ4_SUBSTUDY_NOTES', substudy_txt_notes
+)
+substudy_txt_notes += (
+    '\nSelected Python indices: %s. Flux selectors: Yoko 3/Q4/M5 = %.1f mA; '
+    'Yoko 4/Q6/M6 = %.1f mA. Parameters resolved from the final '
+    'current-indexed pulse/readout calibration table.'
+    % (Qs_to_look_at, YOKO3_CURRENT_MA, YOKO4_CURRENT_MA)
+)
 study ='pucq4_first_light'
-sub_study = 'rr_full5_optimized_0mA'
+if YOKO3_CURRENT_MA == 0.0 and YOKO4_CURRENT_MA == 0.0:
+    sub_study = 'rr6_0mA'
+else:
+    sub_study = (
+        'rr6_y3_%+.1f_y4_%+.1f'
+        % (YOKO3_CURRENT_MA, YOKO4_CURRENT_MA)
+    )
 sub_study = os.environ.get('PUCQ4_SUB_STUDY', sub_study)
 data_set = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
@@ -82,15 +161,45 @@ run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss": True, "rabi":
 if os.environ.get('PUCQ4_RUN_FLAGS'):
     enabled = {name.strip() for name in os.environ['PUCQ4_RUN_FLAGS'].split(',') if name.strip()}
     run_flags = {name: name in enabled for name in run_flags}
+t2r_fit_starts_override = None
+if os.environ.get('PUCQ4_T2R_FIT_STARTS'):
+    # Optional diagnostic starts for the existing free fit; never a T2 guess.
+    t2r_fit_starts_override = json.loads(os.environ['PUCQ4_T2R_FIT_STARTS'])
+    if (len(Qs_to_look_at) != 1 or not run_flags['t2r']
+            or not isinstance(t2r_fit_starts_override, dict)
+            or 'f' not in t2r_fit_starts_override
+            or not set(t2r_fit_starts_override) <= {
+                'f', 'phase', 'amp', 'initial_offset', 'final_offset'}
+            or not all(isinstance(v, (int, float)) and not isinstance(v, bool)
+                       and np.isfinite(v) for v in t2r_fit_starts_override.values())
+            or t2r_fit_starts_override['f'] <= 0):
+        raise ValueError('PUCQ4_T2R_FIT_STARTS requires one Ramsey row and finite '
+                         'f>0, phase, amp, initial_offset, final_offset starts')
+if os.environ.get('PUCQ4_QSPEC_PASSES'):
+    # Short settling diagnostic: keep the bias applied across existing RR rounds.
+    n = int(os.environ['PUCQ4_QSPEC_PASSES'])
+    if (n not in (1, 2, 3) or len(Qs_to_look_at) != 1
+            or {name for name, enabled in run_flags.items() if enabled} != {'q_spec'}):
+        raise ValueError('PUCQ4_QSPEC_PASSES permits only 1-3 qspec-only passes on one row')
+if (not run_flags['q_spec'] and not os.environ.get('PUCQ4_QFREQ_MHZ')
+        and any(run_flags[name] for name in ('rabi', 'ss', 't1', 't2r', 't2e'))
+        and any(q in Qs_to_look_at and row.get('requires_qspec_each_pass', False)
+                for q, row in selected_flux_calibration.items())):
+    raise ValueError('This bias has a varying qubit frequency: enable q_spec before '
+                     'pulse measurements, or supply a freshly measured PUCQ4_QFREQ_MHZ '
+                     'for an explicit diagnostic run.')
+
+coherence_scaling = os.environ.get(
+    'PUCQ4_COHERENCE_SCALING', 'true'
+).strip().lower() in {'1', 'true', 'yes', 'on'}
 
 
 # PUCQ4 readout settings. The 9 GHz band comes back ~30 dB weaker than the old
 # 7.2 GHz chip (~11 dB of DAC sin(x)/x rolloff plus ~19 dB of analog loss), so
 # these are much longer and louder than squill's 9 us / 0.25.
-res_leng_vals = [10.0, 5.0, 12.0, 10.0, 5.0, 3.0]
-res_gain = [0.48, 0.56, 0.41, 0.30, 0.33, 0.60]
-# Iterative 2026-08-28 single-shot optimized offsets (MHz).
-freq_offsets = [-0.52, -0.40, -0.08, 0.40, 0.44, -0.04]
+res_leng_vals = list(selected_flux_config["res_length_ge"])
+res_gain = list(selected_flux_config["res_gain_ge"])
+freq_offsets = list(selected_flux_config["res_freq_offset_ge"])
 for _override_index in Qs_to_look_at:
     if os.environ.get('PUCQ4_READOUT_LENGTH_US'):
         res_leng_vals[_override_index] = float(os.environ['PUCQ4_READOUT_LENGTH_US'])
@@ -108,6 +217,22 @@ figure_quality = 200
 #Folders
 
 data_set = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+# Check the full timestamped paths before folders or hardware are touched.
+_planned_root = os.path.join("M:/_Data/20250822 - Olivia", run_name,
+                             device_name, study, sub_study, data_set)
+_planned_paths = [
+    os.path.join(_planned_root, "study_data", "Data_h5", "qspec_ge",
+                 data_set + "_qspec_ge_results_batch_1_Num_per_batch1.h5"),
+    os.path.join(_planned_root, "documentation", "qubit_spec_ge_plots",
+                 "R_1_Q_6_" + data_set + "_qubit_spec_ge_q6.png"),
+    os.path.join(_planned_root, "documentation", "ss_repeat_meas_ge", "Q6",
+                 "R_1_Q_6_Readout_Optimization" + data_set + "__q6.png"),
+]
+if max(map(len, _planned_paths)) >= 260:
+    raise ValueError("Shorten sub_study: generated Windows path reaches 260 characters")
+if not Qs_to_look_at or len(set(Qs_to_look_at)) != len(Qs_to_look_at) or any(q not in range(6) for q in Qs_to_look_at):
+    raise ValueError("Select distinct PUCQ4 Python indices from 0 through 5")
 
 if not os.path.exists(f"M:/_Data/20250822 - Olivia/{run_name}/"):
     os.makedirs(f"M:/_Data/20250822 - Olivia/{run_name}/")
@@ -151,31 +276,105 @@ file_handler.setFormatter(formatter)
 rr_logger.addHandler(file_handler)
 rr_logger.propagate = False  #dont propagate logs from underlying qick package
 
+with open(os.path.join(studyDocumentationFolder, "acquisition_profile.json"), "w") as _profile_file:
+    json.dump(dict(qubits=Qs_to_look_at, rounds=n, run_flags=run_flags,
+                   yoko3_current_mA=YOKO3_CURRENT_MA, yoko4_current_mA=YOKO4_CURRENT_MA,
+                   yoko_settle_seconds=YOKO_SETTLE_SECONDS,
+                   system=selected_flux_config,
+                   profiles={q: pucq4_round_robin_profile(q, selected_flux_calibration)
+                             for q in Qs_to_look_at},
+                   environment_overrides={k: v for k, v in os.environ.items() if k.startswith("PUCQ4_")},
+                   longest_artifact_path=max(map(len, _planned_paths))), _profile_file, indent=2)
+
+
+def return_yokos_to_zero():
+    states = set_yoko_bias(0.0, 0.0)
+    with open(os.path.join(studyDocumentationFolder, "yoko_final.json"), "w") as handle:
+        json.dump(states, handle, indent=2)
+
+
+atexit.register(return_yokos_to_zero)
+_bias_states = set_yoko_bias(YOKO3_CURRENT_MA, YOKO4_CURRENT_MA)
+with open(os.path.join(studyDocumentationFolder, "yoko_bias.json"), "w") as _bias_file:
+    json.dump(_bias_states, _bias_file, indent=2)
+for _remaining in range(YOKO_SETTLE_SECONDS, 0, -30):
+    print("Yoko bias settling: %d seconds remaining" % _remaining, flush=True)
+    time.sleep(min(30, _remaining))
+
+for _flux_qubit_index in sorted(selected_flux_calibration):
+    _flux_row = selected_flux_calibration[_flux_qubit_index]
+    rr_logger.info(
+        "Selected flux calibration: index=%d device=%s current_mA=%.1f "
+        "qfreq_MHz=%.12g qspec_gain=%.12g qspec_length_us=%.12g "
+        "sigma_us=%.12g gaussian_length_us=%.12g pi_amp=%.12g "
+        "res_base_MHz=%.12g readout_frequency_MHz=%.12g "
+        "readout_offset_MHz=%.12g readout_gain=%.12g readout_length_us=%.12g",
+        _flux_qubit_index, _flux_row["device_key"], _flux_row["current_mA"],
+        _flux_row["qfreq_MHz"], _flux_row["qspec_gain"],
+        _flux_row["qspec_length_us"], _flux_row["sigma_us"],
+        _flux_row["gaussian_length_us"], _flux_row["pi_amp"],
+        _flux_row["res_base_MHz"], _flux_row["readout_frequency_MHz"],
+        _flux_row["readout_offset_MHz"], _flux_row["readout_gain"],
+        _flux_row["readout_length_us"],
+    )
+
 ####################################################### RR #############################################################
 
 def create_data_dict(keys, save_r, qs):
     return {Q: {key: np.empty(save_r, dtype=object) for key in keys} for Q in range(len(qs))}
+
+
+def set_qubit_expt_value(experiment_name, key, qubit_index, value):
+    """Apply a scalar override while preserving list-valued experiment config."""
+    current = expt_cfg[experiment_name][key]
+    if isinstance(current, (list, np.ndarray)):
+        current[qubit_index] = value
+    elif isinstance(current, tuple):
+        current = list(current)
+        current[qubit_index] = value
+        expt_cfg[experiment_name][key] = current
+    else:
+        expt_cfg[experiment_name][key] = value
+
+
+def calibrated_population(I, Q, ss_I_e, ss_Q_e, ss_I_g, ss_Q_g):
+    """Return the signed SSF affine projection, with ground=0 and excited=1."""
+    excited = np.mean(ss_I_e + 1j * ss_Q_e)
+    ground = np.mean(ss_I_g + 1j * ss_Q_g)
+    separation_squared = np.abs(excited - ground) ** 2
+    if not np.isfinite(separation_squared) or separation_squared <= 0:
+        raise RuntimeError('SSF calibration has zero/non-finite centroid separation')
+    return np.real(
+        ((I + 1j * Q) - ground) * np.conj(excited - ground)
+    ) / separation_squared
 
 # Define what to save to h5 files
 tof_keys = ['Dates', 'iq_list','t', 'Round Num', 'Batch Num', 'Exp Config',
             'Syst Config']
 res_keys = ['Dates', 'freq_pts', 'freq_center', 'Amps', 'Found Freqs', 'Round Num', 'Batch Num', 'Exp Config',
             'Syst Config']
-qspec_keys = ['Dates', 'I', 'Q', 'Frequencies', 'I Fit', 'Q Fit', 'Round Num', 'Batch Num','Recycled QFreq',
-              'Exp Config', 'Syst Config']
-rabi_keys = ['Dates', 'I', 'Q', 'Gains', 'Fit', 'Round Num', 'Batch Num', 'Exp Config', 'Syst Config']
+qspec_keys = ['Dates', 'I', 'Q', 'Population', 'Frequencies', 'I Fit', 'Q Fit', 'Round Num', 'Batch Num','Recycled QFreq',
+              'Exp Config', 'Syst Config', 'ss_Q_e', 'ss_Q_g', 'ss_I_e', 'ss_I_g']
+rabi_keys = [
+    'Dates', 'I', 'Q', 'Population', 'Gains', 'Fit', 'Round Num',
+    'Batch Num', 'Exp Config', 'Syst Config', 'ss_Q_e', 'ss_Q_g',
+    'ss_I_e', 'ss_I_g',
+]
 ss_keys = ['Fidelity', 'Angle', 'Dates', 'I_g', 'Q_g', 'I_e', 'Q_e', 'Round Num', 'Batch Num', 'Exp Config',
            'Syst Config']
 ss_ef_keys = ['Fidelity', 'Angle', 'Dates', 'I_g', 'Q_g','I_e', 'Q_e', 'I_f', 'Q_f', 'Round Num', 'Batch Num', 'Exp Config',
            'Syst Config']
-t1_keys = ['T1', 'Errors', 'Dates', 'I', 'Q', 'Delay Times', 'Fit', 'Round Num', 'Batch Num', 'Exp Config',
-           'Syst Config']
-t2r_keys = ['T2', 'Errors', 'Dates', 'I', 'Q', 'Delay Times', 'Fit', 'Round Num', 'Batch Num', 'Exp Config',
-            'Syst Config']
+t1_keys = ['T1', 'Errors', 'Dates', 'I', 'Q', 'Population', 'Delay Times', 'Fit',
+           'Round Num', 'Batch Num', 'Exp Config', 'Syst Config', 'ss_Q_e', 'ss_Q_g',
+           'ss_I_e', 'ss_I_g']
+t2r_keys = ['T2', 'Errors', 'Dates', 'I', 'Q', 'Population', 'Delay Times', 'Fit', 'Fit Unseeded',
+            'Round Num', 'Batch Num', 'Exp Config', 'Syst Config', 'ss_Q_e', 'ss_Q_g',
+            'ss_I_e', 'ss_I_g']
 t2r_correction_keys = ['T2', 'Errors', 'Dates', 'I', 'Q', 'Correction Freq', 'Delay Times', 'Fit', 'Round Num', 'Batch Num', 'Exp Config',
             'Syst Config']
-t2e_keys = ['T2E', 'Errors', 'Dates', 'I', 'Q', 'Delay Times', 'Fit', 'Round Num', 'Batch Num', 'Exp Config',
-            'Syst Config']
+t2e_keys = ['T2E', 'Errors', 'Dates', 'I', 'Q', 'Population', 'Delay Times', 'Fit',
+            'Round Num', 'Batch Num', 'Exp Config', 'Syst Config', 'ss_Q_e', 'ss_Q_g',
+            'ss_I_e', 'ss_I_g']
 rabi_keys_ef_Qtemps = ['Dates', 'Qfreq_ge', 'I1', 'Q1', 'Gains1', 'Fit1', 'I2', 'Q2', 'Gains2', 'Fit2', 'Round Num', 'Batch Num', 'Exp Config', 'Syst Config']
 ss_keys_gef = ['Fidelity', 'Angle_ef', 'Dates', 'I_g', 'Q_g', 'I_e', 'Q_e', 'I_f', 'Q_f', 'Round Num', 'Batch Num', 'Exp Config',
            'Syst Config']
@@ -254,7 +453,7 @@ if pre_optimize:
                 ss_data[QubitIndex]['Q_e'][0] = Q_e
                 ss_data[QubitIndex]['Round Num'][0] = i
                 ss_data[QubitIndex]['Batch Num'][0] = 0
-                ss_data[QubitIndex]['Exp Config'][0] = expt_cfg
+                ss_data[QubitIndex]['Exp Config'][0] = copy.deepcopy(expt_cfg)
                 ss_data[QubitIndex]['Syst Config'][0] = ss_config
 
                 saver_ss = Data_H5(optimizationFolder_opt, ss_data, 0, save_r)
@@ -301,7 +500,9 @@ if pre_optimize:
                 DAC_attenuator1=15,
                 DAC_attenuator2=10,
                 ADC_attenuator=17,
-                fridge=FRIDGE
+                fridge=FRIDGE,
+                yoko3_current_mA=YOKO3_CURRENT_MA,
+                yoko4_current_mA=YOKO4_CURRENT_MA,
             )
             # Set resonator configuration for this qubit
             experiment.readout_cfg['res_gain_ge'] = res_gain[Q]
@@ -322,7 +523,7 @@ if pre_optimize:
             res_data[Q]['Amps'][0] = amps
             res_data[Q]['Found Freqs'][0] = res_freqs
             res_data[Q]['Batch Num'][0] = 0
-            res_data[Q]['Exp Config'][0] = expt_cfg
+            res_data[Q]['Exp Config'][0] = copy.deepcopy(expt_cfg)
             res_data[Q]['Syst Config'][0] = sys_config_rspec
 
             saver_res = Data_H5(optimizationFolder, res_data, 0, save_r)  # save
@@ -358,7 +559,7 @@ if pre_optimize:
         qspec_data[Q]['Round Num'][0] = 0
         qspec_data[Q]['Batch Num'][0] = 0
         qspec_data[Q]['Recycled QFreq'][0] = False  # no rr so no recycling here
-        qspec_data[Q]['Exp Config'][0] = expt_cfg
+        qspec_data[Q]['Exp Config'][0] = copy.deepcopy(expt_cfg)
         qspec_data[Q]['Syst Config'][0] = sys_config_qspec
 
         saver_qspec = Data_H5(optimizationFolder, qspec_data, 0, save_r)
@@ -402,7 +603,7 @@ if pre_optimize:
             rabi_data[Q]['Fit'][0] = rabi_fit
             rabi_data[Q]['Round Num'][0] = 0
             rabi_data[Q]['Batch Num'][0] = 0
-            rabi_data[Q]['Exp Config'][0] = expt_cfg
+            rabi_data[Q]['Exp Config'][0] = copy.deepcopy(expt_cfg)
             rabi_data[Q]['Syst Config'][0] = sys_config_rabi
             saver_rabi = Data_H5(optimizationFolder, rabi_data, 0, save_r)
             saver_rabi.save_to_h5('rabi_ge')
@@ -445,15 +646,37 @@ while j < n:
     j += 1
     for QubitIndex in Qs_to_look_at:
         recycled_qfreq = False
+        row_profile = apply_pucq4_round_robin_profile(
+            QubitIndex, selected_flux_calibration,
+            selected_flux_config["qubit_freq_ge"][QubitIndex])
+        if t2r_fit_starts_override is not None:
+            row_profile["Ramsey_ge"].update(
+                fit_frequency_guess_MHz=t2r_fit_starts_override['f'],
+                fit_population_guess={k: v for k, v in t2r_fit_starts_override.items()
+                                      if k != 'f'})
+        rr_logger.info("M%d acquisition profile: %s", QubitIndex + 1, row_profile)
 
         #Get the config for this qubit
         experiment = QICK_experiment(optimizationFolder, DAC_attenuator1 = 10, DAC_attenuator2 = 15, qubit_DAC_attenuator1 = 5,
-                                     qubit_DAC_attenuator2 = 4, ADC_attenuator = 17, fridge=FRIDGE) # ADC_attenuator MUST be above 16dB
+                                     qubit_DAC_attenuator2 = 4, ADC_attenuator = 17, fridge=FRIDGE,
+                                     yoko3_current_mA=YOKO3_CURRENT_MA,
+                                     yoko4_current_mA=YOKO4_CURRENT_MA) # ADC_attenuator MUST be above 16dB
         experiment.create_folder_if_not_exists(optimizationFolder)
 
         experiment.readout_cfg['res_gain_ge'] = res_gain[QubitIndex]
         experiment.readout_cfg['res_gain_ef'] = res_gain[QubitIndex]
+        # build_state derives the program's res_length from res_length_ge.
+        experiment.readout_cfg['res_length_ge'] = res_leng_vals[QubitIndex]
         experiment.readout_cfg['res_length'] = res_leng_vals[QubitIndex]
+        offset_config = experiment.readout_cfg.get('res_freq_offset_ge')
+        if isinstance(offset_config, (list, np.ndarray)):
+            offset_config[QubitIndex] = freq_offsets[QubitIndex]
+        elif isinstance(offset_config, tuple):
+            offset_config = list(offset_config)
+            offset_config[QubitIndex] = freq_offsets[QubitIndex]
+            experiment.readout_cfg['res_freq_offset_ge'] = offset_config
+        else:
+            experiment.readout_cfg['res_freq_offset_ge'] = freq_offsets[QubitIndex]
         experiment.readout_cfg['res_freq_ge'] = experiment.readout_cfg['res_freq_ge'][QubitIndex]
 
         experiment.qubit_cfg['qubit_freq_ge'] = experiment.qubit_cfg['qubit_freq_ge'][QubitIndex]
@@ -472,8 +695,8 @@ while j < n:
         # so every qubit got Q6's squill frequencies regardless of system_config.
         # Removed for PUCQ4. If you need to pin a frequency for a one-off study,
         # do it here and DELETE IT AFTERWARDS.
-        experiment.readout_cfg['res_freq_ge'] = (
-            freq_offsets[QubitIndex] + experiment.readout_cfg['res_freq_ge'])
+        if not run_flags['res_spec']:
+            experiment.readout_cfg['res_freq_ge'] += freq_offsets[QubitIndex]
         experiment.qubit_cfg['qubit_freq_ef'] = experiment.qubit_cfg['qubit_freq_ef'][QubitIndex]
         experiment.qubit_cfg['qubit_gain_ef'] = experiment.qubit_cfg['qubit_gain_ef'][QubitIndex]
         experiment.qubit_cfg['pi_amp'] =  experiment.qubit_cfg['pi_amp'][QubitIndex]
@@ -498,6 +721,51 @@ while j < n:
         res_override = os.environ.get('PUCQ4_RES_FREQ_MHZ')
         if res_override is not None:
             experiment.readout_cfg['res_freq_ge'] = float(res_override)
+        # ``PUCQ4_RES_FREQ_MHZ`` is the base/seed used by an enabled resonator
+        # sweep.  Qspec-only map runs have no such sweep, so give them a
+        # separate explicit override for the already offset, physical readout
+        # tone.  Keeping these meanings distinct prevents a base-frequency
+        # override from silently discarding the optimized readout offset.
+        readout_frequency_override = os.environ.get('PUCQ4_READOUT_FREQ_MHZ')
+        if readout_frequency_override is not None:
+            experiment.readout_cfg['res_freq_ge'] = float(readout_frequency_override)
+
+        if any(run_flags[name] for name in ('t1', 't2r', 't2e')):
+            coherence_overrides = {
+                'T1_ge': {
+                    'start': ('PUCQ4_T1_START_US', float),
+                    'stop': ('PUCQ4_T1_STOP_US', float),
+                    'steps': ('PUCQ4_T1_STEPS', int),
+                    'reps': ('PUCQ4_T1_REPS', int),
+                    'rounds': ('PUCQ4_T1_ROUNDS', int),
+                    'relax_delay': ('PUCQ4_T1_RELAX_DELAY_US', float),
+                },
+                'Ramsey_ge': {
+                    'start': ('PUCQ4_T2R_START_US', float),
+                    'stop': ('PUCQ4_T2R_STOP_US', float),
+                    'steps': ('PUCQ4_T2R_STEPS', int),
+                    'ramsey_freq': ('PUCQ4_T2R_DETUNING_MHZ', float),
+                    'reps': ('PUCQ4_T2R_REPS', int),
+                    'rounds': ('PUCQ4_T2R_ROUNDS', int),
+                    'relax_delay': ('PUCQ4_T2R_RELAX_DELAY_US', float),
+                },
+                'SpinEcho_ge': {
+                    'start': ('PUCQ4_T2E_START_US', float),
+                    'stop': ('PUCQ4_T2E_STOP_US', float),
+                    'steps': ('PUCQ4_T2E_STEPS', int),
+                    'ramsey_freq': ('PUCQ4_T2E_DETUNING_MHZ', float),
+                    'reps': ('PUCQ4_T2E_REPS', int),
+                    'rounds': ('PUCQ4_T2E_ROUNDS', int),
+                    'relax_delay': ('PUCQ4_T2E_RELAX_DELAY_US', float),
+                },
+            }
+            for experiment_name, overrides in coherence_overrides.items():
+                for config_key, (env_name, converter) in overrides.items():
+                    if os.environ.get(env_name) is not None:
+                        set_qubit_expt_value(
+                            experiment_name, config_key, QubitIndex,
+                            converter(os.environ[env_name]),
+                        )
         ###################################################### TOF #####################################################
         if run_flags["tof"]:
             tof        = TOFExperiment(QubitIndex, studyDocumentationFolder, experiment, j, save_figs, unmasking_resgain = unmask)
@@ -507,14 +775,47 @@ while j < n:
         ################################################# g-e Res spec ####################################################
         if run_flags["res_spec"]:
             try:
+                if os.environ.get('PUCQ4_RES_START_MHZ'):
+                    expt_cfg['res_spec']['start'] = float(os.environ['PUCQ4_RES_START_MHZ'])
+                if os.environ.get('PUCQ4_RES_STEP_MHZ'):
+                    expt_cfg['res_spec']['step_size'] = float(os.environ['PUCQ4_RES_STEP_MHZ'])
+                if os.environ.get('PUCQ4_RES_STEPS'):
+                    expt_cfg['res_spec']['steps'] = int(os.environ['PUCQ4_RES_STEPS'])
+                if os.environ.get('PUCQ4_RES_REPS'):
+                    expt_cfg['res_spec']['reps'] = int(os.environ['PUCQ4_RES_REPS'])
                 res_spec   = ResonanceSpectroscopy(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j, save_figs,
                                                    experiment = experiment, verbose = verbose, logger = rr_logger, unmasking_resgain = unmask)
                 res_freqs, freq_pts, freq_center, amps, sys_config_rspec = res_spec.run()
                 print(f'g-e Resonator {QubitIndex + 1} frequency: {res_freqs[0]}')
 
-                offset = freq_offsets[QubitIndex] #use optimized offset values or whats set at top of script based on pre_optimize flag
+                # Collect completed spectra before a later fit can skip this row.
+                # The normal end-of-round Data_H5 writer still owns persistence.
+                if save_data_h5:
+                    sample = j - batch_num * save_r - 1
+                    res_data[QubitIndex]['Dates'][sample] = time.mktime(datetime.datetime.now().timetuple())
+                    res_data[QubitIndex]['freq_pts'][sample] = freq_pts
+                    res_data[QubitIndex]['freq_center'][sample] = freq_center
+                    res_data[QubitIndex]['Amps'][sample] = amps
+                    res_data[QubitIndex]['Found Freqs'][sample] = res_freqs
+                    res_data[QubitIndex]['Round Num'][sample] = j
+                    res_data[QubitIndex]['Batch Num'][sample] = batch_num
+                    res_data[QubitIndex]['Exp Config'][sample] = copy.deepcopy(expt_cfg)
+                    res_data[QubitIndex]['Syst Config'][sample] = sys_config_rspec
+
+                offset = freq_offsets[QubitIndex]
+                # Preserve the calibrated physical readout tone. A fresh dip
+                # can differ from the reference used when optimizing its offset.
+                # Explicit base/offset diagnostics retain their requested meaning.
+                if not pre_optimize and not any(os.environ.get(name) for name in (
+                        'PUCQ4_RES_FREQ_MHZ', 'PUCQ4_READOUT_OFFSET_MHZ')):
+                    offset = selected_flux_config['readout_frequency_ge'][QubitIndex] - res_freqs[0]
+                if readout_frequency_override is not None:
+                    offset = float(readout_frequency_override) - res_freqs[0]
                 offset_res_freqs = [r + offset for r in res_freqs]
                 experiment.readout_cfg['res_freq_ge'] = offset_res_freqs[0]
+                experiment.readout_cfg['res_freq_offset_ge'] = offset
+                print('Calibrated readout: %.9f MHz; measured-dip offset: %+.9f MHz'
+                      % (offset_res_freqs[0], offset))
                 del res_spec
 
             except Exception as e:
@@ -538,9 +839,26 @@ while j < n:
         ################################################## g-e Qubit spec ##################################################
         if run_flags["q_spec"]:
             try:
+                print(
+                    "Qspec readout frequency: "
+                    f"{float(experiment.readout_cfg['res_freq_ge']):.12g} MHz"
+                )
+                qspec_seed_frequency = float(experiment.qubit_cfg['qubit_freq_ge'])
+                qspec_start = os.environ.get('PUCQ4_QSPEC_START_MHZ')
+                qspec_stop = os.environ.get('PUCQ4_QSPEC_STOP_MHZ')
+                if (qspec_start is None) != (qspec_stop is None):
+                    raise ValueError(
+                        'PUCQ4_QSPEC_START_MHZ and PUCQ4_QSPEC_STOP_MHZ must be supplied together'
+                    )
                 qspec_half_span = os.environ.get('PUCQ4_QSPEC_HALF_SPAN_MHZ')
-                if qspec_half_span is not None:
-                    half_span = float(qspec_half_span)
+                if qspec_start is not None:
+                    expt_cfg['qubit_spec_ge']['start'][QubitIndex] = float(qspec_start)
+                    expt_cfg['qubit_spec_ge']['stop'][QubitIndex] = float(qspec_stop)
+                elif qspec_half_span is not None or qfreq_override is not None:
+                    # The row profile is applied before the optional carrier
+                    # override. Keep its span centered on that explicit seed.
+                    half_span = float(qspec_half_span) if qspec_half_span is not None else float(
+                        row_profile['qubit_spec_ge']['half_span_MHz'])
                     center = float(experiment.qubit_cfg['qubit_freq_ge'])
                     expt_cfg['qubit_spec_ge']['start'][QubitIndex] = center - half_span
                     expt_cfg['qubit_spec_ge']['stop'][QubitIndex] = center + half_span
@@ -548,6 +866,14 @@ while j < n:
                     expt_cfg['qubit_spec_ge']['steps'] = int(os.environ['PUCQ4_QSPEC_STEPS'])
                 if os.environ.get('PUCQ4_QSPEC_REPS'):
                     expt_cfg['qubit_spec_ge']['reps'] = int(os.environ['PUCQ4_QSPEC_REPS'])
+                if os.environ.get('PUCQ4_QSPEC_SSF_SHOTS'):
+                    expt_cfg['Readout_Optimization']['steps'] = int(
+                        os.environ['PUCQ4_QSPEC_SSF_SHOTS']
+                    )
+                if os.environ.get('PUCQ4_QSPEC_SSF_RELAX_DELAY_US'):
+                    expt_cfg['Readout_Optimization']['relax_delay'] = float(
+                        os.environ['PUCQ4_QSPEC_SSF_RELAX_DELAY_US']
+                    )
                 if os.environ.get('PUCQ4_QSPEC_LENGTH_US'):
                     experiment.qubit_cfg['qubit_length_ge'] = float(os.environ['PUCQ4_QSPEC_LENGTH_US'])
                 q_spec = QubitSpectroscopy(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j,
@@ -562,14 +888,62 @@ while j < n:
                     (qspec_I, qspec_Q, qspec_freqs, qspec_fit, qubit_freq, sys_config_qspec, qspec_fwhm,
                      ss_Q_e_qspec, ss_Q_g_qspec, ss_I_e_qspec, ss_I_g_qspec,
                      I_shots_qspec, Q_shots_qspec) = qspec_result
+                    qspec_e = np.mean(ss_I_e_qspec + 1j * ss_Q_e_qspec)
+                    qspec_g = np.mean(ss_I_g_qspec + 1j * ss_Q_g_qspec)
+                    qspec_population = np.real(
+                        ((qspec_I + 1j * qspec_Q) - qspec_g)
+                        * np.conj(qspec_e - qspec_g)
+                    ) / np.abs(qspec_e - qspec_g) ** 2
+                    if os.environ.get('PUCQ4_QSPEC_LOG_CALIBRATION', '').strip().lower() in {
+                            '1', 'true', 'yes', 'on'}:
+                        print(
+                            'Qspec SSF centroids: '
+                            f'g_I={qspec_g.real:.12g}, g_Q={qspec_g.imag:.12g}, '
+                            f'e_I={qspec_e.real:.12g}, e_Q={qspec_e.imag:.12g}'
+                        )
                 else:
                     (qspec_I, qspec_Q, qspec_freqs, qspec_I_fit, qspec_Q_fit, qubit_freq,
                      sys_config_qspec, qspec_fwhm, I_shots_qspec, Q_shots_qspec) = qspec_result
                     qspec_fit = (qspec_I_fit, qspec_Q_fit)
                     ss_Q_e_qspec = ss_Q_g_qspec = ss_I_e_qspec = ss_I_g_qspec = None
+                    qspec_population = None
+
+                # Preserve acquired IQ and calibration even when no frequency
+                # fit is accepted. None fits remain explicit diagnostic data.
+                if save_data_h5:
+                    sample = j - batch_num * save_r - 1
+                    qspec_data[QubitIndex]['Dates'][sample] = time.mktime(datetime.datetime.now().timetuple())
+                    qspec_data[QubitIndex]['I'][sample] = qspec_I
+                    qspec_data[QubitIndex]['Q'][sample] = qspec_Q
+                    qspec_data[QubitIndex]['Population'][sample] = qspec_population
+                    qspec_data[QubitIndex]['Frequencies'][sample] = qspec_freqs
+                    qspec_data[QubitIndex]['I Fit'][sample] = qspec_fit
+                    qspec_data[QubitIndex]['Round Num'][sample] = j
+                    qspec_data[QubitIndex]['Batch Num'][sample] = batch_num
+                    qspec_data[QubitIndex]['Recycled QFreq'][sample] = recycled_qfreq
+                    qspec_data[QubitIndex]['Exp Config'][sample] = copy.deepcopy(expt_cfg)
+                    qspec_data[QubitIndex]['Syst Config'][sample] = sys_config_qspec
+                    qspec_data[QubitIndex]['ss_Q_e'][sample] = ss_Q_e_qspec
+                    qspec_data[QubitIndex]['ss_Q_g'][sample] = ss_Q_g_qspec
+                    qspec_data[QubitIndex]['ss_I_e'][sample] = ss_I_e_qspec
+                    qspec_data[QubitIndex]['ss_I_g'][sample] = ss_I_g_qspec
 
                 if qubit_freq is None:
-                    if stored_qspec_list[QubitIndex] is not None:
+                    keep_seed = os.environ.get(
+                        'PUCQ4_QSPEC_KEEP_SEED_ON_FIT_FAILURE', ''
+                    ).strip().lower() in {'1', 'true', 'yes', 'on'}
+                    if keep_seed:
+                        qubit_freq = qspec_seed_frequency
+                        recycled_qfreq = True
+                        experiment.qubit_cfg['qubit_freq_ge'] = qubit_freq
+                        stored_qspec_list[QubitIndex] = qubit_freq
+                        rr_logger.warning(
+                            f"Qspec fit failed; retaining explicitly supplied seed {qubit_freq} "
+                            "so the acquired common-grid data can be saved"
+                        )
+                        if verbose:
+                            print(f"Qspec fit failed; retaining supplied seed: {qubit_freq}")
+                    elif stored_qspec_list[QubitIndex] is not None:
                         experiment.qubit_cfg['qubit_freq_ge'] = stored_qspec_list[QubitIndex]
                         rr_logger.warning(f"Using previous stored value: {stored_qspec_list[QubitIndex]}")
                         recycled_qfreq = True
@@ -584,14 +958,18 @@ while j < n:
                             print('No stored g-e qubit spec value for qubit {QubitIndex}; skipping iteration.')
                         del q_spec
 
-                    continue
+                    if qubit_freq is None:
+                        continue
                 else:
                     experiment.qubit_cfg['qubit_freq_ge'] = float(qubit_freq)
                     stored_qspec_list[QubitIndex] = float(qubit_freq)
+                if save_data_h5:
+                    qspec_data[QubitIndex]['Recycled QFreq'][sample] = recycled_qfreq
                 rr_logger.info(f"g-e Qubit {QubitIndex + 1} frequency: {float(qubit_freq)}")
                 if verbose:
                     print(f"g-e Qubit {QubitIndex + 1} frequency: {float(qubit_freq)}")
-                    print(f"g-e Qubit {QubitIndex + 1} FWHM: {float(qspec_fwhm)} MHz")
+                    if qspec_fwhm is not None:
+                        print(f"g-e Qubit {QubitIndex + 1} FWHM: {float(qspec_fwhm)} MHz")
                 del q_spec
 
             except Exception as e:
@@ -604,6 +982,46 @@ while j < n:
         ###################################################### g-e Rabi ####################################################
         if run_flags["rabi"]:
             # try:
+            # Apply axis overrides before construction. ``add_qubit_experiment``
+            # creates the gain ``QickSweep1D`` inside the constructor, so
+            # changing only ``rabi.config['start'/'stop']`` afterward changes
+            # the metadata but leaves the hardware sweep on the old axis.
+            rabi_reps_override = os.environ.get('PUCQ4_RABI_REPS')
+            rabi_rounds_override = os.environ.get('PUCQ4_RABI_ROUNDS')
+            rabi_relax_delay_override = os.environ.get(
+                'PUCQ4_RABI_RELAX_DELAY_US'
+            )
+            rabi_steps_override = os.environ.get('PUCQ4_RABI_STEPS')
+            rabi_start_override = os.environ.get('PUCQ4_RABI_START')
+            rabi_stop_override = os.environ.get('PUCQ4_RABI_STOP')
+            rabi_ssf_shots_override = os.environ.get(
+                'PUCQ4_RABI_SSF_SHOTS'
+            )
+            rabi_ssf_relax_delay_override = os.environ.get(
+                'PUCQ4_RABI_SSF_RELAX_DELAY_US'
+            )
+            if rabi_reps_override is not None:
+                expt_cfg['power_rabi_ge']['reps'] = int(rabi_reps_override)
+            if rabi_rounds_override is not None:
+                expt_cfg['power_rabi_ge']['rounds'] = int(rabi_rounds_override)
+            if rabi_relax_delay_override is not None:
+                expt_cfg['power_rabi_ge']['relax_delay'] = float(
+                    rabi_relax_delay_override
+                )
+            if rabi_steps_override is not None:
+                expt_cfg['power_rabi_ge']['steps'] = int(rabi_steps_override)
+            if rabi_start_override is not None:
+                expt_cfg['power_rabi_ge']['start'] = float(rabi_start_override)
+            if rabi_stop_override is not None:
+                expt_cfg['power_rabi_ge']['stop'] = float(rabi_stop_override)
+            if rabi_ssf_shots_override is not None:
+                expt_cfg['Readout_Optimization']['steps'] = int(
+                    rabi_ssf_shots_override
+                )
+            if rabi_ssf_relax_delay_override is not None:
+                expt_cfg['Readout_Optimization']['relax_delay'] = float(
+                    rabi_ssf_relax_delay_override
+                )
             rabi = AmplitudeRabiExperiment(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j, signal,
                                            save_figs=save_figs, save_shots=False,
                                            experiment=experiment, live_plot=live_plot,
@@ -611,9 +1029,38 @@ while j < n:
                                            qubit_to_increase_reps_for=qubit_to_increase_reps_for,
                                            multiply_qubit_reps_by=multiply_qubit_reps_by,
                                            verbose=verbose, logger=rr_logger, unmasking_resgain=unmask)
-            rabi_reps_override = os.environ.get('PUCQ4_RABI_REPS')
             if rabi_reps_override is not None:
                 rabi.config['reps'] = int(rabi_reps_override)
+            if rabi_rounds_override is not None:
+                rabi.config['rounds'] = int(rabi_rounds_override)
+            if rabi_relax_delay_override is not None:
+                rabi.config['relax_delay'] = float(rabi_relax_delay_override)
+            if rabi_steps_override is not None:
+                rabi.config['steps'] = int(rabi_steps_override)
+            if rabi_start_override is not None:
+                rabi.config['start'] = float(rabi_start_override)
+            if rabi_stop_override is not None:
+                rabi.config['stop'] = float(rabi_stop_override)
+            print(
+                "Rabi operating point: qubit_frequency_MHz="
+                f"{float(experiment.qubit_cfg['qubit_freq_ge']):.12g}, "
+                "readout_frequency_MHz="
+                f"{float(experiment.readout_cfg['res_freq_ge']):.12g}, "
+                f"sigma_us={float(rabi.config['sigma']):.12g}"
+            )
+            print(
+                "Rabi sweep settings: "
+                f"start={float(rabi.config['start']):.12g}, "
+                f"stop={float(rabi.config['stop']):.12g}, "
+                f"steps={int(rabi.config['steps'])}, "
+                f"reps={int(rabi.config['reps'])}, "
+                f"rounds={int(rabi.config['rounds'])}, "
+                f"relax_delay_us={float(rabi.config['relax_delay']):.12g}, "
+                "ssf_shots_per_state="
+                f"{int(expt_cfg['Readout_Optimization']['steps'])}, "
+                "ssf_relax_delay_us="
+                f"{float(expt_cfg['Readout_Optimization']['relax_delay']):.12g}"
+            )
             rabi_scaling = os.environ.get('PUCQ4_RABI_SCALING', 'true').strip().lower() not in {
                 '0', 'false', 'no', 'off'
             }
@@ -622,20 +1069,70 @@ while j < n:
                 (rabi_I, rabi_Q, rabi_gains, rabi_fit, pi_amp,
                  sys_config_rabi, ss_Q_e, ss_Q_g, ss_I_e, ss_I_g,
                  rabi_I_shots, rabi_Q_shots) = rabi_result
+                rabi_e = np.mean(ss_I_e + 1j * ss_Q_e)
+                rabi_g = np.mean(ss_I_g + 1j * ss_Q_g)
+                rabi_population = np.real(
+                    ((rabi_I + 1j * rabi_Q) - rabi_g)
+                    * np.conj(rabi_e - rabi_g)
+                ) / np.abs(rabi_e - rabi_g) ** 2
+                print(
+                    "Rabi SSF centroids: "
+                    f"g_I={float(np.mean(ss_I_g)):.12g}, "
+                    f"g_Q={float(np.mean(ss_Q_g)):.12g}, "
+                    f"e_I={float(np.mean(ss_I_e)):.12g}, "
+                    f"e_Q={float(np.mean(ss_Q_e)):.12g}"
+                )
+                print(
+                    "Rabi calibrated population range: "
+                    f"min={float(np.min(rabi_population)):.12g}, "
+                    f"max={float(np.max(rabi_population)):.12g}"
+                )
             else:
                 (rabi_I, rabi_Q, rabi_gains, rabi_fit, pi_amp,
                  sys_config_rabi, rabi_I_shots, rabi_Q_shots) = rabi_result
                 ss_Q_e = ss_Q_g = ss_I_e = ss_I_g = None
+                rabi_population = None
 
-            # if these are None, fit didnt work
-            if (rabi_fit is None and pi_amp is None):
-                rr_logger.info('g-e Rabi fit didnt work, skipping the rest of this qubit')
-                if verbose: print('g-e Rabi fit didnt work, skipping the rest of this qubit')
-                continue  # skip the rest of this qubit
+            # A mapping run still needs the measured row when the sinusoid fit
+            # cannot identify a pi point inside its bounded gain interval.  The
+            # explicit opt-in below retains the supplied calibration pulse only
+            # for downstream metadata/SSF preparation; it never labels that
+            # seed as a newly measured pi amplitude.
+            rabi_fit_failed = rabi_fit is None and pi_amp is None
+            if rabi_fit_failed:
+                keep_seed = os.environ.get(
+                    'PUCQ4_RABI_KEEP_SEED_ON_FIT_FAILURE', ''
+                ).strip().lower() in {'1', 'true', 'yes', 'on'}
+                if keep_seed:
+                    pi_amp = float(experiment.qubit_cfg['pi_amp'])
+                    rr_logger.warning(
+                        'Rabi fit failed; retaining the explicitly supplied pi '
+                        f'seed {pi_amp} so the acquired mapping row can be saved'
+                    )
+                    if verbose:
+                        print(
+                            'Rabi fit failed; retaining supplied pi seed for '
+                            f'map persistence: {pi_amp}'
+                        )
+                else:
+                    rr_logger.info(
+                        'g-e Rabi fit didnt work, skipping the rest of this qubit'
+                    )
+                    if verbose:
+                        print(
+                            'g-e Rabi fit didnt work, skipping the rest of this qubit'
+                        )
+                    continue  # skip the rest of this qubit
 
             experiment.qubit_cfg['pi_amp'] = float(pi_amp)
             rr_logger.info(f'g-e Pi amplitude for qubit {QubitIndex + 1} is: {float(pi_amp)}')
-            if verbose: print('g-e Pi amplitude for qubit ', QubitIndex + 1, ' is: ', float(pi_amp))
+            if verbose:
+                print(
+                    'g-e Pi amplitude for qubit ', QubitIndex + 1,
+                    ' is: ', float(pi_amp)
+                )
+                if rabi_fit_failed:
+                    print('Rabi pi amplitude status: retained seed; fit unavailable')
             del rabi
 
             # except Exception as e:
@@ -695,8 +1192,108 @@ while j < n:
                         if verbose: print(f'Got the following error, continuing: {e}')
                         continue  # skip the rest of this qubit
 
+        # The original Ramsey correction lived inside the Rabi branch.  A
+        # current-sweep controller needs to seed it with an already validated
+        # qspec frequency and pi pulse, persist that one correction trace, and
+        # then launch the final Rabi map in a separate canonical run.  Keep the
+        # established T2RMeasurement.adjust_qspec implementation and correction
+        # formula, but allow that measurement to run independently.
+        if run_flags["t2r_correction"] and not run_flags["rabi"]:
+            try:
+                correction_cfg = expt_cfg['Ramsey_ge_correction']
+                correction_overrides = {
+                    'PUCQ4_RAMSEY_CORRECTION_REPS': ('reps', int),
+                    'PUCQ4_RAMSEY_CORRECTION_ROUNDS': ('rounds', int),
+                    'PUCQ4_RAMSEY_CORRECTION_START_US': ('start', float),
+                    'PUCQ4_RAMSEY_CORRECTION_STOP_US': ('stop', float),
+                    'PUCQ4_RAMSEY_CORRECTION_STEPS': ('steps', int),
+                    'PUCQ4_RAMSEY_CORRECTION_DETUNING_MHZ': ('ramsey_freq', float),
+                    'PUCQ4_RAMSEY_CORRECTION_RELAX_DELAY_US': ('relax_delay', float),
+                }
+                for env_name, (config_name, converter) in correction_overrides.items():
+                    if os.environ.get(env_name) is not None:
+                        correction_cfg[config_name] = converter(os.environ[env_name])
+
+                correction_seed_frequency = float(
+                    experiment.qubit_cfg['qubit_freq_ge']
+                )
+                t2r = T2RMeasurement(
+                    QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j,
+                    signal, save_figs, experiment=experiment,
+                    live_plot=live_plot, fit_data=True,
+                    increase_qubit_reps=increase_qubit_reps,
+                    qubit_to_increase_reps_for=qubit_to_increase_reps_for,
+                    multiply_qubit_reps_by=multiply_qubit_reps_by,
+                    verbose=verbose, logger=rr_logger,
+                    unmasking_resgain=unmask, correction=True,
+                    correction_round=1,
+                )
+                print(
+                    'Ramsey correction operating point: seed_frequency_MHz='
+                    f'{correction_seed_frequency:.12g}, readout_frequency_MHz='
+                    f'{float(experiment.readout_cfg["res_freq_ge"]):.12g}, '
+                    f'sigma_us={float(t2r.config["sigma"]):.12g}, '
+                    f'pi_amp={float(t2r.config["pi_amp"]):.12g}'
+                )
+                print(
+                    'Ramsey correction sweep settings: '
+                    f'start_us={float(t2r.config["start"]):.12g}, '
+                    f'stop_us={float(t2r.config["stop"]):.12g}, '
+                    f'steps={int(t2r.config["steps"])}, '
+                    f'detuning_MHz={float(t2r.config["ramsey_freq"]):.12g}, '
+                    f'reps={int(t2r.config["reps"])}, '
+                    f'rounds={int(t2r.config["rounds"])}, '
+                    f'relax_delay_us={float(t2r.config["relax_delay"]):.12g}'
+                )
+                (t2r_est_1, t2r_err_1, t2r_I_1, t2r_Q_1,
+                 t2r_delay_times_1, fit_ramsey_1, sys_config_t2r_1,
+                 ramsey_found_q_freq, t2r_I_shots_1,
+                 t2r_Q_shots_1) = t2r.adjust_qspec(
+                    thresholding=thresholding, correction=True
+                )
+                if (ramsey_found_q_freq is None
+                        or not np.isfinite(ramsey_found_q_freq)):
+                    raise RuntimeError(
+                        'Ramsey correction did not return a finite fringe frequency'
+                    )
+                corrected_qubit_frequency = (
+                    correction_seed_frequency - float(ramsey_found_q_freq)
+                    + float(t2r.config['ramsey_freq'])
+                )
+                experiment.qubit_cfg['qubit_freq_ge'] = (
+                    corrected_qubit_frequency
+                )
+                print(
+                    'Ramsey correction result: seed_frequency_MHz='
+                    f'{correction_seed_frequency:.12g}, fitted_fringe_MHz='
+                    f'{float(ramsey_found_q_freq):.12g}, '
+                    f'intentional_detuning_MHz='
+                    f'{float(t2r.config["ramsey_freq"]):.12g}, '
+                    f'corrected_frequency_MHz='
+                    f'{corrected_qubit_frequency:.12g}'
+                )
+                del t2r
+            except Exception as e:
+                if debug_mode:
+                    raise e
+                rr_logger.exception(
+                    f'Ramsey frequency-correction error on qubit {QubitIndex}: {e}'
+                )
+                if verbose:
+                    print(
+                        'Ramsey frequency-correction error on qubit '
+                        f'{QubitIndex}: {e}'
+                    )
+                continue
+
         ########################################## g-e Single Shot Measurements ############################################
         if run_flags["ss"]:
+            if os.environ.get('PUCQ4_SSF_SHOTS'):
+                set_qubit_expt_value('Readout_Optimization', 'steps', QubitIndex,
+                                     int(os.environ['PUCQ4_SSF_SHOTS']))
+            if os.environ.get('PUCQ4_SSF_RELAX_DELAY_US'):
+                set_qubit_expt_value('Readout_Optimization', 'relax_delay', QubitIndex,
+                                     float(os.environ['PUCQ4_SSF_RELAX_DELAY_US']))
             # try:
             ss = SingleShot(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j, save_figs, experiment = experiment,
                             verbose = verbose, logger = rr_logger, unmasking_resgain = unmask)
@@ -857,6 +1454,20 @@ while j < n:
             t1 = time.perf_counter()
             print(f"RPM took {t1 - t0:.4f} seconds")
 
+        # Apply coherence's calibration settings after Rabi/SSF, which can
+        # independently override the shared Readout_Optimization settings.
+        if any(run_flags[name] for name in ('t1', 't2r', 't2e')):
+            if os.environ.get('PUCQ4_COHERENCE_SSF_SHOTS') is not None:
+                set_qubit_expt_value(
+                    'Readout_Optimization', 'steps', QubitIndex,
+                    int(os.environ['PUCQ4_COHERENCE_SSF_SHOTS']),
+                )
+            if os.environ.get('PUCQ4_COHERENCE_SSF_RELAX_DELAY_US') is not None:
+                set_qubit_expt_value(
+                    'Readout_Optimization', 'relax_delay', QubitIndex,
+                    float(os.environ['PUCQ4_COHERENCE_SSF_RELAX_DELAY_US']),
+                )
+
         ###################################################### g-e T1 ######################################################
         if run_flags["t1"]:
             try:
@@ -867,8 +1478,53 @@ while j < n:
                                    qubit_to_increase_reps_for = qubit_to_increase_reps_for,
                                    multiply_qubit_reps_by = multiply_qubit_reps_by,
                                    verbose = verbose, logger = rr_logger, unmasking_resgain = unmask)
-                t1_est, t1_err, t1_I, t1_Q, t1_delay_times, q1_fit_exponential, sys_config_t1 = t1.run(
-                    thresholding=thresholding)
+                print(
+                    'T1 operating point: qubit_frequency_MHz='
+                    f'{float(experiment.qubit_cfg["qubit_freq_ge"]):.12g}, '
+                    'readout_frequency_MHz='
+                    f'{float(experiment.readout_cfg["res_freq_ge"]):.12g}, '
+                    f'sigma_us={float(t1.config["sigma"]):.12g}, '
+                    f'pi_amp={float(t1.config["pi_amp"]):.12g}'
+                )
+                print(
+                    'T1 sweep settings: '
+                    f'start_us={float(t1.config["start"]):.12g}, '
+                    f'stop_us={float(t1.config["stop"]):.12g}, '
+                    f'steps={int(t1.config["steps"])}, '
+                    f'reps={int(t1.config["reps"])}, '
+                    f'rounds={int(t1.config["rounds"])}, '
+                    f'relax_delay_us={float(t1.config["relax_delay"]):.12g}, '
+                    f'population_scaling={coherence_scaling}'
+                )
+                t1_result = t1.run(
+                    thresholding=thresholding, scaling=coherence_scaling
+                )
+                if coherence_scaling:
+                    (t1_est, t1_err, t1_I, t1_Q, t1_delay_times,
+                     q1_fit_exponential, sys_config_t1, t1_ss_Q_e,
+                     t1_ss_Q_g, t1_ss_I_e, t1_ss_I_g, _, _) = t1_result
+                    t1_population = calibrated_population(
+                        t1_I, t1_Q, t1_ss_I_e, t1_ss_Q_e,
+                        t1_ss_I_g, t1_ss_Q_g,
+                    )
+                    print(
+                        'T1 SSF centroids: '
+                        f'g_I={float(np.mean(t1_ss_I_g)):.12g}, '
+                        f'g_Q={float(np.mean(t1_ss_Q_g)):.12g}, '
+                        f'e_I={float(np.mean(t1_ss_I_e)):.12g}, '
+                        f'e_Q={float(np.mean(t1_ss_Q_e)):.12g}'
+                    )
+                    print(
+                        'T1 calibrated population range: '
+                        f'min={float(np.min(t1_population)):.12g}, '
+                        f'max={float(np.max(t1_population)):.12g}'
+                    )
+                else:
+                    (t1_est, t1_err, t1_I, t1_Q, t1_delay_times,
+                     q1_fit_exponential, sys_config_t1) = t1_result
+                    t1_population = None
+                    t1_ss_Q_e = t1_ss_Q_g = None
+                    t1_ss_I_e = t1_ss_I_g = None
                 del t1
 
             except Exception as e:
@@ -882,14 +1538,98 @@ while j < n:
         ###################################################### g-e T2R #####################################################
         if run_flags["t2r"]:
             try:
-                t2r = T2RMeasurement(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j, signal, save_figs,
+                # Use the existing fitter's public frequency-guess input for
+                # the measured slow fringe. Frequency and T2 remain free.
+                t2r_fit_guess = row_profile["Ramsey_ge"].get("fit_frequency_guess_MHz")
+                t2r_configured_fit = fit_data and t2r_fit_guess is not None
+                t2r = T2RMeasurement(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j, signal,
+                                     save_figs and not t2r_configured_fit,
                                      experiment = experiment, live_plot = live_plot, fit_data = fit_data,
                                      increase_qubit_reps = increase_qubit_reps,
                                      qubit_to_increase_reps_for = qubit_to_increase_reps_for,
                                      multiply_qubit_reps_by = multiply_qubit_reps_by,
                                      verbose = verbose, logger = rr_logger, unmasking_resgain = unmask)
-                t2r_est, t2r_err, t2r_I, t2r_Q, t2r_delay_times, fit_ramsey, sys_config_t2r = t2r.run(
-                    thresholding=thresholding)
+                print(
+                    'T2R operating point: qubit_frequency_MHz='
+                    f'{float(experiment.qubit_cfg["qubit_freq_ge"]):.12g}, '
+                    'readout_frequency_MHz='
+                    f'{float(experiment.readout_cfg["res_freq_ge"]):.12g}, '
+                    f'sigma_us={float(t2r.config["sigma"]):.12g}, '
+                    f'pi_amp={float(t2r.config["pi_amp"]):.12g}'
+                )
+                print(
+                    'T2R sweep settings: '
+                    f'start_us={float(t2r.config["start"]):.12g}, '
+                    f'stop_us={float(t2r.config["stop"]):.12g}, '
+                    f'steps={int(t2r.config["steps"])}, '
+                    f'detuning_MHz={float(t2r.config["ramsey_freq"]):.12g}, '
+                    f'reps={int(t2r.config["reps"])}, '
+                    f'rounds={int(t2r.config["rounds"])}, '
+                    f'relax_delay_us={float(t2r.config["relax_delay"]):.12g}, '
+                    f'population_scaling={coherence_scaling}'
+                )
+                t2r_result = t2r.run(
+                    thresholding=thresholding, scaling=coherence_scaling
+                )
+                if coherence_scaling:
+                    (t2r_est, t2r_err, t2r_I, t2r_Q, t2r_delay_times,
+                     fit_ramsey, sys_config_t2r, t2r_ss_Q_e, t2r_ss_Q_g,
+                     t2r_ss_I_e, t2r_ss_I_g, _, _) = t2r_result
+                    t2r_population = calibrated_population(
+                        t2r_I, t2r_Q, t2r_ss_I_e, t2r_ss_Q_e,
+                        t2r_ss_I_g, t2r_ss_Q_g,
+                    )
+                    print(
+                        'T2R SSF centroids: '
+                        f'g_I={float(np.mean(t2r_ss_I_g)):.12g}, '
+                        f'g_Q={float(np.mean(t2r_ss_Q_g)):.12g}, '
+                        f'e_I={float(np.mean(t2r_ss_I_e)):.12g}, '
+                        f'e_Q={float(np.mean(t2r_ss_Q_e)):.12g}'
+                    )
+                    print(
+                        'T2R calibrated population range: '
+                        f'min={float(np.min(t2r_population)):.12g}, '
+                        f'max={float(np.max(t2r_population)):.12g}'
+                    )
+                else:
+                    (t2r_est, t2r_err, t2r_I, t2r_Q, t2r_delay_times,
+                     fit_ramsey, sys_config_t2r) = t2r_result
+                    t2r_population = None
+                    t2r_ss_Q_e = t2r_ss_Q_g = None
+                    t2r_ss_I_e = t2r_ss_I_g = None
+                fit_ramsey_unseeded = copy.deepcopy(fit_ramsey)
+                if t2r_configured_fit:
+                    unseeded_tau, unseeded_error = t2r_est, t2r_err
+                    t2r_fit_start = {"f": float(t2r_fit_guess)}
+                    if coherence_scaling:
+                        t2r_fit_start.update(row_profile["Ramsey_ge"].get("fit_population_guess") or {})
+                    (fit_ramsey, t2r_est, t2r_err, t2r_plot_signal,
+                     t2r_fitted_frequency) = t2r.t2_fit(
+                        t2r_delay_times, t2r_I, t2r_Q,
+                        guess=t2r_fit_start,
+                        signal_data=t2r_population, return_freq=True,
+                    )
+                    sys_config_t2r = dict(
+                        sys_config_t2r,
+                        fit_frequency_guess_MHz=float(t2r_fit_guess),
+                        fit_starting_values=copy.deepcopy(t2r_fit_start),
+                        fitted_fringe_frequency_MHz=float(t2r_fitted_frequency),
+                        unseeded_T2R_us=float(unseeded_tau),
+                        unseeded_T2R_error_us=float(unseeded_error),
+                    )
+                    t2r.config.update(sys_config_t2r)
+                    t2r.save_figs = save_figs
+                    t2r.plot_results(
+                        t2r_I, t2r_Q, t2r_delay_times, datetime.datetime.now(),
+                        fit_ramsey, t2r_est, t2r_err, t2r_plot_signal,
+                        scaling=coherence_scaling, Ie=t2r_ss_I_e, Ig=t2r_ss_I_g,
+                        Qe=t2r_ss_Q_e, Qg=t2r_ss_Q_g,
+                    )
+                    print('T2R fit initialization: ' + str({
+                        'starting_values': t2r_fit_start,
+                        'fitted_frequency_MHz': t2r_fitted_frequency,
+                        'unseeded_T2R_us': unseeded_tau, 'T2R_us': t2r_est,
+                    }), flush=True)
                 del t2r
 
             except Exception as e:
@@ -909,8 +1649,54 @@ while j < n:
                                      qubit_to_increase_reps_for = qubit_to_increase_reps_for,
                                      multiply_qubit_reps_by = multiply_qubit_reps_by,
                                      verbose = verbose, logger = rr_logger, unmasking_resgain = unmask)
-                (t2e_est, t2e_err, t2e_I, t2e_Q, t2e_delay_times,
-                 fit_t2e, sys_config_t2e) = t2e.run(thresholding=thresholding)
+                print(
+                    'T2E operating point: qubit_frequency_MHz='
+                    f'{float(experiment.qubit_cfg["qubit_freq_ge"]):.12g}, '
+                    'readout_frequency_MHz='
+                    f'{float(experiment.readout_cfg["res_freq_ge"]):.12g}, '
+                    f'sigma_us={float(t2e.config["sigma"]):.12g}, '
+                    f'pi_amp={float(t2e.config["pi_amp"]):.12g}'
+                )
+                print(
+                    'T2E sweep settings: '
+                    f'start_us={float(t2e.config["start"]):.12g}, '
+                    f'stop_us={float(t2e.config["stop"]):.12g}, '
+                    f'steps={int(t2e.config["steps"])}, '
+                    f'detuning_MHz={float(t2e.config["ramsey_freq"]):.12g}, '
+                    f'reps={int(t2e.config["reps"])}, '
+                    f'rounds={int(t2e.config["rounds"])}, '
+                    f'relax_delay_us={float(t2e.config["relax_delay"]):.12g}, '
+                    f'population_scaling={coherence_scaling}'
+                )
+                t2e_result = t2e.run(
+                    thresholding=thresholding, scaling=coherence_scaling
+                )
+                if coherence_scaling:
+                    (t2e_est, t2e_err, t2e_I, t2e_Q, t2e_delay_times,
+                     fit_t2e, sys_config_t2e, t2e_ss_Q_e, t2e_ss_Q_g,
+                     t2e_ss_I_e, t2e_ss_I_g, _, _) = t2e_result
+                    t2e_population = calibrated_population(
+                        t2e_I, t2e_Q, t2e_ss_I_e, t2e_ss_Q_e,
+                        t2e_ss_I_g, t2e_ss_Q_g,
+                    )
+                    print(
+                        'T2E SSF centroids: '
+                        f'g_I={float(np.mean(t2e_ss_I_g)):.12g}, '
+                        f'g_Q={float(np.mean(t2e_ss_Q_g)):.12g}, '
+                        f'e_I={float(np.mean(t2e_ss_I_e)):.12g}, '
+                        f'e_Q={float(np.mean(t2e_ss_Q_e)):.12g}'
+                    )
+                    print(
+                        'T2E calibrated population range: '
+                        f'min={float(np.min(t2e_population)):.12g}, '
+                        f'max={float(np.max(t2e_population)):.12g}'
+                    )
+                else:
+                    (t2e_est, t2e_err, t2e_I, t2e_Q, t2e_delay_times,
+                     fit_t2e, sys_config_t2e) = t2e_result
+                    t2e_population = None
+                    t2e_ss_Q_e = t2e_ss_Q_g = None
+                    t2e_ss_I_e = t2e_ss_I_g = None
                 del t2e
 
             except Exception as e:
@@ -1136,37 +1922,11 @@ while j < n:
                 tof_data[QubitIndex]['iq_list'][j - batch_num * save_r - 1] = iq_list
                 tof_data[QubitIndex]['Round Num'][j - batch_num * save_r - 1] = j
                 tof_data[QubitIndex]['Batch Num'][j - batch_num * save_r - 1] = batch_num
-                tof_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = expt_cfg
+                tof_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = copy.deepcopy(expt_cfg)
                 tof_data[QubitIndex]['Syst Config'][j - batch_num * save_r - 1] = tof_config
 
-            # ---------------------Collect g-e Res Spec Results----------------
-            if run_flags["res_spec"]:
-                res_data[QubitIndex]['Dates'][j - batch_num * save_r - 1] = (
-                    time.mktime(datetime.datetime.now().timetuple()))
-                res_data[QubitIndex]['freq_pts'][j - batch_num * save_r - 1] = freq_pts
-                res_data[QubitIndex]['freq_center'][j - batch_num * save_r - 1] = freq_center
-                res_data[QubitIndex]['Amps'][j - batch_num * save_r - 1] = amps
-                res_data[QubitIndex]['Found Freqs'][j - batch_num * save_r - 1] = res_freqs
-                res_data[QubitIndex]['Round Num'][j - batch_num * save_r - 1] = j
-                res_data[QubitIndex]['Batch Num'][j - batch_num * save_r - 1] = batch_num
-                res_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = expt_cfg
-                res_data[QubitIndex]['Syst Config'][j - batch_num * save_r - 1] = sys_config_rspec
-
-            # ---------------------Collect g-e QSpec Results----------------
-            if run_flags["q_spec"]:
-
-                qspec_data[QubitIndex]['Dates'][j - batch_num * save_r - 1]=(
-                    time.mktime(datetime.datetime.now().timetuple()))
-                qspec_data[QubitIndex]['I'][j - batch_num * save_r - 1] = qspec_I
-                qspec_data[QubitIndex]['Q'][j - batch_num * save_r - 1] = qspec_Q
-                qspec_data[QubitIndex]['Frequencies'][j - batch_num * save_r - 1] = qspec_freqs
-                qspec_data[QubitIndex]['I Fit'][j - batch_num * save_r - 1] = qspec_fit
-                # qspec_data[QubitIndex]['Q Fit'][j - batch_num * save_r - 1] = qspec_Q_fit
-                qspec_data[QubitIndex]['Round Num'][j - batch_num * save_r - 1] = j
-                qspec_data[QubitIndex]['Batch Num'][j - batch_num * save_r - 1] = batch_num
-                qspec_data[QubitIndex]['Recycled QFreq'][j - batch_num * save_r - 1] = recycled_qfreq
-                qspec_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = expt_cfg
-                qspec_data[QubitIndex]['Syst Config'][j - batch_num * save_r - 1] = sys_config_qspec
+            # Resonator/qspec results were collected immediately after acquisition
+            # so a later rejected fit cannot discard their raw measurements.
 
             # ---------------------Collect g-e Rabi Results----------------
             if run_flags["rabi"]:
@@ -1174,12 +1934,23 @@ while j < n:
                     time.mktime(datetime.datetime.now().timetuple()))
                 rabi_data[QubitIndex]['I'][j - batch_num * save_r - 1] = rabi_I
                 rabi_data[QubitIndex]['Q'][j - batch_num * save_r - 1] = rabi_Q
+                rabi_data[QubitIndex]['Population'][j - batch_num * save_r - 1] = rabi_population
                 rabi_data[QubitIndex]['Gains'][j - batch_num * save_r - 1] = rabi_gains
                 rabi_data[QubitIndex]['Fit'][j - batch_num * save_r - 1] = rabi_fit
                 rabi_data[QubitIndex]['Round Num'][j - batch_num * save_r - 1] = j
                 rabi_data[QubitIndex]['Batch Num'][j - batch_num * save_r - 1] = batch_num
-                rabi_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = expt_cfg
+                rabi_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = copy.deepcopy(expt_cfg)
                 rabi_data[QubitIndex]['Syst Config'][j - batch_num * save_r - 1] = sys_config_rabi
+                if rabi_scaling:
+                    rabi_data[QubitIndex]['ss_Q_e'][j - batch_num * save_r - 1] = ss_Q_e
+                    rabi_data[QubitIndex]['ss_Q_g'][j - batch_num * save_r - 1] = ss_Q_g
+                    rabi_data[QubitIndex]['ss_I_e'][j - batch_num * save_r - 1] = ss_I_e
+                    rabi_data[QubitIndex]['ss_I_g'][j - batch_num * save_r - 1] = ss_I_g
+                else:
+                    rabi_data[QubitIndex]['ss_Q_e'][j - batch_num * save_r - 1] = None
+                    rabi_data[QubitIndex]['ss_Q_g'][j - batch_num * save_r - 1] = None
+                    rabi_data[QubitIndex]['ss_I_e'][j - batch_num * save_r - 1] = None
+                    rabi_data[QubitIndex]['ss_I_g'][j - batch_num * save_r - 1] = None
             # ---------------------Collect g-e Rabi Results----------------
             if run_flags["len_rabi"]:
                 len_rabi_data[QubitIndex]['Dates'][0] = (
@@ -1190,7 +1961,7 @@ while j < n:
                 len_rabi_data[QubitIndex]['Fit'][0] = len_rabi_fit
                 len_rabi_data[QubitIndex]['Round Num'][0] = 0
                 len_rabi_data[QubitIndex]['Batch Num'][0] = 0
-                len_rabi_data[QubitIndex]['Exp Config'][0] = expt_cfg
+                len_rabi_data[QubitIndex]['Exp Config'][0] = copy.deepcopy(expt_cfg)
                 # len_rabi_data[QubitIndex]['Syst Config'][0] = len_sys_config_rabi
                 # len_rabi_data[QubitIndex]['ss_Q_e'][0] = len_ss_Q_e
                 # len_rabi_data[QubitIndex]['ss_Q_g'][0] = len_ss_Q_g
@@ -1209,7 +1980,7 @@ while j < n:
                 ss_data[QubitIndex]['Q_e'][j - batch_num * save_r - 1] = Q_e_ss_ge
                 ss_data[QubitIndex]['Round Num'][j - batch_num * save_r - 1] = j
                 ss_data[QubitIndex]['Batch Num'][j - batch_num * save_r - 1] = batch_num
-                ss_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = expt_cfg
+                ss_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = copy.deepcopy(expt_cfg)
                 ss_data[QubitIndex]['Syst Config'][j - batch_num * save_r - 1] = sys_config_ss
 
             # ---------------------Collect e-f res spec Results----------------
@@ -1222,7 +1993,7 @@ while j < n:
                 ef_res_data[QubitIndex]['Found Freqs'][0] = ef_res_freqs
                 ef_res_data[QubitIndex]['Round Num'][0] = j
                 ef_res_data[QubitIndex]['Batch Num'][0] = batch_num
-                ef_res_data[QubitIndex]['Exp Config'][0] = expt_cfg
+                ef_res_data[QubitIndex]['Exp Config'][0] = copy.deepcopy(expt_cfg)
                 ef_res_data[QubitIndex]['Syst Config'][0] = sys_config_rspec_ef
 
             # ---------------------Collect f-h Res Spec Results----------------
@@ -1235,7 +2006,7 @@ while j < n:
                 res_data_fh[QubitIndex]['Found Freqs'][j - batch_num * save_r - 1] = res_freqs_fh
                 res_data_fh[QubitIndex]['Round Num'][j - batch_num * save_r - 1] = j
                 res_data_fh[QubitIndex]['Batch Num'][j - batch_num * save_r - 1] = batch_num
-                res_data_fh[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = expt_cfg
+                res_data_fh[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = copy.deepcopy(expt_cfg)
                 res_data_fh[QubitIndex]['Syst Config'][j - batch_num * save_r - 1] = sys_config_rspec_fh
 
             # ---------------------Collect e-f qspec Results----------------
@@ -1250,7 +2021,7 @@ while j < n:
                 ef_qspec_data[QubitIndex]['Round Num'][0] = j
                 ef_qspec_data[QubitIndex]['Batch Num'][0] = batch_num
                 ef_qspec_data[QubitIndex]['Recycled QFreq'][0] = False  # no rr so no recycling here
-                ef_qspec_data[QubitIndex]['Exp Config'][0] = expt_cfg
+                ef_qspec_data[QubitIndex]['Exp Config'][0] = copy.deepcopy(expt_cfg)
                 ef_qspec_data[QubitIndex]['Syst Config'][0] = sys_config_qspec_ef
 
             if run_flags["fh_q_spec"]:
@@ -1264,7 +2035,7 @@ while j < n:
                 fh_qspec_data[QubitIndex]['Round Num'][j - batch_num * save_r - 1] = j
                 fh_qspec_data[QubitIndex]['Batch Num'][j - batch_num * save_r - 1] = batch_num
                 fh_qspec_data[QubitIndex]['Recycled QFreq'][j - batch_num * save_r - 1] = False  # no rr so no recycling here
-                fh_qspec_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = expt_cfg
+                fh_qspec_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = copy.deepcopy(expt_cfg)
                 fh_qspec_data[QubitIndex]['Syst Config'][j - batch_num * save_r - 1] = sys_config_qspec_fh
 
             # ----------Collect rabi population measurements (qubit temperature data) ----------------
@@ -1283,7 +2054,7 @@ while j < n:
 
                 rabi_data_ef_Qtemps[QubitIndex]['Round Num'][0] = j
                 rabi_data_ef_Qtemps[QubitIndex]['Batch Num'][0] = batch_num
-                rabi_data_ef_Qtemps[QubitIndex]['Exp Config'][0] = expt_cfg
+                rabi_data_ef_Qtemps[QubitIndex]['Exp Config'][0] = copy.deepcopy(expt_cfg)
                 rabi_data_ef_Qtemps[QubitIndex]['Syst Config'][0] = sysconfig_efrabi_Qtemps
 
             #---------------------Collect g-e T1 Results----------------
@@ -1294,12 +2065,17 @@ while j < n:
                     time.mktime(datetime.datetime.now().timetuple()))
                 t1_data[QubitIndex]['I'][j - batch_num*save_r - 1] = t1_I
                 t1_data[QubitIndex]['Q'][j - batch_num*save_r - 1] = t1_Q
+                t1_data[QubitIndex]['Population'][j - batch_num*save_r - 1] = t1_population
                 t1_data[QubitIndex]['Delay Times'][j - batch_num*save_r - 1] = t1_delay_times
                 t1_data[QubitIndex]['Fit'][j - batch_num*save_r - 1] = q1_fit_exponential
                 t1_data[QubitIndex]['Round Num'][j - batch_num * save_r - 1] = j
                 t1_data[QubitIndex]['Batch Num'][j - batch_num * save_r - 1] = batch_num
-                t1_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = expt_cfg
+                t1_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = copy.deepcopy(expt_cfg)
                 t1_data[QubitIndex]['Syst Config'][j - batch_num * save_r - 1] = sys_config_t1
+                t1_data[QubitIndex]['ss_Q_e'][j - batch_num * save_r - 1] = t1_ss_Q_e
+                t1_data[QubitIndex]['ss_Q_g'][j - batch_num * save_r - 1] = t1_ss_Q_g
+                t1_data[QubitIndex]['ss_I_e'][j - batch_num * save_r - 1] = t1_ss_I_e
+                t1_data[QubitIndex]['ss_I_g'][j - batch_num * save_r - 1] = t1_ss_I_g
 
             # ---------------------Collect g-e T2 correction 1 Results----------------
             if run_flags["t2r_correction"]:
@@ -1313,20 +2089,21 @@ while j < n:
                 t2r_correction_1_data[QubitIndex]['Fit'][j - batch_num * save_r - 1] = fit_ramsey_1
                 t2r_correction_1_data[QubitIndex]['Round Num'][j - batch_num * save_r - 1] = j
                 t2r_correction_1_data[QubitIndex]['Batch Num'][j - batch_num * save_r - 1] = batch_num
-                t2r_correction_1_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = expt_cfg
+                t2r_correction_1_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = copy.deepcopy(expt_cfg)
                 t2r_correction_1_data[QubitIndex]['Syst Config'][j - batch_num * save_r - 1] = sys_config_t2r_1
                 t2r_correction_1_data[QubitIndex]['Correction Freq'][j - batch_num * save_r - 1] = ramsey_found_q_freq
 
-                rabi_corrected_data[QubitIndex]['Dates'][j - batch_num * save_r - 1] = (
-                    time.mktime(datetime.datetime.now().timetuple()))
-                rabi_corrected_data[QubitIndex]['I'][j - batch_num * save_r - 1] = rabi_I_corrected
-                rabi_corrected_data[QubitIndex]['Q'][j - batch_num * save_r - 1] = rabi_Q_corrected
-                rabi_corrected_data[QubitIndex]['Gains'][j - batch_num * save_r - 1] = rabi_gains_corrected
-                rabi_corrected_data[QubitIndex]['Fit'][j - batch_num * save_r - 1] = rabi_fit_corrected
-                rabi_corrected_data[QubitIndex]['Round Num'][j - batch_num * save_r - 1] = j
-                rabi_corrected_data[QubitIndex]['Batch Num'][j - batch_num * save_r - 1] = batch_num
-                rabi_corrected_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = expt_cfg
-                rabi_corrected_data[QubitIndex]['Syst Config'][j - batch_num * save_r - 1] = sys_config_rabi_corrected
+                if run_flags["rabi"]:
+                    rabi_corrected_data[QubitIndex]['Dates'][j - batch_num * save_r - 1] = (
+                        time.mktime(datetime.datetime.now().timetuple()))
+                    rabi_corrected_data[QubitIndex]['I'][j - batch_num * save_r - 1] = rabi_I_corrected
+                    rabi_corrected_data[QubitIndex]['Q'][j - batch_num * save_r - 1] = rabi_Q_corrected
+                    rabi_corrected_data[QubitIndex]['Gains'][j - batch_num * save_r - 1] = rabi_gains_corrected
+                    rabi_corrected_data[QubitIndex]['Fit'][j - batch_num * save_r - 1] = rabi_fit_corrected
+                    rabi_corrected_data[QubitIndex]['Round Num'][j - batch_num * save_r - 1] = j
+                    rabi_corrected_data[QubitIndex]['Batch Num'][j - batch_num * save_r - 1] = batch_num
+                    rabi_corrected_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = copy.deepcopy(expt_cfg)
+                    rabi_corrected_data[QubitIndex]['Syst Config'][j - batch_num * save_r - 1] = sys_config_rabi_corrected
             #---------------------Collect g-e T2 Results----------------
             if run_flags["t2r"]:
                 t2r_data[QubitIndex]['T2'][j - batch_num*save_r - 1] = t2r_est
@@ -1335,12 +2112,18 @@ while j < n:
                     time.mktime(datetime.datetime.now().timetuple()))
                 t2r_data[QubitIndex]['I'][j - batch_num*save_r - 1] = t2r_I
                 t2r_data[QubitIndex]['Q'][j - batch_num*save_r - 1] = t2r_Q
+                t2r_data[QubitIndex]['Population'][j - batch_num*save_r - 1] = t2r_population
                 t2r_data[QubitIndex]['Delay Times'][j - batch_num*save_r - 1] = t2r_delay_times
                 t2r_data[QubitIndex]['Fit'][j - batch_num*save_r - 1] = fit_ramsey
+                t2r_data[QubitIndex]['Fit Unseeded'][j - batch_num*save_r - 1] = fit_ramsey_unseeded
                 t2r_data[QubitIndex]['Round Num'][j - batch_num * save_r - 1] = j
                 t2r_data[QubitIndex]['Batch Num'][j - batch_num * save_r - 1] = batch_num
-                t2r_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = expt_cfg
+                t2r_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = copy.deepcopy(expt_cfg)
                 t2r_data[QubitIndex]['Syst Config'][j - batch_num * save_r - 1] = sys_config_t2r
+                t2r_data[QubitIndex]['ss_Q_e'][j - batch_num * save_r - 1] = t2r_ss_Q_e
+                t2r_data[QubitIndex]['ss_Q_g'][j - batch_num * save_r - 1] = t2r_ss_Q_g
+                t2r_data[QubitIndex]['ss_I_e'][j - batch_num * save_r - 1] = t2r_ss_I_e
+                t2r_data[QubitIndex]['ss_I_g'][j - batch_num * save_r - 1] = t2r_ss_I_g
 
             #---------------------Collect g-e T2E Results----------------
             if run_flags["t2e"]:
@@ -1350,12 +2133,17 @@ while j < n:
                     time.mktime(datetime.datetime.now().timetuple()))
                 t2e_data[QubitIndex]['I'][j - batch_num*save_r - 1] = t2e_I
                 t2e_data[QubitIndex]['Q'][j - batch_num*save_r - 1] = t2e_Q
+                t2e_data[QubitIndex]['Population'][j - batch_num*save_r - 1] = t2e_population
                 t2e_data[QubitIndex]['Delay Times'][j - batch_num*save_r - 1] = t2e_delay_times
                 t2e_data[QubitIndex]['Fit'][j - batch_num*save_r - 1] = fit_t2e
                 t2e_data[QubitIndex]['Round Num'][j - batch_num * save_r - 1] = j
                 t2e_data[QubitIndex]['Batch Num'][j - batch_num * save_r - 1] = batch_num
-                t2e_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = expt_cfg
+                t2e_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = copy.deepcopy(expt_cfg)
                 t2e_data[QubitIndex]['Syst Config'][j - batch_num * save_r - 1] = sys_config_t2e
+                t2e_data[QubitIndex]['ss_Q_e'][j - batch_num * save_r - 1] = t2e_ss_Q_e
+                t2e_data[QubitIndex]['ss_Q_g'][j - batch_num * save_r - 1] = t2e_ss_Q_g
+                t2e_data[QubitIndex]['ss_I_e'][j - batch_num * save_r - 1] = t2e_ss_I_e
+                t2e_data[QubitIndex]['ss_I_g'][j - batch_num * save_r - 1] = t2e_ss_I_g
 
             #---------------------Collect e-f Single Shot Results----------------
             if run_flags["ef_ss"]:
@@ -1371,7 +2159,7 @@ while j < n:
                 ef_ss_data[QubitIndex]['Q_f'][j - batch_num * save_r - 1] = Q_f_ss_gef
                 ef_ss_data[QubitIndex]['Round Num'][j - batch_num * save_r - 1] = j
                 ef_ss_data[QubitIndex]['Batch Num'][j - batch_num * save_r - 1] = batch_num
-                ef_ss_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = expt_cfg
+                ef_ss_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = copy.deepcopy(expt_cfg)
                 ef_ss_data[QubitIndex]['Syst Config'][j - batch_num * save_r - 1] = sys_config_ss_ef
             # ---------------------Collect g-e-f Single Shot Results----------------
             if run_flags["ss_gef"]:
@@ -1387,7 +2175,7 @@ while j < n:
                 ss_data_gef[QubitIndex]['Q_f'][j - batch_num * save_r - 1] = Q_f_ss_gef
                 ss_data_gef[QubitIndex]['Round Num'][j - batch_num * save_r - 1] = j
                 ss_data_gef[QubitIndex]['Batch Num'][j - batch_num * save_r - 1] = batch_num
-                ss_data_gef[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = expt_cfg
+                ss_data_gef[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = copy.deepcopy(expt_cfg)
                 # ss_data_gef[QubitIndex]['Syst Config'][j - batch_num * save_r - 1] = sys_config_ss_gef
 
             # ---------------------Collect g-e Single Shot Results----------------
@@ -1409,7 +2197,7 @@ while j < n:
                 rabi_data[QubitIndex]['Fit'][j - batch_num * save_r - 1] = fhrabi_fit
                 rabi_data[QubitIndex]['Round Num'][j - batch_num * save_r - 1] = j
                 rabi_data[QubitIndex]['Batch Num'][j - batch_num * save_r - 1] = batch_num
-                rabi_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = expt_cfg
+                rabi_data[QubitIndex]['Exp Config'][j - batch_num * save_r - 1] = copy.deepcopy(expt_cfg)
                 rabi_data[QubitIndex]['Syst Config'][j - batch_num * save_r - 1] = fhsys_config_to_save
 
         del experiment
@@ -1525,15 +2313,11 @@ while j < n:
                 del saver_t2r
                 del t2r_correction_1_data
 
-                saver_t2r = Data_H5(subStudyDataFolder, t2r_correction_2_data, batch_num, save_r)
-                saver_t2r.save_to_h5('t2_ge_correction_2')
-                del saver_t2r
-                del t2r_correction_2_data
-
-                saver_rabi = Data_H5(subStudyDataFolder, rabi_corrected_data, batch_num, save_r)
-                saver_rabi.save_to_h5('rabi_ge_corrected')
-                del saver_rabi
-                del rabi_corrected_data
+                if run_flags["rabi"]:
+                    saver_rabi = Data_H5(subStudyDataFolder, rabi_corrected_data, batch_num, save_r)
+                    saver_rabi.save_to_h5('rabi_ge_corrected')
+                    del saver_rabi
+                    del rabi_corrected_data
 
             #--------------------------save g-e t2e-----------------------
             if run_flags["t2e"]:
@@ -1589,3 +2373,5 @@ while j < n:
 
 en=time.time()
 print('timetaken=',en-st)
+return_yokos_to_zero()
+atexit.unregister(return_yokos_to_zero)

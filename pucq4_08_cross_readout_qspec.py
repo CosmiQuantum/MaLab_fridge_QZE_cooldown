@@ -63,12 +63,21 @@ def projected_response(i_values, q_values):
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--current-ma", type=float, required=True)
-    parser.add_argument("--qfreq-mhz", type=float, required=True)
+    parser.add_argument(
+        "--qfreq-mhz", type=float,
+        help="Override the final current-indexed Q6 frequency",
+    )
     parser.add_argument("--half-span-mhz", type=float, default=2.0)
     parser.add_argument("--steps", type=int, default=401)
     parser.add_argument("--reps", type=int, default=1200)
-    parser.add_argument("--qspec-gain", type=float, default=0.010)
-    parser.add_argument("--qspec-length-us", type=float, default=40.0)
+    parser.add_argument(
+        "--qspec-gain", type=float,
+        help="Override the final current-indexed qspec gain",
+    )
+    parser.add_argument(
+        "--qspec-length-us", type=float,
+        help="Override the final current-indexed qspec drive length",
+    )
     parser.add_argument(
         "--readout-row",
         type=int,
@@ -134,6 +143,8 @@ def main():
                 qubit_DAC_attenuator2=4,
                 ADC_attenuator=17,
                 fridge="QUIET",
+                yoko3_current_mA=0.0,
+                yoko4_current_mA=args.current_ma,
             )
             centers = list(experiment.readout_cfg["res_freq_ge"])
             gains = list(experiment.readout_cfg["res_gain_ge"])
@@ -142,22 +153,34 @@ def main():
             readout_frequencies = [center + offset for center, offset in zip(centers, offsets)]
             if args.m6_readout_mhz is not None:
                 readout_frequencies[Q6_INDEX] = args.m6_readout_mhz
+            qfreq_mhz = (
+                float(args.qfreq_mhz) if args.qfreq_mhz is not None
+                else float(experiment.qubit_cfg["qubit_freq_ge"][Q6_INDEX])
+            )
+            qspec_gain = (
+                float(args.qspec_gain) if args.qspec_gain is not None
+                else float(experiment.qubit_cfg["qubit_gain_ge"][Q6_INDEX])
+            )
+            qspec_length_us = (
+                float(args.qspec_length_us) if args.qspec_length_us is not None
+                else float(experiment.qubit_cfg["qubit_length_ge"][Q6_INDEX])
+            )
 
             qspec_cfg = expt_cfg["qubit_spec_ge"]
             qspec_cfg.update(
                 {
                     "reps": args.reps,
                     "rounds": 1,
-                    "start": args.qfreq_mhz - args.half_span_mhz,
-                    "stop": args.qfreq_mhz + args.half_span_mhz,
+                    "start": qfreq_mhz - args.half_span_mhz,
+                    "stop": qfreq_mhz + args.half_span_mhz,
                     "steps": args.steps,
                     "relax_delay": 100,
                     "list_of_all_qubits": [Q6_INDEX],
                 }
             )
-            experiment.qubit_cfg["qubit_gain_ge"][Q6_INDEX] = args.qspec_gain
-            experiment.qubit_cfg["qubit_length_ge"] = args.qspec_length_us
-            experiment.qubit_cfg["qubit_freq_ge"][Q6_INDEX] = args.qfreq_mhz
+            experiment.qubit_cfg["qubit_gain_ge"][Q6_INDEX] = qspec_gain
+            experiment.qubit_cfg["qubit_length_ge"][Q6_INDEX] = qspec_length_us
+            experiment.qubit_cfg["qubit_freq_ge"][Q6_INDEX] = qfreq_mhz
 
             selected_indices = (
                 [row - 1 for row in args.readout_row]
@@ -229,7 +252,7 @@ def main():
             )
             axis.set_title(
                 f"Q6 cross-readout qspec at {args.current_ma:+.1f} mA; "
-                f"gain {args.qspec_gain:g}, {args.reps} reps"
+                f"gain {qspec_gain:g}, {args.reps} reps"
             )
             fig.colorbar(image, ax=axis, label="Detrended projected response / local noise")
             fig.tight_layout()
@@ -242,12 +265,12 @@ def main():
                 "drive_index": Q6_INDEX,
                 "yoko": "Yoko4",
                 "current_mA": args.current_ma,
-                "qfreq_center_MHz": args.qfreq_mhz,
+                "qfreq_center_MHz": qfreq_mhz,
                 "half_span_MHz": args.half_span_mhz,
                 "steps": args.steps,
                 "reps": args.reps,
-                "qspec_gain": args.qspec_gain,
-                "qspec_length_us": args.qspec_length_us,
+                "qspec_gain": qspec_gain,
+                "qspec_length_us": qspec_length_us,
                 "selected_readout_rows": [index + 1 for index in selected_indices],
                 "readout_frequencies_MHz": readout_frequencies,
                 "readout_gains": gains,

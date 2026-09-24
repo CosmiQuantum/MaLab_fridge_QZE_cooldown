@@ -263,6 +263,27 @@ class AmplitudeRabiExperiment:
     def cosine(self, x, a, b, c, d):
 
         return a * np.cos(2. * np.pi * b * x - c * 2 * np.pi) + d
+
+    @staticmethod
+    def first_extremum_gain(gains, fitted_signal, find_max):
+        """Return the first fitted pi extremum, not a later periodic duplicate."""
+        fitted_signal = np.asarray(fitted_signal)
+        if fitted_signal.size < 3:
+            index = np.argmax(fitted_signal) if find_max else np.argmin(fitted_signal)
+            return gains[index]
+        middle = fitted_signal[1:-1]
+        if find_max:
+            candidates = np.flatnonzero(
+                (middle >= fitted_signal[:-2]) & (middle >= fitted_signal[2:])
+            ) + 1
+        else:
+            candidates = np.flatnonzero(
+                (middle <= fitted_signal[:-2]) & (middle <= fitted_signal[2:])
+            ) + 1
+        if candidates.size:
+            return gains[candidates[0]]
+        index = np.argmax(fitted_signal) if find_max else np.argmin(fitted_signal)
+        return gains[index]
     def plot_results_chevron(self, I, Q, lens, freqs,
                              config=None, fig_quality=100,
                              showfig=False, subtract_center=False):
@@ -404,7 +425,9 @@ class AmplitudeRabiExperiment:
                 e = np.mean((Ie + 1j * Qe))
                 g = np.mean((Ig + 1j * Qg))
                 ### Normalization ###
-                pop_norm = abs(((I + 1j * Q) - g) * (e - g) / abs(e - g) ** 2)
+                pop_norm = np.real(
+                    ((I + 1j * Q) - g) * np.conj(e - g)
+                ) / abs(e - g) ** 2
                 ydata = pop_norm
                 fig, (ax1) = plt.subplots(1, 1, figsize=(10, 5))
                 plt.rcParams.update({'font.size': 18})
@@ -457,10 +480,10 @@ class AmplitudeRabiExperiment:
 
                 best_signal_fit = q1_fit_cosine_ydata
                 # figure out if you should take the min or the max value of the fit to say where pi_amp should be
-                if last_three_avg_ydata > first_three_avg_ydata:
-                    pi_amp = gains[np.argmax(best_signal_fit)]
-                else:
-                    pi_amp = gains[np.argmin(best_signal_fit)]
+                pi_amp = self.first_extremum_gain(
+                    gains, best_signal_fit,
+                    find_max=last_three_avg_ydata > first_three_avg_ydata,
+                )
 
                 ax1.plot(gains, q1_fit_cosine_ydata, '-', color='red', linewidth=3, label="Fit")
 
@@ -585,29 +608,25 @@ class AmplitudeRabiExperiment:
                 pi_amp = None
                 if 'Q' in self.signal:
                     best_signal_fit = q1_fit_cosine_Q
-                    if last_three_avg_Q > first_three_avg_Q:
-                        pi_amp = gains[np.argmax(best_signal_fit)]
-                    else:
-                        pi_amp = gains[np.argmin(best_signal_fit)]
+                    pi_amp = self.first_extremum_gain(
+                        gains, best_signal_fit, find_max=last_three_avg_Q > first_three_avg_Q
+                    )
                 if 'I' in self.signal:
                     best_signal_fit = q1_fit_cosine_I
-                    if last_three_avg_I > first_three_avg_I:
-                        pi_amp = gains[np.argmax(best_signal_fit)]
-                    else:
-                        pi_amp = gains[np.argmin(best_signal_fit)]
+                    pi_amp = self.first_extremum_gain(
+                        gains, best_signal_fit, find_max=last_three_avg_I > first_three_avg_I
+                    )
                 if 'None' in self.signal:
                     if abs(first_three_avg_Q - last_three_avg_Q) > abs(first_three_avg_I - last_three_avg_I):
                         best_signal_fit = q1_fit_cosine_Q
-                        if last_three_avg_Q > first_three_avg_Q:
-                            pi_amp = gains[np.argmax(best_signal_fit)]
-                        else:
-                            pi_amp = gains[np.argmin(best_signal_fit)]
+                        pi_amp = self.first_extremum_gain(
+                            gains, best_signal_fit, find_max=last_three_avg_Q > first_three_avg_Q
+                        )
                     else:
                         best_signal_fit = q1_fit_cosine_I
-                        if last_three_avg_I > first_three_avg_I:
-                            pi_amp = gains[np.argmax(best_signal_fit)]
-                        else:
-                            pi_amp = gains[np.argmin(best_signal_fit)]
+                        pi_amp = self.first_extremum_gain(
+                            gains, best_signal_fit, find_max=last_three_avg_I > first_three_avg_I
+                        )
                 else:
                     print('Invalid signal passed, please do I Q or None')
 

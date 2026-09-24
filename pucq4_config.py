@@ -10,11 +10,10 @@ can be driven at a time.
 Everything else goes through the round robin path -- system_config.py and
 expt_config.py now carry the PUCQ4 numbers.
 
-Numbers come from "PUCQ4 Initial Characterization.pptx" (VNA characterization).
-NOTE: PUCQ4 is FLUX TUNABLE. Every qubit frequency below is only valid at the
-DC bias the VNA sweep was taken at. The resonators barely move with flux
-(~7 MHz across +/-10 mA), so resonator spectroscopy works at any bias -- but
-the qubits move GHz, so treat QUBIT_FREQS_VNA as a starting guess only.
+The standalone defaults below are for 0 mA. Nonzero-bias production work uses
+the validated current table and selector in system_config/round_robin instead
+of duplicating that table here. QUBIT_FREQS_VNA remains a historical starting
+guess only.
 
 Nothing in this file touches system_config.py or expt_config.py. These scripts
 are self-contained so they can't break the config for the other chip.
@@ -40,24 +39,21 @@ RES_FREQS_DESIGN = np.array([7437.0, 7467.0, 7501.0, 7528.0, 7562.0, 7598.0])  #
 # Up to 0.7 MHz from the VNA values -- which matters, because the resonators
 # are under 1 MHz wide, so using the VNA numbers puts you most of a linewidth
 # off. Use THESE for parking the readout.
-# Coarse high-power centers measured by pucq4_02_res_spec.py on 2026-08-27
-# (0.2 MHz step, gain 0.9). All six dips were resolved; refine at lower power
-# before treating these as dressed readout frequencies.
-RES_FREQS_MEASURED = np.array([8919.85, 8951.65, 8975.00, 8999.95, 9014.95, 9059.45])
-# Steepest |IQ| slope relative to the centers above, extracted from the
-# 2026-08-27 wide resonator scan. Use these for qubit readout contrast.
-RES_READOUT_OFFSETS = np.array([-0.4, -0.4, -0.2, 0.4, 0.2, 0.2])
+# M1-M4 retain their established centers. M5/Q4 and M6/Q6 use the final
+# optimized 0 mA resonator bases from the current campaign.
+RES_FREQS_MEASURED = np.array([8919.77, 8951.61, 8974.80, 8999.92, 9014.66, 9058.88])
+# Optimized physical readout tones are base + offset.
+RES_READOUT_OFFSETS = np.array([-0.52, -0.40, -0.21, -0.22999999999956344, 0.2000000000007276, -0.41999999999825377])
 
 # Qubit g-e frequencies, same row order as the resonators above.
-# WARNING: the resonator <-> qubit mapping is NOT settled. The deck labels
-# M5->Q4 and M6->Q6, but the avoided-crossing data suggests Q4 couples to M1
-# and Q6 to M2. Do not build a mapping into anything downstream yet.
+# Accepted physical assignments are M5->Q4 and M6->Q6. Other physical numbers
+# remain unassigned; the September 8 M4 discovery does not assign it physical Q4.
 QUBIT_FREQS_VNA = np.array([5507.0, 5411.0, 5487.0, 5575.0, 7036.0, 6401.0])  # MHz
-# Zero-current results in resonator-row order. M4 has no assigned physical qubit
-# and produced no reproducible feature, so it remains NaN. The deck maps
-# physical Q4 to M5 (7084.7191 MHz) and physical Q6 to M6 (6522.4767 MHz).
+# Zero-current spectroscopy remeasured by the September 8--9 round robin.
+# The deck maps physical Q4 to M5 and physical Q6 to M6; M4 remains unassigned.
 QUBIT_FREQS_MEASURED_0MA = np.array(
-    [5517.70, 5438.72, 5557.33, np.nan, 7084.77, 6522.4773]
+    [5517.691628432926, 5438.710887054151, 5557.335688295514, 5594.541902899418,
+     7084.548595174133, 6522.489876246844]
 )
 QUBIT_FREQS_GF2 = np.array([5397.0, 5306.0, 5378.0, 5466.0, 6929.0, 6293.0])  # MHz
 ANHARMONICITY = np.array([220.0, 210.0, 218.0, 218.0, 214.0, 216.0])  # MHz
@@ -96,7 +92,8 @@ MIXER_FREQ = None
 # Gain per resonator, DAC units. PUCQ4 sits ~11 dB further down the DAC's
 # sin(x)/x curve than the 7.2 GHz chip did, so expect to need much more gain
 # than the 0.25 that worked before. See pucq4_00_check_board.py.
-RES_GAIN = [0.9] * NUM_RES
+RES_GAIN = [0.48, 0.56, 0.95, 0.95, 0.65, 0.95]
+RES_LENGTHS = [10.0, 5.0, 9.0, 5.0, 6.0, 10.0]  # [us], per M1..M6 at 0 mA
 RES_PHASE = [0.0] * NUM_RES
 RO_PHASE = [0.0] * NUM_RES
 RES_LENGTH = 2.0             # [us] readout pulse / capture length
@@ -135,6 +132,8 @@ def base_cfg(experiment=None):
         "nqz_qubit": NQZ_QUBIT,
         "res_freq_ge": list(RES_FREQS_MEASURED),
         "res_gain_ge": list(RES_GAIN),
+        "res_length_ge": list(RES_LENGTHS),
+        "res_freq_offset_ge": list(RES_READOUT_OFFSETS),
         "res_phase": list(RES_PHASE),
         "ro_phase": list(RO_PHASE),
         "res_length": RES_LENGTH,
@@ -153,6 +152,10 @@ def base_cfg(experiment=None):
             "nqz_qubit": hw["nqz_qubit"],
             "res_freq_ge": readout["res_freq_ge"],
             "res_gain_ge": readout["res_gain_ge"],
+            "res_length_ge": readout.get("res_length_ge", list(RES_LENGTHS)),
+            "res_freq_offset_ge": readout.get(
+                "res_freq_offset_ge", list(RES_READOUT_OFFSETS)
+            ),
             "res_length": readout["res_length"],
             "trig_time": readout["trig_time"],
         })

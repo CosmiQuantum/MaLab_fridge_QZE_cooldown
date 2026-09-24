@@ -202,8 +202,15 @@ class T1Measurement:
             ss_Q_g = iq_list_g[0][0].T[1]
             ss_I_e = iq_list_e[0][0].T[0]
             ss_Q_e = iq_list_e[0][0].T[1]
+            e = np.mean(ss_I_e + 1j * ss_Q_e)
+            g = np.mean(ss_I_g + 1j * ss_Q_g)
+            population = np.real(
+                ((I + 1j * Q) - g) * np.conj(e - g)
+            ) / np.abs(e - g) ** 2
             if self.fit_data:
-                q1_fit_exponential, T1_err, T1_est, plot_sig = self.t1_fit(I, Q, delay_times)
+                q1_fit_exponential, T1_err, T1_est, plot_sig = self.t1_fit(
+                    I, Q, delay_times, mag=population
+                )
             else:
                 q1_fit_exponential, T1_est, T1_err = None, None, None
 
@@ -271,8 +278,11 @@ class T1Measurement:
     def exponential(self, x, a, b, c, d):
         return a * np.exp(- (x - b) / c) + d
 
-    def t1_fit(self, I, Q, delay_times):
-        if 'I' in self.signal:
+    def t1_fit(self, I, Q, delay_times, mag=None):
+        if mag is not None:
+            signal = np.asarray(mag, dtype=float)
+            plot_sig = 'Population'
+        elif 'I' in self.signal:
             signal = I
             plot_sig = 'I'
         elif 'Q' in self.signal:
@@ -320,7 +330,9 @@ class T1Measurement:
             e = np.mean((Ie + 1j * Qe))
             g = np.mean((Ig + 1j * Qg))
             ### Normalization ###
-            pop_norm = abs(((I + 1j * Q) - g) * (e - g) / abs(e - g) ** 2)
+            pop_norm = np.real(
+                ((I + 1j * Q) - g) * np.conj(e - g)
+            ) / np.abs(e - g) ** 2
             ydata = pop_norm
             fig, (ax1) = plt.subplots(1, 1)
 

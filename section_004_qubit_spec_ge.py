@@ -8,6 +8,7 @@ import datetime
 import copy
 import visdom
 import logging
+import os
 
 class QubitSpectroscopy:
     def __init__(self, QubitIndex, number_of_qubits,  outerFolder,  round_num, signal, save_figs, experiment = None,
@@ -69,6 +70,7 @@ class QubitSpectroscopy:
             print(expt_cfg)
             print(self.exp_cfg)
             self.config = {**self.q_config[self.Qubit], **self.exp_cfg}
+            self.seed_qubit_freq = float(self.experiment.qubit_cfg['qubit_freq_ge'])
             print(self.config)
             if self.verbose: print(f'Q {self.QubitIndex + 1} Round {self.round_num} Qubit Spec configuration: ', self.config)
             self.logger.info(f'Q {self.QubitIndex + 1} Round {self.round_num} Qubit Spec configuration: {self.config}')
@@ -77,6 +79,9 @@ class QubitSpectroscopy:
 
         if self.increase_reps:
             self.config['reps'] = self.increase_reps_to
+        common_grid_mode = os.environ.get(
+            'PUCQ4_QSPEC_COMMON_GRID_MODE', ''
+        ).strip().lower() in {'1', 'true', 'yes', 'on'}
         qspec = PulseProbeSpectroscopyProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay=self.config['relax_delay'], cfg=self.config)
 
         # iq_lists= []
@@ -95,8 +100,9 @@ class QubitSpectroscopy:
             Q_shots = A[:, 1]
 
             freqs = qspec.get_pulse_param('qubit_pulse', "freq", as_array=True)
-            self.plot_results(I, Q, freqs, config=self.config,
-                              return_fwhm=return_fwhm)
+            if not common_grid_mode:
+                self.plot_results(I, Q, freqs, config=self.config,
+                                  return_fwhm=return_fwhm)
         if scaling:
             from section_005_single_shot_ge import SingleShotProgram_g, SingleShotProgram_e
             q_config = all_qubit_state(self.experiment, self.number_of_qubits)
@@ -116,6 +122,14 @@ class QubitSpectroscopy:
             ss_Q_g = iq_list_g[0][0].T[1]
             ss_I_e = iq_list_e[0][0].T[0]
             ss_Q_e = iq_list_e[0][0].T[1]
+            if common_grid_mode:
+                # The dedicated flux map deliberately spans 1.25 GHz. A single
+                # Lorentzian fit across that acquisition is neither needed nor
+                # robust; retain the independently validated local frequency
+                # used for the resonant SSF e-state pulse and save every raw
+                # qspec point for the common-grid analysis instead.
+                return (I, Q, freqs, None, self.seed_qubit_freq, self.config, None,
+                        ss_Q_e, ss_Q_g, ss_I_e, ss_I_g, I_shots, Q_shots)
             if return_fwhm:
                 largest_amp_curve_mean, y_data_fit, fwhm = self.plot_results(I, Q, freqs, config=self.config,
                                                                                return_fwhm=return_fwhm,scaling=scaling,Ie = ss_I_e,
@@ -196,7 +210,9 @@ class QubitSpectroscopy:
             e = np.mean((Ie + 1j * Qe))
             g = np.mean((Ig + 1j * Qg))
             ### Normalization ###
-            pop_norm = abs(((I + 1j * Q) - g) * (e - g) / abs(e - g) ** 2)
+            pop_norm = np.real(
+                ((I + 1j * Q) - g) * np.conj(e - g)
+            ) / abs(e - g) ** 2
             ydata = pop_norm
 
             freqs = np.array(freqs)
@@ -236,14 +252,14 @@ class QubitSpectroscopy:
                 # Add title, centered on the plot area
                 if config is not None:  # then its been passed to this definition, so use that
                     fig.text(plot_middle, 0.98,
-                             f"Qubit Spectroscopy Q{self.QubitIndex + 1}, %.2f MHz" % largest_amp_curve_mean +
-                             f" FWHM: {round(largest_amp_curve_fwhm, 1)}" +
+                             f"Qspec Q{self.QubitIndex + 1}, %.3f MHz" % largest_amp_curve_mean +
+                             f" | FWHM {largest_amp_curve_fwhm:.3f} MHz" +
                              f", {config['reps']}*{config['rounds']} avgs",
                              fontsize=24, ha='center', va='top')
                 else:
                     fig.text(plot_middle, 0.98,
-                             f"Qubit Spectroscopy Q{self.QubitIndex + 1}, %.2f MHz" % largest_amp_curve_mean +
-                             f" FWHM: {round(largest_amp_curve_fwhm, 1)}" +
+                             f"Qspec Q{self.QubitIndex + 1}, %.3f MHz" % largest_amp_curve_mean +
+                             f" | FWHM {largest_amp_curve_fwhm:.3f} MHz" +
                              f", {self.config['reps']}*{self.config['rounds']} avgs",
                              fontsize=24, ha='center', va='top')
             else:
@@ -324,14 +340,14 @@ class QubitSpectroscopy:
                 # Add title, centered on the plot area
                 if config is not None:  # then its been passed to this definition, so use that
                     fig.text(plot_middle, 0.98,
-                             f"Qubit Spectroscopy Q{self.QubitIndex + 1}, %.2f MHz" % largest_amp_curve_mean +
-                             f" FWHM: {round(largest_amp_curve_fwhm, 1)}" +
+                             f"Qspec Q{self.QubitIndex + 1}, %.3f MHz" % largest_amp_curve_mean +
+                             f" | FWHM {largest_amp_curve_fwhm:.3f} MHz" +
                              f", {config['reps']}*{config['rounds']} avgs",
                              fontsize=24, ha='center', va='top')
                 else:
                     fig.text(plot_middle, 0.98,
-                             f"Qubit Spectroscopy Q{self.QubitIndex + 1}, %.2f MHz" % largest_amp_curve_mean +
-                             f" FWHM: {round(largest_amp_curve_fwhm, 1)}" +
+                             f"Qspec Q{self.QubitIndex + 1}, %.3f MHz" % largest_amp_curve_mean +
+                             f" | FWHM {largest_amp_curve_fwhm:.3f} MHz" +
                              f", {self.config['reps']}*{self.config['rounds']} avgs",
                              fontsize=24, ha='center', va='top')
             else:
@@ -419,23 +435,31 @@ class QubitSpectroscopy:
 
     def fit_lorenzian(self, I, Q, freqs, freq_q, sigma_guess = 1):
         try:
-            # Initial guesses for I and Q
-            initial_guess_I = [freq_q, sigma_guess, np.max(I), np.min(I)]
-            initial_guess_Q = [freq_q, sigma_guess, np.max(Q), np.min(Q)]
+            freq_step = abs(float(np.median(np.diff(freqs))))
+            freq_span = abs(float(freqs[-1] - freqs[0]))
+            edge_points = max(3, min(len(freqs) // 10, 30))
 
-            # First round of fits (to get rough estimates)
-            params_I, _ = curve_fit(self.lorentzian, freqs, I, p0=initial_guess_I)
-            params_Q, _ = curve_fit(self.lorentzian, freqs, Q, p0=initial_guess_Q)
+            def bounded_fit(values):
+                edge_values = np.concatenate((values[:edge_points], values[-edge_points:]))
+                baseline = float(np.median(edge_values))
+                smooth = np.convolve(values, np.ones(5) / 5.0, mode='same')
+                search = smooth[2:-2]
+                center_index = int(np.argmax(np.abs(search - baseline))) + 2
+                center_guess = float(freqs[center_index])
+                amplitude_guess = float(values[center_index] - baseline)
+                amplitude_limit = max(10.0 * np.ptp(values), abs(amplitude_guess) * 2.0, 1e-12)
+                initial_guess = [center_guess, max(0.05, 2.0 * freq_step), amplitude_guess, baseline]
+                lower = [float(freqs[0]), freq_step / 2.0, -amplitude_limit,
+                         float(np.min(values) - amplitude_limit)]
+                upper = [float(freqs[-1]), freq_span / 2.0, amplitude_limit,
+                         float(np.max(values) + amplitude_limit)]
+                return curve_fit(
+                    self.lorentzian, freqs, values, p0=initial_guess,
+                    bounds=(lower, upper), maxfev=20000
+                )
 
-            # Use these fits to refine guesses
-            x_max_diff_I, max_diff_I = self.max_offset_difference_with_x(freqs, I, params_I[3])
-            x_max_diff_Q, max_diff_Q = self.max_offset_difference_with_x(freqs, Q, params_Q[3])
-            initial_guess_I = [x_max_diff_I, sigma_guess, np.max(I), np.min(I)]
-            initial_guess_Q = [x_max_diff_Q, sigma_guess, np.max(Q), np.min(Q)]
-
-            # Second (refined) round of fits, this time capturing the covariance matrices
-            params_I, cov_I = curve_fit(self.lorentzian, freqs, I, p0=initial_guess_I)
-            params_Q, cov_Q = curve_fit(self.lorentzian, freqs, Q, p0=initial_guess_Q)
+            params_I, cov_I = bounded_fit(I)
+            params_Q, cov_Q = bounded_fit(Q)
 
             # Create the fitted curves
             I_fit = self.lorentzian(freqs, *params_I)
@@ -456,8 +480,23 @@ class QubitSpectroscopy:
             amp_Q_fit = abs(np.max(Q_fit) - np.min(Q_fit))
 
             # Choose which curve to use based on the input signal indicator
-            if 'None' in self.signal or self.signal is None:
-                if amp_I_fit > amp_Q_fit:
+            if self.signal is None or 'None' in self.signal:
+                # A weak trace can give one quadrature a high-amplitude,
+                # single-bin Lorentzian while the other retains the seeded
+                # physical line.  Reject sub-resolution candidates first; if
+                # the two fitted centers then disagree, prefer the one nearest
+                # the independently supplied qspec seed.
+                minimum_resolved_fwhm = max(4.0 * freq_step, 0.02)
+                valid_I = minimum_resolved_fwhm <= fwhm_I <= freq_span
+                valid_Q = minimum_resolved_fwhm <= fwhm_Q <= freq_span
+                centers_disagree = abs(mean_I - mean_Q) > max(10.0 * freq_step, 0.10 * freq_span)
+                if valid_I != valid_Q:
+                    use_I = valid_I
+                elif centers_disagree:
+                    use_I = abs(mean_I - self.seed_qubit_freq) <= abs(mean_Q - self.seed_qubit_freq)
+                else:
+                    use_I = amp_I_fit > amp_Q_fit
+                if use_I:
                     largest_amp_curve_mean = mean_I
                     largest_amp_curve_fwhm = fwhm_I
                     # error on the Q fit's center frequency (first parameter):
@@ -489,6 +528,10 @@ class QubitSpectroscopy:
         try:
             frequency_step = abs(freqs[1] - freqs[0])
             frequency_span = abs(freqs[-1] - freqs[0])
+            # Keep the initial half-width inside the existing fit bounds even
+            # when the realized sweep is narrower than the default 1 MHz seed.
+            sigma_guess = float(np.clip(sigma_guess, frequency_step / 2.0,
+                                        frequency_span / 2.0))
             fit_bounds = (
                 [np.min(freqs), frequency_step / 4.0, -np.inf, -np.inf],
                 [np.max(freqs), frequency_span, np.inf, np.inf],

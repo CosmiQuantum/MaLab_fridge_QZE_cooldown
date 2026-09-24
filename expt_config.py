@@ -14,13 +14,15 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
     # FLUX TUNABLE: the qubit numbers are only valid at the DC bias the VNA
     # sweep used. The resonators move ~7 MHz across +/-10 mA; the qubits move
     # GHz. See YOKOGS200.py for the current-source driver.
-    # Coarse high-power QICK centers measured 2026-08-27 (gain 0.9,
-    # 0.2 MHz steps); keep the historical variable name for existing callers.
-    VNA_res = np.array([8919.85, 8951.65, 8975.00, 8999.95, 9014.95, 9059.45])
-    # Row order is M1..M6. M4 remains the 5575 MHz unassigned deck estimate;
-    # physical Q4 is M5 and physical Q6 is M6 in the characterization deck.
-    VNA_qubit = np.array([5517.70, 5438.72, 5557.33, 5575.00,
-                          7084.77, 6522.4773])
+    # Historical variable names; values are the new zero-current RR measurements.
+    VNA_res = np.array([8919.77, 8951.61, 8974.80, 8999.92,
+                        9014.66, 9058.88])
+    # Row order is M1..M6. M4 uses the September 8 round-robin measurement;
+    # its physical number remains unknown. Physical Q4 is M5 and Q6 is M6.
+    # Fresh spectroscopy centers; each normal RR run remeasures before Rabi.
+    # Nonzero currents are selected by apply_pucq4_flux_experiment_config below.
+    VNA_qubit = np.array([5517.691628432926, 5438.710887054151, 5557.335688295514, 5594.541902899418,
+                          7084.548595174133, 6522.489876246844])
     ef_freqs = np.array([5287, 5201, 5269, 5357, 6822, 6185])  # f_ge - alpha
     fh_freqs = np.array([5067, 4991, 5051, 5139, 6608, 5969])  # rough guess
     # Set this for your experiment
@@ -35,7 +37,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
     # +/-2 MHz. That is narrower than the feature you are hunting for, so it
     # would read as a flat line even when perfectly centred.
     WIDE_RES_SCAN = False    # resonators located; track them now
-    WIDE_QUBIT_SCAN = False  # precision scans around the five validated 0 mA lines
+    WIDE_QUBIT_SCAN = False  # precision scans around the six measured 0 mA lines
     QSPEC_HALF_SPAN = np.array([0.8, 0.8, 0.8, 2.0, 0.8, 0.8])  # [MHz]
 
     gain_start = 0.000001
@@ -736,3 +738,176 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
 
 else:
     print('Please set variable FRIDGE to QUIET, or configure for your fridge as needed')
+
+
+def _set_pucq4_indexed_bounds(experiment_name, qubit_index, start_mhz, stop_mhz):
+    """Replace one row of a six-qubit frequency sweep without changing shape."""
+    config = expt_cfg[experiment_name]
+    starts = list(config["start"])
+    stops = list(config["stop"])
+    if len(starts) != tot_num_of_qubits or len(stops) != tot_num_of_qubits:
+        raise RuntimeError("%s does not contain six-qubit frequency bounds" % experiment_name)
+    starts[qubit_index] = float(start_mhz)
+    stops[qubit_index] = float(stop_mhz)
+    config["start"] = starts
+    config["stop"] = stops
+
+
+def apply_pucq4_flux_experiment_config(calibration_by_qubit):
+    """Recenter all f_ge experiment sweeps for selected Q4/Q6 bias rows.
+
+    ``calibration_by_qubit`` is the mapping returned by
+    ``system_config.get_pucq4_flux_calibration``.  Keeping this function in
+    expt_config avoids importing hardware-facing system_config here.
+    """
+    validated = {}
+    for raw_index, calibration in calibration_by_qubit.items():
+        qubit_index = int(raw_index)
+        if qubit_index not in (4, 5):
+            raise ValueError("Only PUCQ4 indices 4 (Yoko 3) and 5 (Yoko 4) are flux tunable")
+        qfreq_mhz = float(calibration["qfreq_MHz"])
+        res_base_mhz = float(calibration["res_base_MHz"])
+        if not np.isfinite(qfreq_mhz) or not np.isfinite(res_base_mhz):
+            raise ValueError("PUCQ4 experiment frequencies must be finite")
+        validated[qubit_index] = (qfreq_mhz, res_base_mhz)
+
+    for qubit_index, (qfreq_mhz, res_base_mhz) in validated.items():
+        VNA_qubit[qubit_index] = qfreq_mhz
+        VNA_res[qubit_index] = res_base_mhz
+
+        tracking_half_span = (
+            500.0 if WIDE_QUBIT_SCAN else float(QSPEC_HALF_SPAN[qubit_index])
+        )
+        _set_pucq4_indexed_bounds(
+            "qubit_spec_ge", qubit_index,
+            qfreq_mhz - tracking_half_span, qfreq_mhz + tracking_half_span,
+        )
+        for experiment_name, lower_offset, upper_offset in (
+                ("qubit_spec_ge_zeno", -8.0, 1.0),
+                ("qubit_spec_ge_dual_stark_drive", -1.0, 1.0),
+                ("qubit_spec_ge_extended", -250.0, 100.0),
+                ("qubit_spec_ge_high_gain", -30.0, 30.0),
+                ("qubit_spec_ge_zeno_stark", -25.0, 5.0),
+                ("bias_qubit_spec_ge", -70.0, 70.0)):
+            _set_pucq4_indexed_bounds(
+                experiment_name, qubit_index,
+                qfreq_mhz + lower_offset, qfreq_mhz + upper_offset,
+            )
+
+        ftores_center_mhz = qfreq_mhz + float(ef_freqs[qubit_index]) - res_base_mhz
+        _set_pucq4_indexed_bounds(
+            "qubit_spec_ftores", qubit_index,
+            ftores_center_mhz - 200.0, ftores_center_mhz + 200.0,
+        )
+
+        # These two legacy chevron configs are scalar and explicitly target M6.
+        if qubit_index == 5:
+            expt_cfg["power_rabi_ge_chevron"]["start_freq"] = qfreq_mhz - 4.0
+            expt_cfg["power_rabi_ge_chevron"]["end_freq"] = qfreq_mhz + 4.0
+            expt_cfg["length_rabi_ge_chevron"]["start_freq"] = qfreq_mhz - 15.0
+            expt_cfg["length_rabi_ge_chevron"]["end_freq"] = qfreq_mhz + 15.0
+
+    return {
+        "qubit_freq_ge": VNA_qubit.tolist(),
+        "res_freq_ge": VNA_res.tolist(),
+    }
+
+
+def pucq4_round_robin_profile(qubit_index, calibration_by_qubit):
+    """Persistent acquisition settings from the accepted six-row/flux runs.
+
+    Pulse/readout values remain in system_config. These are the previously
+    missing averaging and sampling settings, in us/MHz/DAC gain. Return fresh
+    scalar dictionaries so one row cannot inherit the preceding row's sweep.
+    """
+    if qubit_index not in range(6):
+        raise ValueError("PUCQ4 row index must be 0 through 5")
+    i = qubit_index
+    profile = {
+        "res_spec": dict(start=-1.5, step_size=0.02, steps=151,
+                         reps=600, rounds=1, relax_delay=100.0),
+        "qubit_spec_ge": dict(half_span_MHz=0.8, steps=301, reps=5000,
+                              rounds=1, relax_delay=100.0),
+        "power_rabi_ge": dict(start=0.0, stop=0.85, steps=171, reps=1200,
+                              rounds=1, relax_delay=250.0),
+        "Readout_Optimization": dict(steps=10000, relax_delay=250.0),
+        "T1_ge": dict(start=0.01, stop=(100, 60, 150, 5, 60, 30)[i],
+                      steps=(201, 121, 301, 201, 241, 201)[i],
+                      reps=1200, rounds=1, relax_delay=250.0),
+        "Ramsey_ge": dict(start=0.0, stop=(60, 40, 80, 3, 30, 10)[i],
+                          steps=(301, 201, 401, 201, 301, 201)[i],
+                          reps=1200, rounds=1, relax_delay=250.0,
+                          ramsey_freq=0.5, fit_frequency_guess_MHz=None,
+                          fit_population_guess=None),
+        "SpinEcho_ge": dict(start=0.01, stop=(100, 60, 150, 5, 60, 30)[i],
+                            steps=(501, 301, 751, 201, 301, 301)[i],
+                            reps=1200, rounds=1, relax_delay=250.0,
+                            ramsey_freq=0.5),
+    }
+    if i == 2:
+        # Resolve the measured 0.038 MHz M3 line with more local samples/SNR.
+        profile["qubit_spec_ge"].update(half_span_MHz=0.25, steps=201, reps=10000)
+        profile["Readout_Optimization"].update(steps=20000)
+    if i in (4, 5):
+        current = calibration_by_qubit[i]["current_mA"]
+        profile["qubit_spec_ge"].update(half_span_MHz=1.0, steps=401)
+        if i == 4 and current == 5.0:
+            # The prior 0.869 MHz line needs baseline on both sides of the peak.
+            profile["qubit_spec_ge"].update(half_span_MHz=2.0)
+        if i == 5 and current == -7.5:
+            # The tentative archived line is 0.61 MHz above the pulse seed.
+            profile["qubit_spec_ge"].update(half_span_MHz=2.0)
+        for name in ("power_rabi_ge", "T1_ge", "Ramsey_ge", "SpinEcho_ge"):
+            profile[name].update(reps=1200, rounds=2)
+        if current != 0.0:
+            profile["T1_ge"].update(stop=60.0, steps=241)
+            profile["Ramsey_ge"].update(stop=30.0, steps=301)
+            profile["SpinEcho_ge"].update(stop=60.0, steps=301)
+        if i == 5 and current == -2.5:
+            # Full RR plus exact SSF repeat, September 9: retained lower contrast.
+            profile["qubit_spec_ge"].update(steps=101, reps=40000)
+            profile["Readout_Optimization"].update(steps=50000)
+            for name in ("Ramsey_ge", "SpinEcho_ge"):
+                profile[name].update(reps=2400)
+        if i == 5 and current == 10.0:
+            # Measured midpoint frame: full-window Ramsey diagnostic passes.
+            profile["Ramsey_ge"].update(ramsey_freq=0.015398310214337,
+                                         fit_frequency_guess_MHz=0.04,
+                                         fit_population_guess=dict(phase=0.0, amp=1.0,
+                                                                   initial_offset=0.5, final_offset=0.5))
+        if i == 5 and current == -10.0:
+            # The archived 500-rep spectrum did not resolve this line reliably.
+            profile["qubit_spec_ge"].update(reps=20000)
+            for name in ("T1_ge", "Ramsey_ge", "SpinEcho_ge"):
+                profile[name].update(reps=2000, rounds=4)
+    # September 8 line_4b / line_6d: weak-drive spectroscopy and short coherence.
+    if i == 3 or (i == 5 and calibration_by_qubit[i]["current_mA"] == 0.0):
+        profile["qubit_spec_ge"].update(
+            half_span_MHz=1.2 if i == 3 else 0.5,
+            reps=128000 if i == 3 else 64000, steps=97 if i == 3 else 101)
+        profile["Readout_Optimization"].update(steps=50000, relax_delay=100.0)
+        profile["power_rabi_ge"].update(reps=5000, rounds=1, relax_delay=100.0)
+        for name in ("T1_ge", "Ramsey_ge", "SpinEcho_ge"):
+            profile[name].update(reps=(6000 if name == "T1_ge" else 8000)
+                                 if i == 3 else 5000,
+                                 rounds=1, relax_delay=100.0)
+            if name != "T1_ge":
+                profile[name]["ramsey_freq"] = 2.0 if i == 3 else 1.0
+    return profile
+
+
+def apply_pucq4_round_robin_profile(qubit_index, calibration_by_qubit, qfreq_mhz):
+    """Apply a row before constructing any experiment; no hardware calls."""
+    profile = pucq4_round_robin_profile(qubit_index, calibration_by_qubit)
+    for name, settings in profile.items():
+        for key, value in settings.items():
+            if key == "half_span_MHz":
+                _set_pucq4_indexed_bounds(name, qubit_index,
+                                          qfreq_mhz - value, qfreq_mhz + value)
+            elif isinstance(expt_cfg[name].get(key), (list, tuple, np.ndarray)):
+                values = list(expt_cfg[name][key])
+                values[qubit_index] = value
+                expt_cfg[name][key] = values
+            else:
+                expt_cfg[name][key] = value
+    return profile

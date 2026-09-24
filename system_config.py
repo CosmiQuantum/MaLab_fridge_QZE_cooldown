@@ -8,34 +8,174 @@ import datetime
 import numpy as np
 
 
-# Accepted PUCQ4 flux calibrations, keyed by physical flux line and current in mA.
-# These supplement (and do not overwrite) the zero-current six-row arrays below.
-PUCQ4_FLUX_CALIBRATION = {
+# Historical PUCQ4 fit candidates retained only for provenance.  Runtime code
+# must use the final validated table below; several values in this older table
+# predate the last Ramsey correction and sigma/coherence pass.
+_PUCQ4_FLUX_CALIBRATION_HISTORY = {
     "Yoko3_Q4_M5": {
-        0.0: {"qfreq_MHz": 7084.7785, "sigma_us": 0.05996, "pi_amp": 0.63871,
-              "T1_us": 5.96, "T2R_us": 4.33, "T2E_us": 11.35},
-        -2.5: {"qfreq_MHz": 6945.5141, "sigma_us": 0.05996, "pi_amp": 0.63871,
-               "readout_length_us": 8.0, "readout_gain": 0.57, "readout_offset_MHz": 0.08,
-               "SSF": 0.552, "T1_us": 11.22, "T2R_us": 3.48, "T2E_us": 9.75},
-        -5.0: {"qfreq_MHz": 6725.3975, "sigma_us": 0.08530, "pi_amp": 0.64869,
-               "readout_length_us": 7.0, "readout_gain": 0.89, "readout_offset_MHz": 0.20,
-               "SSF": 0.572, "T1_us": 15.53, "T2R_us": 2.40, "T2E_us": 7.74},
-        -7.5: {"qfreq_MHz": 6423.2222, "sigma_us": 0.05911, "pi_amp": 0.64869,
-               "res_base_MHz": 9012.49, "readout_length_us": 7.0,
-               "readout_gain": 0.9267, "readout_offset_MHz": -0.16,
-               "SSF": 0.666, "T1_us": 19.09, "T2R_us": 1.86, "T2E_us": 6.01},
-        2.5: {"qfreq_MHz": 7143.8491, "sigma_us": 0.05264, "pi_amp": 0.65867,
-              "res_base_MHz": 9015.30, "readout_length_us": 5.0,
-              "readout_gain": 0.95, "readout_offset_MHz": -0.84, "SSF": 0.6296},
-        5.0: {"qfreq_MHz": 7121.7063, "sigma_us": 0.07321, "pi_amp": 0.66865,
-              "res_base_MHz": 9014.95, "readout_length_us": 7.0,
-              "readout_gain": 0.65, "readout_offset_MHz": -0.24, "SSF": 0.3305},
-        7.5: {"qfreq_MHz": 7022.3193, "sigma_us": 0.05445, "pi_amp": 0.65867,
-              "res_base_MHz": 9014.65, "readout_length_us": 6.0,
-              "readout_gain": 0.9033, "readout_offset_MHz": -0.24, "SSF": 0.6913},
-        10.0: {"qfreq_MHz": 6841.5394, "sigma_us": 0.05911, "pi_amp": 0.62873,
-               "res_base_MHz": 9013.50, "readout_length_us": 6.0,
-               "readout_gain": 0.9261, "readout_offset_MHz": -0.60, "SSF": 0.6960},
+        -10.0: {
+            "qfreq_MHz": 6037.585407899529,
+            "qspec_fwhm_MHz": 0.20377584742238586,
+            "qspec_gain": 0.001649267441664,
+            "qspec_length_us": 40.0,
+            "uniform_qspec_gain": 0.03,
+            "sigma_us": 0.0165397052076522,
+            "pi_amp": 0.9949337728132821,
+            "res_base_MHz": 9010.49,
+            "readout_frequency_MHz": 9011.44,
+            "readout_length_us": 5.0,
+            "readout_gain": 0.95,
+            "readout_offset_MHz": 0.95,
+            "SSF": 0.124,
+            "T1_us": 17.59795456742065,
+            "T2R_us": 1.6056569353905643,
+            "T2E_us": 3.6289562499916426,
+            "status": "complete_rabi_recalibration_deferred",
+        },
+        -7.5: {
+            "qfreq_MHz": 6422.620534808272,
+            "qspec_fwhm_MHz": 0.17031186889627797,
+            "qspec_gain": 0.000839,
+            "qspec_length_us": 20.0,
+            "sigma_us": 0.0617065954067694,
+            "pi_amp": 0.6287310016480498,
+            "res_base_MHz": 9011.54,
+            "readout_frequency_MHz": 9012.22,
+            "readout_length_us": 7.0,
+            "readout_gain": 0.95,
+            "readout_offset_MHz": 0.68,
+            "SSF": 0.6825,
+            "T1_us": 16.892026340586487,
+            "T2R_us": 1.6712887423637215,
+            "T2E_us": 5.974627251966843,
+            "status": "complete",
+        },
+        -5.0: {
+            "qfreq_MHz": 6724.886451375884,
+            "qspec_fwhm_MHz": 0.16478367561014154,
+            "qspec_gain": 0.002,
+            "qspec_length_us": 20.0,
+            "sigma_us": 0.07923262394176339,
+            "pi_amp": 0.6886101446621498,
+            "res_base_MHz": 9012.79,
+            "readout_frequency_MHz": 9012.87,
+            "readout_length_us": 6.0,
+            "readout_gain": 0.95,
+            "readout_offset_MHz": 0.08,
+            "SSF": 0.725,
+            "T1_us": 15.792375911866403,
+            "T2R_us": 2.3839576581898085,
+            "T2E_us": 7.325418728160058,
+            "status": "complete",
+        },
+        -2.5: {
+            "qfreq_MHz": 6945.111991749794,
+            "qspec_fwhm_MHz": 0.12021327827535877,
+            "qspec_gain": 0.0025,
+            "qspec_length_us": 20.0,
+            "sigma_us": 0.05911146169340639,
+            "pi_amp": 0.6486907159860831,
+            "res_base_MHz": 9013.74,
+            "readout_frequency_MHz": 9014.06,
+            "readout_length_us": 6.0,
+            "readout_gain": 0.73,
+            "readout_offset_MHz": 0.32,
+            "SSF": 0.6183,
+            "T1_us": 11.948751384988029,
+            "T2R_us": 3.6265382578259957,
+            "T2E_us": 9.068963556255856,
+            "status": "complete",
+        },
+        0.0: {
+            "qfreq_MHz": 7084.565677917129,
+            "qspec_fwhm_MHz": 0.10236154214941956,
+            "qspec_gain": 0.003,
+            "qspec_length_us": 20.0,
+            "sigma_us": 0.05911146169340639,
+            "pi_amp": 0.6287310016480498,
+            "res_base_MHz": 9014.74,
+            "readout_frequency_MHz": 9014.94,
+            "readout_length_us": 6.0,
+            "readout_gain": 0.65,
+            "readout_offset_MHz": 0.20,
+            "SSF": 0.581,
+            "T1_us": 14.605931751988077,
+            "T2R_us": 6.418563288818102,
+            "T2E_us": 15.284901770309753,
+            "status": "complete",
+        },
+        2.5: {
+            "qfreq_MHz": 7143.8595708799985,
+            "qspec_fwhm_MHz": 0.11536552555969569,
+            "qspec_gain": 0.0045,
+            "qspec_length_us": 20.0,
+            "sigma_us": 0.0549176813895992,
+            "pi_amp": 0.6287310016480498,
+            "res_base_MHz": 9015.04,
+            "readout_frequency_MHz": 9014.56,
+            "readout_length_us": 5.0,
+            "readout_gain": 0.93,
+            "readout_offset_MHz": -0.48,
+            "SSF": 0.615,
+            "T1_us": 11.542920594344714,
+            "T2R_us": 10.522589617668842,
+            "T2E_us": 17.247786087599696,
+            "status": "complete",
+        },
+        5.0: {
+            "qfreq_MHz": 7121.580621960356,
+            "qspec_fwhm_MHz": 0.8169228035068649,
+            "qspec_gain": 0.03,
+            "qspec_length_us": 40.0,
+            "sigma_us": 0.08084894313680056,
+            "pi_amp": 0.6786302874931331,
+            "res_base_MHz": 9014.59,
+            "readout_frequency_MHz": 9014.11,
+            "readout_length_us": 6.0,
+            "readout_gain": 0.92,
+            "readout_offset_MHz": -0.48,
+            "SSF": 0.512,
+            "T1_us": 2.31231204747479,
+            "T2R_us": 3.9874039658648956,
+            "T2E_us": 1.9007638446966737,
+            "status": "complete_population_optimal_power_broadened_qspec",
+        },
+        7.5: {
+            "qfreq_MHz": 7022.121082210489,
+            "qspec_fwhm_MHz": 0.11431904425743382,
+            "qspec_gain": 0.002,
+            "qspec_length_us": 20.0,
+            "sigma_us": 0.05873041582061609,
+            "pi_amp": 0.6087712873100165,
+            "res_base_MHz": 9014.04,
+            "readout_frequency_MHz": 9013.80,
+            "readout_length_us": 10.0,
+            "readout_gain": 0.95,
+            "readout_offset_MHz": -0.24,
+            "SSF": 0.773,
+            "T1_us": 10.698919700363385,
+            "T2R_us": 3.6309914943113784,
+            "T2E_us": 10.80659010578854,
+            "status": "complete",
+        },
+        10.0: {
+            "qfreq_MHz": 6841.20173951502,
+            "qspec_fwhm_MHz": 0.1404901326882709,
+            "qspec_gain": 0.002,
+            "qspec_length_us": 20.0,
+            "sigma_us": 0.059226039930878716,
+            "pi_amp": 0.6187511444790331,
+            "res_base_MHz": 9013.09,
+            "readout_frequency_MHz": 9012.97,
+            "readout_length_us": 6.0,
+            "readout_gain": 0.95,
+            "readout_offset_MHz": -0.12,
+            "SSF": 0.6773,
+            "T1_us": 14.279709140001536,
+            "T2R_us": 2.7180866745871834,
+            "T2E_us": 8.314394050782358,
+            "status": "complete",
+        },
     },
     "Yoko4_Q6_M6": {
         -2.5: {"qfreq_MHz": 6103.7968, "sigma_us": 0.0605405, "pi_amp": 0.60877,
@@ -63,113 +203,379 @@ PUCQ4_FLUX_CALIBRATION = {
     },
 }
 
-# Current-specific pulse seeds are separate from the zero-current ``sigma`` and
-# ``pi_amp`` arrays below. Entries marked ``revalidation_required`` produced an
-# in-window raw-I/Q Rabi result but did not pass the complete post-readout chain;
-# callers must not silently substitute them for the 0 mA device calibration.
+# Current-specific calibration from the 2026-09-07/08 campaign, with accepted
+# round-robin refreshes identified by calibration_run. Unrefreshed entries
+# retain the prior measured qspec, readout and Ramsey/sigma/coherence settings.
+# Every listed pi amplitude lies in the 0.625-0.675 calibration window.
+# Gaussian drive length is always 4 * sigma_us in the experiment programs.
 PUCQ4_FLUX_PULSE_CALIBRATION = {
     "Yoko3_Q4_M5": {
-        -10.0: {
-            "sigma_us": 0.04519688543145721,
-            "raw_iq_pi_amp": 0.6985900018311665,
-            "raw_iq_qfreq_MHz": 5984.071123039789,
-            "status": "revalidation_required",
-            "note": (
-                "M5 uses a resonator peak near 9012.87 MHz at -10 mA. "
-                "Low-power qspec passed at 5984.07112 MHz with 0.17386 MHz "
-                "FWHM. Raw-I/Q Rabi entered the pi window, but its trace is "
-                "noisy and post-pulse readout rescue fidelity remained 0.077; "
-                "do not use for coherence until full revalidation passes."
-            ),
-        },
+        -10.0: {"qfreq_MHz": 6038.019853160, "qspec_gain": 0.03,
+                "qspec_length_us": 40.0, "sigma_us": 0.096997820,
+                "pi_amp": 0.651681621, "res_base_MHz": 9010.49,
+                "readout_frequency_MHz": 9011.44, "readout_length_us": 5.0,
+                "readout_gain": 0.95, "readout_offset_MHz": 0.95,
+                "T1_us": 23.727664, "T2R_us": 1.058108, "T2E_us": 4.659599,
+                "status": "validated"},
+        -7.5: {"qfreq_MHz": 6422.718837340, "qspec_gain": 0.000839,
+               "qspec_length_us": 20.0, "sigma_us": 0.059236826,
+               "pi_amp": 0.651681621, "res_base_MHz": 9011.54,
+               "readout_frequency_MHz": 9012.22, "readout_length_us": 7.0,
+               "readout_gain": 0.95, "readout_offset_MHz": 0.68,
+               "T1_us": 16.639058, "T2R_us": 1.491644, "T2E_us": 5.920499,
+               "status": "validated"},
+        -5.0: {"qfreq_MHz": 6724.844813670, "qspec_gain": 0.002,
+               "qspec_length_us": 20.0, "sigma_us": 0.084033637,
+               "pi_amp": 0.651681621, "res_base_MHz": 9012.79,
+               "readout_frequency_MHz": 9012.87, "readout_length_us": 6.0,
+               "readout_gain": 0.95, "readout_offset_MHz": 0.08,
+               "T1_us": 14.807042, "T2R_us": 2.110755, "T2E_us": 7.355631,
+               "status": "validated"},
+        -2.5: {"qfreq_MHz": 6945.1129971731425, "qspec_gain": 0.0025,
+               "qspec_length_us": 20.0, "sigma_us": 0.058777626,
+               "pi_amp": 0.6467069523286333, "res_base_MHz": 9013.7,
+               "readout_frequency_MHz": 9014.06, "readout_length_us": 6.0,
+               "readout_gain": 0.73, "readout_offset_MHz": 0.3599999999987631,
+               "T1_us": 12.843022492027956, "T2R_us": 3.3305882611408713, "T2E_us": 9.688102646269144,
+               "qspec_FWHM_MHz": 0.11948517573545973,
+               "qspec_FWHM_error_MHz": 0.0017745327919961704,
+               "qspec_reps": 5000,
+               "qspec_rounds": 1,
+               "qspec_steps": 401,
+               "SSF": 0.5926,
+               "calibration_run": 'rrv5_m025b/2026-09-09_16-25-00',
+               # Earlier visits moved by more than a linewidth; acquire qspec first.
+               "requires_qspec_each_pass": True,
+               "status": "validated"},
+        0.0: {"qfreq_MHz": 7084.548595174133, "qspec_gain": 0.003,
+              "qspec_length_us": 20.0, "sigma_us": 0.056940825,
+              "pi_amp": 0.6467069523286333, "res_base_MHz": 9014.66,
+              "readout_frequency_MHz": 9014.86, "readout_length_us": 6.0,
+              "readout_gain": 0.65, "readout_offset_MHz": 0.2000000000007276,
+              "T1_us": 13.125145177243246, "T2R_us": 6.098595743922029, "T2E_us": 14.335001803438807,
+              "qspec_FWHM_MHz": 0.10225077122014355, "qspec_FWHM_error_MHz": 0.0015882665134117476,
+              "SSF": 0.5118, "calibration_run": 'rr6_0mA/2026-09-09_19-23-29',
+              "status": "validated"},
+        2.5: {"qfreq_MHz": 7143.883429322838, "qspec_gain": 0.0045,
+              "qspec_length_us": 20.0, "sigma_us": 0.053267224,
+              "pi_amp": 0.6467069523286333, "res_base_MHz": 9014.68,
+              "readout_frequency_MHz": 9014.82, "readout_length_us": 4.0,
+              "readout_gain": 0.95, "readout_offset_MHz": 0.14,
+              "T1_us": 10.196045128561797, "T2R_us": 7.605553477536421, "T2E_us": 15.566037333880487,
+              "qspec_FWHM_MHz": 0.11932360664032048,
+              "qspec_FWHM_error_MHz": 0.001401703175142955,
+              "qspec_reps": 5000,
+              "qspec_rounds": 1,
+              "qspec_steps": 401,
+              "SSF": 0.5841,
+              "calibration_run": 'rrv5_p025b/2026-09-09_01-21-43',
+              "status": 'validated'},
+        5.0: {"qfreq_MHz": 7122.257671006202, "qspec_gain": 0.03,
+              "qspec_length_us": 40.0, "sigma_us": 0.058777626,
+              "pi_amp": 0.6516816211926998, "res_base_MHz": 9014.59,
+              "readout_frequency_MHz": 9014.11, "readout_length_us": 6.0,
+              "readout_gain": 0.92, "readout_offset_MHz": -0.47999999999956344,
+              "T1_us": 5.1744804110233265, "T2R_us": 1.1310400931072198, "T2E_us": 8.360387540413047,
+              "qspec_FWHM_MHz": 0.6243436691610823,
+              "qspec_FWHM_error_MHz": 0.005091870061888435,
+              "qspec_reps": 5000,
+              "qspec_rounds": 1,
+              "qspec_steps": 401,
+              "SSF": 0.5782,
+              "calibration_run": 'rrv5_p050a/2026-09-09_03-22-35',
+              "status": "validated"},
+        7.5: {"qfreq_MHz": 7022.162967054066, "qspec_gain": 0.002,
+              "qspec_length_us": 20.0, "sigma_us": 0.055104024,
+              "pi_amp": 0.6516816211926998, "res_base_MHz": 9013.96,
+              "readout_frequency_MHz": 9013.800000000001, "readout_length_us": 10.0,
+              "readout_gain": 0.95, "readout_offset_MHz": -0.1599999999980355,
+              "T1_us": 12.757370732627168, "T2R_us": 4.038153856007287, "T2E_us": 10.907325682518627,
+              "qspec_FWHM_MHz": 0.1223185584832736,
+              "qspec_FWHM_error_MHz": 0.0018248357161659372,
+              "qspec_reps": 5000,
+              "qspec_rounds": 1,
+              "qspec_steps": 401,
+              "SSF": 0.7133,
+              "calibration_run": 'rrv5_p075b/2026-09-09_09-01-35',
+              "status": "validated"},
+        10.0: {"qfreq_MHz": 6841.484578285427, "qspec_gain": 0.002,
+               "qspec_length_us": 20.0, "sigma_us": 0.056481625,
+               "pi_amp": 0.6516816211926998, "res_base_MHz": 9013.11,
+               "readout_frequency_MHz": 9012.97, "readout_length_us": 6.0,
+               "readout_gain": 0.95, "readout_offset_MHz": -0.1400000000012369,
+               "T1_us": 15.426027649345263, "T2R_us": 2.4383651838558325, "T2E_us": 8.333998671208258,
+               "qspec_FWHM_MHz": 0.15045271857763148,
+               "qspec_FWHM_error_MHz": 0.0024709538824901063,
+               "qspec_reps": 5000,
+               "qspec_rounds": 1,
+               "qspec_steps": 401,
+               "SSF": 0.6431,
+               "calibration_run": 'rrv5_p100b/2026-09-09_11-02-54',
+               "requires_qspec_each_pass": True,
+               "qspec_frequency_min_MHz": 6841.457614725295,
+               "qspec_frequency_max_MHz": 6841.583959579264,
+               "status": 'validated_tracking'},
     },
     "Yoko4_Q6_M6": {
-        -7.5: {
-            "sigma_us": 0.12225276618925736,
-            "raw_iq_pi_amp": 0.6985900018311665,
-            "raw_iq_qfreq_MHz": 4840.0,
-            "status": "revalidation_required",
-            "note": (
-                "Corrected line replaces the rejected 5061.75 MHz alias. "
-                "Raw-I/Q Rabi visibly resolves just over half an oscillation "
-                "and meets the 0.6-0.7 pi window; complete full validation."
-            ),
-        },
-        -5.0: {
-            "sigma_us": 0.06714287589206007,
-            "raw_iq_pi_amp": 0.6586705731550998,
-            "raw_iq_qfreq_MHz": 5587.9,
-            "status": "revalidation_required",
-            "note": (
-                "Corrected-readout raw-I/Q Rabi resolves just over half an "
-                "oscillation in I and meets the 0.6-0.7 pi window; complete "
-                "post-readout/coherence validation."
-            ),
-        },
-        -10.0: {
-            "sigma_us": 0.09862908781821704,
-            "raw_iq_pi_amp": 0.6886101446621498,
-            "raw_iq_qfreq_MHz": 4375.392561188658,
-            "status": "revalidation_required",
-            "note": (
-                "Raw-I/Q Rabi met the 0.6-0.7 pi window. Final qspec FWHM was "
-                "0.81095 MHz (limit 0.8 MHz) and optimized-readout Rabi returned "
-                "the 0.84829 boundary fit; revalidate before coherence use."
-            ),
-        },
-        5.0: {
-            "sigma_us": 0.055669293746329056,
-            "pi_amp": 0.6187511444790331,
-            "qfreq_MHz": 7062.7712444396775,
-            "status": "validated",
-            "note": (
-                "Full post-readout chain passed at +5 mA: qspec FWHM 0.17556 MHz, "
-                "pi amplitude 0.61875, SSF 0.4910, T1 5.48 us, T2R 2.77 us, "
-                "and T2E 8.00 us."
-            ),
-        },
-        7.5: {
-            "sigma_us": 0.058001,
-            "pi_amp": 0.6387108588170665,
-            "qfreq_MHz": 7185.659478471124,
-            "status": "validated",
-            "note": (
-                "Full post-readout chain passed at +7.5 mA: qspec FWHM "
-                "0.14571 MHz, pi amplitude 0.63871, SSF 0.4740, T1 5.48 us, "
-                "T2R 4.13 us, and T2E 9.35 us."
-            ),
-        },
-        10.0: {
-            "sigma_us": 0.05115680589458381,
-            "pi_amp": 0.6287310016480498,
-            "qfreq_MHz": 7211.443553644731,
-            "status": "validated",
-            "note": (
-                "Full post-readout chain passed at +10 mA: qspec FWHM 0.11949 "
-                "MHz, pi amplitude 0.62873, SSF 0.4710, T1 5.35 us, T2R "
-                "6.35 us, and T2E 9.56 us."
-            ),
-        },
-        -2.5: {
-            "sigma_us": 0.060540487104986655,
-            "pi_amp": 0.6087712873100165,
-            "qfreq_MHz": 6103.796752687653,
-            "status": "validated",
-            "note": (
-                "Full post-readout chain passed at -2.5 mA: qspec FWHM "
-                "0.24612 MHz, pi amplitude 0.60877, SSF 0.4270, T1 5.03 us, "
-                "T2R 1.08 us, and T2E 4.46 us."
-            ),
-        },
+        -10.0: {"qfreq_MHz": 4375.850089710, "qspec_gain": 0.03,
+                "qspec_length_us": 20.0, "sigma_us": 0.105432413,
+                "pi_amp": 0.646706952, "res_base_MHz": 9055.31,
+                "readout_frequency_MHz": 9054.91, "readout_length_us": 12.0,
+                "readout_gain": 0.88, "readout_offset_MHz": -0.40,
+                "T1_us": 18.946445, "T2R_us": 0.665104, "T2E_us": 4.035453,
+                "status": "validated"},
+        -7.5: {"qfreq_MHz": 4839.206595110, "qspec_gain": 0.03,
+               "qspec_length_us": 20.0, "sigma_us": 0.132844841,
+               "pi_amp": 0.646706952, "res_base_MHz": 9056.01,
+               "readout_frequency_MHz": 9055.25, "readout_length_us": 12.0,
+               "readout_gain": 0.7945, "readout_offset_MHz": -0.76,
+               "T1_us": 10.897905, "T2R_us": 0.885355, "T2E_us": 3.780041,
+               "status": "validated"},
+        -5.0: {"qfreq_MHz": 5588.103711440, "qspec_gain": 0.03,
+               "qspec_length_us": 20.0, "sigma_us": 0.070716831,
+               "pi_amp": 0.656656290, "res_base_MHz": 9056.91,
+               "readout_frequency_MHz": 9056.63, "readout_length_us": 12.0,
+               "readout_gain": 0.8767, "readout_offset_MHz": -0.28,
+               "T1_us": 6.463409, "T2R_us": 0.722576, "T2E_us": 3.461524,
+               "status": "validated"},
+        -2.5: {"qfreq_MHz": 6103.73104802091, "qspec_gain": 0.002,
+               "qspec_length_us": 20.0, "sigma_us": 0.056022425,
+               "pi_amp": 0.6516816211926998, "res_base_MHz": 9057.9,
+               "readout_frequency_MHz": 9057.86, "readout_length_us": 10.0,
+               "readout_gain": 0.8, "readout_offset_MHz": -0.039999999999054126,
+               "T1_us": 6.143175070153691, "T2R_us": 1.0157470309560712, "T2E_us": 4.2917276961703585,
+               "qspec_FWHM_MHz": 0.3281951157831831,
+               "qspec_FWHM_error_MHz": 0.013409378770879705,
+               "qspec_reps": 40000,
+               "qspec_rounds": 1,
+               "qspec_steps": 101,
+               "SSF": 0.32474,
+               "calibration_run": 'rrv6_m025e/2026-09-09_18-28-03',
+               "status": "validated"},
+        # September 8 all-six RR: revalidated the low-drive line_6d settings.
+        # The weak qspec gain requires the recorded 64000 x 1 averaging.
+        0.0: {"qfreq_MHz": 6522.489876246844, "qspec_gain": 0.00075,
+              "qspec_length_us": 20.0, "sigma_us": 0.062612796167,
+              "pi_amp": 0.6467069523286333, "res_base_MHz": 9058.88,
+              "readout_frequency_MHz": 9058.460000000001, "readout_length_us": 10.0,
+              "readout_gain": 0.95, "readout_offset_MHz": -0.41999999999825377,
+              "T1_us": 5.571980204657388, "T2R_us": 1.7803606627046535, "T2E_us": 5.168960727869256,
+              "qspec_FWHM_MHz": 0.20019179587582014, "qspec_FWHM_error_MHz": 0.012556762587316085,
+              "qspec_reps": 64000, "qspec_rounds": 1, "qspec_steps": 101,
+              "SSF": 0.35378,
+              "calibration_run": 'rr6_0mA/2026-09-09_19-23-29',
+              "status": "validated"},
+        2.5: {"qfreq_MHz": 6841.775497163998, "qspec_gain": 0.006,
+              "qspec_length_us": 20.0, "sigma_us": 0.053726424,
+              "pi_amp": 0.6516816211926998, "res_base_MHz": 9060.08,
+              "readout_frequency_MHz": 9059.98, "readout_length_us": 22.0,
+              "readout_gain": 0.80, "readout_offset_MHz": -0.1000000000003638,
+              "T1_us": 6.79621105927428, "T2R_us": 2.320281858189406, "T2E_us": 6.533448775271403,
+              "qspec_FWHM_MHz": 0.2052599851296157,
+              "qspec_FWHM_error_MHz": 0.0020320259945249414,
+              "qspec_reps": 5000,
+              "qspec_rounds": 1,
+              "qspec_steps": 401,
+              "SSF": 0.6575,
+              "calibration_run": 'rrv6_p025b/2026-09-09_02-56-53',
+              "status": 'validated'},
+        5.0: {"qfreq_MHz": 7062.612211354989, "qspec_gain": 0.006,
+              "qspec_length_us": 20.0, "sigma_us": 0.053267224,
+              "pi_amp": 0.6516816211926998, "res_base_MHz": 9060.78,
+              "readout_frequency_MHz": 9060.22, "readout_length_us": 12.0,
+              "readout_gain": 0.9167, "readout_offset_MHz": -0.5600000000013097,
+              "T1_us": 7.120905647510946, "T2R_us": 2.4521516277292186, "T2E_us": 7.949307821673911,
+              "qspec_FWHM_MHz": 0.17117461028187456,
+              "qspec_FWHM_error_MHz": 0.002246002837143701,
+              "qspec_reps": 5000,
+              "qspec_rounds": 1,
+              "qspec_steps": 401,
+              "SSF": 0.4262,
+              "calibration_run": 'rrv6_p050a/2026-09-09_03-40-19',
+              "status": "validated"},
+        7.5: {"qfreq_MHz": 7185.513939668361, "qspec_gain": 0.006,
+              "qspec_length_us": 20.0, "sigma_us": 0.057859226,
+              "pi_amp": 0.6467069523286333, "res_base_MHz": 9061.47,
+              "readout_frequency_MHz": 9061.49, "readout_length_us": 11.0,
+              "readout_gain": 0.8334, "readout_offset_MHz": 0.020000000000436557,
+              "T1_us": 5.45179527299386, "T2R_us": 5.7231990564627235, "T2E_us": 9.238789592754308,
+              "frequency_seed_run": "rrv6p75_qr/2026-09-09_09-46-23",
+              "qspec_FWHM_MHz": 0.13651071888404784,
+              "qspec_FWHM_error_MHz": 0.0029425361220824365,
+              "qspec_reps": 5000,
+              "qspec_rounds": 1,
+              "qspec_steps": 401,
+              "SSF": 0.433,
+              "calibration_run": 'rrv6_p075b/2026-09-09_09-54-43',
+              "status": 'validated'},
+        10.0: {"qfreq_MHz": 7211.413079440341, "qspec_gain": 0.006,
+               "qspec_length_us": 20.0, "sigma_us": 0.049593622,
+               "pi_amp": 0.6417322834645669, "res_base_MHz": 9061.54,
+               "readout_frequency_MHz": 9061.52, "readout_length_us": 12.0,
+               "readout_gain": 0.8722, "readout_offset_MHz": -0.020000000000436557,
+               "T1_us": 6.67982963731644, "T2R_us": 6.114422314936588, "T2E_us": 9.700775749042306,
+               "qspec_FWHM_MHz": 0.17805935715636778,
+               "qspec_FWHM_error_MHz": 0.0028538062848888603,
+               "qspec_reps": 5000,
+               "qspec_rounds": 1,
+               "qspec_steps": 401,
+               "SSF": 0.4358,
+               "calibration_run": 'rrv6_p100e/2026-09-09_13-59-51',
+               "status": "validated"},
     },
 }
+
+# Public runtime calibration.  The older candidates remain available under the
+# private ``_PUCQ4_FLUX_CALIBRATION_HISTORY`` name for forensic comparison only.
+PUCQ4_FLUX_CALIBRATION = PUCQ4_FLUX_PULSE_CALIBRATION
+PUCQ4_FLUX_CALIBRATION_SOURCES = (
+    "PUCQ4_round_robin_validation_20260908_artifacts/validation_manifest.json",
+    "yoko_flux_campaign/ramsey_sigma_coherence_manifest.json",
+    "yoko_flux_campaign/single_sweep_qspec_manifest.json",
+    "line_6d/2026-09-08_18-51-46/documentation/zero_audit.json",
+)
+PUCQ4_FLUX_CURRENT_GRID_MA = (-10.0, -7.5, -5.0, -2.5, 0.0, 2.5, 5.0, 7.5, 10.0)
+PUCQ4_FLUX_DEVICE_BY_QUBIT_INDEX = {
+    4: "Yoko3_Q4_M5",
+    5: "Yoko4_Q6_M6",
+}
+
+_PUCQ4_REQUIRED_CALIBRATION_KEYS = (
+    "qfreq_MHz", "qspec_gain", "qspec_length_us", "sigma_us", "pi_amp",
+    "res_base_MHz", "readout_frequency_MHz", "readout_length_us",
+    "readout_gain", "readout_offset_MHz",
+)
+
+# Rows 0-3 remain fixed-frequency.  Rows 4-5 are deliberately populated only
+# by ``resolve_pucq4_flux_config`` so there is one authoritative copy of every
+# current-dependent number.
+_PUCQ4_FIXED_CONFIG_ROWS = {
+    "res_freq_ge": (8919.77, 8951.61, 8974.80, 8999.92, None, None),
+    "res_gain_ge": (0.48, 0.56, 0.95, 0.95, None, None),
+    "res_length_ge": (10.0, 5.0, 9.0, 5.0, None, None),
+    "res_freq_offset_ge": (-0.52, -0.40, -0.21, -0.22999999999956344, None, None),
+    # Fresh zero-current RR pulse calibrations; see the validation manifest.
+    # M1's single-frequency Ramsey fit remains under model review.
+    # M4 inherits line_4b's weak-drive settings; physical ID remains unknown.
+    # Low-drive qspec needs the recorded 128000 x 1 averages / 97 points.
+    "qubit_freq_ge": (5517.691628432926, 5438.710887054151, 5557.335688295514, 5594.541902899418, None, None),
+    "qubit_gain_ge": (0.001, 0.007, 0.002, 0.0075, None, None),
+    "qubit_length_ge": (20.0, 20.0, 20.0, 20.0, None, None),
+    "sigma": (0.050, 0.101, 0.124, 0.079003864231, None, None),
+    "pi_amp": (0.681529634377, 0.666605627785, 0.666605627785, 0.6417322834645669, None, None),
+}
+
+
+def normalize_pucq4_flux_current(current_mA):
+    """Return the exact supported current-grid value or fail before hardware use."""
+    try:
+        requested = float(current_mA)
+    except (TypeError, ValueError):
+        raise ValueError("PUCQ4 flux current must be numeric in mA")
+    if not np.isfinite(requested):
+        raise ValueError("PUCQ4 flux current must be finite in mA")
+    for supported in PUCQ4_FLUX_CURRENT_GRID_MA:
+        if np.isclose(requested, supported, rtol=0.0, atol=1e-9):
+            return supported
+    raise ValueError(
+        "Unsupported PUCQ4 flux current %.12g mA; choose one of %s"
+        % (requested, list(PUCQ4_FLUX_CURRENT_GRID_MA))
+    )
+
+
+def get_pucq4_flux_calibration(yoko3_current_mA=0.0, yoko4_current_mA=0.0):
+    """Return validated calibration rows keyed by Python qubit index (4 and 5)."""
+    requested_currents = {
+        4: normalize_pucq4_flux_current(yoko3_current_mA),
+        5: normalize_pucq4_flux_current(yoko4_current_mA),
+    }
+    selected = {}
+    for qubit_index, current_mA in requested_currents.items():
+        device_key = PUCQ4_FLUX_DEVICE_BY_QUBIT_INDEX[qubit_index]
+        row = dict(PUCQ4_FLUX_CALIBRATION[device_key][current_mA])
+        missing = [key for key in _PUCQ4_REQUIRED_CALIBRATION_KEYS if key not in row]
+        if missing:
+            raise RuntimeError(
+                "%s at %s mA is missing calibration fields: %s"
+                % (device_key, current_mA, ", ".join(missing))
+            )
+        expected_readout = row["res_base_MHz"] + row["readout_offset_MHz"]
+        if not np.isclose(expected_readout, row["readout_frequency_MHz"],
+                          rtol=0.0, atol=1e-6):
+            raise RuntimeError(
+                "%s at %s mA has inconsistent base/offset/readout frequencies"
+                % (device_key, current_mA)
+            )
+        if not 0.625 <= row["pi_amp"] <= 0.675:
+            raise RuntimeError(
+                "%s at %s mA has pi_amp outside the validated 0.625-0.675 window"
+                % (device_key, current_mA)
+            )
+        row.update({
+            "current_mA": current_mA,
+            "device_key": device_key,
+            "qubit_index": qubit_index,
+            "gaussian_length_us": 4.0 * row["sigma_us"],
+        })
+        selected[qubit_index] = row
+    return selected
+
+
+def resolve_pucq4_flux_config(yoko3_current_mA=0.0, yoko4_current_mA=0.0):
+    """Build ordinary six-qubit config lists for the selected Yoko currents."""
+    resolved = {
+        key: list(values) for key, values in _PUCQ4_FIXED_CONFIG_ROWS.items()
+    }
+    calibration_by_qubit = get_pucq4_flux_calibration(
+        yoko3_current_mA=yoko3_current_mA,
+        yoko4_current_mA=yoko4_current_mA,
+    )
+    field_map = {
+        "res_freq_ge": "res_base_MHz",
+        "res_gain_ge": "readout_gain",
+        "res_length_ge": "readout_length_us",
+        "res_freq_offset_ge": "readout_offset_MHz",
+        "qubit_freq_ge": "qfreq_MHz",
+        "qubit_gain_ge": "qspec_gain",
+        "qubit_length_ge": "qspec_length_us",
+        "sigma": "sigma_us",
+        "pi_amp": "pi_amp",
+    }
+    for qubit_index, calibration in calibration_by_qubit.items():
+        for config_key, calibration_key in field_map.items():
+            resolved[config_key][qubit_index] = float(calibration[calibration_key])
+    for config_key, values in resolved.items():
+        if len(values) != 6 or any(value is None for value in values):
+            raise RuntimeError("Invalid six-qubit PUCQ4 config for %s" % config_key)
+    resolved["readout_frequency_ge"] = [
+        base + offset for base, offset in zip(
+            resolved["res_freq_ge"], resolved["res_freq_offset_ge"]
+        )
+    ]
+    resolved["gaussian_length_ge"] = [4.0 * sigma for sigma in resolved["sigma"]]
+    return resolved
 
 # ADC_attenuator MUST be above 16dB
 #DAC_attenuator1 and 2 are for the resonators
 #qubit_DAC_attenuator1 and 2 are for the qubits
 class QICK_experiment:
     def __init__(self, folder, DAC_attenuator1 = 10, DAC_attenuator2 = 15, qubit_DAC_attenuator1 = 5,
-                                     qubit_DAC_attenuator2 = 4, ADC_attenuator = 17, fridge = None):
+                                     qubit_DAC_attenuator2 = 4, ADC_attenuator = 17, fridge = None,
+                                     yoko3_current_mA = 0.0, yoko4_current_mA = 0.0):
+
+        # Resolve and validate the selected bias rows before creating folders or
+        # connecting to the QICK.  The config dictionaries below remain normal
+        # six-element per-qubit lists; no nested current tables reach QICK code.
+        self.yoko3_current_mA = normalize_pucq4_flux_current(yoko3_current_mA)
+        self.yoko4_current_mA = normalize_pucq4_flux_current(yoko4_current_mA)
+        self.pucq4_flux_calibration = get_pucq4_flux_calibration(
+            yoko3_current_mA=self.yoko3_current_mA,
+            yoko4_current_mA=self.yoko4_current_mA,
+        )
+        self.pucq4_flux_config = resolve_pucq4_flux_config(
+            yoko3_current_mA=self.yoko3_current_mA,
+            yoko4_current_mA=self.yoko4_current_mA,
+        )
 
         # Where do you want to save data
         self.outerFolder = folder
@@ -236,19 +642,16 @@ class QICK_experiment:
             #'res_freq_ge': [6217.011, 6275.7973, 6335.1068, 6407.052, 6476.1091, 6538], # Arianna 3/27/
             #'res_freq_ge': [6216.811, 6275.9373, 6335, 6407.0338, 6475.8835, 6538], #Joyce 3/11
             #'res_freq_ge': [7149,7171,7204,7228.9, 7264.22, 7287.54],#[7148.588, 7170.546, 7203.351, 7228.059, 7263.744 ,7286.719], #updated by Kester for run 7, Qick board, 6418.4 R5
-            # PUCQ4 from "PUCQ4 Initial Characterization.pptx" (M1..M6).
-            # These are the HIGH-POWER VNA values -- replace with the punched
-            # out frequencies once you have run a power sweep.
-            # PUCQ4 coarse high-power centers measured 2026-08-27 at gain 0.9,
-            # 0.2 MHz steps. Refine at low power before calling them dressed.
-            'res_freq_ge': [8919.85, 8951.65, 8975.00, 8999.95, 9014.95, 9059.45],
+            # Fixed rows M1-M4 plus the selected validated current rows for
+            # Yoko3/Q4/M5 and Yoko4/Q6/M6.
+            'res_freq_ge': list(self.pucq4_flux_config["res_freq_ge"]),
             #'res_freq_ge': [6219.097, 6284.55, 6343.95, 6414.934, 6418.4, 6547.25],  # updated by Kester for run 7, QICK box
 
             # "res_freq_ge": [6191.419, 6216.1, 6292.361, 6405.77, 6432.759, 6468.481],  # MHz, run 4a
             # "res_gain_ge": [1] + [0]*5,
-            "res_gain_ge": [0.48, 0.56, 0.41, 0.30, 0.33, 0.60],
-            "res_length_ge": [10.0, 5.0, 12.0, 10.0, 5.0, 3.0],  # [us]
-            "res_freq_offset_ge": [-0.52, -0.40, -0.08, 0.40, 0.44, -0.04],  # [MHz]
+            "res_gain_ge": list(self.pucq4_flux_config["res_gain_ge"]),
+            "res_length_ge": list(self.pucq4_flux_config["res_length_ge"]),  # [us]
+            "res_freq_offset_ge": list(self.pucq4_flux_config["res_freq_offset_ge"]),  # [MHz]
             #"res_gain_ge": [0.96, 1, 0.76, 0.58, 0.75, 0.57], # Joyce 04/07 DAC 0
             # set_res_gain_ge(QUBIT_INDEX), #utomatically sets all gains to zero except for the qubit you are observing
             # "res_gain_ge": [1,1,0.7,0.7,0.7,1], #[0.4287450656184295, 0.4903077560386716, 0.4903077560386716, 0.3941941738241592, 0.3941941738241592, 0.4903077560386716],  # DAC units
@@ -282,28 +685,20 @@ class QICK_experiment:
         # Qubit Configuration
         self.qubit_cfg = {
             #"qubit_freq_ge": [2764, 2980, 2876, 3096, 3043.32, 3095.65],#[2766, 2980, 2873, 3096, 3043, 3093],  # Joyce 3/11
-            # PUCQ4. *** FLUX TUNABLE -- these are only valid at the DC bias the
-            # VNA characterization was taken at. Q4 moves 5850-7110 MHz across
-            # +/-10 mA, so at the wrong bias these numbers are meaningless. ***
-            # Also note the resonator<->qubit mapping is NOT settled: the deck
-            # says M5->Q4 and M6->Q6, but the avoided-crossing data suggests
-            # Q4->M1 and Q6->M2. Row order here follows the deck's table.
-            # Row order is M1..M6. M4 has no assigned physical qubit and remains
-            # a deck estimate. The deck maps physical Q4 to M5 and Q6 to M6.
-            "qubit_freq_ge": [5517.69373, 5438.71351, 5557.33447, 5575.00,
-                              7084.77785, 6522.54018],
+            # Row order is M1..M6. M4 remains unassigned; physical Q4 is M5
+            # (index 4/Yoko 3) and physical Q6 is M6 (index 5/Yoko 4).
+            "qubit_freq_ge": list(self.pucq4_flux_config["qubit_freq_ge"]),
             "qubit_freq_chevron_detuned_ge": [4189.7582, 3820.4723, 4161.3726, 4463.15226, 4471.43854, 4997.86], # Olivia May 17
             "qubit_freq_ge_starked": [4189.737678, 3820.4723, 4161.3726, 4463.15226, 4471.4469, 4997.86], # Olivia 4/04 for zeno/stark tone
             "fwhm_w01_starked": None, #for err bars
             "fwhm_w01": None, #for err bars
 
-            # Weak continuous-wave-like spectroscopy drive. The former
-            # 0.03-0.08 gains produced coherent square-pulse sidelobes.
-            "qubit_gain_ge": [0.001, 0.007, 0.002, 0.010, 0.004, 0.006],
+            # Current-specific spectroscopy gain and rectangular pulse length.
+            "qubit_gain_ge": list(self.pucq4_flux_config["qubit_gain_ge"]),
             "qubit_ampl_gain_ge": 0.025,
             "qubit_pi_len": 0.11, # Olivia May 17th
             # [0.4287450656184295, 0.4287450656184295, 0.4903077560386716, 0.6, 0.4903077560386716, 0.4287450656184295], # For spec pulse
-            "qubit_length_ge": 20,  # 5 [us] for spec Pulse
+            "qubit_length_ge": list(self.pucq4_flux_config["qubit_length_ge"]),  # [us] qspec pulse
             #"qubit_freq_ef": [2764, 2980, 2876, 3096, 3043.32, 3095.65], #Q4 not fixed, looks like it shifted quite a lot
             # PUCQ4: f_ef = f_ge - alpha, with alpha from the deck
             # (220, 210, 218, 218, 214, 216 MHz). Cross-checks against the
@@ -326,17 +721,15 @@ class QICK_experiment:
             "qubit_phase": 0,  # [deg]
             #"sigma": [0.15]*6,  # [us] for Gaussian Pulse (5+10 DAC atten for qubit)
             "sigma_ampl": [0.03, 0.03, 0.05, 0.04, 0.05, 0.05], #DAC 0 04/07
-            # PUCQ4 starting point for the 0-1 amplitude-Rabi calibration.
-            "sigma": [0.050, 0.101, 0.124, 0.10, 0.055, 0.062],  # [us]
+            # Final 0-1 Gaussian widths; pulse programs use length = 4*sigma.
+            "sigma": list(self.pucq4_flux_config["sigma"]),  # [us]
             "active_reset_test_sigma": 0.19*1.8,
             #"sigma": [0.05, 0.09, 0.07, 0.065, 0.09, 0.3],  # Goal: cut sigma in half [us] for Gaussian Pulse (5+4 DAC atten for qubit)
             # "pi_amp": [0.92, 0.87, 0.75, 0.73, 0.77, 0.78], # old RR values
             "sigma_ef": [0.28, 0.25, 0.22, 0.25, 0.15, 0.09],  # [us] for Gaussian Pulse, #Arianna 3/27
             "sigma_fh": [0.15, 0.21, 0.25, 0.29, 0.28, 0.15],  # [us] for Gaussian Pulse, #Arianna 3/27
-            # PUCQ4, with the per-mode sigma values above, measured 2026-08-27.
-            # M4 remains uncalibrated; physical Q4 is the calibrated M5 row.
-            "pi_amp": [0.6786303, 0.6486907, 0.6586706, 0.7,
-                       0.6486907, 0.6486907],
+            # Final pi gains paired with the selected sigma values above.
+            "pi_amp": list(self.pucq4_flux_config["pi_amp"]),
             "pi_amp_ampl": [0.5942, 0.634499, 0.76542, 0.7754, 0.55393, 0.9], # Joyce 04/07 DAC 0
             #"pi_amp": [1.0, 0.93, 0.77, 0.8, 0.81, 0.9], # Eyeballed by Sara today (5+10 DAC atten for qubit)
             #"pi_amp": [0.7, 0.95, 0.75, 0.78, 0.77, 0.8],  # With shorter sigma (5+4 DAC instead of 5+5 DAC atten for qubit)

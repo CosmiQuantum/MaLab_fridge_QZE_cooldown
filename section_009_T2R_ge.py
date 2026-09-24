@@ -237,10 +237,14 @@ class T2RMeasurement:
             if self.verbose: print(f'Q {self.QubitIndex + 1} Round {self.round_num} T2R configuration: ', self.config)
             self.logger.info(f'Q {self.QubitIndex + 1} Round {self.round_num} T2R configuration:{self.config}')
 
-    def t2_fit(self, x_data, I, Q, verbose = False, guess=None, plot=False, return_freq=False):
+    def t2_fit(self, x_data, I, Q, verbose=False, guess=None, plot=False,
+               return_freq=False, signal_data=None):
         #fitting code adapted from https://github.com/qua-platform/py-qua-tools/blob/37c741ade5a8f91888419c6fd23fd34e14372b06/qualang_tools/plot/fitting.py
 
-        if abs(I[-1] - I[0]) > abs(Q[-1] - Q[0]):
+        if signal_data is not None:
+            y_data = np.asarray(signal_data, dtype=float)
+            plot_sig = 'Population'
+        elif abs(I[-1] - I[0]) > abs(Q[-1] - Q[0]):
             y_data = I
             plot_sig = 'I'
         else:
@@ -441,8 +445,17 @@ class T2RMeasurement:
             ss_Q_g = iq_list_g[0][0].T[1]
             ss_I_e = iq_list_e[0][0].T[0]
             ss_Q_e = iq_list_e[0][0].T[1]
-
-            fit, t2r_est, t2r_err, plot_sig = None, None, None, None
+            e = np.mean(ss_I_e + 1j * ss_Q_e)
+            g = np.mean(ss_I_g + 1j * ss_Q_g)
+            population = np.real(
+                ((I + 1j * Q) - g) * np.conj(e - g)
+            ) / np.abs(e - g) ** 2
+            if self.fit_data:
+                fit, t2r_est, t2r_err, plot_sig = self.t2_fit(
+                    delay_times, I, Q, signal_data=population
+                )
+            else:
+                fit, t2r_est, t2r_err, plot_sig = None, None, None, None
             self.plot_results(I, Q, delay_times, now, fit, t2r_est, t2r_err, plot_sig,scaling=scaling, Ie = ss_I_e, Ig = ss_I_g, Qe = ss_Q_e, Qg = ss_Q_g)
             return  t2r_est, t2r_err, I, Q, delay_times, fit, self.config, ss_Q_e, ss_Q_g, ss_I_e, ss_I_g, I_shots, Q_shots
         else:
@@ -545,7 +558,9 @@ class T2RMeasurement:
             e = np.mean((Ie + 1j * Qe))
             g = np.mean((Ig + 1j * Qg))
             ### Normalization ###
-            pop_norm = abs(((I + 1j * Q) - g) * (e - g) / abs(e - g) ** 2)
+            pop_norm = np.real(
+                ((I + 1j * Q) - g) * np.conj(e - g)
+            ) / np.abs(e - g) ** 2
             ydata = pop_norm
             fig, (ax1) = plt.subplots(1, 1)
 

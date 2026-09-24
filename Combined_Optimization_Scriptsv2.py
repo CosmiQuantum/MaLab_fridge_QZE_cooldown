@@ -9,13 +9,19 @@ import numpy as np
 
 from expt_config import FRIDGE, list_of_all_qubits, tot_num_of_qubits
 from section_005_single_shot_ge import GainFrequencySweep, SingleShot
-from system_config import QICK_experiment
+from system_config import QICK_experiment, resolve_pucq4_flux_config
 
 OPTIMIZATION_STAGE = "gain_frequency"  # "length" or "gain_frequency"
 QUBITS = [0, 1, 2, 4, 5]  # M4/index 3 has no assigned physical qubit
-READOUT_LENGTHS = [10.0, 5.0, 12.0, 10.0, 10.0, 3.0]  # us; third pass
-READOUT_GAINS = [0.48, 0.56, 0.41, 0.30, 0.33, 0.60]
-READOUT_OFFSETS = [-0.52, -0.40, -0.08, 0.40, 0.44, -0.04]  # MHz
+YOKO3_CURRENT_MA = float(os.environ.get("PUCQ4_YOKO3_CURRENT_MA", 0.0))
+YOKO4_CURRENT_MA = float(os.environ.get("PUCQ4_YOKO4_CURRENT_MA", 0.0))
+SELECTED_FLUX_CONFIG = resolve_pucq4_flux_config(
+    yoko3_current_mA=YOKO3_CURRENT_MA,
+    yoko4_current_mA=YOKO4_CURRENT_MA,
+)
+READOUT_LENGTHS = list(SELECTED_FLUX_CONFIG["res_length_ge"])
+READOUT_GAINS = list(SELECTED_FLUX_CONFIG["res_gain_ge"])
+READOUT_OFFSETS = list(SELECTED_FLUX_CONFIG["res_freq_offset_ge"])
 LENGTH_SWEEP = np.arange(1.0, 13.0, 1.0)
 N_LOOPS = 2
 GAIN_HALF_SPAN = 0.12
@@ -43,10 +49,19 @@ if os.environ.get("PUCQ4_OPT_MAX_GAIN"):
 
 def output_folders():
     stamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    if YOKO3_CURRENT_MA == 0.0 and YOKO4_CURRENT_MA == 0.0:
+        bias_tag = "0mA"
+    else:
+        bias_tag = "y3_%+.1fmA_y4_%+.1fmA" % (
+            YOKO3_CURRENT_MA, YOKO4_CURRENT_MA
+        )
     root = os.path.join(
         "M:/_Data/20250822 - Olivia", "pucq4_run_started_Aug_3", "PUCQ4",
         "pucq4_first_light",
-        os.environ.get("PUCQ4_OPT_ROOT_TAG", f"ssf_{OPTIMIZATION_STAGE}_optimization_0mA"),
+        os.environ.get(
+            "PUCQ4_OPT_ROOT_TAG",
+            f"ssf_{OPTIMIZATION_STAGE}_optimization_{bias_tag}",
+        ),
         stamp,
     )
     data = os.path.join(root, "study_data", "Data_h5")
@@ -61,6 +76,8 @@ def configured_experiment(root, qubit):
         root, DAC_attenuator1=10, DAC_attenuator2=15,
         qubit_DAC_attenuator1=5, qubit_DAC_attenuator2=4,
         ADC_attenuator=17, fridge=FRIDGE,
+        yoko3_current_mA=YOKO3_CURRENT_MA,
+        yoko4_current_mA=YOKO4_CURRENT_MA,
     )
     base_frequency = float(os.environ.get(
         "PUCQ4_OPT_RES_BASE_MHZ", experiment.readout_cfg["res_freq_ge"][qubit]
