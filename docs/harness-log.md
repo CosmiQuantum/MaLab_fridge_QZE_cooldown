@@ -1,5 +1,18 @@
 # Harness task and diagnostic log
 
+### 2026-09-24 - benchmark NumPy import failure
+
+- User launch failed at line 6, before hardware or data-folder operations, with
+  NumPy 1.21.5 `_multiarray_umath` DLL-load failure and an MKL warning.
+- Layer: execution environment; matches the recorded unactivated Conda runtime.
+- PyCharm reports base Conda Python 3.9.13. Activating that environment with
+  `Scripts/activate.bat` before invoking its Python successfully imported NumPy
+  1.21.5 and h5py 3.7.0; a NumPy dot product returned 11.0.
+- Use an activated Anaconda Prompt for launch. No package installation or
+  experiment configuration changes were needed. No hardware was contacted.
+- The earlier syntax-only verifier passed 147 files but cannot detect DLL
+  loading failures; dependency import verification is separate from parsing.
+
 Use one short entry per agent-assisted task. This file is persistent memory for
 facts that should survive chat sessions; do not put credentials or raw data here.
 

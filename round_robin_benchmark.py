@@ -143,7 +143,7 @@ substudy_txt_notes += (
     'current-indexed pulse/readout calibration table.'
     % (Qs_to_look_at, YOKO3_CURRENT_MA, YOKO4_CURRENT_MA)
 )
-study ='pucq4_first_light'
+study ='find_resonators_sandbox'
 if YOKO3_CURRENT_MA == 0.0 and YOKO4_CURRENT_MA == 0.0:
     sub_study = 'rr6_0mA'
 else:
