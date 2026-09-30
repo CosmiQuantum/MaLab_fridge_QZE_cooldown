@@ -15,14 +15,13 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
     # sweep used. The resonators move ~7 MHz across +/-10 mA; the qubits move
     # GHz. See YOKOGS200.py for the current-source driver.
     # Historical variable names; values are the new zero-current RR measurements.
-    VNA_res = np.array([8919.77, 8951.61, 8974.80, 8999.92,
-                        9014.66, 9058.88])
+    VNA_res = np.array([8920, 8351.61, 8574.80, 8299.92,
+                        9214.66, 9658.88])
     # Row order is M1..M6. M4 uses the September 8 round-robin measurement;
     # its physical number remains unknown. Physical Q4 is M5 and Q6 is M6.
     # Fresh spectroscopy centers; each normal RR run remeasures before Rabi.
     # Nonzero currents are selected by apply_pucq4_flux_experiment_config below.
-    VNA_qubit = np.array([5517.691628432926, 5438.710887054151, 5557.335688295514, 5594.541902899418,
-                          7084.548595174133, 6522.489876246844])
+    VNA_qubit = np.array([5317.691628432926, 5138.710887054151, 5657.335688295514, 5294.541902899418, 7284.548595174133, 6422.489876246844])
     ef_freqs = np.array([5287, 5201, 5269, 5357, 6822, 6185])  # f_ge - alpha
     fh_freqs = np.array([5067, 4991, 5051, 5139, 6608, 5969])  # rough guess
     # Set this for your experiment
@@ -63,15 +62,15 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             # meant 600 round trips per point: with 150 points x 6 qubits that
             # is over an hour of pure latency for ~30 s of measurement.
             # Same averaging, same SNR, ~600x less waiting.
-            "reps": 600,
+            "reps": 200,
             "rounds": 1,
             # Wide covers +/-15 MHz, comfortably more than the ~7 MHz the
             # resonators move across the full +/-10 mA flux range, so it finds
             # them at ANY bias. Narrow just tracks a known frequency.
             "start": -15.0 if WIDE_RES_SCAN else -3.0,  # [MHz]
             "step_size": 0.1 if WIDE_RES_SCAN else 0.05,  # [MHz]
-            "steps": 300 if WIDE_RES_SCAN else 120,
-            "relax_delay": 100,  # [us]
+            "steps": 60 if WIDE_RES_SCAN else 120,
+            "relax_delay": 1,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
 
@@ -105,7 +104,7 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             # qubit spec sweeps frequency in HARDWARE (add_loop 'freqloop'), so
             # rounds here costs only a few round trips for the whole sweep --
             # unlike res_spec above, this one is fine as written.
-            "reps": 5000,
+            "reps": 100,
             "rounds": 4 if WIDE_QUBIT_SCAN else 1,  # 3
             # PUCQ4 lines are 20-40 MHz wide, so +/-2 MHz cannot resolve them.
             # +/-500 MHz because VNA_qubit is only valid at the bias the VNA
@@ -119,8 +118,8 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
             # Move there before measuring T1/T2 -- see the note in the deck.
             "start": list(VNA_qubit - (500 if WIDE_QUBIT_SCAN else QSPEC_HALF_SPAN)),  # [MHz]
             "stop": list(VNA_qubit + (500 if WIDE_QUBIT_SCAN else QSPEC_HALF_SPAN)),  # [MHz]
-            "steps": 301,
-            "relax_delay": 100,  # [us]
+            "steps": 100,
+            "relax_delay": 10,  # [us]
             "list_of_all_qubits": list_of_all_qubits,
         },
         "qubit_spec_ef": {

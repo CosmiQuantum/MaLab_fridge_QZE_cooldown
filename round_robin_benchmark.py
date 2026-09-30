@@ -40,7 +40,8 @@ from section_003_punch_out_ge_mux import PunchOut
 from expt_config import (expt_cfg, list_of_all_qubits, tot_num_of_qubits, FRIDGE,
                          apply_pucq4_flux_experiment_config,
                          pucq4_round_robin_profile, apply_pucq4_round_robin_profile)
-
+print('line 43')
+print(expt_cfg)
 
 def set_yoko_bias(yoko3_mA=0.0, yoko4_mA=0.0):
     """Set the documented biases at 0.5 mA/s; zero means output off."""
@@ -155,8 +156,8 @@ sub_study = os.environ.get('PUCQ4_SUB_STUDY', sub_study)
 data_set = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 # set which of the following you'd like to run to 'True'
-run_flags = {"tof": False, "res_spec": True, "q_spec": True, "ss": True, "rabi": True, "len_rabi": False, "ss_gef": False, "test_act": False, "fh_rabi": False,
-             "t1": True, "t2r": True, "t2r_correction":False, "t2e": True, "ef_res_spec":  False, "ef_q_spec":  False, "fh_q_spec":False,
+run_flags = {"tof": False, "res_spec": True, "q_spec": False, "ss": False, "rabi": False, "len_rabi": False, "ss_gef": False, "test_act": False, "fh_rabi": False,
+             "t1": False, "t2r": False, "t2r_correction":False, "t2e": False, "ef_res_spec":  False, "ef_q_spec":  False, "fh_q_spec":False,
              "rabi_pop_meas": False, "ef_Rabi":  False, "ef_ss": False, "res_spec_fh":  False}
 if os.environ.get('PUCQ4_RUN_FLAGS'):
     enabled = {name.strip() for name in os.environ['PUCQ4_RUN_FLAGS'].split(',') if name.strip()}
@@ -504,11 +505,14 @@ if pre_optimize:
                 yoko3_current_mA=YOKO3_CURRENT_MA,
                 yoko4_current_mA=YOKO4_CURRENT_MA,
             )
+            print('line508')
+            print(experiment)
             # Set resonator configuration for this qubit
             experiment.readout_cfg['res_gain_ge'] = res_gain[Q]
             experiment.readout_cfg['res_length'] = res_leng_vals[Q]
 
             res_data = create_data_dict(res_keys, save_r, list_of_all_qubits)
+            print(experiment.readout_cfg)
             res_spec = ResonanceSpectroscopy(Q, tot_num_of_qubits, optimizationFolder, 0,
                                              save_figs=True, experiment=experiment, verbose=verbose,
                                              logger=rr_logger, qick_verbose=True)
