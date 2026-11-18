@@ -1,8 +1,948 @@
+## November 18 - Q2 Zeno repair; long run STOPPED, fresh signal unresolved
+
+User reports full Zeno maps are noise despite startup baseline. November17
+run qze_005/q2_2026-11-17_11-05-47 stopped November18 10:01:34;28 closed
+HDF5 preserved, round3 Ramsey partial not saved. Controller67668/child29564
+stopped, both Yokos verified CURR0A/OFF/.01A/30V afterward. Do not resume
+72h acquisition from the old calibration or mark it complete.
+
+Source repair refreshes/validates normal qspec+Rabi before each map,
+saves raw calibrations, stops on unresolved post-map references after save.
+T1 now has optional final readout wait/signed IQ projection and local40us/
+161point/2400rep/100us reset profile. Shared calibration/ROpower/sigma,
+50-gain grid, phase order and canonical HDF5 layout unchanged. Offline
+149file harness and accepted/rejected saved-data replay pass. These code
+checks do NOT demonstrate fresh hardware recovery.
+
+Fresh normal qspec/Rabi also failed to establish valid carrier. Noise fits
+near5436MHz rejected, not measured1.8MHz shift. Surveys and50MHz qspec
+search saved qze_005/recal1118,survey1118,ro1118,search1118. Completed
+owned short_readout.py26748 checked .5/1/2/7us at same safe gain;
+see IDE/zeno_fix_1118 receipts. No long-run restart queued. Latest outcomes
+at tail/docs/harness-log.md. Earlier active entries are historical. Live guard1118/10-45-53 saved raw
+QSpec and rejected the noise fit (R2.044); all owned acquisitions stopped.
+
+## November 16 - Q2 24-hour SSF run COMPLETE; package delivered
+
+The repaired November11 run completed successfully: 64833 saved rounds,
+86401.234s acquisition elapsed, clean RR returncode0 and controller statuscomplete.
+Start1794419573.5911183; finalsave1794505976.8719308; finished1794505978.3740952.
+Both sources recorded CURR0A/OFF/.01Arange/30V at final cleanup. These are
+recorded November12 readbacks, not a fresh November16 hardware query.
+Canonical run: ssf_24h_q2/2026-11-11_12-52-52 under October7 PUCQ4 study.
+2000shots/state/round;259332000 preparedshots total. Earlier ACTIVE entries
+below are historical. No tracking acquisition remains queued by this task.
+
+User requested a lossless package matching Downloads/Single_Shot_Fidelity_package.zip.
+Offline export workspace IDE/ssf_package_1116. Preserve every original HDF5/PNG,
+Nov4 accepted calibration context, unchanged raw schema, same dataset/qubit/
+single_shot/calibration/context hierarchy and two loading notebooks + Wordguide.
+Current run is separate from failedNov4tracking. No hardware access/config edits.
+Archive verified_final and delivered in Downloads; see publication details below.
+
+## ACTIVE November 11 - repaired Q2 24h SSF restarted
+
+The November4 run FAILED after 2660.5s (44min20.5s), with 2974 canonical
+HDF5 files and plots saved. Uncaught WinError5 from os.replace on supplemental
+ssf_status.json stopped RR after raw persistence. Original JSON remained
+stale/running at2973; .tmp and raw files record2974. Prior active entry below
+is historical, not a current completion claim. Both sources read0A/OFF at exit.
+
+User explicitly requested repair and a fresh full24h restart. New run:
+`M:/_Data/20250822 - Olivia/pucq4_run_started_Oct_7/PUCQ4/find_resonators_sandbox/ssf_24h_q2/2026-11-11_12-52-52/`.
+Start1794419573.5911183; scheduled end1794505973.5911183 (Nov12 12:52:53 local).
+Controller20404 -> RR17952. Workspace IDE/ssf_restart_1111.
+Read local ssf_local_status.json and tracking.receipt.json; watchdog uses local
+progress, 600s no-saved-round timeout and24h+15min overrun bound. Completion
+requires clean child exit and full86400s; currently RUNNING, not complete.
+Do not launch another hardware queue. Graceful stop remains documentation/STOP.
+
+Exact November4 validated settings retained: Q2=M2/index1, physicalunassigned;
+ss-only,2000shots/state,100usrelax,save_r1; qubit5438.499681577915MHz,
+sigma.101us,pi.6765549655130318DAC;RO8949.920077MHz/.192DAC/7us,cap.24.
+Shared expt/system/pucq4 configs match prior archived sources byte-for-byte.
+Both sources verified CURR0A/OFF/.01Arange/30V before restart.
+Live round211 validated fourfinite2000samplearrays, exact settings andnormalPNG.
+No fresh calibration or full-day stability claim. Previous all-six work remains deferred.
+
+Repair tools/ssf_progress.py: unique temp JSON, bounded OSError retries,
+nonfatal supplemental status publication, independent local watchdog mirror.
+Raw save/plot/sample-validation errors remain fatal. Tests injected transient
+and persistent locks, valid stale JSON, recovery, mirror independence andcleanup.
+Live3s network-sidecar lock reproduced WinError5 while rounds173-175 saved;
+local watchdog continued, network sidecar recovered, hardware continued.
+149-file offline harness and diff-check passed. No unrelated processes killed.
+
+## ACTIVE November 4 17:25 - Q2 24h SSF running, verified real saved data
+
+User-requested24h series STARTED, not merely queued. Normal RR run:
+`M:/_Data/20250822 - Olivia/pucq4_run_started_Oct_7/PUCQ4/find_resonators_sandbox/ssf_24h_q2/2026-11-04_17-24-58/`.
+Timer start1793831099.510199, scheduled end1793917499.510199 (Nov5~17:25local).
+Q2 means repositoryM2/Pythonindex1; physicalnumberunassigned. ss-only,
+2000shots/preparedstate,100usrelax,save_r1,normalcanonicalHDF5+plot everyround.
+Fixed qubit5438.499681577915MHz,pi.6765549655130318DAC,sigma.101us;
+RO8949.920077MHz/gain.192DAC/7us; hardgaincap.24 independently qualified
+below the measured stable0.30 and historical firstresolved0.60movement.
+No retuning during series. Both sources verifiedCURR0A/OFF/.01A/30V at launch.
+
+Controllers: supervisor35884 -> promotion/waiter33076 -> tracking54804 ->
+RR63200. Workspace IDE/ssf_q2_ro1104; read tracking/tracking.receipt.json and
+run documentation/ssf_status.json. Do not launch otherhardware or resume old
+queues. Graceful stop: create run documentation/STOP; finishes/saves current
+round. Watchdog600swithoutsave,24h+15mincleanup. No claim24hcomplete yet.
+
+First verification at17:25: round34 saved with4finite rawIQ arrays of2000
+samples/state, normalmetadata/plot, correct fixedconfig,86400sdeadline and
+matchingpromoted-source snapshots. first_tracking_verification.json plus
+q2_ready,powerqualification,configchanges,optimization andspectralreview/PNG
+archived under run documentation. Original data schema/hierarchy unchanged.
+Final preflight RabiR2.9939664269650141,pi.6765549655,SSFcontrast.11905595.
+Independentexamples.08155/.09935 andbalanced variation are retained: this is
+a modest/time-varying working readout, not a high-fidelity/stationary claim.
+Qspec remains noisy but statistically repeatable two-component evidence;
+microscopic TLS unconfirmed. Earlier normal RR plots remain unchanged.
+
+Promoted ONLY index1 in system/expt/pucq4 configs, otherfive rows/flux tables
+preserved, sourcebackup in workspace/sources_before_q2_promotion. Old->new:
+normalRRresreference8950.85->8950.93439MHz;ROgain.95->.192DAC;
+ROoffset-1.120000000001->-1.014313MHz (abstone8949.73->8949.920077MHz);
+qubit5438.515064891349->5438.499681577915MHz;
+pi.666605627784899->.6765549655130318DAC;capNone->.24DAC.
+Length7us/sigma.101us/qspecgain.009/qspecpulse100us retained. Use the exact
+config_changes.json manifest archived in run documentation. Pureselector/
+unchangedrow/flux-table checks,148-fileharness anddiff-check passed prelaunch.
+
+Remaining all-six power/calibration/coherence and PowerPoint updates are
+DEFERRED, not complete. Original queues are stopped. Their frozen sourcehashes
+will differ after this intentionalQ2promotion: review/rebase continuation
+against this acceptedQ2power manifest, never blindly relaunch oldqueue with
+its obsolete0.10policy. All earlier traces/receipts/raw/plots remain intact.
+
+## November 4 16:47 - Q2 readout-cap correction before 24h tracking
+
+17:15 latest supervisor35884 (27060 completed with needs_review solely because
+readout improved through allthree budgeted cycles). Worker restarted from
+identical cached plans/results, not new raw acquisition for completed stages;
+bounded optimization expanded3->5 cycles with all physical limits unchanged.
+New cycle3 points acquiring. Original high-R2 Rabi PASSED at0.24: R2.988149,
+pi.6765549655, sigma.101us. Confirmed doublet5438.379611/5438.512979MHz,
+split133.368+/-6.2kHz, noisyR2.817 separately qualified by repeat/uncertainty
+proof. Diagnostic plot q2_spectrum_review.png saved; normal RR plots intact.
+Final Rabi will use>=16000reps/originalR2>=.98; tracking still NOT started.
+
+16:56 prior supervisor27060 (63956/23500 stopped as parents only; their
+c2qs0 confirmation scan continues). Allfour power spectra PASSED: gain0.10
+minimum8950.970077,0.24 pair8950.954759/8950.961224,low return8950.971154MHz.
+Sources0A/OFF afterward. Qualified ceiling0.24; no shared configs promoted yet.
+Initial SSF at0.24 gives~.12-.13contrast. Spectrumconfirmation is acquiring;
+compare with today's independently confirmed16kdoublet using the predeclared
+uncertainty/AIC/repeat review, retaining high-R2 finding separately. Ifreadout
+changescarrier, a second independent same-readout spectrum must repeat before
+acceptance. OriginalRabiR2>=.98/finalSSF>=.10 gates remain. Readlatest logs in
+ssf_q2_ro1104; tracking has NOT started. No concurrent other hardware queue.
+
+Initial controller63956, IDE/ssf_q2_ro1104. Read priority_status.json,
+current_stage.json, priority.err and tracking/tracking.receipt.json there.
+Prior parents22876/24172 stopped, short SSF child o2g1_3_1 completed normally;
+all earlier raw/plots retained. Original all-six queue remains deferred.
+
+Observed0.10-cap Q2 SSF contrast was only~.06-.10. That0.10 ceiling was an
+extra-conservative policy, NOT measured onset. Q2 historical data actually
+contain repeated stable0.30 spectra (min8950.969577/8950.964514MHz) and first
+resolved shift at0.60 (8950.926598MHz), versus low-power~8950.974MHz. User's
+requirement permits optimizing readout below movement onset while measuring
+resonance at its lower reliable floor. Do not conflate these two powers.
+
+New bounded qualification:0.10->0.24->0.24->0.10DAC,7us,normal res-only RR,
+151pts/+/Ã¢Ë†â€™3MHz/.04step/5000reps.0.24 is80%of measured stable0.30, not a guessed
+onset. Each scan must resolve and agree with the reliable low-power reference
+and initial0.10 withinmax(.03MHz,3combinedSE). Return0.10 must agree. Never
+use0.24 if fresh movement is resolved. Current sources0A/OFF before/after.
+Until allfour pass,0.24 is NOT accepted/promoted. See workspace/RUN_BRIEF.txt.
+
+After acceptance, fresh qspec/Rabi/readout optimization and independent final
+Rabi/SSF use the original high-R2 gates(.94doublet/.98Rabi), not the noisy-fit
+alternative review. Final SSF contrast must>=.10 for reduced-shot tracking.
+Then Q2-only config promotion/checks and24h2000shots/state fixed-pulse RR.
+Tracking still NOT started asof16:47. Res0.06 reliable floor remains separate
+from any newly accepted higher readout ceiling. Earlier evidence below is
+historical/provisional, not a completed24h or all-six calibration claim.
+
+## November 4 16:14 - Q2 24h tracking given priority by user
+
+User now explicitly requested starting24h. This supersedes the earlier all-six/
+reports-first queue order. Parent controllers51648/71596 were stopped only;
+their already-running stage8184/RR18092 completed fresh3_floor2_b normally,
+with raw/plot saved and both sources0A/OFF at16:13:54. Do not relaunch old queue
+or overlap it with Q2 tracking. Its queue_status.json is deferred. Remaining
+all-six power/calibration/decks remain pending, not accepted or cancelled.
+
+Fresh Q2/M2/index1 power qualification completed today: cap0.10DAC, minimum
+reliably repeated gain0.06, low-power magnitude minimum8950.97404MHz. This
+does not yet validate today's qubit/pulse/readout. Priority controller42460
+now validates Q2 qspec/Rabi, alternates readout optimization below cap, repeats
+normal Rabi/SSF, promotes ONLY Q2/index1 settings with backups/checks, then
+starts existing RR24hSSF at2000shots/state. No all-six/report-complete gate is
+fabricated. Physical qubit assignment for this repository row is unconfirmed.
+
+16:27 update: original priority parents42460/49868 stopped without their active
+16k qspec child; replacement supervisor22876 waits for that child to save and
+return zero. Explicit recovery only for c2qs1 reconstructs the normal audit
+from its successful receipt/raw path; never reruns or modifies raw data. First
+8k spectrum has normal one-line R2.556, doubletR2.593: not a clean high-R2
+trace. Frequencies5438.389389/5438.513393MHz, weak amplitude4.28SE, split124.00
++/-9.57kHz. A repeat/uncertainty review was declared before16k completion:
+both scans significant/resolved/interior peaks, independent single-model AIC
+comparison, bounded residual correlation, latest both amplitudes>=5SE/AICgain
+>=20 and repeated frequencies. Original R2 finding remains, not relabeled a
+pass. Synthetic resolved/single/noise/correlated-residual policy checks passed.
+
+Workspace: `C:/Users/Ma Quantum Lab/AppData/Local/JetBrains/PyCharm2026.2/aia/agents/views/codex/ssf_q2_priority_1104/`.
+Read priority_status.json, current_stage.json, priority_controller.err and
+tracking/tracking.receipt.json before acting. Preflight canonical sub-study is
+ssf_pre_q2_1104; tracking remains ssf_24h_q2/<newtimestamp>. Original80round
+series untouched. RUN_BRIEF.txt contains the exact hardware/acceptance envelope.
+At16:14 initial SSF offset checks acquiring;24h has not started yet. Once
+tracking starts, fixed accepted pulse, gain<=.10,100usrelax,2000shots/state,
+normalHDF5+plot each round, no retuning. Both sources remain0A/OFF. Graceful
+stop uses tracking run documentation/STOP, not killing the RR mid-save.
+
+## November 4 earlier resume: fresh low-power checks, benchmark, then Q2 24h SSF
+
+User explicitly requested continuation. October30 controllers40456/1544 ended;
+neither is active. All-six conservative power qualification eventually passed
+at gain0.10DAC. The queue stopped in M1 final RR when its3600s launcher limit
+expired with Echo49% complete; final sources0A/OFF. No full final raw-data pass
+or new24h series resulted. Partial plots are not a completed benchmark.
+
+November4 ACTIVE power controller51648 and waiting finisher71596. Workspace:
+`C:/Users/Ma Quantum Lab/AppData/Local/JetBrains/PyCharm2026.2/aia/agents/views/codex/readout_power_1104/`.
+Read queue_status.json, current_stage.json, power_all.err and stage receipts
+before resuming. New raw sub-study: readout_power_1104/<timestamp>, same
+October7ROOT/PUCQ4/find_resonators_sandbox hierarchy. Do not start concurrent
+hardware. Every stage checks both sources CURR0A/OFF/.01A/30V before/after.
+
+October30 shift onsets remain explicitly historical. Fresh paired0.10gain
+spectra require SNR>=15/R2>=.95, repeatability and agreement with the old
+low-power branch. Descending0.08/0.06/0.04 candidates require matched paired
+checks; unresolved candidates retain the last reliable tested floor. No gain
+above0.10DAC in this resume. Source hashes guard user changes; old pulses are
+seeds only. All final qspec/Rabi/SSF/coherence will be fresh.
+
+Queue: six-row fresh power acceptance -> all-six pulse/readout optimization
+and normal seven-experiment RR -> new20261104 low-power PowerPoint plus backed-up
+Oct28/29 deck updates -> shared measured-config promotion/verification -> fresh
+24hQ2/M2/index1 SSF,2000shots/state, fixed accepted pulse, canonical ssf_24h_q2
+folder. Dependent stages are not complete at launch. The prior80round series
+remains stopped and is not counted. No calibration/persisted cap promoted yet.
+
+Full seven-experiment jobs now have10800s budgets; shorter jobs3600s. A600s
+no-log-progress watchdog stops only the owned child tree. Optional
+PUCQ4_PHASE_CHECKPOINTS saves each completed phase once via existing Data_H5,
+same filenames/schema, before proceeding. Requires one row/one pass/save_r1/
+debug/standard GE flags, excludes timed SSF. Defaults retain normal batching.
+All seven actual checkpoint calls passed a hardware-free real-HDF5 test of
+schema, batch numbering, duplicate rejection and default no-op.148-file harness
+and diff-check passed before launch. Full envelope: workspace/RUN_BRIEF.txt.
+
+14:32 local: first fresh M1 cap spectrum completed, canonical HDF5 and plot
+saved under2026-11-04_14-27-52; guard returncode0/270.39s, both sources0A/OFF
+afterward. Measured sampled minimum8919.17814MHz at0.10gain/8us. Current job
+fresh1_cap_b independently repeats it; cap/floor acceptance awaits the pair
+and lower-gain checks. Queue remains waiting for all six power validations.
+
+## Historical October 30 queue setup (superseded by November 4 state above)
+
+Latest user scope expands power qualification to every row: find the lowest
+reliably detected resonator power and the onset of frequency movement; never
+optimize readout above that onset. Revalidate qspec/Rabi/SSF/T1/T2R/T2E and
+update both benchmark decks, then promote expt/system settings and start a new
+full24hQ2SSF series. The original80round series below remains stopped.
+
+ACTIVE all-six diagnostic controller40456 (`power_all.py`), last observed on
+M3 after M2/M1 weak-reference checks. Both weak rows are explicitly rejected
+pending follow-up; no low-power calibration or limit has been promoted yet.
+M2 gain.03 passed at16000averages but a10000-average return did not resolve;
+M1 gain.03 similarly failed its lower-statistics repeat. Those failures are
+not proof of a physical resonance drift. The loaded initial worker retained
+the10000-average reference setting; its source was subsequently corrected.
+Queued follow-up uses matched16000-average fine sweeps, two repeats, each
+SNR>=15/fitR2>.95; all failed traces remain in the record. No criteria relaxed.
+
+ACTIVE dependency-queue controller1544 (`finish_pipeline.py`) waits for the
+first all-six power worker to end. Ordered executable stages: bounded weak-
+reference follow-up if needed -> independently verify conservative power
+ceilings -> all-six pulse/readout calibration and seven-experiment RR ->
+publish new low-power deck and update October28/29 decks with backups ->
+prepare/verify/promote shared configs -> start full24hQ2SSF at2000shots/state.
+It stops with queue_status=`needs_review` on a failed dependency; it must not
+fall back to the previous high gain or claim that tracking already started.
+
+Controller scripts, plans, receipts and progress:
+`C:/Users/Ma Quantum Lab/AppData/Local/JetBrains/PyCharm2026.2/aia/agents/views/codex/readout_power_1030/`.
+Read `queue_status.json`, `current_stage.json`, `power_all.err`,
+`power_failed_rows.json`, and `power_progress.json` before any continuation.
+No concurrent hardware controller may be started. The queued finisher runs
+dependent acquisition only after the active power worker has fully ended.
+New raw results retain the normal RR hierarchy under October7ROOT/
+`PUCQ4/find_resonators_sandbox/readout_power_1030/<timestamp>/`.
+After completion the new report is ROOT/PUCQ4_benchmark_20261030_low_power.pptx;
+older final decks will be backed up and updated only with accepted evidence.
+The queued24hcontroller will live in `readout_power_1030/ssf_tracking/` and save
+under the already requested `ssf_24h_q2/<new timestamp>/` canonical hierarchy.
+
+RR now accepts PUCQ4_READOUT_GAIN_MAX and enforces it before hardware setup;
+persisted zero-current tuple PUCQ4_ZERO_CURRENT_READOUT_GAIN_MAX currently
+contains onlyNone and will be filled only after all-six acceptance. Shared
+calibration values still reflect the previous accepted benchmark and the
+initialQ2 validation below. Nonzero-current profiles remain unchanged.
+The per-round plot and HDF5 writer expose their successfully saved paths;
+tracking verifies those paths directly rather than scanning growing folders.
+Data schema/filenames are unchanged. Hardware-free2000sample HDF5 roundtrip,
+explicit/persisted cap guards, duration guards, helperPython3.9 parsing and
+148file harness checks passed. This is not a claim that future stages passed.
+
+### Initial Q2 validation before the all-six scope expansion
+
+User requested `ssf_24h_q2`, normal RR hierarchy/schema, fresh res/qspec/Rabi
+validation followed by 24h of reduced-shot SSF. Q2 means M2/Python index1,
+physical number unassigned. Initial calibration accepted under
+`PUCQ4/find_resonators_sandbox/ssf_24h_q2/2026-10-30_17-10-05` in the October7 root:
+res8950.850MHz, effective carrier5438.515064891349MHz, sigma.101us,
+pi.666605627784899, RabiR2.996613. Fresh qspec components5438.403213/
+5438.533601MHz, separation130.388kHz (two-Lorentzian R2.95758 vs single.86473).
+TLS remains unconfirmed. RO8949.730MHz/.95DAC/7us; SSF2000shots/state/reset100us,
+baseline contrast.4125. Canonical raw/plots and calibration_review.json persisted.
+Shared system/expt/pucq4 configs now contain this carrier; system pi updated;
+M2 RR SSF profile50000->2000shots/state. Other rows/current profiles unchanged.
+
+First timed RR run `2026-10-30_17-14-34` stopped gracefully after80saved rounds
+(~71s), on user's question whether the resonator was punched out. Controller
+71100/RR12472 ended return0; both sources verified CURR0A/outputOFF/.01A/30V.
+These snapshots are preserved, not a completed24h dataset. Initial calibration
+was a single readout-power res sweep; it did NOT establish a low-power dressed
+branch or exclude punch-out. Readout-fidelity optimization alone cannot prove it.
+Next: validate readout power with lower-power resonator spectra and state-dependent
+readout evidence, then resume a fresh full24h window only with reviewed settings.
+Do not run diagnostics concurrently with SSF tracking.
+
+Local controller/plans/logs: IDE workspace `ssf_24h_q2/`. Canonical tracking code
+is still round_robin_benchmark.py; new opt-in PUCQ4_SSF_DURATION_HOURS<=24 selects
+M2 SSF-only/save_r1 mode, monotonic stop and documentation/STOP graceful exit.
+Every round keeps normal HDF5/plot output and verifies finite raw sample counts;
+supplemental ssf_status.json and controller_receipt.json record progress. A
+600s no-save watchdog aborts failures. Offline guards/normal mode tests and
+148file harness passed. New Python helper review initially hit numpy.bool_
+JSON serialization; explicit bool conversion fixed it without reacquisition.
+
+## October 29 fresh benchmark COMPLETE (historical baseline)
+
+Fresh zero-current hardware measurements after the warmup are complete for all
+six repository rows. M1-M6 / plot Q1-Q6 are one-based rows; Python indices0-5.
+Only physicalQ4=M5/index4/Yoko3 and physicalQ6=M6/index5/Yoko4 are assigned.
+Other physical numbers remain unassigned/fixed-frequency.
+
+| Row / index | Res MHz | Qubit carrier MHz | T1 us | T2R us | T2E us | Final full-pass SSF contrast |
+| --- | --- | --- | --- | --- | --- | --- |
+| M1 / 0 | 8918.795 | 5515.343391 | 23.5391* | 20.1607 | 30.5139 | .77435 |
+| M2 / 1 | 8950.850 | 5438.519514* | 5.3517* | 6.5988* | 12.7978* | .48868 |
+| M3 / 2 | 8974.110 | 5551.361090 | 51.8228 | 39.5459 | 65.6089 | .69250 |
+| M4 / 3 | 8999.070 | 5594.644241 | 7.0661 | 8.9624 | 12.6574 | .43336 |
+| M5 / 4 / physical Q4 | 9013.400 | 7065.147636 | 13.5552 | 5.1093* | 13.4068 | .66616 |
+| M6 / 5 / physical Q6 | 9057.715 | 6404.639622 | 4.0106 | 1.6580 | 4.3974 | .78504 |
+
+Stars mark effective/model-dependent or time-specific fits, not missing data.
+M1T1 is mildly model dependent. M2 has a fresh spectral doublet/Ramsey beating;
+matched identical-setting controls give T1~5.70us and Echo10.38/9.16us versus
+full5.35/12.80us, so a stationary lifetime set is not established. M5T2R has
+structured residuals; its normal RR5.1093us is retained, not a diagnostic
+alternative. Fresh M4 lifetime checks pass; do not carry its older nonexponential
+warning forward. M1/M3 qspec values are near preferred numeric ranges. M6
+linewidth.2646MHz remains above preferred.1-.2MHz after bounded power checks;
+population.320 and RabiR2.9986 pass. Do not replace the measured6404.639622MHz
+M6 carrier with the obsolete6522MHz seed.
+
+| Row | Readout MHz | DAC gain | Length us | Gaussian sigma us | Pi DAC gain | Independent SSF examples |
+| --- | --- | --- | --- | --- | --- | --- |
+| M1 | 8918.375 | .90 | 6 | .050000 | .686504303 | .75116 / .74008 |
+| M2 | 8949.730 | .95 | 7 | .101000 | .671580297 | .44472 / .45248 |
+| M3 | 8973.330 | .95 | 13 | .124000 | .656656290 | .64516 / .65698 |
+| M4 | 8999.250 | .95 | 5 | .069500 | .646706952 | .432704 / .42988 |
+| M5 | 9013.460 | .95 | 6 | .056940825 | .626808277 | .69428 / .69056 |
+| M6 | 9057.695 | .95 | 45 | .055586830 | .651681621 | .77798 / .77668 |
+
+Independent examples are separate50000-shot/state acquisitions; actual preparation
+parameters are retained in their HDF5/manifest. Final-pass pi values above are
+from the full RR Rabi. SSF uses repository histogram contrast, not absolute
+assignment accuracy. M1/M2/M4 working readout settings are explicitly qualified
+by observed time variation and balanced repeated comparisons. Do not promote an
+earlier isolated grid maximum as persistent fidelity. Gaussian duration is4*sigma.
+
+All final evidence is normal seven-experiment round robin under
+`M:/_Data/20250822 - Olivia/pucq4_run_started_Oct_7/PUCQ4/find_resonators_sandbox/`:
+
+- M1 `full1_a_1029/2026-10-29_20-05-43`
+- M2 `full2_a_1029/2026-10-29_20-13-53`
+- M3 `full3_a_1029/2026-10-29_20-19-51`
+- M4 `full4_a_1029/2026-10-29_20-29-45`
+- M5 `full5_a_1029/2026-10-29_19-54-47`
+- M6 `full6_a_1029/2026-10-29_18-39-02`
+
+Raw datasets are in each run's `study_data/Data_h5/<label>/`; all seven raw
+datasets and normal plots were checked. All T2 traces exceed4points/fringe.
+Shared `system_config.py`, `expt_config.py`, and `pucq4_config.py` now match these
+measurements. Nonzero-current tables/profiles and historical candidates were
+preserved. Exact101old/new/unit changes are in ROOT/calibration_changes_20261029.json.
+RRM and low-level experiment programs were not changed by this continuation.
+
+ROOT is `M:/_Data/20250822 - Olivia/pucq4_run_started_Oct_7`:
+
+- New `PUCQ4_benchmark_20261029_final.pptx`:73slides/70verifiedimages.
+- Updated reusable `PUCQ4_benchmark_20261028_final.pptx`, same reviewed content.
+- Original October28deck/manifest preserved in `benchmark_1029/reports_before_update/`.
+- `benchmark_summary_20261029.csv`, `SSF_examples_20261029.png`, and
+  `benchmark_manifest_20261029.json` contain values, examples and provenance.
+- Acquisition plans/receipts/reviews/code/source snapshots and individual SSF
+  examples are archived under `benchmark_1029/`.
+
+All October29 acquisition controllers ended. Final direct readback at
+2026-10-30T00:45:37UTC verified bothYokosCURR0A/outputOFF/.01Arange/30V.
+No nonzero current was applied. Nine preexisting Python processes created in
+2025/February2026 were preserved; none belonged to this run and their observed
+CPU counters were unchanged. Scope idle claims to this benchmark, not every
+historic process on the computer. No further hardware run is pending.
+
+Verification:148-file hardware-free harness passed; all-six AST-only raw/config
+consistency and historical/nonzero preservation passed; focused initial/proposed
+diffs reviewed; gitdiffwhitespace check passed. Presentation ZIP CRC, image
+integrity, shape bounds, text encoding and raw/settings consistency passed.
+Native Office rendering was not used; original scientific plots were inspected.
+
+## October 29 execution history (completed; current state above)
+
+LATEST20:31: controller29192 completed full3_a and now acquires full4_a,
+the last main full pass. Controller71234 still waits for full4_a beforeM2pairs.
+M3 full3_a_1029/2026-10-29_20-19-51 accepted all7: res8974.110MHz,
+qubit5551.361090MHz, sigma.124us/pi.656656290, RO8973.33/.95/13us,
+fullSSF.69250. T1 51.822842+/-1.070725us; T2R39.545880+/-.799591us;
+T2E65.608922+/-1.121566us; independentfits agree,6.72/5.00pts/fringe.
+Qspecwidth.094899MHz/pop.517715/R2.987777 are near preferredranges,
+actualvalues retained. Rows1/3/5/6 reviewed, row2 pendingmatchedcontrols,
+row4 acquiring. Sourceconfigs unchanged; no new deck published yet.
+
+LATEST20:24: ONLY acquiring controller29192 is on full3_a, thenfull4_a.
+Additional waiting controller runs --after full4_a pair2_a pair2_b; it cannot
+start hardware until successful full4_a receipt. M2full2_a_1029/20-13-53 saved
+all7: res8950.850MHz, qubit5438.519514MHz, sigma.101/pi.671580297,
+fullSSF.48868 at8949.73/.95/7us. Structured qspecdoublet andRamsey beats
+confirmed in freshmodels: separation.127001MHz, normalT2R6.598833us/R2.887,
+twofreqmodelR2.958. T1 5.351741+/-.083960us; Echo12.797815+/-.298439us
+exceeds2T1 under stationarysingle-rate assumption. Do NOT accept/promote M2
+before paired controls/model review. Exact repeatsettings in
+IDE benchmark_1029/paired2_envelope.json: SSF50k,T1.01-40us161pts2400x1,
+Echo.01-50us251pts/.5MHz2400x1, reset100us,statecal20k; identical fresh
+full2pulse/RO, zero-sourceguards,1800s/pair deadline, canonicalpair2_a/b_1029.
+M1full1_a accepted with mildT1model dependence andnear-targetpopulation.507;
+T1/T2R/T2E23.53915/20.16075/30.51392us,fullSSF.77435. M5/M6 reviewed.
+
+LATEST20:09: controller29192 completed full5_a and is acquiring full1_a.
+M5 full5_a_1029/2026-10-29_19-54-47 accepted all7raw/normalplots:
+res9013.400MHz, qubit7065.147636MHz, sigma.056940825us/pi.626808277,
+RO9013.46/.95/6us, fullSSF.66616. Qspecwidth.153992MHz/pop.459379/
+R2.991334 meets targets. T1 13.555163+/-.100455us (R2.998684),
+T2R5.109309+/-.083894us (R2.987757), T2E13.406839+/-.123000us
+(R2.992567), independent fits agree,10.08/10.00pts/fringe. FreshT1 is
+clean (do not retain Oct28 nonexponentialT1 flag); flexible Ramsey model
+reduces residuals R2.9971, so retain onlyT2R effective-fit qualifier. All0A/OFF.
+M6fullreviewed, rows1-4 pending; sourcepromotion/reportbuild remain blocked
+until all6 freshfull selections complete and hardware idle.
+
+LATEST20:00: ONLY acquiring controller29192 runs final queue full5_a ->
+full1_a -> full2_a -> full3_a -> full4_a. Full5_a timestamp19-54-47 finished
+T1 and is acquiring Ramsey; do not audit/promote until its receipt return0 and
+all7 HDF5s/plots exist. M6 full6_a completed earlier. All six final readout
+reviews accepted, with drift-limited qualifications forM1/M2/M4. Six-example
+contact sheet now ROOT/SSF_examples_20261029.png, individual unchangedPNG
+copies and rawprovenance under ROOT/benchmark_1029/ssf_examples/. Both decks
+still await completed finalfull1-5. Sharedconfigs remain initialOct29snapshot.
+Final queue plans materialized pure profile defaults as explicit overrides,
+statecal20000/state,reset250usM1/M3 and100usothers; exact envelope archived
+in IDE benchmark_1029/final_hardware_envelope.json. Sources remain guarded0A/OFF.
+
+LATEST19:55: all six readout reviews complete. Controller91249 ended;
+M1 qualified working8918.375/.9/6us, examples.75116/.74008. Balanced
+lengthmeans6/8/10us=.7071/.6909/.6607, currentgaingridmean.7102 vs
+.925gain~.60-.63. Readout may vary with time; no stationary optimum claim.
+ONLY acquiring controller now runs full5_a -> full1_a -> full2_a -> full3_a
+-> full4_a normal7-experiment RR. M6 full6_a already reviewed. Exact plans
+and inherited profiles recorded in IDE benchmark_1029/final_hardware_envelope.json
+and final_passes_envelope.txt. Each1800sdeadline, allraw+plot andRabi checks,
+all0A/OFFsourceguards, fixedatten10/15/5/4/17dB, path204chars. Shared sources
+remain initialOct29 snapshot until all final evidence reviewed/hardware idle.
+
+LATEST19:44: controller17140 ended at strict independent-peak gate, instrument
+receipts successful. M1 improved to.7564/.76314 at8918.375/.9/8us; these
+match latest2Dgridmax.7548 but not singlelengthpeak.7946 within.035
+(miss.0032). No threshold relaxation. ONLY acquiring controller91249 performs
+focused three-block balanced_readout.py 1: lengths6/8/10us, gain.9/.925 x
+tones8918.375/.400MHz,250usreset20k/state, independent2x50k. Separate
+qualified drift-limited review; exact envelope m1_balanced_envelope.txt. All
+other readout confirmations complete. Finalnormalfull1-5 still pending.
+
+LATEST19:34: controller65053 ended. M3 confirmed8973.33/.95/13us with
+50kSSF.64516/.65698; M5 confirmed9013.46/.95/6us with.69428/.69056.
+ONLY acquiring controller now runs corrected confirm_readout.py --tag d 1,
+envelope IDE benchmark_1029/m1_correction_envelope.txt. M1 previous.6239/
+.6307 at8918.475/.875/6us remains pending additional higher-gain review.
+Full2_a/full3_a/full4_a prepared, unrun; finalfull5 and1 toprepare after
+M1completion. All sources guarded0A/OFF, no shared source/report promotion.
+
+LATEST19:32: controller65053 remains the only hardware controller; M3 examples
+running, then M5 confirmation. M1 current examples.6239/.6307 at8918.475MHz/
+.875/6us are snapshots, not final accepted settings. Its higher-gain selection
+compared a new grid with earlier high examples; external helper corrected to
+use a matching contemporary reference. Corrected tagd M1 follow-up is prepared
+(IDE benchmark_1029/m1_correction_envelope.txt), not yet acquiring. M1
+needs_additional_review blocks promotion/fullplan. M2/M4 balanced reviews
+accepted with temporal caveats, full2_a/full4_a prepared only. M6 completed.
+
+LATEST19:21: balanced controller69260 completed both rows. Only new acquiring
+controller confirms M1/3/5 (confirm_readout.py 1 3 5), envelope IDE
+benchmark_1029/confirmation_135_envelope.txt. M2 working8949.73/.95/7us,
+independent50kSSF.44472/.45248; three-blockgridmean.50569 atsamepoint is
+not stationary. Qualified review accepted, no nominal stationary optimum.
+M4 working8999.25/.95/5us, examples.432704/.42988; repeated lengthmean
+5us.45795 vs3us.38298. Both fresh pulses pass; M4 readout final review next.
+M6 fullall7 remains accepted with linewidthwarning. Full2_a prepared only,
+not launched. Shared configs and published decks remain initial snapshots.
+
+LATEST19:08: ONLY acquiring controller69260: balanced_readout.py 2 4.
+Controller22366 ended at M4 gain/frequency reference-stability gate (only2/6
+stable pairs); all instrument/save receipts successful. Balanced comparisons
+use three reversed/rotated blocks per length and gain/frequency family with
+between-block ranges retained; see IDE benchmark_1029/balanced_envelope.txt.
+This estimates a qualified working pulse; it does not establish stationarity.
+M1/3/5 plateau confirmation and finalfull1-5 remain pending. M6 completed.
+
+LATEST19:04: controller26146 stopped on scientific reference-stability gate,
+not a hardware failure. M2 identical7us references span.38836-.48430 within
+two minutes; all adjacent pairs exceed.025. No comparison is accepted from
+that family. New controller runs interleaved_readout.py 4 only; M2 not
+blocking independent work. Raw r2la*_1029 preserved. Final M2 must explicitly
+retain temporal qualification; repeating shots does not prove optimization.
+
+LATEST18:57: ONLY acquiring controller26146: interleaved_readout.py 2 4.
+Controller11849 completed pre2_b/pre4_b; full6_a controller24005 completed.
+M6 full6_a_1029/2026-10-29_18-39-02 accepted all7 normal RR datasets/plots:
+res9057.715MHz, qubit6404.639622MHz, sigma.0555868301534722us,
+pi.651681621193, SSF.78504 at9057.695MHz/.95/45us. T1 4.010622+/-
+.049264us, T2R1.658019+/-.034736us, T2E4.397388+/-.081284us. Qspec
+width.264588MHz exceeds nominal .1-.2MHz; population.320135/R2.991328
+passes. Retain explicit linewidth warning; no microscopic cause inferred.
+Fresh M2 control pi.666606/RabiR2.996818/SSF.42186; M4 pi.646707/
+RabiR2.996535/SSF.45260. Interleaved adjacent references will distinguish
+setting effects from observed temporal cloud variation; earlier grid maxima
+not promoted. Envelope IDE benchmark_1029/interleaved_envelope.txt. M1/3/5
+plateau confirmation and finalfull1-5 pending. Shared configs remain initial
+Oct29 snapshots; no report published yet. Source guards0A/OFF every stage.
+
+LATEST18:30: ONLY acquiring controller18969: power6_lo -> power6_mid.
+M6 final readout after proper long-length/finegrid alternation:
+9057.695MHz/gain.95/45us, independent50k/state SSF.77798/.77668,
+plateau confirmed with longer lengths; last gain/frequency grid also at45us.
+Controller34354 ended successfully;95595 and80875 ended earlier. Free-decay
+T1 diagnostic3.1145us supports retaining100usSSFreset. No mechanism inferred
+from long readout vs free-decay lifetime. Power checks qspec-only .0045/.006
+DAC/100us,6404.619607+/- .6MHz151points6000reps,30000SSFcal/state100usreset,
+900sdeadline each,0A/OFF guards. Next choose measuredpower/carrier then full6_a
+all7normalRR with refined25/15/30us T1/Ramsey/Echo windows. M2/M4 pulse
+controls pre2_b/pre4_b and reference-interleaved recovery are prepared, unrun.
+Other row1/3/5 readout plateau confirmation remains pending. All source configs
+remain initialOct29snapshot; no promotion/report publication yet.
+
+LATEST18:13: ONLY acquiring controller95595, confirm_readout.py row6. All
+prior controllers ended. M6 T1 timingcontrol t1six_a finished withPNG/HDF5:
+normal3.114529+/-0.152017us,R2.948874; independent3.114533+/-0.117110us.
+Coarse1usstep is diagnostic only; finalfullRR will use.01-25us/161points.
+100usSSFreset exceeds30*T1 and is retained. M6 readout still rising at13us,
+so confirmation probes9/13/17/21/29/41us at9057.72/.95,20kshots/state,
+then finegain/freq and independent2x50k examples. Hardware-safe constantpulse
+bound80us/49152fabriccycles (<65535), no current sweep. FinalM6windows:
+T1to25us/161pts,T2Rto15us/301pts/1MHz,Echoto30us/301pts/1MHz.
+M2/M4 require freshpulse/referenced readout recovery; no configpromotion.
+
+LATEST18:09: ONLY acquiring controller80875 runs t1six_a after successful
+o4final2 receipt. Controller6548 ended on M4 grid-repeat mismatch (pair stable
+.40294/.42094, but priorgridmax.48645 not representative). M2/M4 readout
+choices remain unaccepted; fresh pulse controls and interleaved-reference
+comparisons are planned to separate setting effects from observed cloud drift.
+M3 examples.65476/.64814 at8973.33/.95/13us passed initial repeat checks.
+M6 T1 timingcontrol: .01-160us/161points/1000reps/1round,1000usreset;
+calibration10000/state/1000usreset,RO9057.72/.95/13us, confirmedpulse
+6404.619607MHz/sigma.0555868301534722/pi.641732283465.600sdeadline.
+Use measured T1 for final M6 reset timing; do not assume September lifetime.
+No other controller acquiring; all sources guarded0A/OFF. No shared promotion.
+
+LATEST17:53: ONLY acquiring controller6548, optimize_readout.py rows3,4.
+Controller43902 ended on the intended independent-SSF gate for M2: .42336/
+.39546 at8949.73/.95/5us, difference.02790, gridmax.46731 not reproduced.
+M2 readout remains UNACCEPTED. Recheck pulse and temporal stability after M3/M4.
+M1 independent examples.80604/.82842 at8918.45/.9/8us; M5.68410/.68488 at
+9013.46/.95/6us; M6.53308/.52706 at9057.72/.95/13us. These are provisional
+until fixed-setting plateau confirmation includes longer lengths (M6 endpoint
+still improving). confirm_readout.py prepared, not launched. All sourceguards
+remain0A/OFF; no shared source promotion or new final report yet.
+
+LATEST17:27: ONLY acquiring controller43902, optimize_readout.py rows6,5,1,2,3,4.
+All earlier controllers (75081,44774,33113,23131) ended. Allsix pulse readiness
+files reviewed; current local inputs calibration.json in IDE benchmark_1029.
+M6 rabi6_b:6404.619607MHz,sigma.0555868301534722us,pi.641732283465,
+RabiR2.994258,baselineSSF.31325. Qspecwidth.266709MHz/pop.355671; linewidth
+target remains pending, not a nominal-target pass. Intermediate gainresonator
+minima measured .75=>9057.98MHz,.85=>9057.86,.95=>9057.72.
+M6 lengthA2/3/5/7/9us givesSSF.2045/.23495/.30395/.35825/.4164;
+gain/frequency gridA maximum.46510 at9057.72/.95/9us. Alternating refinement
+active. Grid uses measured per-gain dipoffsets; fine references interpolated
+for probe selection only. Envelope readout_envelope_651234.json.
+Independent 2x50000shot examples required; sourcepromotion still not performed.
+BothYokos guarded CURR0A/OFF/.01A/30V every stage, fixedatten10/15/5/4/17.
+
+LATEST17:18: controller75081 ended after allM1-M5 preludes. Only acquiring
+controller44774 runs rabi6_b; no other QICK controller. M1-M5 working pulses
+audited and normalRabi plots reviewed, readiness files in benchmark_1029.
+Latest baseline SSF M1=.74570,M2=.41615,M3=.63065,M4=.39390,M5=.68635.
+M5 pre5_a meets qspec targets thispass: center7065.135356MHz,width.152162MHz,
+population.457623,R2.986915; Rabi pi.626808277/sigma.056940825us,R2.998230.
+These are local working inputs, not promoted shared config or new coherence.
+All-six readout optimizer prepared, not launched until rabi6_b reviewed.
+
+LATEST17:05: controller23131 completed all7offset spectra. Current acquiring
+controller75081: rabi6_a completed -> pre1_a..pre5_a fresh qspec/Rabi/SSF.
+Controller44774 WAITS for successful pre5_a, then runs rabi6_b only; linear
+chain, no simultaneous QICK acquisition. No readout optimizer launched yet.
+M6 Rabi6_a: R2.992887, pi gain.577061588 at sigma.062612796167us,
+carrier6404.640240969MHz, RO9057.60/.95/5us, initialSSF.31215.
+Planned rabi6_b shortens sigma by .577061588/.65 to targetpi.65, repeats
+qspec (.0075/100us,Ã‚Â±.8MHz201pts2000reps),Rabi/SSF. Do not promote trial
+sigma/targetpi before measured fit. Both sources remain verified0A/OFF.
+
+USER SCOPE UPDATE: after remaining-qubit results, optimize readout for ALL SIX
+rows and acquire an independent SSF example for each at the selected readout
+frequency/gain/length. Alternate length and 2D gain/frequency sweeps, choose
+shortest plateau and repeat until no significant improvement. Update the new
+benchmark and the user's "other deck" (filename clarification pending).
+No extra flux/current authority. M6 now repeated at two RO tones near6404.6MHz;
+lower .03/20us drive repeats6404.647906MHz, width.611741MHz, SNR20.32.
+
+UPDATE16:50: off6_ha_1029 at RO9057.60/.95/5us shows a strong resolved
+raw-IQ candidate6404.600482MHz, jointfit FWHM1.949MHz, vectorSNR14.83,
+residualRMS1.004noiseunits; rawplot visually reviewed. This is a candidate,
+not yet validated pulse calibration. off6_hb wide repeat is running. Queued
+hc/hd/ma/mb/mc plans adapted BEFORE acquisition to6398.6-6410.6MHz:
+hc601points/2000reps drive.03/20us, hd601points/2000reps .01/100us,
+both RO9057.60/.95/5us; ma/mb/mc301points/1000reps drive.1/100us at
+the original .3/10us tones. Original unexecuted wide plans are archived.
+Below initial wide-envelope text is superseded for these five queued stages.
+
+User explicitly requested fresh attempts on the remaining qubits and suggested
+offset readout to reveal the qubit. Current controller session23131 runs only
+M6/physical Q6/index5 raw qspec, sequential off6_ha/hb/hc/hd/ma/mb/mc plans in
+IDE workspace benchmark_1029. No other acquisition controller is active.
+Fresh resonator stages res6_hi/mid/low_1029 completed with PNG and HDF5:
+gain .95/5us dip9057.72MHz, .3/10us dip9058.40MHz, .15/10us dip9058.30MHz.
+High-gain edge9057.78MHz repeats. Both source guards CURR0A/outputOFF/.01A,
+30V limit. No nonzero flux sweep is authorized.
+
+Offset matrix: RO .95/5us tones9057.60/.70/.76/.86MHz, .3/10us
+tones9058.00/.40/.86MHz; qspec6372.489876-6622.489876MHz/1001points,
+1000reps, gain.1/100us, raw scaling false, one round,600s deadline each.
+Historical6522.489876 and previous6422guess are search seeds only. Reject noise
+maxima; independent local repeats and resolved lines precede any Rabi/SSF/coherence.
+Existing normal RR owns acquisition/plots/canonical raw HDF5. Preserve Oct28
+final report and source promotion; use new Oct29 labels/report. Stage plans,
+source snapshots and task envelope are in IDE benchmark_1029/task_brief.txt.
+
+## October 28 - fresh zero-current benchmark recorded (historical closeout)
+
+New user-selected run root: `M:/_Data/20250822 - Olivia/pucq4_run_started_Oct_7`.
+Final report: `PUCQ4_benchmark_20261028_final.pptx` (49 slides).
+All hardware controllers and read-only audit watchers finished. Last source guards:
+both Yokogawas CURR 0 A, outputs OFF, 0.01 A range, 30 V limit. No nonzero
+current sweep or attenuator change. No pending acquisition queue.
+
+Latest selected normal round-robin results; MHz, us, DAC gain, histogram SSF:
+
+| Row / index | Physical | Qubit MHz | Pi gain | SSF | T1 us | T2R us | T2E us |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| M1 / 0 | Unassigned | 5515.333076 | 0.686504 | 0.7280 | 15.5560 | 23.8957 | 25.2789 |
+| M2 / 1 | Unassigned | 5438.517519 | 0.666606 | 0.4958 | 6.0929 | 7.3386 | 10.4243 |
+| M3 / 2 | Unassigned | 5551.361657 | 0.656656 | 0.7057 | 39.0488 | 39.3039 | 48.7154 |
+| M4 / 3 | Unassigned | 5594.645618 | 0.646707 | 0.4314 | 7.1631 | 11.0585 | 16.2590 |
+| M5 / 4 | Q4 | 7065.155042 | 0.641732 | 0.5654 | 7.3909 | 3.5104 | 7.5398 |
+| M6 / 5 | Q6 | Unresolved | Unresolved | Unresolved | Unresolved | Unresolved | Unresolved |
+
+M1 full_m1b / M3 full_m3c accepted near nominal qspec targets; use these latest
+values rather than larger earlier lifetimes. M2 full_m2b has a repeated spectral
+doublet; single-fit carrier and T2R are effective values. M4 full_m4b has matched
+controls supporting relaxation curvature; its T1/T2R/Echo are effective fits.
+M5 full_m5c is reviewed, not a nominal-target pass: qspec FWHM .26619MHz and
+peak population .22669 miss preferred targets after bounded gain tests.
+M5 nonexponential T1 / Ramsey beating require effective-fit qualifiers; normal
+T2R3.5104us is not replaced by the supplemental dual-model envelope4.1683us.
+M2/M5 Ramsey components both separated~138kHz; a common instrument/system
+contribution is not excluded. No microscopic/device mechanism inferred.
+
+M6 fresh resonator9057.72MHz at gain.95/5us; diagnostic steep edge9057.78MHz.
+Lower gain.15 gives9058.38MHz. Six raw windows4300-7300MHz and focused
+6447.49-6597.49MHz at the fresh high-gain edge were noise-like. No qubit line
+confirmed. Historical6522.489876MHz / sigma/pi/coherence are not fresh results.
+User wiring-change question remains unanswered. Further physical/routing or
+flux-follow-up scope needs new evidence; no nonzero current is authorized.
+
+Shared system_config.py/expt_config.py/pucq4_config.py now match selected fresh
+HDF5 configs; M6 updated only res/readout diagnostic with explicit historical
+qubit/pulse status. All historical/nonzero tables and profiles preserved.
+Round-robin default run_flags and Qs unchanged. New root overrides the historic
+pucq4_first_light run-folder name for this report; old artifacts remain intact.
+
+Offline checks:148 Python files parsed, pure AST config/profile consistency,
+integer loop counts, standalone-array consistency and historical-table checks.
+161-entry old/new/unit ledger in calibration_changes_20261028.json. Hardware
+was acquired before source promotion using archived explicit overrides; no
+instrument run after promotion is claimed. Canonical raw datasets remain under
+PUCQ4/find_resonators_sandbox. Plans/receipts/logs/source snapshots archived in
+run-root benchmark_1027; final manifest records selected raw provenance.
+
+Earlier ACTIVE/controller text below is chronological history, not a queue.
+
+## October 28 18:38 - current final queue / handoff
+
+ONLY hardware controller28579: hunt_m6strong -> full_m5c. Earlier controllers
+13000/25524/54637 completed; review watchers77276/47785 completed. No concurrent
+acquisition. hunt_m6strong started~18:36, expected6min,900sdeadline; then fullM5c
+~11min,1800sdeadline. BothYokosCURR0A/outputOFF/.01Arange guards eachstage.
+Freshres_m6high dip9057.72MHz atgain.95/5us and steepstablepositiveedge9057.78
+(all7/11/21smoothwindows). Strong qspec uses this9057.78/.95/5us readout,
+drive.1/100us,3000reps,6447.489876-6597.489876MHz601points/.25MHz; historical
+6522.489876 center is ONLY a searchseed. No Rabi/coherence fromguessedcarrier.
+Sixlowergainwindows4300-7300MHz completed/saved, maxvectorscores<4, allnoise.
+FullM5c follows: gain.006/100us compromise; lower.0045 hadwidth.197/pop.120,
+higher.008width.267/pop.236, no usefulpopulationimprovement. FinalC all7 flags,
+carrierseed7065.186369,RO9013.56/.95/8us,20kcalshots/100usrelax,
+T1.01-50us201,Ramsey0-12us241/2MHz,Echo.01-40us401/1MHz,2400x2coherence.
+Needs audit/qualityreview and manualacceptance; do not claim targets met.
+M5 fullb measured5.403/2.164/11.439us. Relaxationcurvature repeats (beta~.65,
+AIC344 vs singleexp); normalRRlifetimes effective, stationaryrate notclaimed.
+M2 accepted empirically withDOUBLETCAVEAT: fullbworkingcarrier5438.517519,
+pi.666606,sigma.101,SSF.4958,T1 6.0929,T2R7.3386effective,Echo10.4243us.
+Two qspeccomponents5438.399967/5438.533518MHz repeated inindependentfulla;
+Ramseybeatingconsistent. m2_structure.json/png supplemental, notsubstituted
+fornormalplots/metrics. M1fullb/M3fullc accepted; M4fullb effectivefits +controls.
+Shared acquisition/config sources STILL unchanged vsinitialsnapshot. Promotion
+helper onlystages sources_proposed unless --apply; waitallhardwarefinished.
+verify_promotion.py AST-extracts only pureconfig/functions (nohardwareimports),
+checks freshdata consistency +unchangednonzero tables/profiles +integerloops.
+Need afterfinalC: audit/review, final_runs selection, stagedconfig/diffreview,
+applyonlyreviewedvalues, safeharness/diff checks, finalPPT/manifest/archive.
+DraftPPT45slides lastsaved18:12; builder nowalsoaddsM5model/M6searchslides.
+Helpers/receipts/logs inIDE benchmark_1027. Useroptionalwiringquestion unanswered;
+do not assume no wiringchange. No nonzero flux is authorized.
+
+## October 28 18:04 - active controllers and acceptance
+
+Controller27927 finished through full_m5b, all7 raw/plots audited. M5 measured
+5.4033/2.1635/11.4394us T1/Ramsey/Echo, independent fits pass, ~10pts/fringe.
+Its qspec .2254MHz/pop.227 misses targets; slight Echo>2T1 needs qualifier.
+M5 is not complete; report displays measured values with explicit review flags.
+Controller13000 now full_m2b -> hunt_m6win1..6. Only this acquires hardware.
+Controller25524 waits successful hunt_m6win6 then m5_powerlo/.0045 and
+m5_powerhi/.008 (100us,q_spec/rabi/ss). Those plans are immutable once active.
+Watcher77276 audits fullM5b then fullM2b; read-only, no hardware concurrency.
+M1 full_m1b and M3 full_m3c accepted; M4 full_m4b accepted as effective fits
+with matched controls/nonexponential qualifier. M6 res_m6mid2 dip9058.38MHz
+atgain.15 accepted res-only; no qubit carrier. FullM2final still acquiring.
+Shared source configs untouched by calibration task. promote_calibration.py
+prepares sources_proposed only; --apply is explicit after all hardware ends.
+Requires reviewed calibration_complete rows1-5, hence currently guarded.
+Final selected report paths in IDE benchmark_1027/final_runs.json; draft root
+PUCQ4_benchmark_20261028.pptx. Still need complete hardware review, sharedconfig
+promotion, final PPT/manifest/archive, harness/diff checks. All sources0A/off;
+no nonzero flux. Earlier controller text below is historical.
+
+## October 28 17:51 - live continuation
+
+One controller27927: m2_lenf1..4 -> m2_gfe1..6 -> full_m5b.
+Prior controllers all finished. Do not start a concurrent acquisition.
+M1 full_m1b and M3 full_m3c accepted, latest values supersede Oct27.
+M4 full_m4b plus matched controls accepted as effective fits with explicit
+nonexponential/model qualifier. M2/M5 final validation still pending.
+M5 length4/6/8/10/12us SSF64.72/66.82/69.86/68.63/68.40%;8us plateau,
+2D at8us converged .95 gain/9013.56MHz. full_m5b uses100us/.006 qspec,
+2400x2 coherence, shorter50/12/30us T1/Ramsey/Echo windows,20kcalshots.
+M2 repeat SSF varies by several percentage points; final length/grid review
+needed before launching full_m2b (plan exists but no log). Shared configs
+remain untouched by this calibration task and still contain old/guess seeds.
+M6 intermediate readout .15 gives dip9058.38MHz and stable risingedge~9058.94;
+no qubit carrier found. Prepared hunt_m6win1..6 raw qspec windows4300-7300MHz,
+.5MHz steps,100us/.1drive,1000reps,readout9058.94/.15/10us NOT queued.
+Allsourcechecks require CURR0A, outputOFF, .01Arange. No flux sweep authorized.
+Helper plans/logs/receipts: IDE benchmark_1027; raw canonical October runroot.
+Final report selection in final_runs.json. New final PPT/config promotion and
+safe harness/source-diff checks remain required. Old text below is history.
+## October 28 - resumed fresh benchmark ACTIVE (17:23)
+
+User explicitly requested continuation. Do not ask again for lab authorization.
+All operations remain zero-current; no nonzero flux sweep is authorized here.
+Acquisition sources hash-identical to the initial snapshot; shared configs have
+not been promoted. Existing old RR processes are dated2025/Feb2026, not this task.
+
+Earlier controllers completed through M4 matched control. Current receipt chain:
+FullM1b completed andaccepted (latestlifetimes15.56/23.90/25.28us,not yesterday's
+33.6/41.4/45.1us). FullM3b150us failed pulseconstruction at92160>65535cycles;
+noHDF5saved,failedlabelpreserved,sources0/off. Controller85963/76747 stopped.
+Recovery84303 runs full_m3c (100us,.009gain) then res_m6mid1/2 ->64383 M2gfd1..9
+->49575 M5gfc1..6. M2/M5 final full repeats are not yet queued: select grid points
+and recheck M5 length plateau first. Do not attach two acquiring queues to the
+same predecessor receipt; the chain must remain linear.
+Only one controller acquires; the others await successful predecessor receipts.
+Helpers/plans/logs are in IDE benchmark_1027, canonical raw in the October root.
+
+Oct27 fullM1 coherence accepted: T1 33.6004+/-.4742us,T2R41.4399+/-.7573us,
+T2E45.0857+/-.7239us; fullM3 57.3657+/-1.1502,50.0899+/-.9013,
+58.5505+/-.8957us. Independent fits agree, adequate fringe sampling.
+Their 20us qspec spectra have coherent fringes; test100us with same .004/.008
+gains,151points2000reps, then Rabi+SSF. Final full repeats may be needed.
+M4 old5/3/5us values remain rejected. Extended fullM4b measured7.1631/11.0585/
+16.2590us withgoodindependentfits, qspecwidth.17857,pop.47017,pi.646707,SSF.43138.
+MatchedT1/echo/T1 gives7.2636/16.0231/7.5320us. Echo>2T1 comparison is model
+dependent: stretchedT1beta~.87 improvesAIC14Ã¢â‚¬â€œ20 overexponential controls.
+Report normalRR effective lifetimes withasterisk/modelqualifier, not a claimed
+single stationary rate or microscopic mechanism. m4_model_consistency.json and
+m4_consistency.png holdtheofflinecheck. Pulse/readoutaccepted; no forcedfits.
+
+Oct28 fullM5a saved and audited: qfreq7065.203976783MHz (shift+.273MHz overnight),
+sigma.056940825us,pi.646706952,RO9013.56/.95/6us,SSF.5289,res9013.4MHz.
+T1=4.20076+/-.08269us accepted. T2R candidate1.59us(R2.76),T2E6.86us(R2.79)
+NOT accepted: mostly baseline in overly long windows. Next full must use
+T1.01-25us101points,T2R0-10us201points/2MHz,Echo.01-30us301points/1MHz,
+2400x2 coherence averages/250usrelax. LongqM5 test100us/gain.006 (up from .003
+because peakpopulation .10 at .189MHz width) precedes readout length2/4/6/8us
+and any final full repeat. Review the population/linewidth tradeoff empirically.
+M2fulla completed at7us before planupdate (guardpreventedactiveplanmutation),
+carrier5438.522429MHz,pi.666606,SSF.33885,T1=6.4722us accepted;
+Ramsey7.14us/R2.81 rejected,echo12.49us/R2.89 noisy. Finalneeds100us/.009
+qspec,better readout frompending5us .72/.84/.95 x8949.53/.73/.93 grid;
+T1.01-40us161,Ramsey0-25us251/1MHz,Echo.01-50us251/.5MHz,
+2400x1coherenceaverages/100usrelax,20kstatecalshots/100usrelax.
+Current5uslengthcheck is shortestplateau (.36535 vs7us.35976,9us.34395).
+
+LongqM1 .004/100us:width.09312,pop.49435,R2.99062; finalfullM1b uses.0045/100us.
+LongqM3 .008/100us:width.08943,pop.5449,R2.98297; finalfullM3c uses.009/100us.
+Currentfirmware16bitpulse limit:100us61440cyclesfits;150us92160cyclesdoesnot.
+LongqM5 .006/100us:carrier7065.092268MHz,width.18627,pop.39456,R2.9880,
+RabiR2.9988,SSF.6577. Its newfrequency/pi were propagated to pendingreadoutplans.
+M5length2/4/6/8us gives.5236/.6471/.648/.6658;8usworking, new2Dgrid pending.
+FinalM5fullshoulduse100us/.006,T1.01-50us201,Ramsey0-12us241/2MHz,
+Echo.01-30us301/1MHz,2400x2coherenceaverages/100usrelax (based onT1 scale).
+
+M6 candidates5257.9766/5411.4729 failed higher-average local repeats. Both are
+noise, no carrier accepted. res_m6lin gain.05 hasvisibleenvelope butnoisy
+rawminimum9058.02 is NOT accepted; smoothdipnear9058.6, risingedge9058.95.
+Intermediategain.10/.15 sweeps pending afterfullM3b to improve diagnosticSNR.
+Review those before choosing any newqspec tone/search. No guessed Rabi/coherence.
+
+New grouped interim PowerPoint PUCQ4_benchmark_20261028.pptx is in the user run
+root; final_runs.json controls reviewed metrics. It is not a completion claim.
+Finish calibration tests, fresh full passes, quality review, shared config
+promotion (only validated values), final PPT, source diff/harness verification.
+
+## October 27 - fresh cooldown calibration history
+
+User confirmed shifted expt_config carriers are guesses and authorized continued
+qubit search, Rabi, SSF and coherence. All work uses the October run root and
+zero Yoko current. Shared calibration values have NOT yet been promoted.
+As of18:02 all fine grids completed; M1/M3/M4 readout converged, M2/M5 still improving.
+Controller98132 runs check_m6c1 then check_m6c2 (two broad fluctuations,
+each+/-3MHz241points5000reps,gain.03,RO9058.34/.30/10us,600sdeadline).
+Pending receipt chain:10843 full_m1a ->83665 M2 third length scan ->21887 full_m3a
+->49323 M5 third length scan ->80011 full_m4a.
+Each waits for its predecessor's successful final receipt. No concurrent acquisition.
+Do not relaunch
+completed labels. Plans, logs, receipts and analysis scripts are in
+IDE `benchmark_1027`, periodically archived to run-root `benchmark_1027`.
+
+Resolved independent raw-IQ centers/FWHM (MHz): M1 5515.334706/0.08346,
+M2 5438.537411/0.11235, M3 5551.354527/0.03970,
+M4 5594.640662/0.17365, M5 7064.931217/0.11415 (repeat SNR12.36).
+M6 remains unresolved after broad and local
+searches. M6 readout is power dependent: dip9057.72MHz at gain.95 versus
+9058.34MHz at gain.30. Measured positive slope at lower power is near9058.74MHz;
+diagnostic `hunt_m6ro` completed: gain.10,20us,4001points/500reps,
+6022.489876-7022.489876MHz, readout9058.74/.30/10us. Noise only, no accepted
+line. Wider4300-7300MHz search also noise-like; strongest two fluctuations
+5257.976605 and5411.472858MHz are receiving local repeats, not accepted carriers.
+
+M1 preliminary Rabi pi.686504303/sigma.05us, R2.99761, SSF.6445.
+M3 preliminary Rabi pi.656656290/sigma.124us, R2.99714, SSF.6128.
+M2 preliminary Rabi pi.666605628/sigma.101us, R2.98551, SSF.2635.
+M4 first Rabi pi.572086919/sigma.079003864231us, R2.99795, SSF.43026;
+sigma.0695us repeat accepted pi.646706952, SSF.43186, raw/pop audit passed.
+M5/Q4 preliminary Rabi pi.631782946/sigma.056940825us, R2.98735, SSF.1801.
+M1 fixed-tone/gain length scan4/6/8/10/12us gives contrast
+.4849/.5632/.6145/.6530/.6678; extension16/20/12repeat gives
+.6739/.6622/.6648. Choose12us shortest plateau, then2D gain/frequency grid.
+M1 grid improved toSSF.7818 atgain.64/tone8918.35MHz/length12us.
+M2 grid max.3185 at.56/8950.13/9us; notable repeat variation, next20kshots.
+M3 grid max.7065 at.95/8973.43/13us; length plateau follow-up pending.
+M5 grid max.5034 at.85/9013.56/2us versus initial.1801; follow-up pending.
+Second length scans: M1.64/8918.35 plateau10us (.7767;12us.7787;16us.7751).
+M2.56/8950.13 peak7us (.3291;9us.3014;13us.28845).
+M3.95/8973.43 provisional13us (.71285;17us.7113;21us.72505).
+M5.85/9013.56 provisional6us (.631;4us.6097), extend after finegrid.
+M4.95/8999.25 peak7us (.4496;9us.43314;15us.41974).
+Working calibration and plan preparation live in IDE benchmark_1027/calibration.json
+and prepare.py. Fine grids precede final repeat/normal full benchmark passes.
+Fine-grid conclusions: M1 .64/8918.35/10us repeats .7767/.7766 (neighbor max.7793);
+M3 .95/8973.43/13us repeats .71285/.7167 (neighbors lower); M4 .95/8999.25/7us
+repeats .4496/.45314, fine neighbors no improvement. Full passes queued for these.
+M2 improved .3775 at.64/8949.93/7us; next3/5/7/9us. M5 improved .6671 at
+.95/9013.56/6us; next4/6/8/10/12/16us. Shared calibration still unmodified.
+No fresh coherence acquired yet. Finish readout optimization, normal full
+seven-experiment passes, quality audits, config promotion and final report.
+All completed acquisitions have raw HDF5/plots and verified sources0A/off.
+Automatic broad-window qspec fits are NOT accepted; see FAILURE_MODES.md.
+PowerPoint is interim; native PowerPoint rendering hung and has not passed.
+
+## October 20 - fresh cooldown benchmark in progress
+
+The user authorized fresh hardware measurements after a warm-up/cooldown and
+selected `M:/_Data/20250822 - Olivia/pucq4_run_started_Oct_7` as the destination.
+September calibration is reference evidence, not validation for this cooldown.
+Resonator-only normal round robin completed at
+`PUCQ4/find_resonators_sandbox/rr6_0mA/2026-10-20_16-23-15`: six 151-point
+traces, 500 reps, 0.02 MHz steps, 100 us relaxation, all six PNG/PDF pairs and
+canonical `res_ge` HDF5 persisted. Grid minima M1-M6: 8919.07, 8950.91,
+8974.12, 8999.14, 9013.72, 9057.70 MHz. M6 is asymmetric; readout follow-up
+is required. Both Yokogawas verified CURR/0 A/output off/10 mA/30 V before
+and after. Acquisition exited 0; no acquisition from this task remains active.
+
+Interim nine-slide `PUCQ4_benchmark_20261020.pptx` is in the selected run root.
+Qubit frequency, Rabi, SSF and coherence are pending. Awaiting clarification
+whether the shifted `expt_config.VNA_qubit` values are fresh measurements or
+search guesses; `system_config` still supplies September carriers and the RR
+row profile overrides spectroscopy bounds from those carriers. RR also retains
+old absolute readout tones after fresh resonator spectroscopy by default.
+Revalidate these tones for this cooldown before claiming population calibration.
+
+Historical path caveat: September raw results actually reside under
+`pucq4_run_started_Aug_3`; copied September links below that name October are
+stale. Do not globally rename historical provenance to the new run directory.
+
 ## September 16 - publication completed with explicit user authorization
 
 The user explicitly requested saving the PowerPoint with the previous reports.
 Publication succeeded and was hash-verified: 195-slide report at
-`M:\_Data\20250822 - Olivia\pucq4_run_started_Aug_3\PUCQ4\pucq4_first_light\PUCQ4_Q5_Q6_avoided_crossing_20260909.pptx`.
+`M:\_Data\20250822 - Olivia\pucq4_run_started_Oct_7\PUCQ4\pucq4_first_light\PUCQ4_Q5_Q6_avoided_crossing_20260909.pptx`.
 SHA256: `D55F2C5180EE970DE78A49D965B3C86101684377C5DAFC94BB3C0D859E27094B`.
 The previous 176-slide report is preserved at
 `FIRST_LIGHT/ac_review/recovery_20260915/prior_176_slide_report.pptx` with its
@@ -57,7 +997,7 @@ Fresh bothsource expectedserial/CURR/.01A/0A/off/30V preflight passed.
 All8 acquisition hashes unchanged;146-file verifier and7 decision checks pass.
 Older no-active statements below are historical. No new J or Q5 identity claim.
 
-## September 15 — report published; scientific result unresolved
+## September 15 Ã¢â‚¬â€ report published; scientific result unresolved
 
 **No acquisition or monitor is active.** Both Yokogawas were verified in current
 mode, 10 mA range, at 0 A with outputs off and 30 V compliance after cleanup.
@@ -164,7 +1104,7 @@ new scan uses32000 repetitions per ON/OFF state, restoring16000 held-out reps,
 plus early shifted-grid and final temporal repeats. It has not yet started.
 
 # PUCQ4 persistent state
-## September 15, 12:09 — ACTIVE seven-bias fixed-profile map
+## September 15, 12:09 Ã¢â‚¬â€ ACTIVE seven-bias fixed-profile map
 
 ac_prof2 pilot complete and PASSED: all4fresh windows, bothcenter repeats;
 1943.218s,guardexit0,bothsources0A/off. New ac_pmap/2026-09-15_12-09-11
@@ -181,7 +1121,7 @@ author's August4 deck explicitly labelsQ5? and calls the assignment unconfirmed.
 Do not silently promote measured physical identities. Report157slides remains
 published until fresh evidence is audited, rendered, reviewed and republished.
 
-## September 15, 11:31 — ACTIVE fixed-profile pilot
+## September 15, 11:31 Ã¢â‚¬â€ ACTIVE fixed-profile pilot
 
 New authorized debugging pilot ac_prof2/2026-09-15_11-31-36 is active under
 guard53552/child59464 (tool session54867). Check live handles before acting.
@@ -240,7 +1180,7 @@ are in ac_review/renewal_20260915/sensitivity_v2; two block reports are adjacent
 Physical mechanism, Q5 identity, independent spatial drive, and minimum/J remain
 unresolved. The published143-slide deck remains the prior report until new result
 review and native validation. All September14 ACTIVE entries below are historical.
-## September 14, 20:41 local — bounded investigation closed, report published
+## September 14, 20:41 local Ã¢â‚¬â€ bounded investigation closed, report published
 
 No acquisition is active. All 22 guarded plans completed with exit 0 and both
 sources in CURR mode, 0.01 A range, 0 A setting, output off. The latest ac_cmax
@@ -470,7 +1410,7 @@ another hardware action. Deadline1800s+180guard. Previous94slide report archived
 with matching hash; it remains the published report until this continuation's
 results are reviewed. Below is the previous closeout, now historical.
 
-CLOSED WITH UNRESOLVED COUPLING — September 14, 2026. The authorized physical
+CLOSED WITH UNRESOLVED COUPLING Ã¢â‚¬â€ September 14, 2026. The authorized physical
 Q5-Q6 spectroscopy task is finished. No acquisition or guard remains active;
 no follow-up is queued. Final confirm_m2_0914 ended exit0 in911.594s, with
 both Yokogawas verified CURR/10mA range/0A/outputoff. Current readback is the
@@ -1972,7 +2912,7 @@ RR59244, launched23:57 September8,6000 s upper limit; both sources0 A/off.
 M3 candidate readout9 us/.95 gain/8974.63 MHz uses measured dip8974.84 and
 -.21 MHz offset. Its fresh qspec is about5557.336 MHz/.037 MHz FWHM, Rabi
 pi.666606 at sigma.124 us, SSF.5634; coherence/raw final audit remains pending.
-The settings are now persistent, including local qspec±.25 MHz/201/10000x1
+The settings are now persistent, including local qspecÃ‚Â±.25 MHz/201/10000x1
 and20k state calibration. M1's500-rep Ramsey repeat still shows a large revival;
 its9.44 us single-decay result is not accepted. Phase-detuning diagnostics are
 planned next, then the16 nonzero flux-row points plus fixed-row endpoint
@@ -2246,7 +3186,7 @@ Q4+10tracking promotion complete11:52:56 (see above). Same sole newPPT100slides 
 Queue_g60776 paused/exited after rrv6_p100a/11:54:43; all raw saved and bothsources0/off. All numeric reference comparisons passed, including qspec7211.421316779MHz/FWHM.170419458622MHz/R2.977226, pi.641732283465, SSF.4235211761, T1/R/E6.898007767/4.687802144/10.148035373us. Only issue is t2_ge structured residuals: R2.879455712, residual peakpowerfraction.282693610 (> .25), residual RMS/fitspan.042696249 (> .03). Ramseyfringe.521079816MHz,19.329points/fringe, independent fit4.687778us. This is a quality finding and cannot use the comparison/tracking reviewers. Q6+10 is NOTPROMOTED.
 ACTIVE m6_p100_r75.json controller60748 start12:15:16, normal RR Ramsey-onlyM6/index5/Y4+10/Y3zero; changes onlyphase detuning .5->.75MHz, retaining1200x2/0-30us301points/250usrelax/statecal10k250us; exactcarrier7211.421318376494MHz/pi.6417322834645669/sigma.049593622us/RO9061.52MHz/.8722/12us/offset0.900sdeadline,.5mA/sramps,both0/offafter. QICKclasses unchanged. Review curve/residuals before any persistent phase change; if clean, require a fresh complete RR with that profile. Remaining8negativegroups prepared in bias_queue_h.json, NOTSTARTED. Finalall6default stillNOTRUN. M1model limit and Q4+10validated_tracking remain explicit. Continue task, no partial handoff.
 
-### September 9, 12:30 local — Q6 +10 mA phase diagnostic and full repeat
+### September 9, 12:30 local Ã¢â‚¬â€ Q6 +10 mA phase diagnostic and full repeat
 
 The normal Ramsey-only diagnostic rrv6p10_r75/2026-09-09_12-15-18 completed with canonical raw data, its population plot, and both sources verified at 0 A/output off. Phase detuning 0.5 -> 0.75 MHz was the only acquisition change. T2R = 5.939635633 +/- 0.217927309 us, R2 = 0.910275, residual peak fraction = 0.189874, residual RMS/fit span = 0.0381381, 13.115 actual samples/fringe. All raw/calibration/model gates pass. Its sole finding is a 33.51% change from historical T2R; a diagnostic-only result is not promoted.
 
@@ -2256,7 +3196,7 @@ ACTIVE m6_p100_fullb.json, controller 20808 / child 27688, started 12:29:41. All
 
 Review the complete raw/calibration/fit/reference evidence before promotion. If only a historical T2R comparison remains, obtain a fresh exact-carrier independent repeat and use the unchanged repeat criteria. Remaining eight negative-current groups in bias_queue_h.json and the final all-six default zero-current pass remain unstarted. No underlying classes or QICK programs were changed.
 
-### September 9, 12:52 local — Q6 full-repeat outcome and midpoint-frame diagnostic
+### September 9, 12:52 local Ã¢â‚¬â€ Q6 full-repeat outcome and midpoint-frame diagnostic
 
 rrv6_p100b/2026-09-09_12-29-43 completed with all canonical raw/plots and both sources 0 A/output off. Qspec center 7211.432304469609 MHz, actual pulse 7211.432304725785 MHz, FWHM 0.176175419422350 MHz, R2 0.977050; pi 0.641732283465, sigma 0.049593622 us; res 9061.54 MHz, RO 9061.52 MHz / 0.8722 / 12 us, measured offset -0.02 MHz; SSF about 0.4557. T1/T2R/T2E = 6.996602547 / 5.413374422 / 9.870541226 us. All historical comparisons pass, but Ramsey still has structured residuals (R2 0.898434, peak fraction 0.279817, residual RMS/fit span 0.0395261). The 0.75 MHz phase change did not reliably solve this quality finding. No Q6 +10 calibration was promoted, and no audit gate was relaxed.
 
@@ -2264,7 +3204,7 @@ Independent exploratory full-window analysis, M6_p100b_phase075_residual.json/pn
 
 ACTIVE m6_p100_mid.json, controller 58892, started 12:51:56: normal RR Ramsey-only at Y3 zero/Y4 +10 mA, same fresh carrier/pi/sigma/readout and full 0-30 us/301/1200 x 2/250 us/statecal10k250us as the failed complete pass. Only programmed phase detuning changes 0.75 -> 0.015398310214337 MHz. This approximate midpoint was derived from fitted mean 0.739900487 MHz and recorded delay step 0.09928385 us vs requested 0.1 us: 0.75 - 0.739900487 * 0.09928385 / 0.1. It is a diagnostic phase choice, not a qubit-frequency correction or calibration promotion. Deadline 900 s, nominal attenuation arguments unchanged, paths <210 characters, 0.5 mA/s ramps, both sources zero/off afterward. Inspect the complete trace, identifiability and raw/model gates before considering any persistent change. Eight negative groups and final all-six zero remain unstarted.
 
-### September 9, 12:59 local — midpoint diagnostic passes; normal full sequence launched
+### September 9, 12:59 local Ã¢â‚¬â€ midpoint diagnostic passes; normal full sequence launched
 
 rrv6p10_mid/2026-09-09_12-52-03 completed with canonical Ramsey HDF5 and plot and both sources 0 A/output off. All normal raw/calibration/model/reference gates PASS. T2R = 5.707115956 +/- 0.616388545 us (28.28% above reference, within the predefined comparison band), R2 = 0.971122906, residual peak power fraction = 0.0346299, residual RMS/fit span = 0.0377492. Independent fit tau = 5.707155 us; fringe = 0.040154162 MHz, 250.84 actual points/fringe. The unchanged fitter describes the full acquired 29.785 us window; nothing was cropped or replaced. Diagnostic-only results are not promoted.
 
@@ -2274,7 +3214,7 @@ ACTIVE bias_queue_i.json controller 18724, launched 12:58:28. First point rrv6_p
 
 M1 offline midpoint estimates from three same-carrier records (5517.691628432926 MHz) are phase 0.00704713, 0.00630361 and 0.00579702 MHz after actual/requested delay-step correction; exploratory splitting 0.01715-0.01830 MHz. These are untested diagnostic estimates, not calibration. Consider a fresh-carrier M1 midpoint diagnostic after the current queue if Q6 full validation supports this approach. Final all-six default zero pass remains required and unstarted. Same single new validation PowerPoint; no underlying experiment/class/QICK changes.
 
-### September 9, 13:23 local — existing fitter initialization connected in RR
+### September 9, 13:23 local Ã¢â‚¬â€ existing fitter initialization connected in RR
 
 The midpoint full pass rrv6_p100c/2026-09-09_12-58-36 completed with all raw/plots and both sources zero/off; queue_i paused. Qspec center 7211.424143213345 MHz (actual pulse 7211.424142063969 MHz), FWHM 0.186796710799236 MHz; pi 0.641732283465/sigma 0.049593622 us, res 9061.50 MHz/RO 9061.52 MHz/.8722/12 us/offset +.02; SSF about .4459. T1 7.069538316 us and echo 9.252036836 us pass comparison/quality. The normal automatic Ramsey fit missed the visible slow fringe: 2.655297172 +/- .121736143 us, R2 .881535876, while the independent same-model fit gave 5.768092278 +/- .589012574 us, R2 .979532014 and .037137599 MHz. It therefore failed comparison, residual and fit-agreement checks. This run is not promoted.
 
@@ -2286,7 +3226,7 @@ Meaningful offline integration check check_rr_ramsey_guess.py executes the actua
 
 ACTIVE bias_queue_j.json controller28644, start13:22:25, first rrv6_p100d atY3zero/Y4+10. All7normalflags, persistent midpoint phase and .04 MHz fit initialization, other acquisition/pulse/readout settings unchanged,5400sdeadline,.5mA/sramps,both0/offafter. Then eight unstarted negative groups, stop on any audit finding. Do not promote offline-refitted prior traces; require this fresh complete pass, normal plot, canonical HDF5 including original fit and current readbacks. If queue advances before promotion, wait until next acquisition_profile.json is present before editing shared config. m1_midpoint_prepare.json remains prepared/unstarted; final all-six default zero also unstarted. Continue the complete authorized task.
 
-### September 9, 13:44 local — frequency-only fit initialization was insufficient
+### September 9, 13:44 local Ã¢â‚¬â€ frequency-only fit initialization was insufficient
 
 rrv6_p100d/2026-09-09_13-22-34 completed; both sources 0 A/output off, queue_j stopped for review. Canonical HDF5 successfully preserved Fit Unseeded and all new fit-initialization metadata. Qspec center 7211.423394881848 MHz / FWHM .181330580368608 MHz; actual pulse 7211.4233942938945 MHz, pi .641732283465, sigma .049593622 us, res9061.54/RO9061.52MHz/.8722/12us/offset-.02, SSF about.4436. T1 7.008677137 us and echo9.075294012 us pass reference/quality. Frequency-start-only Ramsey converged to the wrong solution again:1.486253454+/-.722027088us,R2.900749642; original automatic1.486744889us. Independent same-model tau6.474332939+/-.653304264us,R2.977743887,f.037583488MHz. Four Ramsey findings remain; no Q6+10 result is promoted.
 
@@ -2296,7 +3236,7 @@ Profile now has fit_population_guess=None everywhere except M6/Y4+10, where it s
 
 ACTIVE m6_p100_fitpop.json, controller32408, launched13:44:09. Ramsey-only normalRR atY3zero/Y4+10, exact carrier7211.4233942938945MHz/pi.6417322834645669/sigma.049593622us/RO9061.52MHz/.8722/12us/offset-.02 from full d. Full0-30us/301/1200x2/250us, statecal10k250us, persistent phase.015398310214337MHz and the new full population starting values. No acquisition-window change.900sdeadline,.5mA/sramps,unchangednominalattenuationargs,canonicalpaths<210,both0/offafter. Audit after completion. If raw/model fits are now reliable, require another fresh complete M6+10 RR before promotion; a diagnostic alone cannot replace complete-chain evidence. Remaining8negativegroups are still unstarted in bias_queue_h.json. M1 fresh-carrier preparation m1_midpoint_prepare.json and final_all6_default.json remain prepared/unstarted. Continue all remaining hardware/report work; do not hand off a partial completion.
 
-### September 9, 14:03 local — Q6 fit stability separated from measurement variation
+### September 9, 14:03 local Ã¢â‚¬â€ Q6 fit stability separated from measurement variation
 
 The 13:44 Ramsey-only run rrv6p10_fit/2026-09-09_13-44-24 completed with HDF5/normal plot and both sources zero/off. Its configured population-start fit gives T2R 2.804590154 +/- .260938248 us, R2 .968238283; independent same-model fit 2.917855229 +/- .306061148 us, R2 .968218866. Raw, calibration, fit agreement and residual gates pass; only the historical coherence comparison fails (-36.96%). The original automatic fit returned -9215.596943 us and is retained as Fit Unseeded. This is a shorter measured repeat, not another failure of the configured fit. No diagnostic-only promotion.
 
@@ -2304,13 +3244,13 @@ Offline check_ramsey_multistart.py applied the UNCHANGED public fitter to four f
 
 ACTIVE bias_queue_k.json controller59096, launched13:59:47, child26216. First rrv6_p100e uses all seven normal experiments and persistent population-start configuration at Y3zero/Y4+10, with fresh qspec and Rabi before coherences. Exact envelope is in the plan; 5400s deadline, .5mA/s ramps, zero/off afterward. It then queues eight unstarted negative groups, stopping on any audit issue. M1 fresh-carrier preparation and final all-six default zero remain unstarted. No Q6+10 full pass has yet been promoted. Continue the complete hardware/report task.
 
-### September 9, 14:20 local — complete Q6 +10 pass has only a coherence comparison finding
+### September 9, 14:20 local Ã¢â‚¬â€ complete Q6 +10 pass has only a coherence comparison finding
 
 rrv6_p100e/2026-09-09_13-59-51 completed in1045s with all7canonical HDF5 files (longest196characters), normal calibrated plots, source snapshots, and both Yokos0A/outputoff. All raw/calibration/model/fit-agreement gates pass. Qspec center7211.413079784586MHz, actualpulse7211.413079440341MHz, FWHM.178059357156368+/-.002853806284889MHz,R2.975415624,rawIQSNR32.258; qgain.006/20us. Rabi pi.641732283464567 at sigma.049593622us; RO9061.52MHz/.8722/12us, measuredres9061.54/offset-.02;SSFabout.436. T1 6.679829637+/-.084667277us and echo9.700775749+/-.264197044us match the prior values. Configured Ramsey6.114422315+/-.492541864us,R2.975372131, independent6.114422622us, fringe.042598020MHz/236.45points, residualpeak.03518385. Automatic1.393429993us retained in Fit Unseeded. Sole finding: T2R+37.43%fromold4.448973504us, just outside the original comparison band. No promotion yet.
 
 Queue_k stopped for this comparison finding. ACTIVE exact-setting Ramsey confirmation m6_p100_erepeat.json, controller11156, child22796, launched14:19:09; labelrrv6p10_er. Uses the complete e run's exact carrier/pi/sigma/readout, persistent phase.015398310214337MHz,301points/0-30us/1200x2/250us,statecal10k250, same f.04/phase0/amp1/offset.5/.5 free-fit starts, no T2 guess.900sdeadline,.5mA/sramp,0/offafter,normalHDF5/plot. Predeclared review: all quality gates and exact settings must match, repeat within15%mean or3combinedstandarderrors; preserve originalcomparison. If repeat fails, retain Q6+10 under review and proceed with the independent negative-current coverage before revisiting it. Eightnegativegroups, M1 fresh-carrier diagnostic and finalall6zero remainunstarted. Do not repeat full Q6 passes indefinitely at the expense of unmeasured bias coverage.
 
-### September 9, 14:26 local — Q6 +10 validated; negative-current acquisition started
+### September 9, 14:26 local Ã¢â‚¬â€ Q6 +10 validated; negative-current acquisition started
 
 Exact repeat rrv6p10_er/2026-09-09_14-19-13 completed, all raw/calibration/model/reference gates PASS and both sources0A/off. T2R5.700455215+/-.468902458us versus complete e pass6.114422315+/-.492541864us. The .414us difference is inside predeclared2.040147795us repeat tolerance; all carrier/pi/sigma/readout/phase/axes/counts/statecal/fit-start settings match. Reviewed full audit validation_M6_reviewed.json is selected as 'consistent repeat; reference band overlap': repeat itself is inside the historical band, so NO persistent physical increase is claimed. Both actual normal RR plots are added together to the one validation PowerPoint; prior short2.805us diagnostic and failed automatic fits remain visible.
 
@@ -2318,7 +3258,7 @@ Promoted system_config.py Yoko4_Q6_M6/+10 row at14:25:11: frequency7211.22085715
 
 ACTIVE bias_queue_h.json controller24124, launched14:25:33. Eight documented negative groups now start with M5/index4/physicalQ4 atY3-2.5mA,Y4zero,labelrrv5_m025a. All7normalflags,persistentconfiguration, exactnegative_bias_preflight.json envelope,.5mA/sramps,zero/offafter,5400sdeadline exceptM3/M4/M6endpoint10800. Each raw audit stops the queue on any issue. AtY3-10 wait600s; no joint nonzero biases. Before changing source configs on a passed point, ensure the next child's acquisition_profile.json exists. Remaining after negativegrid: M1 fresh-carrier/midpoint investigation and finalall6defaultzero pass, finalPPT/checks. All positive flux rows are now selected and promoted.
 
-### September 9, 14:44 local — first negative-current full pass; exact qspec confirmation active
+### September 9, 14:44 local Ã¢â‚¬â€ first negative-current full pass; exact qspec confirmation active
 
 rrv5_m025a/2026-09-09_14-25-37 completed in989.34s, all7canonicalHDF5/normalplots saved, sourcesboth0A/off. All raw/calibration/model gates PASS. Sole finding: qspecfrequency shifted from documented6945.111955770774MHz (storedpulse6945.029248480) to center6944.563244982731+/-.000704816MHz; actualpulse6944.563244921842MHz. FWHM.135409976398216+/-.002212850MHz,R2.974111749,rawIQSNR32.953/residual1.0178sigma; gain.0025/20us/401/5000x1/100us. Rabi pi.641732283464567/sigma.058777626us; res9013.68/RO9014.06MHz/.73/6us/offset+.38;SSFabout.600. T1/T2R/T2E11.026177267674/3.310124660468/8.740105776448us all pass prior comparison; echoerror.185991743us,R2.967745040. No calibration row promoted yet.
 
@@ -2326,7 +3266,7 @@ ACTIVE m5_m025_qrepeat.json controller54752, launched14:43:41. Normal RR qspec-o
 
 New TEMP/prepare_exact_repeat.py is offline only: constructs explicit guard JSON from a completed audit and recorded runtime seed, verifies implicitprofile rounds/relax and Ramseyfitstarts, preservesrequestedaxis/statecal/RO/calibration,checksHDF5path. It does not contact hardware. Generated M6+10Ramsey andM6+2.5qspec fixtures reproduce the previously executed confirmations (checked14:34/14:39). Use it to avoid confusing a qspec PRE-Rabi seed/pi with the later coherencecarrier/pi. The sole validationPowerPoint has109slides asof14:28 with154configurationchanges; lastnativeQAincludedconfiguredfit tables andsidebysideQ6repeat. NewM5negativepass stillneedsreportrefresh afterreview.
 
-### September 9, 15:03 local — M5 frequency repeat disagrees; bounded held-bias diagnostic prepared
+### September 9, 15:03 local Ã¢â‚¬â€ M5 frequency repeat disagrees; bounded held-bias diagnostic prepared
 
 M5-2.5 qspec repeat rrv5m25_qr/2026-09-09_14-43-53 completed with canonicalraw/plots and both0A/off. Center6944.798479013769MHz,FWHM.133291206221594MHz,R2.972727147; all raw/calibration/model gates pass, onlyhistoricalfrequencycomparisonfails. This is .235234031038MHz from the full pass center6944.563244982731MHz, beyond both staticrepeat tolerance .013329MHz and one linewidth. NO repeat-review waiver, no frequency/sigma/pi/readout/calibration promotion for this row. The two actual spectra are added side by side to the same report; stablefrequencyisnotestablished. Testing post-step time dependence does not yet identify a cause.
 
@@ -2336,7 +3276,7 @@ PREPARED ONLY m5_m025_held_qspec.json, labelrrv5m25_hold. Three qspec-only passe
 
 Localized RR option PUCQ4_QSPEC_PASSES enables only1-3qspec-onlypasses onone row, validatedbeforehardware. Defaultn=1 remainsliteralunchanged. Existing whileloop holdsbias outside rounds andsaveswithsave_r=1, soactualcanonicalcollector yieldsdistinctbatch1/2/3 withRoundNum1/2/3 andBatchNum0/1/2. run_guard validates the sameboundedoption; no changes toclasses/QICK/Data_H5. Normal auditor explicitlyrejects runtime rounds!=1 asfinalcalibrationevidence. check_held_qspec.py executesactualselector/collector/save/reset withmocksave,checksdefaults/bounds/flags/one-row,thatnocurrentcallisinmeasurementloop,andparsesnewanalysishelper. PASS14:56and15:02.131fileharness,81x6profile/protectedhash/timingchecks andwhitespacePASS14:57. Initial testharnessASTselection errors were fixed toselect the actual immediateqspeccollector (rawiscollected immediately afteracquisition); no hardwarefailure orrawloss occurred. Newsourcechanges were made onlyafter activeM6acquisition_profile existed; its launchsources remainarchivedunmodified.
 
-### September 9, 15:29 local — held-bias diagnosis complete; negative-bias readout optimization
+### September 9, 15:29 local Ã¢â‚¬â€ held-bias diagnosis complete; negative-bias readout optimization
 
 M5/physical Q4 at Yoko3 -2.5mA held across three normal qspec-only rounds completed: rrv5m25_hold/2026-09-09_15-09-45, guard complete in804.56s, three distinct canonical HDF5 batches and three normal population plots; both sources zero/off afterward. Centers6944.968211377013,6944.953488150237,6944.958240321407MHz; FWHM.168506356,.171401802,.161682296MHz; R2.965185,.958424,.971990; rawIQ SNR30.98,27.86,32.48. Identical requested axis/pulse/readout/averaging and reconstructed calibrated populations verified for every round. Consecutive differences.014723227/.004752171MHz pass original static limits.016850636/.016168230MHz. This diagnostic does not establish a need for extra initial settling or a fixed shift across separate visits. No M5-2.5 calibration promoted. Existing full/repeat separated by.235234MHz remains documented. Prepared m5_m025_fullb.json: fresh all7 one-pass, last diagnostic center6944.958240321407MHz as acquisition seed only, unchanged pulse/readout/count/timing profile, no extra settling,1800sdeadline; run after independent Q6 readout work.
 
@@ -2350,7 +3290,7 @@ ACTIVE m6_m025_gainfreq1.json controller50948, launched15:28:15. M6/index5,Y3zer
 
 Environment lesson: initial15:24:09 Start-Process launch failed before Python/script/hardware because PowerShell array concatenation built malformed spaced paths. Original stderr retained; no measurement created. Retry15:24:51 used one formatted quoted argument string and completed the length grid. Use that quoting pattern for background launchers. No experiment classes/QICK/Data_H5 changed. Readout report titles now derive concise row/bias labels from recorded settings instead of placing long authorization text inside scientific plots; full plan remains in slide provenance.
 
-### September 9, 15:47 local — Q6 readout plateau and final fine scan
+### September 9, 15:47 local Ã¢â‚¬â€ Q6 readout plateau and final fine scan
 
 M6-2.5 coarse2D m6_m025_gainfreq1 completed nine points at10us/gains.65,.8,.95/tones9057.46,.86,9058.26; best.3198 at.8/9057.86. Highergain.95 atcenter reducedcontrast to.11245. Interleaved length2 at.8/9057.86 gave10us.30455,8us.31805,12us.3068,10us.32645:8us is the shorter point at the observed8-12us plateau, with ~.02 repeat variation. Allcanonicalraw/plots and0/offaftereach. Fine2D gainfreq2 at8us/gains.74,.8,.86/tones9057.66,.86,9058.06 gave no significant improvement; best.30285 at.8/9057.86. Completed grids are archived in execution/ and included in the same report manifest. Final exact settings remain unpromoted.
 
@@ -2360,7 +3300,7 @@ Next M6 full pass should increase qspec5000->10000reps (same401points/.002gain/2
 
 Prepared/unstarted m5_m025_fullb.json afterhelddiagnostic, negative_remaining_6.json (fresh six remaining negativegroups), m1_midpoint_prepare.json and final_all6_default.json remain necessary. Last PPT116slides/9issues at15:30; native116slidereview15:31 confirmedheld-biasplot andreadoutplotlegibility. Laterreadoutgrids stillneednextbuild. Offline131fileharness passed15:31, focusedwhitespacepassed15:30. Sourcecheckpoint_1543 archivescurrentcores/helpers/remainingplans. Task remains running; do not end with a partial handoff.
 
-### September 9, 16:10 local — Q6 complete sequence active; selected readout and exact repeat review
+### September 9, 16:10 local Ã¢â‚¬â€ Q6 complete sequence active; selected readout and exact repeat review
 
 All six M6/Y4-2.5 readout grids completed with normalSS-only raw/plots andbothsources0/off aftereachpoint: length1,gainfreq1,length2,gainfreq2,gainfreq3,length3. Close gainfreq3 at8us/gains.77/.8/.83/tones9057.76/.81/.86 showed no significant improvement (best.29995 at.8/9057.81). Finalinterleavedlength3 at.8/9057.86 yielded4us.28845,8us.28925723,6us.3123,10us.32285,8us.3117. Across repeated measurements10us remains the consistent higher-contrast choice: .3309(initialgain.7967),.3198,.30455,.32645,.32285 atgain.8. Selected10us/.8/absoluteRO9057.86MHz; longer12-18usnoimprovement,shorter4-8generallylower. No static readout/pulse calibration promotion yet. Allsixgrids are archived in execution and referenced in the same validationmanifest.
 
@@ -2376,7 +3316,7 @@ PREPARED offline review_repeated_ssf.py onlyfor a fullpass whose SOLE finding is
 
 Remaining: auditcurrentM6fullb,exactSSFconfirmation/reviewifneededandpossible,thenpromoteexactselectedsettingsandpersistqspecreps10000/Ramsey2400x2/statecal20k inthatcurrent'sprofile ONLY ifvalidated. NewM5-2.5fullb planprepared; sixunstartednegativegroupsinnegative_remaining_6.json; M1fresh-carrier/midpoint investigation; finalall6defaultzero; finalsource/reference/PPTQA. LastPPT119slides/9issues16:08; newtwofinalgrids/bootstrapneednextbuild. Do not stop atpartialhandoff.
 
-### September 9, 16:32 local — Q6 echo follow-up required; Q4 full pass active
+### September 9, 16:32 local Ã¢â‚¬â€ Q6 echo follow-up required; Q4 full pass active
 
 M6 fullb rrv6_m025b/2026-09-09_15-56-38 completed in1518.507s with all7normalHDF5/plots andbothsources0A/off. Actualpulse6104.052944660058MHz; qspecpopulationcenter6104.052943671447+/-.003090372MHz,FWHM.279252497252343+/-.010978605MHz,R2.868332636;rawIQcenter6104.054199426,width.28989146,SNR10.39939,residual1.05321sigma. Requestedaxis6102.73607274-6104.73607274MHz401points/10000x1/.002gain/20us/100us. Allqspecraw/model/referencegatesPASS (difference.2547915MHz versusoldqspec iswithinmaxold/newFWHM.2792525). Rabi pi.6516816211926998 at sigma.056022425us,R2.993085937. Res9057.88/RO9057.86MHz/.8/10us/offset-.02;SSF.31525 versusold.427 stillfailscomparison. T1 6.013042039+/-.114702813us,R2.980198219 PASS(+1.62%old);Ramsey1.219826536+/-.055882392us,R2.891216300 PASS(+3.94%). Echo4.268605296+/-.222166973us roughlymatchesold4.150655(+2.84%),butR2.835244620 FAILquality;independenttau4.268577676 agrees,fringef.5094064MHz/9.886points,residualpeak.0365163. Do notpromoteoruseSSF-onlyreviewwhileechoqualityfails.
 
@@ -2387,3 +3327,73 @@ ACTIVE M5fullb m5_m025_fullb.json guard59412/child16912, launched16:24:57, runrr
 PREPARED ONLY m6_m025_fullc.json: freshcompleteM6atY4-2.5 afterM5fullb. Onlysciencechangefromfullb isecho1200x2->2400x2 (samefull.01-60us/301/.5MHz/250us). Keepqspec10000x1 andRamsey2400x2,allcal20k250. UseEXPLICITfullbqspecbounds6102.73607274-6104.73607274MHz so recentrebugfixdoesnotchangesweep;samepreRabi seed6103.945208979526/pi.651681621193/sigma.056022425,RO9057.86/.8/10/-.02. Rabi20kstatecalnowexplicitPUCQ4_RABI_SSF_SHOTS instead of inherited; actualscienceunchanged. All7normalflags,2700sdeadline,196charcanonicalpaths,.5mA/sramps,0/offafter. Do notlaunchinparallel. Previousm6_m025_ssrepeat.json is PREPARED/UNUSED basedonfullbcarrier; do notuseitfornewfullcwithoutcheckingnewactualcarrier/config. AnewexactSSFrepeat/fullcbootstrapreviewmayfollowONLYifallotherqualitygatespass. No M6-2.5 parametershavebeenpromoted.
 
 Remainingafterthesefollowups: sixnegativegroupsinnegative_remaining_6.json(-5,-7.5,-10 eachsource,endpointM3/M4controls),M1fresh-carrier/midpointinvestigation,andfinalall6defaultzero. SameonePPT122slides/9issuesat16:16; native122QA16:16-17 checkedreadoutsettingsfooter. Duplicate-lengthreadoutpointsnowplottedasunconnectedpoints toavoidimplyingacquisition-orderlinesbetweenrepeats;nextbuildwillapply. No newPowerPointfile. Finalsource/reference/presentationQAandconfigurationpromotionstillrequired;continuecompleteauthorizedtask.
+
+November11 partial-run report: original Nov4run/documentation/report_1111/
+Q2_SSF_partial_results_20261111.pptx (+PDF/CSV/JSON/analysiscode).All2974rawfiles
+validated; exactcontrast recomputation; median11.004%,5th-95th7.401-14.625%.
+NativePowerPoint12slide render/export visuallychecked. This is partial44.34min
+results only. The Nov11restart remains separately tracked in local receipt.
+
+November16 publication complete:
+C:/Users/Ma Quantum Lab/Downloads/Single_Shot_Fidelity_Q2_24h_20261111_package.zip
+19100022814bytes (19.10GB),129721 ZIPmembers. SHA256:
+70cd1b2c5198438dfa87bdf9e7590a1cf7e599675cff7d4ccb992b4ac76552f2
+All64833 rawfiles andmatchingplots validated; fourfinite2000samplearrays/round,
+contiguousrounds, exactfixedsettings; largesttimestampgap6seconds. Everymanifest
+entry passed fullarchive SHA256/CRC readback. Guide opened/exported in nativeWord.
+Same referencepackage hierarchy anddocumentationtrio; actualNov4calibration context
+included separately from tracking. NewZIP+checksumsidecar inDownloads; reference
+ZIP unchanged. Notebook sources parsed, runtimekernel unavailable (not executed).
+Recordedcontrast median8.254%,p05-p954.852-11.900%;firsthour8.952%,lasthour8.852%.
+These are adaptiveCDFcontrast, not assignmentaccuracy. Nohardwareaccess this task.
+# Q2 Zeno acquisition, November 16, 2026 (in progress)
+
+User authorized `longitudinal_qze_005_ge_ramsey.py` on the same beating-Ramsey
+Q2/M2/index1 used for SSF. It now selects PUCQ4 and writes under
+`pucq4_run_started_Oct_7/PUCQ4/qze_005/q2_2026-11-16_17-22-26`.
+Baseline calibration precedes 72 hours of the existing Zeno cycles, with the
+active cycle saved before normal exit. Shared November4 pulse seeds remain
+unchanged: sigma .101 us, pi .6765549655130318, readout .192 DAC / 7 us,
+resonator reference 8950.93439 MHz, offset -1.014313 MHz,
+qubit 5438.499681577915 MHz. Existing baseline profile is applied explicitly;
+Zeno gain/frequency/delay grids and pulse programs are unchanged.
+The script's Zeno carrier follows its offset readout tone, preserving its
+existing behavior; the variable named `bare_non_offset_res_freq` is misleading.
+Controller workspace: IDE `codex/zeno_q2_1116/attempt2`, receipt and acquisition.log.
+Controller PID52228, acquisition PID46100; verify live receipt before
+assuming either still owns hardware. Both sources freshly read 0 A/OFF,
+CURR/.01 A range/30 V. Baseline finished; first Zeno high-gain qspec began
+November16 at17:28:44 local. The72h interval reaches November19 at17:28:44,
+then the active cycle finishes/saves. Full duration and first Zeno raw save
+remain pending; inspect live receipt/log for progress.
+The preserved 17-18-08 attempt was stopped before Zeno: noisy short Ramsey
+correction moved qspec5438.366MHz to5430.905MHz. Short Ramsey is diagnostic-only
+on this Q2 run; qspec carrier is retained and second Rabi must pass .6-.7 DAC.
+Restart baseline measured res8950.91439MHz -> offset readout8949.900077MHz,
+qspec5438.387131361903MHz (FWHM .163MHz); two Rabis pi .686504 and .676555
+at sigma .101us. These are current-run values in HDF5, not a replacement
+for the shared November4 seeds. No new claim about TLS identity or permanent
+frequency stability. Both Rabi traces show the expected half oscillation;
+raw Q-quadrature affine-fit R-squared .902/.889, below the earlier .994 run.
+
+November17 validation/restart follow-up: four bounded checks completed,11HDF5 and11canonicalPNG, both sources CURR0A/OFF/.01A/30V before/after. Projection/reset/averaging alone did not restore contrast; .01us final-readout tests recovered qspec/fringes. Final optional readout_ringdown_delay=.5us preserves5us ring-up and original Zeno tone; changed only final wait in three active programs, defaults unchanged. Main local qspec carrier-1 to+.5MHz/251pts/2000x1/100usreset; Ramsey0-25us/251/2400x1/1MHz/100us;echo.01-50us/251/2400x1/.5MHz/100us. State references2000->10000shots/state. ROpower/sigma/pi/attenuators/sharedconfigs/gain-grid unchanged.
+Final confirmation confirm1117/2026-11-17_11-01-37: zero-gain qspec5438.251226+/-.008845MHz/FWHM.131178MHz; gain.0399805 center5438.107154+/-.023145MHz/FWHM.421692MHz. Finite per-point noise remains (amplitude/residual2.53/1.74); these are diagnostic single-line fits, no shared-calibration promotion or TLS doublet claim. Early Ramsey/echo oscillations recovered, but prior beating not convincingly reproduced. All low-level statements except3optional finalwait expressions match task-startAST.149-fileharness and whitespace passed.
+Restart11:05:47: qze_005/q2_2026-11-17_11-05-47; controller67668, acquisition29564, freshbaseline then72hZeno interval. Six-hour noHDF5/82hwall/disk/source guards. Projectedlongestpath218. FreshresHDF5 saved; remainingbaseline and firstfullZeno map pending at this entry. Repairreport, diagnosticscripts, raw-reference receipts, beforeafterplots and taskdiff in validation_1117 withinrun. Original raw preserved. Completion must be checked from live receipt/log/raw coverage; restart is not72hcompletion.
+
+11:12:05 baseline completion verified:10HDF5/10PNG in newrun, freshcarrier5438.247946163877MHz, finalpi.6715802966489653, RO8950.000077MHz (res8951.01439MHz plus unchanged-1.014313offset). ZENO_CYCLE_START0 recorded and first25.1M-shot high-gain sweep advancing normally. 72h timer started11:12:05Nov17; full-cycle finish may extend pastNov20same time. FirstfullZenoHDF5 not yet saved (~89min sweep); bounded finaltwo-gain diagnostics already saved/validated. Controller67668/child29564 active.
+
+PROVENANCE CORRECTION from final live-config audit: longitudinal script line205 assigns bare_non_offset_res_freq=offset_res_freqs[0], so the name is misleading. Original long run used Zeno tone8949.900077MHz (offset RO), and resumed run preserves this choice at freshly measured8950.000077MHz. The ring1117 and confirm1117 diagnostics used8950.91439MHz, the non-offset resonance; earlier descriptions calling this the original tone were incorrect. These are additional non-offset-tone tests, not exact reproductions of every resumed setting. timing1117 used the original offset tone with.01us pre/post waits and recovered signals. Zero-gain comparisons establish the timing-related recovery independently of tone frequency. The full50-gain,.5us-finalwait,5us-ringup sweep at the preserved offset tone is NOW acquiring; its first complete map remains pending. No hardware/source-file tone change was made in response to this audit. Do not misrepresent the non-offset diagnostic as exact-condition validation of the running map. Raw configs are authoritative.
+
+## November18 - repeated blank Zeno maps, repair in progress
+
+Task user asks fix qspec/T1/Ramsey/echo keeping overall script structure. Currentbaseline/raw reviewed, task-start backups in IDE/zeno_fix_1118. Lastworkingrun q2_2026-11-17_11-05-47 preserved28HDF5, through round3T1; ownedchild29564 terminated10:01:34 with partialround3Ramsey unsaved. Controller67668 recorded failure/manualstop and bothYokos CURR0A/OFF/.01A/30V final. No originalraw artifacts deleted/rewritten.
+Fullmaps containnoise, not emptyfiles. Earlyqspecgain-averagedline presentcycle0/1, lostcycle2/3. Mainheldstartupcarrier5438.247946/pi.6715803 for~23h. ReferenceSNR fromraw10kshots declined Qspec11.43(cycle0)->1.65(cycle3), T111.17->.65; dividing by unresolvedcentroids inflatesnoise. Q2currentfrequencydrift is NOT quantified: a freshwidefitcandidate5436.438 andnarrow5436.269 hadno reliableline andfailedRabi; theyremainrejected. Earliercommentarycandidate language corrected beforepromotion. Neverread these asvalidated1.8MHzshift.
+Freshrecal1118/2026-11-18_10-04-51 savedRes/QSpec_wide/QSpec_repeat/Rabi; res8950.97439,RO8949.960077/.192/7us,sigma.101. Qspecwide�2MHz/401/5000x1/.009gain100us; rawreviewweak/noise, Rabi .6-.7gatefailed. No sharedconfigs changed. survey1118/10-16-59 completed85SS2000shotspoints(17qubitfreq5434.247946-5442.247946,5RO8949.500077-8950.500077); max.052/refSNR~3 notaccepted. ro1118/10-20-37 completed55SS20kpoints(5qubit5437.247946-5439.247946,11RO8947.500077-8952.500077),max.0227/refSNR4.17, no acceptedcontrast. FixedRO.1927us/pi.67158/sigma.101, no power/current change. Bothsources0/offbefore/after everyrun.
+ACTIVE search.pyPID61004 search1118/2026-11-18_10-26-27: existingbaselineQspecprogram,highgain.02asoriginalZenoscript,100us,5413.247946-5463.247946MHz501/2000x1/100usreset,3RO8950.000077/8949.500077/8950.97439,.1927us. Firstsavedraw atlastworkingROhasno convincingline (matched-candidate max4.06 overmanyfrequencies/widths, not accepted); twootherspending. CanonicalHDF5/plot saving,20minbound,sourcechecks. Allcandidatefitsremainunpromoted. No longrunrestartuntilsignalvalidatedall4classes. Askpendingwhetheruser'sworkingbaselineplotsareNov17startuporfreshtoday.
+Codechangesonlylongitudinalscript andT1Zeno loopclass thisturn: normalqspec+Rabi refresh beforeeachmap; qspec centerinside�1MHz/FWHM.05-.8/R2>=.3,pi.6-.7/RabiR2>=.75/referenceSNR>=5; allrawcalibrationssavedQSpec/Rabi (stage-tagged) inexistingoptimizationHDF5hierarchywithstagetag. Carryacceptedfreq/pi tonextcycle. Post-mapreferenceSNR>=5 checkedonlyAFTERrawsave. Full50gain grid/order preserved, noexistingpulseprogramrewrite. Statecal10k->20k. LocalT1 .01-100us/30/600/4000usreset ->.01-40us/161/2400/100usreset; postwait5->.5us(defaultwithoutoptionalkeyunchanged), magnitude->signed. OtherthreeZenomodulesunchangedfromtaskstart. Sharedexpt/systemhashesmatchbackups.
+Offline149fileharness passed; replaycheck_repair.py acceptsactualearlierbaseline(RabiR2.906),rejectsactualnoisyspectrum/ref,checksmetadataandT1lowlevelASTunchangedexceptoptionalfinalwait. Initial6sigmareferencegatewasoverstrictforaccepted2000shotbaselineSNR5.32; chosen5sigmaqualitygatepassesacceptedfixtureandstillrejectsnoiseSNR.65. No freshhardwarevalidation of repairedlongrun yet.
+
+November18 final diagnostic checkpoint10:43: search3/3 HDF5 and normalplots complete; rawIQ5413.247946-5463.247946MHz has no convincingline at3readouttones. Candidate-scoremax4.06/3.72/3.47 overmanywidths/positions rejected. shortro1118/10-37-07 complete36SS20kpoints with.5/1/2/7us:bestcontrast.0152/SNR2.77, no recovery. All owned acquisitions stopped; bothYokos0A/OFF/.01A/30V andQICKstop_tproc final. No long-run restart queued; repairedsource NOT hardwarevalidated. Pending userworking-baselinepath/instrumentchanges; do notclaimfixcomplete orcarrierdriftmeasured.
+Maincalibrationlabels corrected BEFOREANYrepaired-mainrun fromdraftQSpec_cal/Rabi_cal toSTANDARDQSpec/Rabi withstagefilenamesuffix, preservingexistingoptimizationHDF5labels/loaders. Protected3Zenomodules/sharedconfigsbyteidenticaltotaskstart. Finalreport/snapshots/taskdiff inIDE/zeno_fix_1118/RESULTS.txt. Broadernewdiagnosticlabelsremainpreserveddiagnosticonly, notmainruntimeformat. Hardwarefree149fileparser/replaypass; finalchecksandartifactarchivepending.
+
+November18 10:49:30 LIVE repaired-helper validation complete: guard1118/2026-11-18_10-45-53 saved1standardQSpecHDF5/2normalPNGs, rejectednoisebeforeRabi/Zeno withcenter5437.272303/FWHM.022800MHz/R2.044116, statusrejected_calibration. Actualmainhelper execution/datawrite/qualitystop verified; freshQ2signalrecoveryNOTverified. QICKstopped, bothYokosCURR0A/OFF/.01A/30V, ownedguard45740exited. No longrunqueued. Full183diagnosticHDF5 plus1liveguardHDF5 preserved withnormalplots. Alloriginal28HDF5 retained. Final149fileharness/replay/whitespacechecks pass. Review in guardrun/documentation/repair1118/RESULTS.txt; requeststillneedsvalidfreshworkingbaseline/instrument-sideinformation beforeclaiminghardwarefix orresuming72h.

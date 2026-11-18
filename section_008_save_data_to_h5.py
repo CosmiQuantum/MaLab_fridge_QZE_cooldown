@@ -13,6 +13,7 @@ class Data_H5:
         self.data = data
         self.batch_num = batch_num
         self.save_r = save_r
+        self.last_saved_path = None
 
     def create_folder_if_not_exists(self, folder):
         """Creates a folder at the given path if it doesn't already exist."""
@@ -136,6 +137,7 @@ class Data_H5:
                             self.create_dataset(key, value, group)
 
 
+        self.last_saved_path = h5_filename  # set only after the HDF5 file closed successfully
         #self.print_h5_contents(h5_filename)
         #print(h5_filename)
 

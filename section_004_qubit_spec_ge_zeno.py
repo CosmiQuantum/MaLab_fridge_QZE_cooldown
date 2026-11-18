@@ -162,7 +162,7 @@ class QubitSpectroscopyZeno:
             I_shots_all=[]
             Q_shots_all=[]
 
-            qspec = PulseProbeSpectroscopyProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay=0.5,
+            qspec = PulseProbeSpectroscopyProgram(self.experiment.soccfg, reps=self.config['reps'], final_delay=self.config['relax_delay'],
                                                   cfg=self.config)
 
             iq_list = qspec.acquire(self.experiment.soc, rounds=self.exp_cfg["rounds"], progress=self.qick_verbose)
@@ -496,7 +496,7 @@ class QubitSpectroscopyZeno:
                     raise ValueError("Calibration |e-g| is zero for trace index {}.".format(k))
 
                 z_k = I_k + 1j * Q_k
-                pop_k = np.abs(((z_k - g_k) * (e_k - g_k)) / denom)  # same shape as I_k/Q_k
+                pop_k = np.real((z_k - g_k) * np.conj(e_k - g_k) / denom)  # signed g/e projection
                 pop_traces.append(pop_k)
 
             # 2) Average calibrated populations across traces
@@ -1085,7 +1085,8 @@ class PulseProbeSpectroscopyProgram(AveragerProgramV2):
     def _body(self, cfg):
         self.pulse(ch=cfg['res_ch'], name="qze_pulse", t=0)
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=cfg["readout_pulse_delay"])  # play probe pulse after ring up
-        self.delay_auto(t=cfg["readout_pulse_delay"], tag='waiting')  # Wait til qubit pulse is done and resonator rings down before proceeding
+        # Allow readout timing to change without shortening the initial Zeno ring-up.
+        self.delay_auto(t=cfg.get('readout_ringdown_delay', cfg['readout_pulse_delay']), tag='waiting')
         self.pulse(ch=cfg['res_ch'], name="res_pulse")
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
     # def _body(self, cfg):

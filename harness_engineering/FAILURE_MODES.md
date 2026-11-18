@@ -1,5 +1,104 @@
 # Diagnostic loop and known failure modes
 
+## An optimization iteration limit is not proof of a plateau
+
+November4 Q2 capped-power cycles continued improving peak SSF contrast
+.0962->.12605->.1518, so the three-cycle budget correctly stopped promotion.
+Reuse identical completed plans/raw results and extend a bounded number of
+cycles inside the already qualified gain/frequency/length envelope. Do not
+restart completed hardware scans, call the last increasing point optimized,
+raise the power ceiling, or relax data-quality gates just to finish. If the
+apparent improvement is temporal variation, preserve the interleaved repeats
+and qualify a working pulse rather than claiming a stationary optimum.
+
+## Distinguish resonator visibility floor, movement onset and SSF power
+
+November4 Q2 measurements exposed an overly conservative derived0.10DAC
+ceiling: normal SSF contrast only~.06-.10 despite a repeatable resonator. The
+actual power survey had stable0.30 spectra and first resolved movement0.60.
+User asked the lowest reliably visible resonator power, then readout optimized
+BELOW movement onset; these are separate operating powers. Do not impose an
+extra full-step margin as though it were a measured physical onset or accept
+weak single-shot contrast merely because a resonator is visible. Requalify
+any revised ceiling against fresh low/cap/cap/low spectra, preserving measured
+movement/uncertainty criteria and historical dates. Only accepted unchanged
+resonances permit readout optimization at that power; no increase above onset.
+Q2 bounded0.24=80%of stable0.30 was scheduled for this check, not assumed safe
+calibration. Retain original low-power/noisy traces and their qualifications.
+
+## A valid low-power full benchmark can exceed a one-hour launcher budget
+
+Layer: execution environment / verification feedback. October30 M1 full1_low
+hit its3600s subprocess timeout while Echo49% complete after successful prior
+experiments. Weaker readout needed16000reps; timeout was not evidence of a QICK
+fault. The batch collector had not persisted its final HDF5 files. Keep partial
+plots diagnostic; do not promote them. Budget complete calibration jobs from
+actual point/repetition/reset counts (November4 bound10800s), with a separate
+600s no-log-progress watchdog. Terminate only the owned child tree on failure
+and always record the error/returncode and final source readback.
+
+Opt-in PUCQ4_PHASE_CHECKPOINTS persists each completed experiment once through
+the same Data_H5 writer and schema before the next phase. It is restricted to
+single-row/single-pass/save_r1/debug/standard GE jobs and excludes timed SSF.
+End-of-round writers skip those already persisted types. Default runs retain
+batch behavior. Verify actual checkpoint calls, canonical HDF5 field sets and
+batch numbering, duplicate rejection, and the disabled no-op offline; never
+import RR to test it. A partial seven-experiment pass still fails final review.
+
+## A marginal low-power resonance needs matched-statistics repeats
+
+October30 all-six readout-power work: Q2 gain.03 resolved with16000averages
+but a10000-average return did not; M1 gain.03 also failed its weaker repeat.
+Classify as verification/context, not confirmed physical drift or punch-out.
+Record averaging and frequency sampling with every resonance-SNR criterion.
+Repeat the lowest candidate at matching bounded statistics; require a resolved
+reference before comparing its frequency with higher-power traces. Fresh
+paired references distinguish drift from power dependence. Preserve rejected
+raws and never accept an arbitrary minimum from a noise trace. The queued
+follow-up uses two16000-average fine spectra with stricterSNR>=15/fitR2>.95.
+
+## Long SSF series must verify exact saved paths without growing-folder scans
+
+At roughly1s cadence a24hseries can create tens of thousands of plot/HDF5
+files. Per-round glob scans then grow with accumulated history and distort
+cadence. Data_H5.last_saved_path is set after successful close and
+SingleShot.last_plot_path after savefig; timed RR verifies those exact files
+and decodes all raw samples before proceeding. The schema/filenames remain
+unchanged. A hardware-free2000sample canonical HDF5 roundtrip passed.
+
+## Flexible Ramsey alternatives can become degenerate
+
+October29 fresh M1 normal RR T2R20.16075us/R2.97597 is reproducible in the
+independent single-frequency fit. An unconstrained diagnostic two-frequency
+model reduced residuals slightly by fitting frequencies about2Hz apart with
+opposing component amplitudes around730 for a population range near1.
+Classification: verification. Reject this ill-conditioned cancelling solution;
+it is not evidence of a resolved doublet and its envelope must not replace the
+normal RR value. The external model-review helper now flags near-coincident
+frequencies/large cancelling amplitudes and omits rejected curves from plots.
+Keep the rejected numerical result in diagnostic JSON for provenance.
+
+## Readout settings vary faster than a serial optimization grid
+
+The October29 M1 higher-gain confirmation initially compared its new maximum
+with two-hour-old independent examples. That can reject a useful current
+setting simply because the entire response moved. The external confirmation
+helper now compares with the matching reference point in the same new grid
+(and includes the current gain explicitly). The running controller had already
+loaded the old logic; review its result before any source promotion, and use
+the corrected helper for a further M1 confirmation if needed. Preserve the
+earlier high examples as dated observations, not current performance.
+
+October29 M2 fresh controls pass Rabi, but 7us/.95/8949.73MHz references
+span SSF.38836-.48430 in two minutes; adjacent-reference stability checks fail.
+Classification: verification/state. Preserve failed gates and raw families;
+do not promote the earlier maximum or relax a repeat threshold. Use balanced
+repeated settings in reversed/rotated blocks, report between-block variation
+and paired differences, and qualify a working choice if a stationary optimum
+remains unresolved. Stable pulse calibration does not establish stable SSF.
+Continue independent rows only after the previous controller has ended and
+all instrument/save receipts are successful.
+
 When something fails, first attribute it to one of the five harness layers. Fix
 the narrowest layer, re-run, and record the result. Do not compensate for a
 missing rule by increasing power, scan width, repetitions, or model effort
@@ -16,6 +115,62 @@ without evidence.
 | State management | Did a prior result lose provenance or become a false fact? | Label evidence, update PUCQ4 state, and log rejected approaches. |
 
 ## Recorded failure patterns
+
+### QICK constant-pulse length must fit its hardware encoding
+
+- Layer: execution environment / verification preflight (October 28).
+- The current generator uses 614.4 cycles/us and a 16-bit pulse-length field.
+  A 150 us spectroscopy pulse required 92160 cycles and was rejected before
+  qubit acquisition. The already-tested 100 us pulse is 61440 cycles and fits.
+- Check pulse length against the current firmware before acquisition. For this
+  benchmark retain <=100 us and the unchanged QICK program. Preserve failed
+  logs/partial plots, verify canonical HDF5 independently, and restart under a
+  new label. Do not split pulses or use periodic mode to evade this limit.
+
+### Delay quantization can resemble a Ramsey frequency error
+
+- Layer: verification feedback (October 28 fresh benchmark review).
+- M4's old nominal 2 MHz Ramsey sweep requested 0–3 us but recorded only
+  0–2.9296875 us. Phase is programmed from the requested delay sweep, so the
+  expected fringe frequency against recorded time is about 2.048 MHz. The
+  observed 2.045 MHz is not evidence of a 45 kHz carrier error.
+- Check the requested phase increment against actual delay spacing before
+  applying a frequency correction. Preserve both axes/configuration and always
+  verify fringe sampling against the measured frequency, not just the nominal
+  detuning. This review does not change the QICK pulse program.
+
+### A high fit R2 does not validate coherence beyond the recorded window
+
+- Layer: verification feedback (October 27–28 fresh cooldown).
+- M4's former short-coherence profile sampled only 5/3/5 us for T1/T2R/T2E.
+  Fits returned about 7/12/15 us with R2 above .99, but none of these decays
+  was resolved within its recorded window. The independent audit rejected them.
+- Extend the acquired delays using the observed scale, retain adequate fringe
+  sampling, and repeat the normal full round robin. Keep the short-window raw
+  data, but omit its extrapolated coherence values from accepted tables.
+
+### Coherent spectroscopy fringes can invalidate a Lorentzian linewidth fit
+
+- Layer: verification feedback (October 28 fresh cooldown).
+- M1/M3 20 us rectangular-drive spectra show repeatable fringes, despite clean
+  Rabi and coherence data. A Lorentzian envelope gives plausible centers and
+  widths but R2 around .83–.86. More averaging alone does not fix the model.
+- Review the actual population curve. Test the exposed spectroscopy drive
+  length/power using the unchanged QICK program, then remeasure Rabi and SSF.
+  A longer-drive test is an intervention to evaluate, not automatic acceptance
+  of a steady-state line or a replacement for a full validated pass.
+
+### Broad spectroscopy fit can select noise in the weaker quadrature
+
+- Layer: verification feedback (October 27 fresh-cooldown search).
+- M1's 1 GHz raw-IQ scan contained a strong I response near 5515.43 MHz,
+  but the normal reported frequency was 5655.12 MHz from the weak Q trace.
+  A local independent joint-IQ fit and a lower-power repeat resolved
+  5515.334706 MHz (0.08346 MHz FWHM, SNR 19.73). Do not promote the broad
+  automatic fit or pass it into Rabi merely because the script completed.
+- Review both quadratures and repeat candidates with resolved local sampling.
+  A 0.25 MHz discovery step can undersample a 0.1 MHz line; an inconclusive
+  coarse scan is not proof of absence. Keep raw data and rejected fit labels.
 
 ### Passing discovery pilots do not establish a stable mapping protocol
 
@@ -813,3 +968,127 @@ State: a hand-copied old SHA256 was truncated in a publication command. The guar
 rejected it before anywrite. Bothactualfile hashes matched the preservation audit;
 the corrected command reads fullhashes from that machine-readable audit andchecks
 64-characterlength. Never override a hashguard based on assumed harmless changes.
+
+
+## Structured spectra and effective coherence after a warmup
+
+Readout override provenance: during SS-only diagnostic stages, an explicit
+PUCQ4_READOUT_FREQ_MHZ sets the actual pulse tone in res_freq_ge, but the
+inherited res_freq_offset_ge can still describe the old baseline. Analyze the
+actual tone used by the program; derive a physical offset only from a resonator
+measurement at the matching readout gain. Final full RR includes res spec and
+recomputes the offset. Never relabel the inherited SS-only offset as a newly
+measured resonator reference, and do not rewrite raw artifacts to hide it.
+
+October29 follow-up: M6 was subsequently found near6404.64MHz, with resolved
+raw-IQ repeats at several readout offsets and a coherent Rabi (R2.992887).
+The initial successful tone9057.60MHz lies below the high-power dip9057.72MHz;
+the previously focused6447.49-6597.49MHz search did not include the new carrier.
+Original VNA seed6401MHz remained available in pucq4_config.py. A historical
+post-bias carrier6522.49MHz must not displace all other seed evidence after a
+warm cycle. Broad earlier lower-power nulls still do not establish a physical
+absence. Search both resonator slopes and relevant seed regions; vary drive
+power/length within the unchanged pulse program, verify multi-point I/Q shape,
+repeat locally, and require coherent Rabi before accepting the line. Because
+readout, search bounds and drive settings differed, do not attribute discovery
+solely to one offset change or infer a microscopic cause of the carrier shift.
+
+Layer: verification feedback / state management. October28 M2 two-component
+qspec repeated in two independent full passes; two-frequency Ramsey improved
+R2 .870->.956. M5 final Ramsey also beats (R2 .863->.970 with two frequencies).
+Both separations are about138kHz, so a common instrument/system contribution
+is not excluded. Do not identify an intrinsic/device mechanism from these fits.
+Retain normal round-robin plots and effective fit values, with supplemental
+model comparisons and explicit qualifiers; do not silently substitute another
+model's envelope or force a single clean line.
+
+M4 matched controls and M5 separate full passes support relaxation curvature.
+A stretched exponential can improve residuals while extrapolating population
+above1. Such a fit is phenomenological, not a validated physical initial state
+or microscopic relaxation rate. Do not force Echo<=2T1 by changing fit offsets.
+
+M5 bounded gain tests showed a linewidth/population tradeoff and the final
+pass still missed preferred qspec targets. Record actual values and the miss;
+review-complete does not mean nominal-calibration criteria passed. Preserve
+latest qualified results rather than selecting earlier larger lifetimes.
+
+M6 resonator visibility did not establish a qubit line. Broad4300-7300MHz and
+focused high-gain-edge6447.49-6597.49MHz scans remained noise-like. Maxima of
+3-4 noise units across hundreds/thousands of points are not accepted carriers.
+Keep historical qubit/pulse values explicitly marked as seeds, and never run
+Rabi/coherence as though they were confirmed after the warmup.
+
+## Windows status-file sharing failures must not abort healthy acquisition
+
+November11 review: November4 Q2 24h run stopped after44m20.5s/2974 saved
+rounds because os.replace(ssf_status.json.tmp, ssf_status.json) raised
+PermissionError WinError5. The status remained running/2973 despite a failed
+controller. Raw HDF5 and PNG counts plus receipt/log are authoritative;
+never infer success from stale status or assume missing raw data from status lag.
+The precise original lock owner is unknown. Classified execution environment /
+state management. Supplemental JSON now uses unique temp names, bounded retries,
+nonfatal OSError handling, and a local mirror for the watchdog. This does NOT
+make raw-data failure nonfatal or authorize automatic restart on hardware faults.
+Actual3s Windows read-handle lock reproduced WinError5 on the restarted run;
+rounds173-175 persisted, local heartbeat advanced and network status recovered.
+Future controllers must tolerate transient status reads/copies too. Preserve the
+original failed run/status/tmp as evidence. Claim24h complete only after timer,
+clean exit, receipt and data coverage checks; a restart is not completion.
+
+## Word XML namespace and notebook export constraints
+
+November16 packaging: rewriting word/document.xml with ElementTree can remove
+unused namespace declarations while leaving mc:Ignorable="w14 wp14" references.
+NativeWord then reports corruption even though XML/ZIP parsing succeeds. Remove
+stale Ignorable references or preserve the original namespace declarations, and
+open the generatedDOCX in nativeWord before delivery. A validZIP is insufficient.
+PyCharm notebook tools may only accept project-relative paths, even when another
+workspace path is writable. Create/edit notebooks through IDE withinproject, then
+package their completed bytes. A QUEUED result with kerneldown is not execution;
+interrupt that task's queuedcell and record runtimeverification as unavailable.
+## Short Ramsey correction can select noise instead of Q2's carrier
+
+November16 Zeno preflight measured qspec5438.366367MHz and pi .696454,
+but the existing 20rep/2round,1us Ramsey correction fit a noisy high-frequency
+component and moved the carrier to5430.904935MHz. The next Rabi returned
+pi .562138; stopped the owned acquisition before Zeno, preserving raw data.
+Layer: verification feedback/calibration state. A returned fit is not a
+validated correction, especially on beating Q2. The requested Zeno script
+now keeps this short correction diagnostic-only and retains fresh qspec's
+carrier; the second Rabi still runs. It requires final pi .6-.7 before Zeno.
+Zeno pulse programs and sweep grids are unchanged. Any later re-enabling of
+automatic Ramsey retuning needs adequate SNR and agreement with spectroscopy.
+
+## Zeno maps can lose contrast despite a working baseline
+
+November17 Q2 diagnostic found three differences from baseline: Zeno population
+plots used absolute IQ distance rather than signed projection onto the measured
+g/e axis; the qspec wrapper hard-coded a 0.5 us reset despite configured reset;
+and a shared 5 us timing setting also delayed readout after the last qubit pulse.
+Fresh short-delay measurements recovered the qspec line and early coherence
+fringes, whereas increased averaging/projection correction alone did not.
+Layer: verification feedback and configuration context. Inspect raw signed IQ,
+actual reset, and post-pulse timing before declaring a missing qubit or TLS.
+The three active Zeno programs now accept optional readout_ringdown_delay,
+defaulting to readout_pulse_delay, so ring-up can remain unchanged. Shortening
+both together changes the Zeno preparation and is not an equivalent comparison.
+Check low/high Zeno gains at the actual Zeno-tone frequency and include the
+shifted line in sweep bounds. Noisy g/e references can also distort the scale;
+retain signed values and improve reference statistics rather than clipping.
+Restored fringes do not establish two-frequency beating or its TLS origin.
+
+November18 full-run review supersedes the short-check restart conclusion:
+the first full qspec maps had a line, but later raw IQ lost it. The run kept
+the startup carrier and pi amplitude for all subsequent maps. Its saved g/e
+mean separation fell from about0.23 to0.013 (0.65 standard errors in round3
+T1), making population normalization meaningless. T1 also still had the old
+5us final wait/magnitude projection and a30-point100us grid; those omissions
+were not covered by the prior three-class diagnostic. The longitudinal script
+now refreshes/validates normal qspec and Rabi before each map, retains those
+calibrations in canonical HDF5, and rejects unresolved references after saving
+the map. T1 gets the same optional final wait/signed projection and local
+baseline-like delay/count settings. Do not claim a fresh frequency solely
+because a bounded fit returned one: November18 wide/narrow noise candidates
+around5436MHz were rejected by raw review and Rabi. As of this entry the
+fresh baseline itself has weak contrast; the hardware search remains pending.
+This is verification/state failure, not a demonstrated microscopic TLS cause.

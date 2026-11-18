@@ -9,7 +9,7 @@ import numpy as np
 
 
 # Historical PUCQ4 fit candidates retained only for provenance.  Runtime code
-# must use the final validated table below; several values in this older table
+# uses the current table below; inspect status for fresh/historical values. These
 # predate the last Ramsey correction and sigma/coherence pass.
 _PUCQ4_FLUX_CALIBRATION_HISTORY = {
     "Yoko3_Q4_M5": {
@@ -203,7 +203,8 @@ _PUCQ4_FLUX_CALIBRATION_HISTORY = {
     },
 }
 
-# Current-specific calibration from the 2026-09-07/08 campaign, with accepted
+# Historical nonzero-current calibration from the 2026-09-07/08 campaign; zero-current
+# M5/M6 zero-current rows refreshed 2026-10-29; inspect current quality notes. Accepted
 # round-robin refreshes identified by calibration_run. Unrefreshed entries
 # retain the prior measured qspec, readout and Ramsey/sigma/coherence settings.
 # Every listed pi amplitude lies in the 0.625-0.675 calibration window.
@@ -247,15 +248,41 @@ PUCQ4_FLUX_PULSE_CALIBRATION = {
                # Earlier visits moved by more than a linewidth; acquire qspec first.
                "requires_qspec_each_pass": True,
                "status": "validated"},
-        0.0: {"qfreq_MHz": 7084.548595174133, "qspec_gain": 0.003,
-              "qspec_length_us": 20.0, "sigma_us": 0.056940825,
-              "pi_amp": 0.6467069523286333, "res_base_MHz": 9014.66,
-              "readout_frequency_MHz": 9014.86, "readout_length_us": 6.0,
-              "readout_gain": 0.65, "readout_offset_MHz": 0.2000000000007276,
-              "T1_us": 13.125145177243246, "T2R_us": 6.098595743922029, "T2E_us": 14.335001803438807,
-              "qspec_FWHM_MHz": 0.10225077122014355, "qspec_FWHM_error_MHz": 0.0015882665134117476,
-              "SSF": 0.5118, "calibration_run": 'rr6_0mA/2026-09-09_19-23-29',
-              "status": "validated"},
+        0.0: {'qfreq_MHz': 7065.147636121578,
+              'sigma_us': 0.056940825,
+              'pi_amp': 0.6268082768723677,
+              'qspec_gain': 0.006,
+              'qspec_length_us': 100.0,
+              'res_base_MHz': 9013.4,
+              'readout_frequency_MHz': 9013.46,
+              'readout_gain': 0.95,
+              'readout_length_us': 6.0,
+              'readout_offset_MHz': 0.05999999999949068,
+              'T1_us': 13.55516324198618,
+              'T2R_us': 5.109309255027539,
+              'T2E_us': 13.40683881982994,
+              'qspec_FWHM_MHz': 0.15399179334227603,
+              'qspec_FWHM_error_MHz': 0.002411508607846688,
+              'qspec_peak_population': 0.459379454537664,
+              'qspec_R2': 0.9913337999163058,
+              'qspec_reps': 2000,
+              'qspec_rounds': 1,
+              'qspec_steps': 151,
+              'SSF': 0.66616,
+              'calibration_run': 'M:/_Data/20250822 - '
+                                 'Olivia/pucq4_run_started_Oct_7/PUCQ4/find_resonators_sandbox/full5_a_1029/2026-10-29_19-54-47',
+              'calibration_date': '2026-10-29',
+              'status': 'validated_effective_fits',
+              'requires_qspec_each_pass': True,
+              'fresh_qubit_validated': True,
+              'fresh_resonator_validated': True,
+              'fresh_cooldown_validated': True,
+              'nominal_targets_met': True,
+              'quality_notes': 'Measured FWHM 0.1540 MHz; peak population 0.459; R2 0.991. Nominal qspec '
+                               'targets met. Fresh T1 is well described by a single exponential. Ramsey has '
+                               'structured residuals: a flexible two-frequency comparison improves R2 from '
+                               '.9878 to .9971; retain normal RR T2R5.109us as an effective single-frequency '
+                               'fit. No microscopic mechanism inferred.'},
         2.5: {"qfreq_MHz": 7143.883429322838, "qspec_gain": 0.0045,
               "qspec_length_us": 20.0, "sigma_us": 0.053267224,
               "pi_amp": 0.6467069523286333, "res_base_MHz": 9014.68,
@@ -352,19 +379,42 @@ PUCQ4_FLUX_PULSE_CALIBRATION = {
                "SSF": 0.32474,
                "calibration_run": 'rrv6_m025e/2026-09-09_18-28-03',
                "status": "validated"},
-        # September 8 all-six RR: revalidated the low-drive line_6d settings.
-        # The weak qspec gain requires the recorded 64000 x 1 averaging.
-        0.0: {"qfreq_MHz": 6522.489876246844, "qspec_gain": 0.00075,
-              "qspec_length_us": 20.0, "sigma_us": 0.062612796167,
-              "pi_amp": 0.6467069523286333, "res_base_MHz": 9058.88,
-              "readout_frequency_MHz": 9058.460000000001, "readout_length_us": 10.0,
-              "readout_gain": 0.95, "readout_offset_MHz": -0.41999999999825377,
-              "T1_us": 5.571980204657388, "T2R_us": 1.7803606627046535, "T2E_us": 5.168960727869256,
-              "qspec_FWHM_MHz": 0.20019179587582014, "qspec_FWHM_error_MHz": 0.012556762587316085,
-              "qspec_reps": 64000, "qspec_rounds": 1, "qspec_steps": 101,
-              "SSF": 0.35378,
-              "calibration_run": 'rr6_0mA/2026-09-09_19-23-29',
-              "status": "validated"},
+        # Fresh zero-current full RR after warmup, 2026-10-29; nonzero rows remain historical.
+        0.0: {'qfreq_MHz': 6404.639622421642,
+              'sigma_us': 0.0555868301534722,
+              'pi_amp': 0.6516816211926998,
+              'qspec_gain': 0.006,
+              'qspec_length_us': 100.0,
+              'res_base_MHz': 9057.715,
+              'readout_frequency_MHz': 9057.695,
+              'readout_gain': 0.95,
+              'readout_length_us': 45.0,
+              'readout_offset_MHz': -0.020000000000436557,
+              'T1_us': 4.010622456099054,
+              'T2R_us': 1.6580185850858566,
+              'T2E_us': 4.397388046801702,
+              'qspec_FWHM_MHz': 0.26458772655685375,
+              'qspec_FWHM_error_MHz': 0.004268932872899609,
+              'qspec_peak_population': 0.32013473539687687,
+              'qspec_R2': 0.9913278257439754,
+              'qspec_reps': 6000,
+              'qspec_rounds': 1,
+              'qspec_steps': 151,
+              'SSF': 0.78504,
+              'calibration_run': 'M:/_Data/20250822 - '
+                                 'Olivia/pucq4_run_started_Oct_7/PUCQ4/find_resonators_sandbox/full6_a_1029/2026-10-29_18-39-02',
+              'calibration_date': '2026-10-29',
+              'status': 'measured_with_target_warning',
+              'requires_qspec_each_pass': True,
+              'fresh_qubit_validated': True,
+              'fresh_resonator_validated': True,
+              'fresh_cooldown_validated': True,
+              'nominal_targets_met': False,
+              'quality_notes': 'Clean repeatable line R2.991; FWHM.2646MHz exceeds preferred.1-.2MHz. '
+                               'Population.320 meets target at.006/100us; lower.0045 gave width.2359/pop.222. '
+                               'No nominal-linewidth pass claimed.  Earlier coarse1us-step T1control3.11us; '
+                               'latest fine-sampled normal fullRR4.01us selected. Conditional fit errors do not '
+                               'include between-run/protocol variation.'},
         2.5: {"qfreq_MHz": 6841.775497163998, "qspec_gain": 0.006,
               "qspec_length_us": 20.0, "sigma_us": 0.053726424,
               "pi_amp": 0.6516816211926998, "res_base_MHz": 9060.08,
@@ -449,21 +499,30 @@ _PUCQ4_REQUIRED_CALIBRATION_KEYS = (
 # Rows 0-3 remain fixed-frequency.  Rows 4-5 are deliberately populated only
 # by ``resolve_pucq4_flux_config`` so there is one authoritative copy of every
 # current-dependent number.
-_PUCQ4_FIXED_CONFIG_ROWS = {
-    "res_freq_ge": (8919.77, 8951.61, 8974.80, 8999.92, None, None),
-    "res_gain_ge": (0.48, 0.56, 0.95, 0.95, None, None),
-    "res_length_ge": (10.0, 5.0, 9.0, 5.0, None, None),
-    "res_freq_offset_ge": (-0.52, -0.40, -0.21, -0.22999999999956344, None, None),
-    # Fresh zero-current RR pulse calibrations; see the validation manifest.
-    # M1's single-frequency Ramsey fit remains under model review.
-    # M4 inherits line_4b's weak-drive settings; physical ID remains unknown.
-    # Low-drive qspec needs the recorded 128000 x 1 averages / 97 points.
-    "qubit_freq_ge": (5517.691628432926, 5438.710887054151, 5557.335688295514, 5594.541902899418, None, None),
-    "qubit_gain_ge": (0.001, 0.007, 0.002, 0.0075, None, None),
-    "qubit_length_ge": (20.0, 20.0, 20.0, 20.0, None, None),
-    "sigma": (0.050, 0.101, 0.124, 0.079003864231, None, None),
-    "pi_amp": (0.681529634377, 0.666605627785, 0.666605627785, 0.6417322834645669, None, None),
-}
+# Fresh zero-current full RR, 2026-10-29.
+# M1/M2/M4 readout values are drift-limited working pulses; see the run manifest
+# for independent SSF examples, observed variation, and fit qualifications.
+# M2 carrier is an effective single-fit center of a repeatable spectral doublet.
+# M1 T1 is mildly model dependent; M2 lifetimes are time-specific effective fits.
+# Fresh M4 lifetime checks pass; earlier nonexponential qualifiers are historical.
+# Q2/M2/index1: measured low-power RR qspec/Rabi/readout update, 2026-11-04.
+# Remaining all-six coherence/report work is deferred during 24h SSF.
+_PUCQ4_FIXED_CONFIG_ROWS = {'res_freq_ge': (8918.795, 8950.93439, 8974.11, 8999.07, None, None),
+ 'res_gain_ge': (0.9, 0.192, 0.95, 0.95, None, None),
+ 'res_length_ge': (6.0, 7.0, 13.0, 5.0, None, None),
+ 'res_freq_offset_ge': (-0.42000000000007276, -1.0143129999996745, -0.7800000000006548, 0.18000000000029104, None, None),
+ 'qubit_freq_ge': (5515.343391325498, 5438.499681577915, 5551.361090349251, 5594.644240774248, None, None),
+ 'qubit_gain_ge': (0.0045, 0.009, 0.009, 0.01, None, None),
+ 'qubit_length_ge': (100.0, 100.0, 100.0, 20.0, None, None),
+ 'sigma': (0.05, 0.101, 0.124, 0.0695, None, None),
+ 'pi_amp': (0.6865043032411646, 0.6765549655130318, 0.6566562900567662, 0.6467069523286333, None, None)}
+
+# All six zero-current pulse rows are measured after the warmup; inspect fit qualifications.
+PUCQ4_ZERO_CURRENT_PULSE_MEASURED_ROWS = (True, True, True, True, True, True)
+
+# Filled only after the all-six low-power campaign has been reviewed. These
+# limits apply at the recorded zero-current attenuation configuration only.
+PUCQ4_ZERO_CURRENT_READOUT_GAIN_MAX = (None, 0.24, None, None, None, None)
 
 
 def normalize_pucq4_flux_current(current_mA):
@@ -484,7 +543,7 @@ def normalize_pucq4_flux_current(current_mA):
 
 
 def get_pucq4_flux_calibration(yoko3_current_mA=0.0, yoko4_current_mA=0.0):
-    """Return validated calibration rows keyed by Python qubit index (4 and 5)."""
+    """Return current-table rows (indices 4/5); inspect status for fresh validation."""
     requested_currents = {
         4: normalize_pucq4_flux_current(yoko3_current_mA),
         5: normalize_pucq4_flux_current(yoko4_current_mA),

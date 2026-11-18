@@ -56,8 +56,8 @@ class T1ProgramIBMZeno(AveragerProgramV2):
     def _body(self, cfg):
         self.pulse(ch=cfg['res_ch'], name="qze_pulse", t=0.01)  # play res pulse that has same length as wait_time
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse", t=cfg["readout_pulse_delay"])  # play probe pulse
-        self.delay_auto(t=cfg["readout_pulse_delay"], tag='wait_for_ring_down')
-        self.pulse(ch=cfg['res_ch'], name="res_pulse")           # play readout pulse after 5 us for ring down
+        self.delay_auto(t=cfg.get('readout_ringdown_delay', cfg['readout_pulse_delay']), tag='wait_for_ring_down')
+        self.pulse(ch=cfg['res_ch'], name="res_pulse")
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 
 class T1ProgramIBMZenoSingleGain(AveragerProgramV2):
@@ -539,7 +539,7 @@ class T1Measurement_with_Zeno_loop:
                     raise ValueError(f"Calibration |e-g| is zero for trace index {k}.")
 
                 z_k = I_k + 1j * Q_k
-                pop_k = np.abs(((z_k - g_k) * (e_k - g_k)) / denom)  # same shape as I_k/Q_k
+                pop_k = np.real((z_k - g_k) * np.conj(e_k - g_k) / denom)  # signed g/e projection
                 pop_traces.append(pop_k)
 
             # 2) Average calibrated populations across traces

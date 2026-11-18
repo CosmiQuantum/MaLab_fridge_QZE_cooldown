@@ -449,6 +449,7 @@ class SingleShot:
 
             axs[2].set_title(f"Fidelity = {fid * 100:.2f}%")
             fig.savefig(file_name,  dpi=fig_quality, bbox_inches='tight')
+            self.last_plot_path = file_name
             plt.close(fig)
         g_center=(np.median(ig_new), np.median(qg_new))
         e_center=(np.median(ie_new), np.median(qe_new))

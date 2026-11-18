@@ -220,7 +220,7 @@ class T2EProgram(AveragerProgramV2):
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse_pi", t=0)  # echo around equator
         self.delay_auto(0, tag='wait2') # wait for pulse to finish
         self.pulse(ch=self.cfg["qubit_ch"], name="qubit_pulse2", t=0)  # put on the z axis
-        self.delay_auto(t=cfg['readout_pulse_delay'], tag='wait3')  # wait_time after last pulse
+        self.delay_auto(t=cfg.get('readout_ringdown_delay', cfg['readout_pulse_delay']), tag='wait3')
         self.pulse(ch=cfg['res_ch'], name="res_pulse", t=0)
         self.trigger(ros=[cfg['ro_ch']], pins=[0], t=cfg['trig_time'])
 class T2EProgramSingleGain(AveragerProgramV2):
@@ -709,7 +709,7 @@ class T2EMeasurementZeno:
                     raise ValueError(f"Calibration |e-g| is zero for trace index {k}.")
 
                 z_k = I_k + 1j * Q_k
-                pop_k = np.abs(((z_k - g_k) * (e_k - g_k)) / denom)  # same shape as I_k/Q_k
+                pop_k = np.real((z_k - g_k) * np.conj(e_k - g_k) / denom)  # signed g/e projection
                 pop_traces.append(pop_k)
 
             # 2) Average calibrated populations across traces
