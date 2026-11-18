@@ -1092,3 +1092,23 @@ because a bounded fit returned one: November18 wide/narrow noise candidates
 around5436MHz were rejected by raw review and Rabi. As of this entry the
 fresh baseline itself has weak contrast; the hardware search remains pending.
 This is verification/state failure, not a demonstrated microscopic TLS cause.
+
+November18 afternoon exact-single comparison: expt_config.py and system_config.py
+are byte-identical to the working November17 snapshots. Replaying the existing
+startup sequence gave qspec R2 .014 and Rabi R2 .024, versus prior .476/.906.
+The script accepted noise fits and propagated a repeated pi .179 into coherence
+before its late pi-window check. Fixed prior carrier/pi/RO also failed to recover
+singles; lower readout power and reapplying the configured DAC Nyquist mode did
+not restore contrast. Wide short-pulse spectroscopy found only a weak broad
+candidate near5434-5436MHz, and normal qspec/Rabi there did not validate control.
+Do not report a new qubit frequency or TLS mechanism from this candidate.
+
+Startup now uses20k g/e reference shots/state and, AFTER each raw QSpec/Rabi
+save, checks reference SNR>=5 and population-fit R2>=.3/.75 respectively. The
+existing pi .6-.7 window is also checked immediately after each startup Rabi
+save. Actual main-script validation stopped at baseline qspec SNR1.217 with raw
+data preserved; a diagnostic STOP sentinel also prevents accidental 2D entry.
+Saved-data replay accepts prior real calibrations and rejects fresh noise.
+This proves the rejection guard, not recovered qubit control. The physical
+cause remains unresolved; confirm fridge/RF drive state, then recover singles,
+validate actual zero/highgain2D and full50gain maps before another72h start.

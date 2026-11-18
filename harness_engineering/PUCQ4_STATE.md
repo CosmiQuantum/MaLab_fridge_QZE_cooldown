@@ -1,3 +1,29 @@
+## November18 afternoon - Q2 singles still unresolved; no 72h restart
+
+Latest evidence supersedes earlier successful-startup/restart interpretations.
+Checkpoint3637e98 committed before live comparison; push pending confirmation
+of origin CosmiQuantum/MaLab_fridge_QZE_cooldown, harness_engineering_experiment
+(after automatic approval rejected unconfirmed export). Q2=M2/Pythonindex1.
+Exact startup repeated, plus fixed Nov17 accepted5438.247946MHz/pi.6715803/
+sigma.101us/RO8950.000077MHz,.192DAC,7us. Shared expt/system byte-identical
+Nov17 snapshots. Fresh qspec/Rabi/T1/T2R/T2E fail to recover earlier contrast;
+qspec/RabiR2 .014/.024 versus prior .476/.906. Lower-power survey and qubit
+DAC-mode reapply did not recover. Wider shortpulse rawsearch has a weakbroad
+5434-5436MHz candidate; normal qspec/Rabi there failed (RabiR2 .021).
+No new carrier, pulse, lifetime, TLS mechanism, or readout optimum accepted.
+
+25line local main addition stops bad startup calibration AFTER raw save:
+20k rather than2k startup reference shots/state, SNR>=5, qspec/Rabi fitR2
+>=.3/.75, pi.6-.7DAC immediately after eachRabi save. All normal pulseprograms,
+phaseorder,50gain grid, sharedconfigs/power/dataformat unchanged. Actual
+modified script rejected startup qspecSNR1.217; no Zeno2D entered, diagnostic
+STOP retained. Offline149file checks and prior/fresh saved-data replay pass.
+This is guard validation, NOT recovered hardware. Seven runs52HDF5/60PNG
+preserved; bothYokos0A/OFF/.01A/30V, clockslocked and tProcstopped finally.
+No owned acquisition/72h controller queued. Need fridge/RF status, recovered
+single controls and actual exact-setting2D validation before72hrestart.
+Latest report: qze_005/q2_2026-11-18_14-51-02/review1118/RESULTS.txt.
+Workspace IDE codex/zeno_compare_1118. Earlier raw runs preserved.
 ## November 18 - Q2 Zeno repair; long run STOPPED, fresh signal unresolved
 
 User reports full Zeno maps are noise despite startup baseline. November17

@@ -154,6 +154,20 @@ def require_zeno_reference(Ie, Ig, Qe, Qg, stage):
         raise RuntimeError('Saved %s has unresolved g/e reference (SNR=%s); recalibration required'
                            % (stage, abs(delta) / stderr))
 
+
+def require_calibrated_trace(I, Q, fit, Ie, Ig, Qe, Qg, stage, minimum_r_squared):
+    """Check saved startup data before a noise fit can launch dependent measurements."""
+    require_zeno_reference(Ie, Ig, Qe, Qg, stage)
+    g = np.mean(np.asarray(Ig) + 1j * np.asarray(Qg))
+    e = np.mean(np.asarray(Ie) + 1j * np.asarray(Qe))
+    population = np.real((np.asarray(I) + 1j * np.asarray(Q) - g) / (e - g))
+    if fit is None or np.shape(fit) != population.shape or not np.all(np.isfinite(population)):
+        raise RuntimeError('No valid saved fit for ' + stage)
+    variance = np.sum((population - population.mean()) ** 2)
+    r_squared = 1 - np.sum((population - fit) ** 2) / variance if variance > 0 else np.nan
+    if not np.isfinite(r_squared) or r_squared < minimum_r_squared:
+        raise RuntimeError('Unresolved saved %s (R2=%s); recalibration required' % (stage, r_squared))
+
 # Define what to save to h5 files
 t2r_correction_keys = ['T2', 'Errors', 'Dates', 'I', 'Q', 'Correction Freq', 'Delay Times', 'Fit', 'Round Num', 'Batch Num', 'Exp Config',
             'Syst Config', 'I_shots', 'Q_shots']
@@ -275,6 +289,7 @@ for QubitIndex in Qs_to_look_at:
     apply_pucq4_round_robin_profile(
         QubitIndex, experiment.pucq4_flux_calibration,
         experiment.qubit_cfg['qubit_freq_ge'])
+    expt_cfg['Readout_Optimization']['steps'] = 20000  # resolved startup g/e references
     ################################ Do Res spec once per qubit and store the value ####################################
     ################################################# g-e Res spec ####################################################
 
@@ -357,6 +372,8 @@ for QubitIndex in Qs_to_look_at:
 
         saver_qspec = Data_H5(optimizationFolder, qspec_data, 0, save_r)
         saver_qspec.save_to_h5('QSpec')
+        require_calibrated_trace(qspec_I, qspec_Q, qspec_fit, ss_I_e_qspec, ss_I_g_qspec,
+                                 ss_Q_e_qspec, ss_Q_g_qspec, 'baseline qspec', 0.3)
         del saver_qspec
         del qspec_data
 
@@ -421,6 +438,10 @@ for QubitIndex in Qs_to_look_at:
 
         saver_rabi = Data_H5(optimizationFolder, rabi_data, 0, save_r)
         saver_rabi.save_to_h5('Rabi')
+        require_calibrated_trace(rabi_I, rabi_Q, rabi_fit, ss_I_e, ss_I_g,
+                                 ss_Q_e, ss_Q_g, 'baseline Rabi', 0.75)
+        if not 0.6 <= pi_amp <= 0.7:
+            raise RuntimeError('Saved baseline pi amplitude is outside the accepted 0.6-0.7 DAC window')
         del saver_rabi
         del rabi_data
     except Exception as e:
@@ -520,6 +541,10 @@ for QubitIndex in Qs_to_look_at:
 
         saver_rabi = Data_H5(subStudyDataFolder, rabi_corrected_data, batch_num, save_r)
         saver_rabi.save_to_h5('rabi_ge_corrected')
+        require_calibrated_trace(rabi_I_corrected, rabi_Q_corrected, rabi_fit_corrected,
+                                 ss_I_e2, ss_I_g2, ss_Q_e2, ss_Q_g2, 'repeated baseline Rabi', 0.75)
+        if not 0.6 <= pi_amp_corrected <= 0.7:
+            raise RuntimeError('Saved repeated pi amplitude is outside the accepted 0.6-0.7 DAC window')
         del saver_rabi
         del rabi_corrected_data
 

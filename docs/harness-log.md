@@ -4319,3 +4319,56 @@ November18 final diagnostic checkpoint10:43: search3/3 HDF5 and normalplots comp
 Maincalibrationlabels corrected BEFOREANYrepaired-mainrun fromdraftQSpec_cal/Rabi_cal toSTANDARDQSpec/Rabi withstagefilenamesuffix, preservingexistingoptimizationHDF5labels/loaders. Protected3Zenomodules/sharedconfigsbyteidenticaltotaskstart. Finalreport/snapshots/taskdiff inIDE/zeno_fix_1118/RESULTS.txt. Broadernewdiagnosticlabelsremainpreserveddiagnosticonly, notmainruntimeformat. Hardwarefree149fileparser/replaypass; finalchecksandartifactarchivepending.
 
 November18 10:49:30 LIVE repaired-helper validation complete: guard1118/2026-11-18_10-45-53 saved1standardQSpecHDF5/2normalPNGs, rejectednoisebeforeRabi/Zeno withcenter5437.272303/FWHM.022800MHz/R2.044116, statusrejected_calibration. Actualmainhelper execution/datawrite/qualitystop verified; freshQ2signalrecoveryNOTverified. QICKstopped, bothYokosCURR0A/OFF/.01A/30V, ownedguard45740exited. No longrunqueued. Full183diagnosticHDF5 plus1liveguardHDF5 preserved withnormalplots. Alloriginal28HDF5 retained. Final149fileharness/replay/whitespacechecks pass. Review in guardrun/documentation/repair1118/RESULTS.txt; requeststillneedsvalidfreshworkingbaseline/instrument-sideinformation beforeclaiminghardwarefix orresuming72h.
+
+## 2026-11-18 afternoon - Q2 exact singles comparison; startup noise-fit guard
+
+User requested pre/post commit+push, working singles, actual Zeno2D validation,
+then conditional72h restart. Checkpoint3637e98 committed before hardware.
+Auto-review rejected push to origin https://github.com/CosmiQuantum/MaLab_fridge_QZE_cooldown.git
+(branch harness_engineering_experiment) because destination/payload trust was
+unconfirmed; explicit destination approval requested. No push workaround used.
+Unrelated preexisting changes/generated data stayed outside the commit.
+
+Q2=M2/Pythonindex1, physicalID unassigned, BOB RFSoC4x2. Repeated exact current
+startup statements once (AST truncated before Zeno), then separately held exact
+Nov17 accepted carrier5438.247946MHz/pi.6715803/sigma.101us and
+RO8950.000077MHz/.192DAC/7us. Shared expt/system byte-identical to Nov17 snapshots.
+Fresh startup qspec/Rabi R2 .014/.024 versus prior .476/.906. Existing script
+accepted repeated noise-fit pi .179 and proceeded through coherence before its
+late pi check. Fixed settings did not recover qspec/Rabi/T1/Ramsey/echo. Raw
+complex Rabi template amplitude .2657->.0205 with residual noise .0304->.0308;
+loss is not solely population normalization. Prior singles really had signal.
+
+Bounded lower RO gains.024/.048/.096/.144/.192 at5frequencies/20kstate pairs
+plus5Res sweeps gave maximumreferenceSNR3.969, no accepted pulse. Reapplying
+configured qubitDAC Nyquist2 while output idle gave fixedRabiR2 .108before/
+.020after, no recovery. Existing normalqspec program, short constant pulse
+.6715803DAC/.24165018us derived from prior Gaussian pi area, searched
+4938.247946-5938.247946MHz/1001pts2000reps and repeated5423.247946-5453.247946MHz/
+301pts6000reps. Weak broad candidate near5434-5436MHz did not support normal
+.02DAC/100us qspec and GaussianRabi at5433.700MHz (RabiR2 .02088). No new qubit
+frequency, linewidth/lifetime, sigma, readout optimization, or TLS result accepted.
+
+Only new experiment-source change:25 added lines in longitudinal script.
+Startup reference count2000->20000shots/state. AFTER raw QSpec/Rabi save,
+require referenceSNR>=5 and fitR2>=.3/.75; enforce existing pi.6-.7DAC window
+immediately after both startupRabi saves. Pulse programs/shared calibration/
+powers/phaseorder/50gain grid/HDF5format unchanged. Offline149file harness and
+saved-data accept/reject replay pass. ACTUAL modified main launched once with
+STOP before baseline could finish, rejected qspecSNR1.217 after rawsave. This
+validates early rejection only, not recovered measurement control or 2Dmaps.
+
+Seven diagnostic runs retained52HDF5/60PNG, normal canonical labels and layout,
+longest raw/PNGpath212chars. Main runs q2_2026-11-18_14-14-48 and guarded
+q2_2026-11-18_14-51-02; other substudy labels ro_power1118,fixed1118,
+pi_search1118,pi_repeat1118,candidate1118 under October7/PUCQ4/qze_005.
+All owned sessions exited, tProc stopped, clocks locked, both sources read
+CURR0A/OFF/.01Arange/30V finally; no source writes or attenuation changes.
+Constructor attenuation10/15RO,5/4qubit,17ADC dB is metadata: setters commented,
+remote RF readbacks unavailable. Fridge/RF status clarification requested.
+No new full Zeno map or72h run started. Need fresh valid singles, exact-setting
+zero/highgain2D then full50gain validation before restart; existing authorization
+persists. Workspace IDE codex/zeno_compare_1118; RESULTS.txt/receipts/plots and
+source snapshots archived under guarded main run/review1118. Existing raw saved.
+Legacy log/state files contain non-UTF8 bytes; appended/prepended ASCII only,
+preserving existing bytes instead of converting historical user documents.
