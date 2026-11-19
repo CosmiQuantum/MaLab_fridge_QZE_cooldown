@@ -1,4 +1,4 @@
-## November19 - Q2/M3 traces recovered; native full50 validation prepared
+## November19 - Q2/M3 traces recovered; native full50 validation RUNNING
 
 Fresh normal RR recovered Q2=M2/index1 and M3/index2 (physical IDs unassigned).
 Q2 carrier5438.770199634MHz,pi.671580296649DAC,sigma.101us,RO8950.000077MHz/
@@ -30,7 +30,7 @@ highgain fringes weak/suppressed and not precision-fit. Qspec shifts/broadens
 with gain. All29 HDF5 from normal/3gain checks preserved. BothYokos0A/OFF,
 clockslocked,tProcstopped after bounded child. Source classes unchanged.
 
-Next authorized stage: continue_native.py runs actual longitudinal script
+Active authorized stage: continue_native.py runs actual longitudinal script
 with ONLY compiled outer cycle count limited to1; full50-gain grid and every
 native calibration/map call retained. After all5 full maps persist with
 finite50xN IQ,valid refs and nonblank zero-gain controls,it queues native72h.
@@ -41,11 +41,20 @@ Last accepted full-cycle qspec/Rabi seeds are recorded runtime overrides for
 
 Workspace IDE codex/recover1119: pipeline_plan.json,NATIVE_BRIEF.txt,
 pipeline_status.json (once started),all receipts/source snapshots/analysis.
-18slide PUCQ4_recovery_20261119.pptx in run root; Zeno supplement pending.
+27slide PUCQ4_recovery_20261119_with_zeno.pptx in run root,CRC/bounds checked.
 Normal raw parent find_resonators_sandbox/recover1119. Earlier raw preserved.
 Prior local commits3637e98/c3543e0; GitHub push still pending explicit approval
 of origin/branch after automatic review rejected unconfirmed export.
 
+Native full50 validation started11:12:57 in qze_005/q2_2026-11-19_11-12-57.
+PipelinePID26112/child19052; startup qspec and bothRabi guards passed.
+Native cycle0 began11:19:47; first per-map calibration in progress. Actual
+native startup RO8950.080077MHz,carrier5438.777724MHz,pi.661631DAC: normal
+fresh res/qspec/Rabi tracking,not an extra source edit.72h NOT started yet.
+Local atomic pipeline_status.json and full50_validation.log show progress.
+Last accepted full-cycle carrier/pi will seed72h only after all5 full maps
+persist and pass operational zero-control/reference gates. Other rows untouched.
+Checkpoint4418de6 before native validation; push pending as stated below.
 ## November18 afternoon - Q2 singles still unresolved; no 72h restart
 
 Latest evidence supersedes earlier successful-startup/restart interpretations.

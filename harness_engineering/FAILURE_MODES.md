@@ -1126,3 +1126,17 @@ calibrations based on this example. Review repetition, actual sampling, raw IQ,
 and independent coherent control together. Low-power population traces may be
 noisier and their absolute normalization can overshoot; preserve signed values
 and qualify conditional fits rather than clipping or substituting old results.
+
+November19 later recovery: Q2 also repeated a resolved5438.7702MHz line and
+independent RabiR2.975/pi.67158 with existing sigma.101us. Its initial old-carrier
+references had already returned (SNR17), so frequency retuning alone does not
+explain the prior loss. Five actual three-gain Zeno maps then saved with healthy
+references (SNR18.6-25.3) at the script's offset tone and5us/.5us timing. Dark
+T1/Ramsey/Echo controls match the fresh singles within their noisy uncertainties.
+Higher-gain spectra shift/broaden and fringes weaken; a weak high-gain sinusoid
+fit is not evidence that the whole map acquisition is blank. Review zero-gain
+controls, early-time traces, raw IQ and references before changing code. The
+fitted/averaged center printed for a gain-dependent map is not automatically
+the zero-Zeno carrier. No microscopic TLS cause or reproduced beating follows
+from these checks. Three-gain success is not full50-gain/long-duration validation;
+the native one-cycle full-grid check must pass before the queued72h acquisition.

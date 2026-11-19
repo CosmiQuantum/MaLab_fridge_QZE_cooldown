@@ -4488,3 +4488,47 @@ Working configs are not automatically rewritten later. Whole-cycle metadata,
 These are operational nonblank-data gates,not final metrology acceptance.
 Longest intended round999 artifact218chars.14h/96h stage deadlines and600s
 log watchdog,owned-child cleanup,local atomic state. Await launch below.
+November19 native continuation launched11:12:57. Local checkpoint4418de6
+before hardware start. Parent26112/child19052; actual native output
+qze_005/q2_2026-11-19_11-12-57. Startup qspec and both Rabi guards passed;
+cycle0 started11:19:47,first per-map normal qspec/Rabi refresh now running.
+Fresh native res tracking choseRO8950.080077MHz;startup carrier5438.777724MHz
+andpi.661631DAC (sigma.101us). These are runtime native calibrations,not
+unrecorded source edits; working source seeds remain the reviewed values.
+Full50 maps pending;72h not started. Parent will stop on any native/quality/
+save/source-hash error,and only launch72h after all5 full maps pass. Native
+maxcycles1 is compiled outer-loop limit only; original source unchanged.
+
+Final26slide report saved PUCQ4_recovery_20261119_with_zeno.pptx in run root,
+SHA2561e1e38adccf8a242a97a0f56a3f719daaec6eecfe611e50e7d988d3499deb284.
+Contains reviewed normalQ2/M3 curves,all-six screens,conditional fit flags,
+five bounded native maps and raw curves. Corrected earlier coarse-screen
+subtitle to reflect subsequent Q2 as well as M3 confirmation. Earlier deck
+preserved. ZIPCRC,shape bounds,images,raw hashes verified; no Office render.
+Q2/Zeno report sources/launchers/promoted config snapshots/calibration-change
+JSON under map1119/2026-11-19_10-35-37/documentation/recovery_review.
+Native pipeline status remains local recover1119/pipeline_status.json to avoid
+M-sidecar stalls. User-facing latest paths in RECOVERY_RESULTS_with_zeno.txt.
+Git push remains blocked by prior automatic approval rejection of unconfirmed
+remote export destination; no retry/workaround or remote write attempted.
+
+Final27slide report status annotation, SHA256
+31df0753e81b40a6a4b2b4bda791d63f0d8d0e2b9602ce7068ecd54f50564055.
+Prior26slide version preserved as deck_before_status_update.pptx. Corrected
+pre-promotion caption and added old/new/unit table plus native validation
+status. Final audit verified24normal+5bounded HDF5,all canonical metadata/plots,
+finite averaged arrays,27slide package/images/bounds and live source hashes.
+Historical state bytes preserved exactly;149file offline verifier passed.
+
+Native actual first full50 map entered:25,100,000 readouts expected
+(50*251*2000),progress increasing,no controller stderr. Full raw map files
+not complete;72h remains queued,not started. Added native_validation_plan.json
+and NATIVE_BRIEF under native qubit_1round0/documentation;local
+full_validation_started.json records exact folder and owned PIDs.
+
+Auxiliary metadata-only PowerShell command spun CPU with no output/local
+marker before Git; identity-verified helperPID65316 terminated and replaced
+by standard-library JSON writer. No lab process killed/restarted; native
+parent26112/child19052 and atomic heartbeat continued uninterrupted.
+Nested handoff metadata is generated with Python JSON; no hardware conclusion
+follows from this helper failure. No experiment/source changes in that helper.
