@@ -16,12 +16,13 @@ if FRIDGE == "QUIET" or FRIDGE == "BOB":
     # sweep used. The resonators move ~7 MHz across +/-10 mA; the qubits move
     # GHz. See YOKOGS200.py for the current-source driver.
     # All six rows: fresh zero-current full RR, 2026-10-29; inspect fit qualifications.
-    VNA_res = np.array([8918.795, 8950.93439, 8974.11, 8999.07, 9013.4, 9057.715])
+    VNA_res = np.array([8918.795, 8951.01439, 8974.11, 8999.07, 9013.4, 9057.715])
     # Row order is M1..M6; all rows use the October 29 zero-current round robin;
     # M1-M4 physical numbers remain unassigned; physical Q4 is M5 and Q6 is M6.
     # M6 carrier and Gaussian pulse are now confirmed by repeated qspec and Rabi.
     # Nonzero currents are selected by apply_pucq4_flux_experiment_config below.
-    VNA_qubit = np.array([5515.343391325498, 5438.499681577915, 5551.361090349251, 5594.644240774248, 7065.147636121578, 6404.639622421642])
+    # Q2 working carrier revalidated by normal RR spectroscopy/Rabi, 2026-11-19.
+    VNA_qubit = np.array([5515.343391325498, 5438.770199633722, 5551.361090349251, 5594.644240774248, 7065.147636121578, 6404.639622421642])
     ef_freqs = np.array([5287, 5201, 5269, 5357, 6822, 6185])  # f_ge - alpha
     fh_freqs = np.array([5067, 4991, 5051, 5139, 6608, 5969])  # rough guess
     # Set this for your experiment

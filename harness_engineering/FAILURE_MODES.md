@@ -1112,3 +1112,17 @@ Saved-data replay accepts prior real calibrations and rejects fresh noise.
 This proves the rejection guard, not recovered qubit control. The physical
 cause remains unresolved; confirm fridge/RF drive state, then recover singles,
 validate actual zero/highgain2D and full50gain maps before another72h start.
+
+November19 cross-row recovery: preserve the distinction between a conservative
+screening stop and a physically absent line. M3 coarse/fine spectroscopy repeated
+within7kHz; the fine line was sampled at about19points/FWHM with raw R2.674,
+matched-filter score19.4 and g/e-mean SNR24.2, but its per-point vector SNR6.41
+missed the task's initial8 threshold. The original stop/log/raw were retained.
+Recorded scientific review allowed a diagnostic Rabi using the repeated resolved
+line, without claiming that the original threshold passed or promoting config.
+The independent Rabi then gave R2.937 and pi.65168 versus prior.65666. Do not
+weaken the longitudinal startup guards or treat arbitrary low-SNR fits as
+calibrations based on this example. Review repetition, actual sampling, raw IQ,
+and independent coherent control together. Low-power population traces may be
+noisier and their absolute normalization can overshoot; preserve signed values
+and qualify conditional fits rather than clipping or substituting old results.

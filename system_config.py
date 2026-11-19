@@ -507,15 +507,16 @@ _PUCQ4_REQUIRED_CALIBRATION_KEYS = (
 # Fresh M4 lifetime checks pass; earlier nonexponential qualifiers are historical.
 # Q2/M2/index1: measured low-power RR qspec/Rabi/readout update, 2026-11-04.
 # Remaining all-six coherence/report work is deferred during 24h SSF.
-_PUCQ4_FIXED_CONFIG_ROWS = {'res_freq_ge': (8918.795, 8950.93439, 8974.11, 8999.07, None, None),
+# Q2 working seeds: Nov19 normal RR recovery; readout remains below its .24 cap.
+_PUCQ4_FIXED_CONFIG_ROWS = {'res_freq_ge': (8918.795, 8951.01439, 8974.11, 8999.07, None, None),
  'res_gain_ge': (0.9, 0.192, 0.95, 0.95, None, None),
  'res_length_ge': (6.0, 7.0, 13.0, 5.0, None, None),
  'res_freq_offset_ge': (-0.42000000000007276, -1.0143129999996745, -0.7800000000006548, 0.18000000000029104, None, None),
- 'qubit_freq_ge': (5515.343391325498, 5438.499681577915, 5551.361090349251, 5594.644240774248, None, None),
+ 'qubit_freq_ge': (5515.343391325498, 5438.770199633722, 5551.361090349251, 5594.644240774248, None, None),
  'qubit_gain_ge': (0.0045, 0.009, 0.009, 0.01, None, None),
  'qubit_length_ge': (100.0, 100.0, 100.0, 20.0, None, None),
  'sigma': (0.05, 0.101, 0.124, 0.0695, None, None),
- 'pi_amp': (0.6865043032411646, 0.6765549655130318, 0.6566562900567662, 0.6467069523286333, None, None)}
+ 'pi_amp': (0.6865043032411646, 0.6715802966489653, 0.6566562900567662, 0.6467069523286333, None, None)}
 
 # All six zero-current pulse rows are measured after the warmup; inspect fit qualifications.
 PUCQ4_ZERO_CURRENT_PULSE_MEASURED_ROWS = (True, True, True, True, True, True)

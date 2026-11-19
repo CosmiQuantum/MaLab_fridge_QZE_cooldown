@@ -1,3 +1,51 @@
+## November19 - Q2/M3 traces recovered; native full50 validation prepared
+
+Fresh normal RR recovered Q2=M2/index1 and M3/index2 (physical IDs unassigned).
+Q2 carrier5438.770199634MHz,pi.671580296649DAC,sigma.101us,RO8950.000077MHz/
+.192DAC/7us,qualified ceiling.24. Qspec repeated and RabiR2.975/refSNR23.
+M3 carrier5551.348420MHz,pi.651681621193DAC,sigma.124us,RO8973.488017MHz/
+.10DAC/13us;RabiR2.937. All six res traces returned; coarse lines M1/M3/M5,
+M4 weak candidate,M6 unresolved at.10DAC. No new M6 carrier accepted.
+
+Normal Q2 T1/T2R/T2E4.37/2.73/8.85us;M3 24.05/28.08/34.80us are conditional
+noisy fits,NOT final calibrated lifetime tables (independent R2 gates fail).
+SSF lab contrasts.09995/.07485 at the safe lower RO powers. No current
+reproduction of two-frequency beating or microscopic TLS cause established.
+Q2 old-carrier references already returned before retuning; cause of Nov18
+loss versus Nov19 recovery remains unknown. No clock reset/attenuator change,
+nonzero bias,or low-level pulse-program edit was made today.
+
+Q2 shared expt/system working seeds updated from validated normal RR control:
+res8950.93439->8951.01439MHz;qubit5438.499681578->5438.770199634MHz;
+pi.676554965513->.671580296649DAC;derivedRO8949.920077->8950.000077MHz.
+Sigma.101us,power.192,length7us,offset-1.014313MHz,ceiling.24 unchanged.
+Other rows and user modifications preserved. This is a working recovery
+calibration,not completion of deferred all-six readout optimization/benchmark.
+
+Bounded native-class Zeno check COMPLETE: qze_005/map1119/2026-11-19_10-35-37.
+Five maps (high/normal qspec,T1,Ramsey,echo),3gains0.. .0399805DAC,all raw and
+plots saved,refsSNR18.6..25.3. Offset Zeno tone8950.000077MHz;5us ringup/.5us
+finalwait. Dark controls recovered: T1~5.17us,Ramsey~3.19us,Echo~6.92us;
+highgain fringes weak/suppressed and not precision-fit. Qspec shifts/broadens
+with gain. All29 HDF5 from normal/3gain checks preserved. BothYokos0A/OFF,
+clockslocked,tProcstopped after bounded child. Source classes unchanged.
+
+Next authorized stage: continue_native.py runs actual longitudinal script
+with ONLY compiled outer cycle count limited to1; full50-gain grid and every
+native calibration/map call retained. After all5 full maps persist with
+finite50xN IQ,valid refs and nonblank zero-gain controls,it queues native72h.
+Do NOT call3gain data full50 acceptance or claim72h has started yet. Stage
+source hash/14h and96h budgets/600s log watchdog; PIPELINE_STOP blocks next.
+Last accepted full-cycle qspec/Rabi seeds are recorded runtime overrides for
+72h startup. No permanent automatic source editing or automatic Git push.
+
+Workspace IDE codex/recover1119: pipeline_plan.json,NATIVE_BRIEF.txt,
+pipeline_status.json (once started),all receipts/source snapshots/analysis.
+18slide PUCQ4_recovery_20261119.pptx in run root; Zeno supplement pending.
+Normal raw parent find_resonators_sandbox/recover1119. Earlier raw preserved.
+Prior local commits3637e98/c3543e0; GitHub push still pending explicit approval
+of origin/branch after automatic review rejected unconfirmed export.
+
 ## November18 afternoon - Q2 singles still unresolved; no 72h restart
 
 Latest evidence supersedes earlier successful-startup/restart interpretations.

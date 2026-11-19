@@ -4372,3 +4372,119 @@ persists. Workspace IDE codex/zeno_compare_1118; RESULTS.txt/receipts/plots and
 source snapshots archived under guarded main run/review1118. Existing raw saved.
 Legacy log/state files contain non-UTF8 bytes; appended/prepended ASCII only,
 preserving existing bytes instead of converting historical user documents.
+## November 19 - user-authorized cross-qubit trace recovery (in progress)
+
+Task: recover fresh curves on any PUCQ4 qubit using the validated benchmark
+PowerPoint as a reference; verify actual spectroscopy and coherent control.
+Authority: user explicitly requests fresh trace recovery. No nonzero Yoko bias,
+RF attenuator changes, shared-config promotion, or long Zeno restart in scope.
+Preserve prior raw data/user changes. M1..M6 are rows/display Q1..Q6, indices0..5;
+only M5=physicalQ4/Yoko3 and M6=physicalQ6/Yoko4 assigned.
+Reviewed actual ROOT/PUCQ4_benchmark_20261029_final.pptx and manifest plus
+Nov4 low-power evidence. Reuse existing round_robin_benchmark.py, separate
+one-row/one-pass stages, canonical phase-checkpoint Data_H5 and normal plots.
+Workspace IDE codex/recover1119 stores RUN_BRIEF, source snapshots, exact env
+plans, source readbacks and watchdog receipts; output run subtree is
+M:/_Data/20250822 - Olivia/pucq4_run_started_Oct_7/PUCQ4/
+find_resonators_sandbox/recover1119/<timestamp>/. Planned max path203 chars.
+RO .10DAC for M1/3/4/5/6 (qualified conservative cap .10); M2 .192DAC/7us
+under independently qualified cap.24. Do not restore October .90/.95 gains.
+Lengths8/7/13/5/6/45us, all reference carriers/sigmas/pi from documented
+settings; M2 exact Nov17 carrier5438.247946163877MHz/pi.671580296649.
+Res +/-3MHz/.05MHz/121points/2000reps; qspec +/-5MHz/.05MHz/201/4000x1,
+existing row drive gains/pulse lengths. Readout follows measured dip preserving
+known offset;10k g/e shots/state. Actual attenuation unavailable: constructor
+10/15 RO,5/4 qubit,17 ADC dB are metadata; setters remain commented.
+BothYokos read/require CURR0A/OFF/.01A/30V before/after every stage.
+Abort on hardware/save failure, unqualified power, unresolved resonator before
+qspec;1800s stage budget/600s log watchdog. All raw fits remain diagnostic
+until repeat/fine qspec and real Rabi. SDK3.9.13 obtained from PyCharm;
+149file hardware-free verifier passed before launch. First offline PPT-text
+print hit console cp1252; extraction saved, UTF8 console used subsequently.
+Early M3 res8974.268017MHz SNR21.8 and real narrow qubit response near
+5551.341583MHz (raw vectorSNR9.59,g/e meanSNR19.55) recovered; initial.05MHz
+sampling insufficient for linewidth acceptance, fine scan required. M5 res
+9014.155328MHz SNR10.8 and qubit candidate7064.915555MHz (SNR6.21,g/e16.54),
+not yet repeat-confirmed. Remaining screen ongoing. Queued serialized M3
+fine qspec then gated Rabi/SSF/T1/T2R/T2E; full envelope in RUN_BRIEF.
+No success claim for coherent control, final optimization, or Q2Zeno yet.
+November19 10:29 fresh singles recovery update (not a final all-six benchmark):
+All six low-power resonator traces persisted. Coarse real lines M1~5515.332,
+M3~5551.342,M5~7064.916MHz; M4 weak candidate,M6 unresolved at .10DAC.
+Q2 also returned with old carrier/pi for its initial references: SNR17.01,
+so return cannot be attributed solely to our later frequency retune. Cause of
+Nov18 loss versus Nov19 recovery remains unidentified; no RF attenuator,
+nonzero bias, clock reset, or low-level pulse-code change was made today.
+Fine Q2 spectrum5438.770200MHz,FWHM.17115MHz,rawSNR5.20,R2.503,mean-refSNR24.82.
+Rabi at that carrier sigma.101us gives pi.671580296649DAC,R2.9748,refSNR22.97.
+Fresh20kSSF lab contrast.09995; normal T1/T2R/T2E conditional fits
+4.3745+/-.3194 /2.7324+/-.3718 /8.8530+/-1.1102us (R2.841/.470/.510).
+Independent fits agree; all fail stricter R2>.85 final-lifetime acceptance.
+Visible early decay/fringes are real recovery evidence; not high-quality
+final lifetime calibration or reproduced two-frequency/TLS beating proof.
+Q2 coherence run recover1119/2026-11-19_10-25-01; all plots and HDF5 saved.
+
+M3 fine repeats center5551.348420MHz,FWHM.094389MHz,rawpointSNR6.41,
+matched19.40,R2.674,ref24.24. Initial conservative pointSNR8 gate STOPPED.
+Original source/log/rejection preserved. Recorded scientific review used
+repeat agreement<20kHz,resolved~19points/FWHM,matched>=15,point>=5,
+R2>=.6,ref>=5 solely to permit an independent diagnostic Rabi (no promotion).
+Rabi sigma.124us,pi.651681621193DAC,R2.9367,ref16.66 confirms coherent control.
+At .10DAC/13us/8973.488017MHz,SSF labcontrast.07485; T1/T2R/T2E
+24.0468+/-2.4588 /28.0779+/-2.9114 /34.8048+/-3.8424us,
+R2.705/.615/.474. Independent fits agree but do not pass final R2>.85.
+Population normalization overshoots1 in Rabi; signed raw data retained.
+M3 coherence run recover1119/2026-11-19_10-11-11. BothYokos0A/OFF before/after
+all normal stages. Shared expt/system configs unchanged; new carriers/pi only
+explicit per-run values. No claimed reoptimization or final calibration.
+
+18-slide PUCQ4_recovery_20261119.pptx saved in run root; zipCRC,shape bounds,
+raw/source hashes checked; native Office render not performed. All24 canonical
+normal HDF5 and normal plots preserved; recovery_review under M3 coherence
+documentation holds overview,manifest,source snapshots,launchers and summary.
+
+Original Zeno-debug task continued with fresh Q2 pulse: bounded3-gain diagnostic
+zeno_once.py/launch_zeno_once.py, exact envelope in IDE/recover1119/ZENO_BRIEF.txt.
+Output qze_005/map1119/2026-11-19_10-35-37. Same existing five map classes/calls,
+map order highgainQspec.02,normalQspec.009,T1,Ramsey,Echo. Zeno1e-6.. .04DAC
+three gains (50->3 diagnostic only), same offset RO tone8950.000077MHz,5us
+ringup/.5us final wait,main delay/count/reset profiles,20krefs. Holds fresh
+RR pulse during this bounded diagnostic rather than main per-map qspec/Rabi
+refresh.45min total/600s progress watchdog; STOP_2D after saved map; parent
+stops owned tProc and reads clock/Yokos after child exit. No full50/72h claim.
+First highgainQspec raw3x251 saved10:41:05,refSNR25.32,all3 visible lines:
+centers5438.775787/5438.706631/5438.554961MHz; FWHM.2475/.4412/.7507MHz,
+R2.598/.638/.558. Normal Qspec and three coherence maps remain in progress.
+November19 bounded Zeno check completed10:57:18,child clean0,parent stopped
+owned tProc,clockslocked,bothYokos0A/OFF/.01A/30V verified10:57:24.
+All5 maps raw/plots retained under map1119/2026-11-19_10-35-37.
+Mean-refSNR highQspec25.32,normal21.77,T1 18.56,Ramsey23.91,Echo20.83.
+Zero-gain map fits: T1~5.1746+/-.4576us,R2.785;T2R3.1884+/-.4497us,
+R2.452;T2E6.9188+/-1.2497us,R2.335. Highgain Ramsey/echo have weaker,
+faster loss of fringes and do not provide accepted lifetime fits. Normal
+Qspec zero-gain center5438.772803MHz/FWHM.14398;middle/high centers
+5438.715012/5438.526441MHz with broader weak-per-point features. No new
+microscopic TLS/beating claim. Full50 grid not validated by3gain tests.
+
+Q2 working seed promotion in expt_config.py/system_config.py only:
+res8950.93439->8951.01439MHz;qubit5438.499681577915->5438.770199633722MHz;
+pi.6765549655130318->.6715802966489653DAC. Derived RO8949.920077->8950.000077
+MHz; offset-1.014313MHz,gain.192,length7us,sigma.101us,ceiling.24 unchanged.
+Numbers come from repeated normal RR and independently confirmed Rabi,not
+unvalidated noise candidates. Lifetimes/readout are not promoted as final
+benchmark optimization. All other rows and pre-existing user changes remain.
+Safe149-file verifier passed after edits; focused5 numeric substitutions
+reviewed. Saved-data operational gates replay passed on all5 actual3gain maps,
+including zero-gain coherence; native legacy50gain HDF5 parser replay passed.
+These offline checks did not operate hardware.
+
+Prepared native continuation: full50 one-cycle validation then conditionally
+native72h, exact envelope in recover1119/NATIVE_BRIEF.txt and pipeline_plan.
+Only validation's outer repeat_round range is changed in compiled AST; actual
+script and all50gain/native phase/call/data hierarchy remain unchanged. Last
+accepted full-cycle carrier/pi seeds are runtime overrides for72h startup.
+Working configs are not automatically rewritten later. Whole-cycle metadata,
+50gain shape,mean-refSNR>=5 and zero-control gates must pass before72h child.
+These are operational nonblank-data gates,not final metrology acceptance.
+Longest intended round999 artifact218chars.14h/96h stage deadlines and600s
+log watchdog,owned-child cleanup,local atomic state. Await launch below.
