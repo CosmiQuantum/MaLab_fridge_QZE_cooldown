@@ -3509,3 +3509,8 @@ baseline. Actual nativeRO8950.365077MHz/.24DAC/7us afterres tracking; SSFcontras
 .10270, RabiR2.920/.939. TenHDF5 include unusedsecondRamseycorrectionplaceholder
 and nine actualmeasurements; native_verification.json flags it. Firstpremap
 calibration active.72h targetNov23 15:40:13local plus finishingactivecycle.
+
+November20 live2D confirmed: qspec_hi premapcalibration5438.845378047941MHz,
+pi.6765549655130318 passed; actual50gain/25.1Mreadoutmap advancing normally
+(227682shots at~48s). Firstcomplete2Draw/72hcompletion pending. Primarylocal
+repair/configcheckpointbb2222a. Readout investigation is not highSSF recovery.

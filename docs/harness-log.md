@@ -4561,3 +4561,24 @@ Actual nativeRO8950.365077MHz/.24DAC/7us after freshres tracking, same-.639313of
 Currentpermapqspec/Rabirefresh acquiring before first50gainmap.72h targetNov23
 15:40:13local then finishactivecycle; nofirst2Dsave/full72hcompletionclaim yet.
 Firstaudit native_verification.json distinguishes unusedplaceholder fromactualdata.
+
+## 2026-11-20 - Persistent measurement workflow
+
+- Request: persist the user's measurement sequence and existing class, plotting,
+  and saving conventions for future repository sessions; offline documentation only.
+- Added mandatory MEASUREMENT_PLAYBOOK.md and docs/MEASUREMENTS.md navigation,
+  routed from AGENTS.md and the harness index and required by the manifest.
+- Gates: qspec <=0.5 MHz (tighter PUCQ4 target retained), measured punch-out
+  readout ceiling, SSF >50%, eight points/fringe replacing four, and 5-10*T1
+  relaxation for Rabi/SSF/coherence. Added averaging optimization, bias-indexed
+  calibration, propagation, recovery and per-result documentation requirements.
+- Acceptance: safe harness verifier and focused diff review; no hardware run,
+  config changes, data writes, or claims of new validated calibration.
+- Maintenance is performed by future agents during tasks, not a background job.
+- Verification result: offline harness passed (149 Python files parsed), required documents passed, and git diff --check passed. Focused instruction diff reviewed; hardware not run.
+
+November20 live2D verified after restart: ZENO_CALIBRATION qspec_hi
+5438.845378047941MHz/pi.6765549655130318DAC passed, then full50gain highdrive
+map actively advanced227682/25100000readouts (~48s elapsed,~88minremaining).
+Controller60196/child65592 statusrunning; firstcomplete2DHDF5 stillpending.
+NativeactualRO8950.365077MHz/.24DAC/7us. Primaryrepair/configcheckpointbb2222a.
