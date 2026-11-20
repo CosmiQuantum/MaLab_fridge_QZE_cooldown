@@ -1140,3 +1140,26 @@ fitted/averaged center printed for a gain-dependent map is not automatically
 the zero-Zeno carrier. No microscopic TLS cause or reproduced beating follows
 from these checks. Three-gain success is not full50-gain/long-duration validation;
 the native one-cycle full-grid check must pass before the queued72h acquisition.
+
+## Optional gain-averaged Zeno fit must not discard acquired maps
+November19 native72h stopped20:50:39 during QSpec_zeno: scipy curve_fit maxfev1000,
+then the fit exception handler assigned seven None values to five variables.
+The plotting failure path also returned three values when run expected two,
+and main's logging cast the optional fitted center to float. These are chained
+verification failures after acquisition, before raw persistence. November20 fix
+returns correct arity, renders the acquired map without an unavailable fit,
+and logs the absent center without casting. Reference/control quality gates
+remain active; this does not accept noise as a calibration. AST-isolated test
+injects nonconvergence and checks both2/3-value returns and map PNG creation.
+Do not assume a gain-averaged Stark-shifted map has a single Lorentzian line.
+
+November20 readout reoptimization reinforces metric/power provenance: Oct29 Q2
+had44-49% histogram contrast at.95DAC/7us/8949.73MHz; the later punch-out policy
+qualified only.24DAC. Comparing that historical contrast to low-power results
+without stating gain and metric is misleading.126 fresh canonical SS points
+(length/gain/frequency plus independent repeats) recovered only8.3-9.2% contrast,
+54.1-54.7% held-out accuracy at.24DAC/7us/8950.325077MHz. The analog d-prime gain
+was modest/time-varying; no averaging reduction was accepted. A noisy grid's
+short-pulse winner failed independent confirmation and was rejected. Native main
+must set res_length_ge as well as res_length because build_state derives the
+actual integration/pulse length from res_length_ge. No low-level SS/QICK edits.

@@ -1,3 +1,26 @@
+## November20 Q2 readout reoptimized; native72h restart startup ACTIVE
+
+Latest status: IDE codex/ro1120/restart_status.json and native72h.log.
+Newrun qze_005/q2_2026-11-20_15-33-25;controller60196/child65592.
+Startup calibration acquiring at handoff entry; verify live before claiming2D.
+Previous Nov19 full50 validation passed; later72h stopped20:50:39 on optional
+Lorentzian failure handler sevenNone->five unpack, followed by wrong return
+arity/float(None) paths. Minimal wrapper/logging repair retains map/raw on fit
+failure; reference/controlguards unchanged. No low-level pulseprogram changes.
+
+126 freshSS points/plots, alternate length/gain/frequency plus independent
+confirms: working RO8950.325077MHz/.24DAC/7us,offset-.639313 from measured
+res8950.96439MHz. Repeatedcontrast8.3-9.2%,heldoutaccuracy54.1-54.7%; highpower
+Oct29 Q2contrast44-49% at.95DAC NOT recovered below qualified.24 ceiling.
+Modesttimevarying analogimprovement only; averaging2000qspec/2400coherence
+retained. Firstshortpulse candidate rejected by independentconfirms.
+Sharedexpt/system and native scriptQ2row promoted:res8951.01439->8950.96439MHz,
+offset-1.014313->-.639313MHz,gain.192->.24DAC,carrier5438.770199634->
+5438.856540689MHz,pi.671580296649->.676554965513DAC. Sigma.101us/length7us
+unchanged. FreshRabiR2.968,refsSNR23; otherrows preserved. Main now sets
+res_length_ge alongside res_length so selected lengths actually propagate.
+Offline149filecheck/injectedfitfailure/bothreturnarities/126HDF5plots passed.
+Nativebaseline/first2D/full72h completion must be checked from live data.
 ## November19 - Q2/M3 traces recovered; native full50 validation RUNNING
 
 Fresh normal RR recovered Q2=M2/index1 and M3/index2 (physical IDs unassigned).
@@ -3480,3 +3503,9 @@ November18 final diagnostic checkpoint10:43: search3/3 HDF5 and normalplots comp
 Maincalibrationlabels corrected BEFOREANYrepaired-mainrun fromdraftQSpec_cal/Rabi_cal toSTANDARDQSpec/Rabi withstagefilenamesuffix, preservingexistingoptimizationHDF5labels/loaders. Protected3Zenomodules/sharedconfigsbyteidenticaltotaskstart. Finalreport/snapshots/taskdiff inIDE/zeno_fix_1118/RESULTS.txt. Broadernewdiagnosticlabelsremainpreserveddiagnosticonly, notmainruntimeformat. Hardwarefree149fileparser/replaypass; finalchecksandartifactarchivepending.
 
 November18 10:49:30 LIVE repaired-helper validation complete: guard1118/2026-11-18_10-45-53 saved1standardQSpecHDF5/2normalPNGs, rejectednoisebeforeRabi/Zeno withcenter5437.272303/FWHM.022800MHz/R2.044116, statusrejected_calibration. Actualmainhelper execution/datawrite/qualitystop verified; freshQ2signalrecoveryNOTverified. QICKstopped, bothYokosCURR0A/OFF/.01A/30V, ownedguard45740exited. No longrunqueued. Full183diagnosticHDF5 plus1liveguardHDF5 preserved withnormalplots. Alloriginal28HDF5 retained. Final149fileharness/replay/whitespacechecks pass. Review in guardrun/documentation/repair1118/RESULTS.txt; requeststillneedsvalidfreshworkingbaseline/instrument-sideinformation beforeclaiminghardwarefix orresuming72h.
+
+November20 restart live follow-up: timed Zeno cycle0 began15:40:13 after saved
+baseline. Actual nativeRO8950.365077MHz/.24DAC/7us afterres tracking; SSFcontrast
+.10270, RabiR2.920/.939. TenHDF5 include unusedsecondRamseycorrectionplaceholder
+and nine actualmeasurements; native_verification.json flags it. Firstpremap
+calibration active.72h targetNov23 15:40:13local plus finishingactivecycle.

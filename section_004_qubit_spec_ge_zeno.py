@@ -522,9 +522,9 @@ class QubitSpectroscopyZeno:
             mean_y_data, y_data_fit, largest_amp_curve_mean, largest_amp_curve_fwhm, fit_err = \
                 self.fit_lorenzian_scaled(ydata_1d, freqs, freq_q, sigma_guess)
 
-            if (mean_y_data is None and y_data_fit is None and
-                    largest_amp_curve_mean is None and largest_amp_curve_fwhm is None):
-                return None, None, None
+            # A fit to the gain-averaged line is optional: retain the map and raw
+            # acquisition even when Stark-shifted/broadened traces do not fit it.
+            fit_available = y_data_fit is not None and largest_amp_curve_mean is not None
 
             # --- plotting ---
             plt.rcParams.update({'font.size': 18})
@@ -563,12 +563,12 @@ class QubitSpectroscopyZeno:
                 cbar.set_label("Qubit Population (avg)", fontsize=18)
 
                 # # Optionally overlay the fitted peak (averaged over gain)
-                # if self.plot_fit:
+                # if self.plot_fit and fit_available:
                 #     ax.axhline(largest_amp_curve_mean, color='orange', linestyle='--', linewidth=2)
 
                 # Title text
                 plot_middle = (ax.get_position().x0 + ax.get_position().x1) / 2
-                if self.plot_fit:
+                if self.plot_fit and fit_available:
                     if config is not None:
                         fig.text(
                             plot_middle, 0.98,
@@ -609,12 +609,12 @@ class QubitSpectroscopyZeno:
                 ax1.tick_params(axis='both', which='major', labelsize=16)
                 ax1.legend()
 
-                if self.plot_fit:
+                if self.plot_fit and fit_available:
                     ax1.plot(freqs, y_data_fit, 'r--', label='Lorentzian Fit')
                     #ax1.axvline(largest_amp_curve_mean, color='orange', linestyle='--', linewidth=2)
 
                 plot_middle = (ax1.get_position().x0 + ax1.get_position().x1) / 2
-                if self.plot_fit:
+                if self.plot_fit and fit_available:
                     if config is not None:
                         fig.text(
                             plot_middle, 0.98,
@@ -934,7 +934,7 @@ class QubitSpectroscopyZeno:
             if self.verbose: print("Error during Lorentzian fit:", e)
             self.logger.info(f'Error during Lorentzian fit: {e}')
             # Return all desired results including the error on the Q fit
-            mean_y_data, y_data_fit, largest_amp_curve_mean, largest_amp_curve_fwhm, qspec_fit_err = None, None, None, None, None,None,None
+            mean_y_data, y_data_fit, largest_amp_curve_mean, largest_amp_curve_fwhm, qspec_fit_err = None, None, None, None, None
         return mean_y_data, y_data_fit, largest_amp_curve_mean, largest_amp_curve_fwhm, qspec_fit_err
 
     def fit_lorenzian_two_peaks(self, I, Q, freqs ):

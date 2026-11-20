@@ -56,7 +56,8 @@ run_duration_hours = 72.0
 apply_ramsey_frequency_correction = False  # Q2 beats; retain the measured qspec carrier.
 substudy_txt_notes = ('script longitudinal_qze_005_ge_ramsey.py; Q2/M2/index1; '
                      '72 hours of Zeno cycles after baseline calibration; '
-                     'finish the active cycle before stopping; November 4 validated pulse seeds; '
+                     'finish the active cycle before stopping; November 20 measured pulse/readout seeds; '
+                     'low-power SSF remains modest; averaging counts retained after repeated validation; '
                      'normal qspec/Rabi refreshed and validated before every Zeno map; '
                      'Zeno drive uses the offset readout tone, as in the existing script.')
 
@@ -65,8 +66,8 @@ study = 'qze_005'
 ################################################ optimization outputs ##################################################
 # Optimization parameters for resonator spectroscopy
 res_leng_vals = [9,7.0,9,9,9,9]
-res_gain = [0.25,0.192,0.25,0.25,0.24,0.2133]
-freq_offsets = [0,-1.0143129999996745,0,0,-0.25,-0.16]
+res_gain = [0.25,0.24,0.25,0.25,0.24,0.2133]
+freq_offsets = [0,-0.6393129999996745,0,0,-0.25,-0.16]
 ####################################################### RR #############################################################
 
 def create_data_dict(keys, save_r, qs):
@@ -276,6 +277,7 @@ for QubitIndex in Qs_to_look_at:
     experiment.readout_cfg['res_gain_ge'] = res_gain[QubitIndex]
     experiment.readout_cfg['res_gain_ef'] = res_gain[QubitIndex]
     experiment.readout_cfg['res_length'] = res_leng_vals[QubitIndex]
+    experiment.readout_cfg['res_length_ge'] = res_leng_vals[QubitIndex]
     experiment.readout_cfg['res_freq_ge'] = experiment.readout_cfg['res_freq_ge'][QubitIndex]
 
     experiment.qubit_cfg['qubit_freq_ge'] = experiment.qubit_cfg['qubit_freq_ge'][QubitIndex]
@@ -802,9 +804,9 @@ for QubitIndex in Qs_to_look_at:
             del saver_qspec
             del qspec_data
 
-            rr_logger.info(f"g-e Qubit {QubitIndex + 1} frequency: {float(qubit_freq)}")
+            rr_logger.info(f"g-e Qubit {QubitIndex + 1} frequency: {qubit_freq}")
             if verbose:
-                print(f"g-e Qubit {QubitIndex + 1} frequency: {float(qubit_freq)}")
+                print(f"g-e Qubit {QubitIndex + 1} frequency: {qubit_freq}")
             del q_spec
 
         except Exception as e:
@@ -858,9 +860,9 @@ for QubitIndex in Qs_to_look_at:
             del saver_qspec
             del qspec_data
 
-            rr_logger.info(f"g-e Qubit {QubitIndex + 1} frequency: {float(qubit_freq)}")
+            rr_logger.info(f"g-e Qubit {QubitIndex + 1} frequency: {qubit_freq}")
             if verbose:
-                print(f"g-e Qubit {QubitIndex + 1} frequency: {float(qubit_freq)}")
+                print(f"g-e Qubit {QubitIndex + 1} frequency: {qubit_freq}")
             del q_spec
 
         except Exception as e:

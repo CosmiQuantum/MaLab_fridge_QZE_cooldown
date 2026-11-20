@@ -4532,3 +4532,32 @@ by standard-library JSON writer. No lab process killed/restarted; native
 parent26112/child19052 and atomic heartbeat continued uninterrupted.
 Nested handoff metadata is generated with Python JSON; no hardware conclusion
 follows from this helper failure. No experiment/source changes in that helper.
+
+## November20 Q2 SSF recovery and native Zeno crash repair (in progress)
+User authorized readout recovery/reoptimization and full native restart after fresh validation. Prior Nov19 native full50 cycle passed; subsequent72h child failed during normal QSpec_zeno fit: scipy maxfev1000 then ValueError seven None values unpacked into five. Failure is optional gain-averaged fit handling, not an acquisition connection error. Raw prior files retained; failed map did not reach caller raw save.
+Minimal fix section_004_qubit_spec_ge_zeno.py returns correct five-value failure, still plots map without fit, and preserves return_fwhm arity. Main logging accepts absent optional fit center; main explicitly sets res_length_ge alongside res_length because build_state derives actual length from the former. AST-isolated regression injects nonconvergence and verifies both return signatures and PNG without hardware imports.149file offline verifier passed before acquisition; final checks pending.
+Historical Oct29 deck Q2/M2 row1 actual readout8949.730MHz/.95DAC/7us, histogram contrast48.87% finalpass and44.47/45.25% independentexamples. Those are not60% contrast. Balanced assignmentaccuracy roughly(1+contrast)/2; heldout accuracy to be measured separately. November4 subsequent punch-out qualification lowered cap.24 and selected.192DAC/7us/offset-1.014313MHz, yielding~.1contrast. Do not silently replay.95 above the qualified cap.
+Workspace IDE codex/ro1120: RUN_BRIEF.txt records envelope; source snapshots retained. Active bounded normalRR qspec/rabi/SSF parent39272 followed by saved-data review parent73620 and conditional bounded alternating SS length/gain/frequency optimization. No72h restarted yet. Data normalRR find_resonators_sandbox/ro1120, optimization qze_005/ro1120. Gain<=.24,8948.5..8952MHz,.5..15us; bothYokos readback0A/OFF required; no current/attenuation changes. Latest status/log/raw must be inspected before assuming success. Preserve historical old IDE Python processes; no recent competing acquisition found.
+
+November20 selected working readout after126 raw SS points/126plots, all finite/canonical:
+RO8950.325077MHz,gain.24,length7us,reference resonance8950.96439MHz,offset-.639313MHz.
+Independent candidate contrasts.08770/.08305/.09160; heldoutaccuracy.54445/.54135/.54665.
+Baselineaccuracy.53025/.55030/.53440; analogdprime meanratio1.14046,timevarying.
+High-power historical fidelity NOT recovered within cap; no reducedaverages accepted.
+Fresh normalRR carrier5438.856540689225MHz/pi.6765549655130318/sigma.101us; qspecR2.48989, RabiR2.96797,refsSNR21.2/22.7. Final resdepthSNR40.37 at.24.
+Promoted ONLYQ2/M2/index1:res8951.01439->8950.96439MHz;offset-1.014313->-.639313MHz;
+gain.192->.24DAC;carrier5438.770199634->5438.856540689MHz;pi.671580296649->.676554965513DAC.
+Length7us/sigma.101us/otherrows/gaincap.24 unchanged. expt/system/main consistent.
+149fileharness/AST-isolatednonconvergence/126HDF5+plots/unchangedotherrows/diffchecks passed.
+Native72h restart launched15:33:25: qze_005/q2_2026-11-20_15-33-25, controller60196 child65592.
+Startupcalibration acquiring; loop/data acceptance still pending. Supervisor ro1120/restart_status.json;
+600s progressguard/96hwallbound/bothYokos0AOFF required. No72hcompletion claim.
+
+November20 15:40:13 native restart entered timed Zeno cycle0 after full startup.
+TenHDF5 saved: nineactual measurements plus native unusedsecondRamseycorrection
+placeholder. Startupres/qspec/Rabi/SSF/T1/Ramsey/echo raw/plots verified; refsSNR
+~22-24 for reviewed startupqspec/Rabi/T1. NativeRabiR2.920/.939; SSFcontrast.10270.
+Actual nativeRO8950.365077MHz/.24DAC/7us after freshres tracking, same-.639313offset.
+Currentpermapqspec/Rabirefresh acquiring before first50gainmap.72h targetNov23
+15:40:13local then finishactivecycle; nofirst2Dsave/full72hcompletionclaim yet.
+Firstaudit native_verification.json distinguishes unusedplaceholder fromactualdata.
