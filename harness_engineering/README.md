@@ -31,6 +31,12 @@ authorize a hardware run.
 
 ## Task routing
 
+All measurement, calibration, diagnosis, and acquisition-code tasks must first
+read [MEASUREMENT_PLAYBOOK.md](MEASUREMENT_PLAYBOOK.md) and
+[the central measurement index](../docs/MEASUREMENTS.md). Follow the ordered
+gates, reuse existing plots/classes, and persist evidence and resume state.
+The current eight-points-per-fringe requirement supersedes older four-point text.
+
 | Task | Read before acting |
 | --- | --- |
 | Explain or review code | Repository map, then the directly relevant source files |

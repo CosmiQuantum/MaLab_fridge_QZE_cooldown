@@ -29,7 +29,7 @@ from system_config import QICK_experiment
 
 DATA_ROOT = os.path.join(
     "M:/_Data/20250822 - Olivia",
-    "pucq4_run_started_Aug_3",
+    "pucq4_run_started_Oct_7",
     "PUCQ4",
     "pucq4_first_light",
 )

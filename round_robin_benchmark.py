@@ -3,6 +3,7 @@ import sys
 import os
 import atexit
 import json
+from tools.ssf_progress import publish_ssf_status
 import numpy as np
 
 # from long_qubit_spectroscopy import fh_config
@@ -34,7 +35,8 @@ from section_008_save_data_to_h5 import Data_H5
 from section_009_T2R_ge import T2RMeasurement
 from section_010_T2E_ge import T2EMeasurement
 from system_config import (QICK_experiment, get_pucq4_flux_calibration,
-                           resolve_pucq4_flux_config, normalize_pucq4_flux_current)
+                           resolve_pucq4_flux_config, normalize_pucq4_flux_current,
+                           PUCQ4_ZERO_CURRENT_READOUT_GAIN_MAX)
 from malab_yokogawa_gs200 import YokogawaGS200
 from section_003_punch_out_ge_mux import PunchOut
 from expt_config import (expt_cfg, list_of_all_qubits, tot_num_of_qubits, FRIDGE,
@@ -126,7 +128,7 @@ selected_flux_config = resolve_pucq4_flux_config(
 apply_pucq4_flux_experiment_config(selected_flux_calibration)
 
 #Data saving info
-run_name = 'pucq4_run_started_Aug_3'
+run_name = 'pucq4_run_started_Oct_7'
 device_name = 'PUCQ4'
 _bias_description = (
     'zero-current' if YOKO3_CURRENT_MA == 0.0 and YOKO4_CURRENT_MA == 0.0
@@ -162,6 +164,24 @@ run_flags = {"tof": False, "res_spec": True, "q_spec": False, "ss": False, "rabi
 if os.environ.get('PUCQ4_RUN_FLAGS'):
     enabled = {name.strip() for name in os.environ['PUCQ4_RUN_FLAGS'].split(',') if name.strip()}
     run_flags = {name: name in enabled for name in run_flags}
+
+# Optional phase-by-phase persistence for a single canonical calibration pass.
+# Each dataset is still written once by Data_H5 with the usual schema/naming.
+phase_checkpoints = os.environ.get('PUCQ4_PHASE_CHECKPOINTS', '').lower() in {'1', 'true', 'yes'}
+
+# Optional user-requested fixed-calibration Q2 time series. Normal RR defaults
+# and the section/Data_H5 interfaces remain unchanged when this is absent.
+ssf_duration_hours = float(os.environ.get('PUCQ4_SSF_DURATION_HOURS', '0'))
+if not np.isfinite(ssf_duration_hours) or not 0 <= ssf_duration_hours <= 24:
+    raise ValueError('PUCQ4_SSF_DURATION_HOURS must be finite and between 0 and 24')
+if ssf_duration_hours:
+    if (Qs_to_look_at != [1] or save_r != 1 or pre_optimize
+            or not (debug_mode and save_figs and save_data_h5)
+            or {name for name, enabled in run_flags.items() if enabled} != {'ss'}
+            or YOKO3_CURRENT_MA != 0 or YOKO4_CURRENT_MA != 0):
+        raise ValueError('Timed SSF requires Q2/index1 only, ss only, save_r=1, zero current')
+    verbose = False
+    qick_verbose = False
 t2r_fit_starts_override = None
 if os.environ.get('PUCQ4_T2R_FIT_STARTS'):
     # Optional diagnostic starts for the existing free fit; never a T2 guess.
@@ -182,6 +202,11 @@ if os.environ.get('PUCQ4_QSPEC_PASSES'):
     if (n not in (1, 2, 3) or len(Qs_to_look_at) != 1
             or {name for name, enabled in run_flags.items() if enabled} != {'q_spec'}):
         raise ValueError('PUCQ4_QSPEC_PASSES permits only 1-3 qspec-only passes on one row')
+if phase_checkpoints and (n != 1 or save_r != 1 or len(Qs_to_look_at) != 1
+        or ssf_duration_hours or not save_data_h5 or not debug_mode or pre_optimize
+        or any(enabled and name not in {'res_spec', 'q_spec', 'rabi', 'ss', 't1', 't2r', 't2e'}
+               for name, enabled in run_flags.items())):
+    raise ValueError('Phase checkpoints require one row, one pass, save_r1 and standard GE experiments')
 if (not run_flags['q_spec'] and not os.environ.get('PUCQ4_QFREQ_MHZ')
         and any(run_flags[name] for name in ('rabi', 'ss', 't1', 't2r', 't2e'))
         and any(q in Qs_to_look_at and row.get('requires_qspec_each_pass', False)
@@ -208,6 +233,39 @@ for _override_index in Qs_to_look_at:
         res_gain[_override_index] = float(os.environ['PUCQ4_READOUT_GAIN'])
     if os.environ.get('PUCQ4_READOUT_OFFSET_MHZ'):
         freq_offsets[_override_index] = float(os.environ['PUCQ4_READOUT_OFFSET_MHZ'])
+
+# A measured below-shift gain ceiling is supplied by the readout-power campaign.
+# Check before constructing QICK_experiment or touching an attenuator/source.
+readout_gain_ceiling = os.environ.get('PUCQ4_READOUT_GAIN_MAX')
+if readout_gain_ceiling is not None:
+    readout_gain_ceiling = float(readout_gain_ceiling)
+    if (not np.isfinite(readout_gain_ceiling) or not 0 < readout_gain_ceiling <= 1
+            or pre_optimize
+            or any(not 0 < res_gain[q] <= readout_gain_ceiling for q in Qs_to_look_at)):
+        raise ValueError('Requested readout gain exceeds the measured safe ceiling')
+# Explicit spectroscopy-only characterization may measure a revised ceiling.
+# It never authorizes qubit preparation, SSF, optimization, or a mixed run.
+res_power_characterization_max = os.environ.get('PUCQ4_RES_POWER_CHARACTERIZATION_MAX')
+if res_power_characterization_max is not None:
+    res_power_characterization_max = float(res_power_characterization_max)
+    if (not np.isfinite(res_power_characterization_max)
+            or not 0 < res_power_characterization_max <= 1
+            or readout_gain_ceiling != res_power_characterization_max
+            or pre_optimize or len(Qs_to_look_at) != 1
+            or YOKO3_CURRENT_MA != 0 or YOKO4_CURRENT_MA != 0
+            or not run_flags['res_spec']
+            or any(enabled for name, enabled in run_flags.items() if name != 'res_spec')):
+        raise ValueError('Power characterization requires bounded, single-qubit, zero-bias res-only mode')
+persisted_gain_limits = {}
+if YOKO3_CURRENT_MA == 0 and YOKO4_CURRENT_MA == 0:
+    for _index in Qs_to_look_at:
+        _limit = PUCQ4_ZERO_CURRENT_READOUT_GAIN_MAX[_index]
+        if _limit is not None:
+            persisted_gain_limits[_index] = float(_limit)
+            if (res_power_characterization_max is None
+                    and (pre_optimize or not 0 < res_gain[_index] <= float(_limit))):
+                raise ValueError('Readout exceeds persisted zero-current gain ceiling for M%d'
+                                 % (_index + 1))
 
 qubit_freqs_ef = [None]*6
 increase_steps_to_ef = 600
@@ -279,6 +337,9 @@ rr_logger.propagate = False  #dont propagate logs from underlying qick package
 
 with open(os.path.join(studyDocumentationFolder, "acquisition_profile.json"), "w") as _profile_file:
     json.dump(dict(qubits=Qs_to_look_at, rounds=n, run_flags=run_flags,
+                   ssf_duration_hours=ssf_duration_hours,
+                   persisted_gain_limits=persisted_gain_limits,
+                   res_power_characterization_max=res_power_characterization_max,
                    yoko3_current_mA=YOKO3_CURRENT_MA, yoko4_current_mA=YOKO4_CURRENT_MA,
                    yoko_settle_seconds=YOKO_SETTLE_SECONDS,
                    system=selected_flux_config,
@@ -286,6 +347,14 @@ with open(os.path.join(studyDocumentationFolder, "acquisition_profile.json"), "w
                              for q in Qs_to_look_at},
                    environment_overrides={k: v for k, v in os.environ.items() if k.startswith("PUCQ4_")},
                    longest_artifact_path=max(map(len, _planned_paths))), _profile_file, indent=2)
+
+if ssf_duration_hours:
+    substudy_txt_notes += ('\nFixed-calibration SSF time series for %.6g hours. '
+                          'Every round is saved with the normal Data_H5 writer. '
+                          'Create documentation/STOP to stop after a saved round.'
+                          % ssf_duration_hours)
+    with open(file_path, 'w', encoding='utf-8') as _notes_file:
+        _notes_file.write(substudy_txt_notes)
 
 
 def return_yokos_to_zero():
@@ -376,6 +445,30 @@ t2r_correction_keys = ['T2', 'Errors', 'Dates', 'I', 'Q', 'Correction Freq', 'De
 t2e_keys = ['T2E', 'Errors', 'Dates', 'I', 'Q', 'Population', 'Delay Times', 'Fit',
             'Round Num', 'Batch Num', 'Exp Config', 'Syst Config', 'ss_Q_e', 'ss_Q_g',
             'ss_I_e', 'ss_I_g']
+
+saved_phase_types = set()
+
+
+def checkpoint_result(data_type, keys, config, payload):
+    """Persist a completed phase once, without changing canonical HDF5 fields."""
+    if not phase_checkpoints:
+        return
+    if data_type in saved_phase_types:
+        raise RuntimeError('Refusing duplicate phase save: ' + data_type)
+    data = create_data_dict(keys, 1, list_of_all_qubits)
+    values = dict(payload, **{'Dates': time.mktime(datetime.datetime.now().timetuple()),
+                  'Round Num': j, 'Batch Num': batch_num,
+                  'Exp Config': copy.deepcopy(expt_cfg), 'Syst Config': copy.deepcopy(config)})
+    if not set(values) <= set(keys):
+        raise RuntimeError('Unexpected checkpoint fields for ' + data_type)
+    for key, value in values.items():
+        data[QubitIndex][key][0] = value
+    saver = Data_H5(subStudyDataFolder, data, batch_num + 1, 1)
+    saver.save_to_h5(data_type)
+    if not saver.last_saved_path or not os.path.isfile(saver.last_saved_path):
+        raise RuntimeError('Phase raw data did not persist: ' + data_type)
+    saved_phase_types.add(data_type)
+    print('PHASE_SAVED ' + data_type + ' ' + saver.last_saved_path, flush=True)
 rabi_keys_ef_Qtemps = ['Dates', 'Qfreq_ge', 'I1', 'Q1', 'Gains1', 'Fit1', 'I2', 'Q2', 'Gains2', 'Fit2', 'Round Num', 'Batch Num', 'Exp Config', 'Syst Config']
 ss_keys_gef = ['Fidelity', 'Angle_ef', 'Dates', 'I_g', 'Q_g', 'I_e', 'Q_e', 'I_f', 'Q_f', 'Round Num', 'Batch Num', 'Exp Config',
            'Syst Config']
@@ -646,7 +739,17 @@ if pre_optimize:
 batch_num=0
 j = 0
 angles=[]
-while j < n:
+ssf_started_monotonic = time.monotonic()
+ssf_deadline = ssf_started_monotonic + ssf_duration_hours * 3600
+ssf_started_epoch = time.time()
+if ssf_duration_hours:
+    _status_path = os.path.join(studyDocumentationFolder, 'ssf_status.json')
+    _status = dict(status='starting', completed_rounds=0, start_epoch=ssf_started_epoch,
+                   scheduled_end_epoch=ssf_started_epoch + ssf_duration_hours * 3600)
+    publish_ssf_status(_status_path, _status)
+while (time.monotonic() < ssf_deadline if ssf_duration_hours else j < n):
+    if ssf_duration_hours and os.path.exists(os.path.join(studyDocumentationFolder, 'STOP')):
+        break
     j += 1
     for QubitIndex in Qs_to_look_at:
         recycled_qfreq = False
@@ -793,7 +896,7 @@ while j < n:
                 print(f'g-e Resonator {QubitIndex + 1} frequency: {res_freqs[0]}')
 
                 # Collect completed spectra before a later fit can skip this row.
-                # The normal end-of-round Data_H5 writer still owns persistence.
+                # The normal Data_H5 writer owns persistence, optionally per phase.
                 if save_data_h5:
                     sample = j - batch_num * save_r - 1
                     res_data[QubitIndex]['Dates'][sample] = time.mktime(datetime.datetime.now().timetuple())
@@ -805,6 +908,9 @@ while j < n:
                     res_data[QubitIndex]['Batch Num'][sample] = batch_num
                     res_data[QubitIndex]['Exp Config'][sample] = copy.deepcopy(expt_cfg)
                     res_data[QubitIndex]['Syst Config'][sample] = sys_config_rspec
+                checkpoint_result('res_ge', res_keys, sys_config_rspec, {
+                    'freq_pts': freq_pts, 'freq_center': freq_center,
+                    'Amps': amps, 'Found Freqs': res_freqs})
 
                 offset = freq_offsets[QubitIndex]
                 # Preserve the calibrated physical readout tone. A fresh dip
@@ -931,6 +1037,12 @@ while j < n:
                     qspec_data[QubitIndex]['ss_Q_g'][sample] = ss_Q_g_qspec
                     qspec_data[QubitIndex]['ss_I_e'][sample] = ss_I_e_qspec
                     qspec_data[QubitIndex]['ss_I_g'][sample] = ss_I_g_qspec
+
+                checkpoint_result('qspec_ge', qspec_keys, sys_config_qspec, {
+                    'I': qspec_I, 'Q': qspec_Q, 'Population': qspec_population,
+                    'Frequencies': qspec_freqs, 'I Fit': qspec_fit,
+                    'Recycled QFreq': recycled_qfreq, 'ss_Q_e': ss_Q_e_qspec,
+                    'ss_Q_g': ss_Q_g_qspec, 'ss_I_e': ss_I_e_qspec, 'ss_I_g': ss_I_g_qspec})
 
                 if qubit_freq is None:
                     keep_seed = os.environ.get(
@@ -1128,6 +1240,11 @@ while j < n:
                         )
                     continue  # skip the rest of this qubit
 
+            checkpoint_result('rabi_ge', rabi_keys, sys_config_rabi, {
+                'I': rabi_I, 'Q': rabi_Q, 'Population': rabi_population,
+                'Gains': rabi_gains, 'Fit': rabi_fit, 'ss_Q_e': ss_Q_e,
+                'ss_Q_g': ss_Q_g, 'ss_I_e': ss_I_e, 'ss_I_g': ss_I_g})
+
             experiment.qubit_cfg['pi_amp'] = float(pi_amp)
             rr_logger.info(f'g-e Pi amplitude for qubit {QubitIndex + 1} is: {float(pi_amp)}')
             if verbose:
@@ -1302,6 +1419,8 @@ while j < n:
             ss = SingleShot(QubitIndex, tot_num_of_qubits, studyDocumentationFolder, j, save_figs, experiment = experiment,
                             verbose = verbose, logger = rr_logger, unmasking_resgain = unmask)
             fid, angle, iq_list_g, iq_list_e, sys_config_ss = ss.run()
+            if ssf_duration_hours:
+                _ss_plot_path = ss.last_plot_path
             I_g_ss_ge = iq_list_g[0][0].T[0]
             Q_g_ss_ge = iq_list_g[0][0].T[1]
             I_e_ss_ge = iq_list_e[0][0].T[0]
@@ -1309,6 +1428,9 @@ while j < n:
 
             # fid, threshold, angle, ig_new, ie_new = ss.hist_ssf(
             #     data=[I_g, Q_g, I_e, Q_e], cfg=ss.config, plot=save_figs)
+            checkpoint_result('ss_ge', ss_keys, sys_config_ss, {
+                'Fidelity': fid, 'Angle': angle, 'I_g': I_g_ss_ge, 'Q_g': Q_g_ss_ge,
+                'I_e': I_e_ss_ge, 'Q_e': Q_e_ss_ge})
             print(sys_config_ss)
             # except Exception as e:
             #     if debug_mode:
@@ -1529,6 +1651,11 @@ while j < n:
                     t1_population = None
                     t1_ss_Q_e = t1_ss_Q_g = None
                     t1_ss_I_e = t1_ss_I_g = None
+                checkpoint_result('t1_ge', t1_keys, sys_config_t1, {
+                    'T1': t1_est, 'Errors': t1_err, 'I': t1_I, 'Q': t1_Q,
+                    'Population': t1_population, 'Delay Times': t1_delay_times,
+                    'Fit': q1_fit_exponential, 'ss_Q_e': t1_ss_Q_e, 'ss_Q_g': t1_ss_Q_g,
+                    'ss_I_e': t1_ss_I_e, 'ss_I_g': t1_ss_I_g})
                 del t1
 
             except Exception as e:
@@ -1634,6 +1761,12 @@ while j < n:
                         'fitted_frequency_MHz': t2r_fitted_frequency,
                         'unseeded_T2R_us': unseeded_tau, 'T2R_us': t2r_est,
                     }), flush=True)
+                checkpoint_result('t2_ge', t2r_keys, sys_config_t2r, {
+                    'T2': t2r_est, 'Errors': t2r_err, 'I': t2r_I, 'Q': t2r_Q,
+                    'Population': t2r_population, 'Delay Times': t2r_delay_times,
+                    'Fit': fit_ramsey, 'Fit Unseeded': fit_ramsey_unseeded,
+                    'ss_Q_e': t2r_ss_Q_e, 'ss_Q_g': t2r_ss_Q_g,
+                    'ss_I_e': t2r_ss_I_e, 'ss_I_g': t2r_ss_I_g})
                 del t2r
 
             except Exception as e:
@@ -1701,6 +1834,11 @@ while j < n:
                     t2e_population = None
                     t2e_ss_Q_e = t2e_ss_Q_g = None
                     t2e_ss_I_e = t2e_ss_I_g = None
+                checkpoint_result('t2e_ge', t2e_keys, sys_config_t2e, {
+                    'T2E': t2e_est, 'Errors': t2e_err, 'I': t2e_I, 'Q': t2e_Q,
+                    'Population': t2e_population, 'Delay Times': t2e_delay_times,
+                    'Fit': fit_t2e, 'ss_Q_e': t2e_ss_Q_e, 'ss_Q_g': t2e_ss_Q_g,
+                    'ss_I_e': t2e_ss_I_e, 'ss_I_g': t2e_ss_I_g})
                 del t2e
 
             except Exception as e:
@@ -2220,14 +2358,14 @@ while j < n:
                 del saver_res
                 del res_data
             # --------------------------save g-e Res Spec-----------------------
-            if run_flags["res_spec"]:
+            if run_flags["res_spec"] and 'res_ge' not in saved_phase_types:
                 saver_res = Data_H5(subStudyDataFolder, res_data, batch_num, save_r)
                 saver_res.save_to_h5('res_ge')
                 del saver_res
                 del res_data
 
             # --------------------------save g-e QSpec-----------------------
-            if run_flags["q_spec"]:
+            if run_flags["q_spec"] and 'qspec_ge' not in saved_phase_types:
                 saver_qspec = Data_H5(subStudyDataFolder, qspec_data, batch_num, save_r)
                 saver_qspec.save_to_h5('qspec_ge')
                 del saver_qspec
@@ -2240,7 +2378,7 @@ while j < n:
                 del saver_res
                 del res_data_fh
             # --------------------------save g-e Rabi-----------------------
-            if run_flags["rabi"]:
+            if run_flags["rabi"] and 'rabi_ge' not in saved_phase_types:
                 saver_rabi = Data_H5(subStudyDataFolder, rabi_data, batch_num, save_r)
                 saver_rabi.save_to_h5('rabi_ge')
                 del saver_rabi
@@ -2252,9 +2390,36 @@ while j < n:
                 del saver_rabi
                 del len_rabi_data
             # --------------------------save g-e SS-----------------------
-            if run_flags["ss"]:
+            if run_flags["ss"] and 'ss_ge' not in saved_phase_types:
                 saver_ss = Data_H5(subStudyDataFolder, ss_data, batch_num, save_r)
                 saver_ss.save_to_h5('ss_ge')
+                if ssf_duration_hours:
+                    # Confirm persistence before another acquisition. Preserve raw
+                    # IQ and canonical schema; status is supplemental metadata.
+                    import h5py
+                    from tools.analyze_qspec_iq_series import decode_numeric
+                    _saved_path = saver_ss.last_saved_path
+                    if not _saved_path or not os.path.isfile(_saved_path):
+                        raise RuntimeError('Expected one saved SSF file for this round')
+                    if not os.path.isfile(_ss_plot_path) or not np.isfinite(fid):
+                        raise RuntimeError('Expected saved SSF plot and finite fidelity')
+                    with h5py.File(_saved_path, 'r') as _raw:
+                        _group = _raw['Q2']
+                        for _key in ('I_g', 'Q_g', 'I_e', 'Q_e'):
+                            _samples = decode_numeric(_group[_key])
+                            if (_samples.size != int(sys_config_ss['steps'])
+                                    or not np.all(np.isfinite(_samples))):
+                                raise RuntimeError('Invalid saved SSF samples: ' + _key)
+                    _status = dict(status='running', completed_rounds=j,
+                                   start_epoch=ssf_started_epoch,
+                                   scheduled_end_epoch=ssf_started_epoch + ssf_duration_hours * 3600,
+                                   elapsed_seconds=time.monotonic() - ssf_started_monotonic,
+                                   last_saved_epoch=time.time(), last_h5=_saved_path,
+                                   last_fidelity=float(fid), shots_per_state=int(sys_config_ss['steps']))
+                    _status_path = os.path.join(studyDocumentationFolder, 'ssf_status.json')
+                    publish_ssf_status(_status_path, _status)
+                    print('SSF saved round %d; fidelity %.5f; elapsed %.1f seconds'
+                          % (j, fid, _status['elapsed_seconds']), flush=True)
                 del saver_ss
                 del ss_data
 
@@ -2297,14 +2462,14 @@ while j < n:
                 del saver_rabi_Qtemps
                 del rabi_data_ef_Qtemps
             # --------------------------save g-e t1-----------------------
-            if run_flags["t1"]:
+            if run_flags["t1"] and 't1_ge' not in saved_phase_types:
                 saver_t1 = Data_H5(subStudyDataFolder, t1_data, batch_num, save_r)
                 saver_t1.save_to_h5('t1_ge')
                 del saver_t1
                 del t1_data
 
             #--------------------------save g-e t2r-----------------------
-            if run_flags["t2r"]:
+            if run_flags["t2r"] and 't2_ge' not in saved_phase_types:
                 saver_t2r = Data_H5(subStudyDataFolder, t2r_data, batch_num, save_r)
                 saver_t2r.save_to_h5('t2_ge')
                 del saver_t2r
@@ -2324,7 +2489,7 @@ while j < n:
                     del rabi_corrected_data
 
             #--------------------------save g-e t2e-----------------------
-            if run_flags["t2e"]:
+            if run_flags["t2e"] and 't2e_ge' not in saved_phase_types:
                 saver_t2e = Data_H5(subStudyDataFolder, t2e_data, batch_num, save_r)
                 saver_t2e.save_to_h5('t2e_ge')
                 del saver_t2e
@@ -2379,3 +2544,7 @@ en=time.time()
 print('timetaken=',en-st)
 return_yokos_to_zero()
 atexit.unregister(return_yokos_to_zero)
+if ssf_duration_hours:
+    _status.update(status='stopped' if os.path.exists(os.path.join(studyDocumentationFolder, 'STOP'))
+                   else 'complete', finished_epoch=time.time())
+    publish_ssf_status(_status_path, _status)

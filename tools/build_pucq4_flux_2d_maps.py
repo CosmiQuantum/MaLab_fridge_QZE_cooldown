@@ -18,7 +18,7 @@ from matplotlib.colors import TwoSlopeNorm
 from scipy.optimize import curve_fit
 
 
-ROOT = Path(r"M:\_Data\20250822 - Olivia\pucq4_run_started_Aug_3\PUCQ4\pucq4_first_light")
+ROOT = Path(r"M:\_Data\20250822 - Olivia\pucq4_run_started_Oct_7\PUCQ4\pucq4_first_light")
 CAMPAIGN = ROOT / "yoko_flux_campaign"
 MANIFEST_PATH = CAMPAIGN / "flux_campaign_manifest.json"
 OUTPUT = CAMPAIGN / "aggregate_2d"

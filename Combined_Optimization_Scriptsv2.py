@@ -56,7 +56,7 @@ def output_folders():
             YOKO3_CURRENT_MA, YOKO4_CURRENT_MA
         )
     root = os.path.join(
-        "M:/_Data/20250822 - Olivia", "pucq4_run_started_Aug_3", "PUCQ4",
+        "M:/_Data/20250822 - Olivia", "pucq4_run_started_Oct_7", "PUCQ4",
         "pucq4_first_light",
         os.environ.get(
             "PUCQ4_OPT_ROOT_TAG",

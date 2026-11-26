@@ -26,7 +26,7 @@ The starting source hashes and dirty-file snapshots are in
 Reference: `PUCQ4_chip_summary_20260908.pptx` and its
 `PUCQ4_chip_summary_20260908_artifacts/summary_provenance.json`, plus
 `yoko_flux_campaign/ramsey_sigma_coherence_manifest.json`, under
-`M:/_Data/20250822 - Olivia/pucq4_run_started_Aug_3/PUCQ4/pucq4_first_light`.
+`M:/_Data/20250822 - Olivia/pucq4_run_started_Oct_7/PUCQ4/pucq4_first_light`.
 Preserve both existing active decks. Create one new round-robin validation
 PowerPoint in that same run folder, with actual new traces, comparison tables,
 current-indexed linewidths, all acquisition settings, and reproducible usage.

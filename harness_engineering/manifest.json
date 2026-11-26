@@ -8,6 +8,8 @@
     "persistent_log": "docs/harness-log.md"
   },
   "required_documents": [
+    "harness_engineering/MEASUREMENT_PLAYBOOK.md",
+    "docs/MEASUREMENTS.md",
     "harness_engineering/README.md",
     "harness_engineering/TASK_TEMPLATE.md",
     "harness_engineering/REPOSITORY_MAP.md",

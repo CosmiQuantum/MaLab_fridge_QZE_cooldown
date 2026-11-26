@@ -23,7 +23,7 @@ from malab_yokogawa_gs200 import YokogawaGS200
 from system_config import PUCQ4_FLUX_CALIBRATION, PUCQ4_FLUX_CURRENT_GRID_MA
 
 
-DATA_ROOT = Path(r"M:\_Data\20250822 - Olivia\pucq4_run_started_Aug_3\PUCQ4\pucq4_first_light")
+DATA_ROOT = Path(r"M:\_Data\20250822 - Olivia\pucq4_run_started_Oct_7\PUCQ4\pucq4_first_light")
 CAMPAIGN_ROOT = DATA_ROOT / "yoko_flux_campaign"
 MANIFEST = CAMPAIGN_ROOT / "flux_campaign_manifest.json"
 CURRENT_GRID_MA = list(PUCQ4_FLUX_CURRENT_GRID_MA)

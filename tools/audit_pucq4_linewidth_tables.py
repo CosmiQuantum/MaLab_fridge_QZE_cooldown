@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from analyze_qspec_iq_series import decode_numeric, decode_text, joint_fit
 from audit_pucq4_flux_qspec import newest_h5, selected_qspec_log
 
-ROOT = Path(r'M:\_Data\20250822 - Olivia\pucq4_run_started_Aug_3\PUCQ4\pucq4_first_light')
+ROOT = Path(r'M:\_Data\20250822 - Olivia\pucq4_run_started_Oct_7\PUCQ4\pucq4_first_light')
 
 
 def inspect(path, group_name, seed, current, origin, half_window=.8):

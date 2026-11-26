@@ -2,7 +2,7 @@
 
 The user explicitly requested saving the PowerPoint with the previous reports.
 Publication succeeded and was hash-verified: 195-slide report at
-`M:\_Data\20250822 - Olivia\pucq4_run_started_Aug_3\PUCQ4\pucq4_first_light\PUCQ4_Q5_Q6_avoided_crossing_20260909.pptx`.
+`M:\_Data\20250822 - Olivia\pucq4_run_started_Oct_7\PUCQ4\pucq4_first_light\PUCQ4_Q5_Q6_avoided_crossing_20260909.pptx`.
 SHA256: `D55F2C5180EE970DE78A49D965B3C86101684377C5DAFC94BB3C0D859E27094B`.
 The previous 176-slide report is preserved at
 `FIRST_LIGHT/ac_review/recovery_20260915/prior_176_slide_report.pptx` with its
@@ -338,7 +338,7 @@ not merely to repeat the old closeout.
 Define `FIRST_LIGHT` as this exact directory:
 
 ```text
-M:\_Data\20250822 - Olivia\pucq4_run_started_Aug_3\PUCQ4\pucq4_first_light
+M:\_Data\20250822 - Olivia\pucq4_run_started_Oct_7\PUCQ4\pucq4_first_light
 ```
 
 Define `EVIDENCE` as `FIRST_LIGHT\ac_review\resolution_20260914`.

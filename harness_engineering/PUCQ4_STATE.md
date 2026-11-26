@@ -1,3 +1,24 @@
+## November20 later: Q2 Zeno STOPPED; >50% SSF recovery NOT achieved
+
+This entry supersedes the active72h status below. User stopped native run
+qze_005/q2_2026-11-20_15-33-25. No restart queued. Final tProc stopped,
+clocks locked, both Yokos zero/OFF. Readout recovery canonical folder:
+qze_005/ssro1120b/2026-11-20_16-27-12/documentation/recovery_review/RESULTS.txt.
+Pulse/power/T1 runs: find_resonators_sandbox/ssf1120b. IDE work:ssf1120b.
+Fresh sigma.101/.097/.080us RabiR2>.976, pi.67158/.69645/.83574, SSF7.5/9.2/
+10.7%. Shortest pulse diagnostic only, outside preferredpi gain. Fresh T1
+4.067+/-.209us,R2.942. Sigma.097 envelope.388us; reset100us adequate.
+Fresh power.30 qualified at7us; .40 rejected by30kHz movement limit.
+101 readoutpoints including twoalternatingcycles and5pairedconfirms give
+candidate2us/.30/8950.515077MHz9.35-10.61%contrast,mean10.00%;baseline mean9.07%.
+NOT recovered; candidate not promoted, same-length power check still required
+before any later promotion. Sharedcalibration/averaging remain unchanged.
+Native now saves SSF then abortsnonfinite/<=.50 histogramcontrast. Do not
+substitute convertedassignmentaccuracy for usertarget. RR explicitbounded
+res-only characterization permits powerqualification; ordinarylimits retained.
+Next: measurementchain/prep/readout diagnosis. Do not guess attenuation;
+QICK_experiment RFboard setter lines arecommented, constructor args notreadbacks.
+
 ## November20 Q2 readout reoptimized; native72h restart startup ACTIVE
 
 Latest status: IDE codex/ro1120/restart_status.json and native72h.log.
@@ -3514,3 +3535,38 @@ November20 live2D confirmed: qspec_hi premapcalibration5438.845378047941MHz,
 pi.6765549655130318 passed; actual50gain/25.1Mreadoutmap advancing normally
 (227682shots at~48s). Firstcomplete2Draw/72hcompletion pending. Primarylocal
 repair/configcheckpointbb2222a. Readout investigation is not highSSF recovery.
+
+## Active all-row SSF optimization -- November20 23:41
+User authorized higher readout gain to improve all six rows. Preserve earlier
+no-resonance-shift constraint; no permission to use above-shift readout received.
+Calibration/power data: PUCQ4/find_resonators_sandbox/ssup1120 under the existing
+pucq4_run_started_Oct_7 root. Native SSF optimization: ssopt1120, then ssfine1120.
+IDE controller directory: codex/ssup1120. Initial pipeline PID68776, queued finer
+gain PID26584, post-readout preparation retry PID30552, offline report PID48992.
+Inspect current JSON statuses/processes before hardware access; queued processes
+wait and do not overlap acquisition. Do not rerun labels or overwrite raw data.
+At this checkpoint M1 initial sweep complete: candidate14.780%, paired baseline
+14.712%; no significant recovery. M3 optimization running, M4/M5/M6/M2 follow.
+Fresh M1/M3/M5 Rabi pi .68650/.66163/.63178 with R2 .987/.988/.968; valid
+half-oscillations, yet low SSF. M4 weak line gets independent narrow retry;
+M2 and M6 qspec unresolved (no accepted new carrier); optimize historical seeds
+then retry spectroscopy/Rabi at selected readout. Do not label seed-based SSF
+as validated preparation. Q2 retry preserves persisted RR gain cap .24 DAC.
+Original-length power ceilings (operational30kHz tolerance, not exact punchout):
+M1 .1/8us, M2 .4/7us, M3 .2/13us, M4 .1/5us, M5 .1/6us, M6 .1/45us.
+Shorter lengths independently qualified. Finer stage tests ceiling+.05DAC with
+low/high/low/high resonance confirmation before any high-gain SSF. Failed higher
+scans are preserved, not accepted. Zero currents/outputOFF, unchanged attenuators.
+SSF is histogram contrast, not assignment accuracy. Zeno remains stopped; no
+background script promotes shared configs or restarts it. All acquired candidates
+require three20k-shot confirmations. Full results are pending, not a success claim.
+Resume from pipeline_status.json, fine_pipeline_status.json, retry_status.json,
+report_status.json. On completion RESULTS.txt/summary.json and diagnostic deck
+are written to run documentation/campaign_review. report_status.json identifies
+final deck. Visual review and any configuration promotion remain separate steps.
+Failure class so far: performance/verification; hardware acquisition succeeds,
+but >50% target has not been demonstrated. Local19 scripts parse as Python3.9.
+
+November21 14:29 user explicitly requested stop everything. Current ssup1120 acquisition, fine-gain, retry and report processes had already exited; no Python processes created since November1 were present. STOP marker placed in campaign workspace to cancel pending continuation. Fresh hardware stop acknowledged by QICK stop_tproc; clocks locked. Both Yoko3/Yoko4 verified CURR,0A,outputsOFF. Receipt IDE/codex/ssup1120/user_stop1121.json. Zeno remains stopped. No further measurement or automatic restart authorized; preserve all saved data. Historic IDE/analysis processes were not terminated.
+
+November 24 zero-bias campaign closed after six independent preparation checks. In row order M1-M6 the optimization means were 31.34%, 13.08%, 24.78%, 18.15%, 11.63%, 7.05%. Fresh checks were 31.57%, 12.00%, 23.39%, 16.00%, 12.08%, 5.28%. All six pi gains were within 0.6-0.7 DAC. M2 peak population and M6 linewidth missed preferred device targets. No row qualified for a final one-pass T1/T2R/T2E benchmark or shared setting promotion. Both sources verified at zero/OFF, QICK stopped and clocks locked. See the November 24 closeout table in docs/MEASUREMENTS.md and dated 19-slide PUCQ4_zero_bias_20261124.pptx under pucq4_first_light. Next step is a physical readout-chain check against the last documented working setup, followed by the M1 reference.

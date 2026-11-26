@@ -214,7 +214,7 @@ are historical. User's debugging plan was executed; full Q5/Q6 scientific closur
 was not achieved and must not be described as complete.
 
 Published176-slide PowerPoint:
-M:/_Data/20250822 - Olivia/pucq4_run_started_Aug_3/PUCQ4/pucq4_first_light/PUCQ4_Q5_Q6_avoided_crossing_20260909.pptx
+M:/_Data/20250822 - Olivia/pucq4_run_started_Oct_7/PUCQ4/pucq4_first_light/PUCQ4_Q5_Q6_avoided_crossing_20260909.pptx
 SHA25650065883A3A09A32DED465B46EAA4D80C2A3347ECAA0C1BFB9D773C7E57D0F36.
 All176slides native-rendered,zero layoutissues;19newslides visuallyreviewed.
 All157historical slide/notes contents and133mediaitems retained. Prior157-slide

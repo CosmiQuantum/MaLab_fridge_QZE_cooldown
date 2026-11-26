@@ -30,7 +30,23 @@ Before substantive work:
    `harness_engineering/FAILURE_MODES.md` and record the durable lesson in
    `docs/harness-log.md`.
 
-## Safety boundaries
+## Mandatory measurement workflow
+
+For every measurement, calibration, diagnosis, or acquisition-code task, read
+`harness_engineering/MEASUREMENT_PLAYBOOK.md` and start from
+`docs/MEASUREMENTS.md`. These rules apply to future agent sessions in this repo.
+Reuse existing measurement classes, orchestration, and plotting definitions.
+New measurements requested by the user must retain the same overall structure.
+Preserve the saving hierarchy; descriptive path components may be renamed, but
+do not change the hierarchy, raw-data format, or provenance conventions.
+Update the central index and durable log after meaningful results, including
+rejected settings and the exact next step. Never promote a seed to calibration.
+Qspec acceptance requires FWHM <= 0.5 MHz (retain tighter device targets),
+SSF must exceed 50%, and T2R/T2E require at least eight points per fringe.
+Use 5-10 times measured T1 for Rabi, SSF, and coherence relaxation delays.
+The playbook defines the ordered calibration and recovery procedure.
+
+## Hardware safety boundaries
 
 - Never run experiment scripts, connect to Pyro/QICK/Visdom, change attenuators,
   or write to the `M:` data drive unless the user explicitly asks for a lab run.
@@ -187,7 +203,7 @@ A coding task is complete only when:
 - Final PUCQ4 evidence must come from one-pass `round_robin_benchmark.py` output
   with its normal calibrated population plots and canonical HDF5 hierarchy.
   Required plots are res spec, qspec, Rabi, SSF, T1, T2R, and T2E for every
-  physically assigned qubit. T2 sampling must provide at least four points per
+  physically assigned qubit. T2 sampling must provide at least eight points per
   fringe.
 - Maintain a reusable PowerPoint in the `pucq4_first_light` run folder. Slides
   begin with a zero-Yoko-current device-map table listing each physical qubit,

@@ -1163,3 +1163,27 @@ was modest/time-varying; no averaging reduction was accepted. A noisy grid's
 short-pulse winner failed independent confirmation and was rejected. Native main
 must set res_length_ge as well as res_length because build_state derives the
 actual integration/pulse length from res_length_ge. No low-level SS/QICK edits.
+
+## Low SSF despite good Rabi is not proof of a missing pi pulse
+
+November20 Q2 native SSF used the immediately preceding corrected pi amplitude
+.6666056, sigma.101us,4sigma Gaussian. Fresh RR comparisons at sigma.101/.097/
+.080us returned RabiR2 .977/.978/.981 and SSFcontrast .075/.092/.107. Refreshing
+or shortening the preparation did not recover high single-shot contrast.
+Averaged Rabi visibility is not single-shot assignment quality; report both
+without substituting (1+contrast)/2 for the user's requested histogram metric.
+The user requires contrast strictly >.50 before resuming Zeno. Native startup
+now saves SSF HDF5 then rejects nonfinite or <=.50 contrast before continuing.
+
+The persisted readout ceiling also blocked res-only requalification before any
+acquisition. Explicit PUCQ4_RES_POWER_CHARACTERIZATION_MAX now permits only a
+single-row,zero-bias,res_spec-only run, with matching READOUT_GAIN_MAX and no
+preoptimization. Default SSF/mixed-run limits remain enforced. Eight isolated
+negative/positive tests verify the mode; never change a persisted operating
+ceiling merely to collect characterization data. Acquisition profile records
+the explicit characterization bound. Raw-minimum threshold comparisons can
+be noise-sensitive; review fitted dip positions with uncertainty, before/after
+low references, and the predefined movement limit before promotion.
+
+On Nov 24, a transient Windows reader lock on zb1124a/power_status.json interrupted the controller after the M3 ceiling confirmation was already saved. Both sources were verified zero/off, clocks locked. Recovery uses tools.ssf_progress.publish_status with bounded retries and treats a permanently missing required record as an error. Reuse the complete per-scan result and receipt when resuming. The resumed controller reconstructed M1 and M3 from disk before advancing to M4.
+For zero-bias coarse qspec review, ensure the local joint-fit window contains enough measured frequency samples. The Nov 24 M6 250 MHz/1001-point discovery scan failed the 20-sample minimum in a fixed 1.5 MHz half-window. Reuse the saved IQ and use a grid-aware fit window before deciding whether a narrow confirmation is justified. A coarse or weak maximum alone does not justify a new carrier.

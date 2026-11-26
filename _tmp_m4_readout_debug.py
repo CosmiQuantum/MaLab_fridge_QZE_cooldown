@@ -43,7 +43,7 @@ def main():
     stamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     root = os.path.join(
         "M:/_Data/20250822 - Olivia",
-        "pucq4_run_started_Aug_3",
+        "pucq4_run_started_Oct_7",
         "PUCQ4",
         "pucq4_first_light",
         "tmp_m4_hr_qspec_0mA",

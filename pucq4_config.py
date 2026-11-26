@@ -1,3 +1,4 @@
+# Q2/M2/index1 qubit/readout values updated from measured RR, 2026-11-04; other rows retained.
 """
 PUCQ4 device parameters and shared helpers.
 
@@ -39,22 +40,20 @@ RES_FREQS_DESIGN = np.array([7437.0, 7467.0, 7501.0, 7528.0, 7562.0, 7598.0])  #
 # Up to 0.7 MHz from the VNA values -- which matters, because the resonators
 # are under 1 MHz wide, so using the VNA numbers puts you most of a linewidth
 # off. Use THESE for parking the readout.
-# M1-M4 retain their established centers. M5/Q4 and M6/Q6 use the final
-# optimized 0 mA resonator bases from the current campaign.
-RES_FREQS_MEASURED = np.array([8919.77, 8951.61, 8974.80, 8999.92, 9014.66, 9058.88])
+# All six rows use fresh October 29 full RR centers at their selected readout gains.
+RES_FREQS_MEASURED = np.array([8918.795, 8950.93439, 8974.11, 8999.07, 9013.4, 9057.715])
+# All six rows refreshed 2026-10-29 after the warmup.
+# Readout selected by alternating length/gain/frequency sweeps and independent SSF repeats.
 # Optimized physical readout tones are base + offset.
-RES_READOUT_OFFSETS = np.array([-0.52, -0.40, -0.21, -0.22999999999956344, 0.2000000000007276, -0.41999999999825377])
+RES_READOUT_OFFSETS = np.array([-0.42000000000007276, -1.0143129999996745, -0.7800000000006548, 0.18000000000029104, 0.05999999999949068, -0.020000000000436557])
 
 # Qubit g-e frequencies, same row order as the resonators above.
 # Accepted physical assignments are M5->Q4 and M6->Q6. Other physical numbers
 # remain unassigned; the September 8 M4 discovery does not assign it physical Q4.
 QUBIT_FREQS_VNA = np.array([5507.0, 5411.0, 5487.0, 5575.0, 7036.0, 6401.0])  # MHz
-# Zero-current spectroscopy remeasured by the September 8--9 round robin.
+# All six fresh zero-current round robin, 2026-10-29.
 # The deck maps physical Q4 to M5 and physical Q6 to M6; M4 remains unassigned.
-QUBIT_FREQS_MEASURED_0MA = np.array(
-    [5517.691628432926, 5438.710887054151, 5557.335688295514, 5594.541902899418,
-     7084.548595174133, 6522.489876246844]
-)
+QUBIT_FREQS_MEASURED_0MA = np.array([5515.343391325498, 5438.499681577915, 5551.361090349251, 5594.644240774248, 7065.147636121578, 6404.639622421642])
 QUBIT_FREQS_GF2 = np.array([5397.0, 5306.0, 5378.0, 5466.0, 6929.0, 6293.0])  # MHz
 ANHARMONICITY = np.array([220.0, 210.0, 218.0, 218.0, 214.0, 216.0])  # MHz
 
@@ -92,8 +91,8 @@ MIXER_FREQ = None
 # Gain per resonator, DAC units. PUCQ4 sits ~11 dB further down the DAC's
 # sin(x)/x curve than the 7.2 GHz chip did, so expect to need much more gain
 # than the 0.25 that worked before. See pucq4_00_check_board.py.
-RES_GAIN = [0.48, 0.56, 0.95, 0.95, 0.65, 0.95]
-RES_LENGTHS = [10.0, 5.0, 9.0, 5.0, 6.0, 10.0]  # [us], per M1..M6 at 0 mA
+RES_GAIN = [0.9, 0.192, 0.95, 0.95, 0.95, 0.95]
+RES_LENGTHS = [6.0, 7.0, 13.0, 5.0, 6.0, 45.0]  # [us], per M1..M6 at 0 mA
 RES_PHASE = [0.0] * NUM_RES
 RO_PHASE = [0.0] * NUM_RES
 RES_LENGTH = 2.0             # [us] readout pulse / capture length
@@ -113,7 +112,7 @@ RELAX_DELAY = 100.0          # [us]
 # Convention: plots always go in documentation/, data always in study_data/.
 # ----------------------------------------------------------------------------
 DATA_ROOT = "M:/_Data/20250822 - Olivia"
-RUN_NAME = "pucq4_run_started_Aug_3"
+RUN_NAME = "pucq4_run_started_Oct_7"
 DEVICE_NAME = "PUCQ4"
 
 

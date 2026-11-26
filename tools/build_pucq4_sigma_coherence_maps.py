@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 
 
 ROOT = Path(
-    r"M:\_Data\20250822 - Olivia\pucq4_run_started_Aug_3\PUCQ4"
+    r"M:\_Data\20250822 - Olivia\pucq4_run_started_Oct_7\PUCQ4"
     r"\pucq4_first_light\yoko_flux_campaign"
 )
 MANIFEST = ROOT / "ramsey_sigma_coherence_manifest.json"

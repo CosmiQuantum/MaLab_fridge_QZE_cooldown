@@ -30,7 +30,7 @@ from tools.analyze_qspec_iq_series import decode_numeric, decode_text
 from system_config import get_pucq4_flux_calibration
 
 
-ROOT = Path(r"M:\_Data\20250822 - Olivia\pucq4_run_started_Aug_3\PUCQ4\pucq4_first_light")
+ROOT = Path(r"M:\_Data\20250822 - Olivia\pucq4_run_started_Oct_7\PUCQ4\pucq4_first_light")
 FLUX = ROOT / "yoko_flux_campaign"
 EXPERIMENTS = {
     "res_ge": ("Resonator spectroscopy", "res_spec_ge_plots"),

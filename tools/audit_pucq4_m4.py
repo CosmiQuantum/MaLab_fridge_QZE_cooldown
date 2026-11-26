@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from tools.analyze_qspec_iq_series import decode_numeric, decode_text, joint_fit
 
 
-ROOT = Path(r"M:\_Data\20250822 - Olivia\pucq4_run_started_Aug_3\PUCQ4\pucq4_first_light")
+ROOT = Path(r"M:\_Data\20250822 - Olivia\pucq4_run_started_Oct_7\PUCQ4\pucq4_first_light")
 CONFIG_KEYS = (
     "qubit_freq_ge", "qubit_gain_ge", "qubit_length_ge", "sigma", "pi_amp",
     "res_freq_ge", "res_freq_offset_ge", "res_gain_ge", "res_length_ge",

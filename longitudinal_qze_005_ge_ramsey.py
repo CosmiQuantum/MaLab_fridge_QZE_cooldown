@@ -68,6 +68,8 @@ study = 'qze_005'
 res_leng_vals = [9,7.0,9,9,9,9]
 res_gain = [0.25,0.24,0.25,0.25,0.24,0.2133]
 freq_offsets = [0,-0.6393129999996745,0,0,-0.25,-0.16]
+# Existing histogram contrast, not the converted assignment accuracy.
+minimum_ssf_contrast = 0.50
 ####################################################### RR #############################################################
 
 def create_data_dict(keys, save_r, qs):
@@ -583,6 +585,9 @@ for QubitIndex in Qs_to_look_at:
 
     saver_ss = Data_H5(subStudyDataFolder, ss_data, batch_num, save_r)
     saver_ss.save_to_h5('ss_ge')
+    if not np.isfinite(fid) or float(fid) <= minimum_ssf_contrast:
+        raise RuntimeError('Saved startup SSF contrast %.4f must exceed %.4f before Zeno acquisition'
+                           % (float(fid), minimum_ssf_contrast))
     del saver_ss
     del ss_data
 

@@ -4,11 +4,11 @@ Updated 2026-09-09T21:50:53 local. Status: **closed_with_gaps**.
 
 The requested time limit ended this campaign with the remaining gaps below. Acceptance counts describe the recorded reproduction checks; separate spectroscopy tuning targets remain explicit.
 
-- [Validation PowerPoint (149 slides)](<M:/_Data/20250822 - Olivia/pucq4_run_started_Aug_3/PUCQ4/pucq4_first_light/PUCQ4_round_robin_validation_20260908.pptx>)
-- [Every attempt and selected audit](<M:/_Data/20250822 - Olivia/pucq4_run_started_Aug_3/PUCQ4/pucq4_first_light/PUCQ4_round_robin_validation_20260908_artifacts/validation_manifest.json>)
-- [Final software, provenance and source-state checks](<M:/_Data/20250822 - Olivia/pucq4_run_started_Aug_3/PUCQ4/pucq4_first_light/PUCQ4_round_robin_validation_20260908_artifacts/closeout_checks.json>)
+- [Validation PowerPoint (149 slides)](<M:/_Data/20250822 - Olivia/pucq4_run_started_Oct_7/PUCQ4/pucq4_first_light/PUCQ4_round_robin_validation_20260908.pptx>)
+- [Every attempt and selected audit](<M:/_Data/20250822 - Olivia/pucq4_run_started_Oct_7/PUCQ4/pucq4_first_light/PUCQ4_round_robin_validation_20260908_artifacts/validation_manifest.json>)
+- [Final software, provenance and source-state checks](<M:/_Data/20250822 - Olivia/pucq4_run_started_Oct_7/PUCQ4/pucq4_first_light/PUCQ4_round_robin_validation_20260908_artifacts/closeout_checks.json>)
 
-- [Archived plans, execution logs, source baselines and helper scripts](<M:/_Data/20250822 - Olivia/pucq4_run_started_Aug_3/PUCQ4/pucq4_first_light/PUCQ4_round_robin_validation_20260908_artifacts/exec_0909>)
+- [Archived plans, execution logs, source baselines and helper scripts](<M:/_Data/20250822 - Olivia/pucq4_run_started_Oct_7/PUCQ4/pucq4_first_light/PUCQ4_round_robin_validation_20260908_artifacts/exec_0909>)
 
 ## Completed evidence and remaining coverage
 
@@ -22,31 +22,31 @@ The requested time limit ended this campaign with the remaining gaps below. Acce
 | M3 endpoint control | unmeasured | Yoko 3 +0.0 mA; Yoko 4 -10.0 mA |
 | M4 endpoint control | unmeasured | Yoko 3 +0.0 mA; Yoko 4 -10.0 mA |
 
-Latest physical Q4 / M5 / Yoko 3 -5 mA pass: **review**. [Complete-pass audit](<M:/_Data/20250822 - Olivia/pucq4_run_started_Aug_3/PUCQ4/pucq4_first_light/rrv5_m050a/2026-09-09_21-22-47/documentation/validation_M5.json>). qspec: frequency shift exceeds reference linewidth
+Latest physical Q4 / M5 / Yoko 3 -5 mA pass: **review**. [Complete-pass audit](<M:/_Data/20250822 - Olivia/pucq4_run_started_Oct_7/PUCQ4/pucq4_first_light/rrv5_m050a/2026-09-09_21-22-47/documentation/validation_M5.json>). qspec: frequency shift exceeds reference linewidth
 Its one exact spectroscopy repeat differs by 0.126506 MHz; the repeat limit is 0.015666 MHz. Agreement: False. The original reference difference remains recorded.
 
 ## Final all-six default pass
 
-Run: [2026-09-09_19-23-29](<M:/_Data/20250822 - Olivia/pucq4_run_started_Aug_3/PUCQ4/pucq4_first_light/rr6_0mA/2026-09-09_19-23-29>).
+Run: [2026-09-09_19-23-29](<M:/_Data/20250822 - Olivia/pucq4_run_started_Oct_7/PUCQ4/pucq4_first_light/rr6_0mA/2026-09-09_19-23-29>).
 No PUCQ4 environment overrides; one normal pass with res spec, qspec, Rabi, SSF, T1, T2R and T2E. 3 / 6 complete chains pass the recorded gates after review. All final-run outcomes remain in the deck.
 
 | Row / index | Final audit | Findings |
 | --- | --- | --- |
-| M1 / 0 | [review](<M:/_Data/20250822 - Olivia/pucq4_run_started_Aug_3/PUCQ4/pucq4_first_light/rr6_0mA/2026-09-09_19-23-29/documentation/validation_M1.json>) | t2_ge: coherence outside comparison band; t2_ge: independent fit requires review; t2_ge: structured oscillations remain in fit residuals; t2e_ge: coherence outside comparison band |
-| M2 / 1 | [review](<M:/_Data/20250822 - Olivia/pucq4_run_started_Aug_3/PUCQ4/pucq4_first_light/rr6_0mA/2026-09-09_19-23-29/documentation/validation_M2.json>) | SSF: contrast fell more than the comparison tolerance |
-| M3 / 2 | [review](<M:/_Data/20250822 - Olivia/pucq4_run_started_Aug_3/PUCQ4/pucq4_first_light/rr6_0mA/2026-09-09_19-23-29/documentation/validation_M3.json>) | t1_ge: coherence outside comparison band |
-| M4 / 3 | [pass](<M:/_Data/20250822 - Olivia/pucq4_run_started_Aug_3/PUCQ4/pucq4_first_light/rr6_0mA/2026-09-09_19-23-29/documentation/validation_M4.json>) | all recorded gates pass |
-| M5 / 4 | [pass](<M:/_Data/20250822 - Olivia/pucq4_run_started_Aug_3/PUCQ4/pucq4_first_light/rr6_0mA/2026-09-09_19-23-29/documentation/validation_M5.json>) | all recorded gates pass |
-| M6 / 5 | [pass](<M:/_Data/20250822 - Olivia/pucq4_run_started_Aug_3/PUCQ4/pucq4_first_light/rr6_0mA/2026-09-09_19-23-29/documentation/validation_M6.json>) | all recorded gates pass |
+| M1 / 0 | [review](<M:/_Data/20250822 - Olivia/pucq4_run_started_Oct_7/PUCQ4/pucq4_first_light/rr6_0mA/2026-09-09_19-23-29/documentation/validation_M1.json>) | t2_ge: coherence outside comparison band; t2_ge: independent fit requires review; t2_ge: structured oscillations remain in fit residuals; t2e_ge: coherence outside comparison band |
+| M2 / 1 | [review](<M:/_Data/20250822 - Olivia/pucq4_run_started_Oct_7/PUCQ4/pucq4_first_light/rr6_0mA/2026-09-09_19-23-29/documentation/validation_M2.json>) | SSF: contrast fell more than the comparison tolerance |
+| M3 / 2 | [review](<M:/_Data/20250822 - Olivia/pucq4_run_started_Oct_7/PUCQ4/pucq4_first_light/rr6_0mA/2026-09-09_19-23-29/documentation/validation_M3.json>) | t1_ge: coherence outside comparison band |
+| M4 / 3 | [pass](<M:/_Data/20250822 - Olivia/pucq4_run_started_Oct_7/PUCQ4/pucq4_first_light/rr6_0mA/2026-09-09_19-23-29/documentation/validation_M4.json>) | all recorded gates pass |
+| M5 / 4 | [pass](<M:/_Data/20250822 - Olivia/pucq4_run_started_Oct_7/PUCQ4/pucq4_first_light/rr6_0mA/2026-09-09_19-23-29/documentation/validation_M5.json>) | all recorded gates pass |
+| M6 / 5 | [pass](<M:/_Data/20250822 - Olivia/pucq4_run_started_Oct_7/PUCQ4/pucq4_first_light/rr6_0mA/2026-09-09_19-23-29/documentation/validation_M6.json>) | all recorded gates pass |
 
-Exact-setting closeout confirmations: [review and original records](<M:/_Data/20250822 - Olivia/pucq4_run_started_Aug_3/PUCQ4/pucq4_first_light/PUCQ4_round_robin_validation_20260908_artifacts/final_default_confirmation_review.json>).
+Exact-setting closeout confirmations: [review and original records](<M:/_Data/20250822 - Olivia/pucq4_run_started_Oct_7/PUCQ4/pucq4_first_light/PUCQ4_round_robin_validation_20260908_artifacts/final_default_confirmation_review.json>).
 
 - M3 T1: 31.4602 versus 37.9150 us; difference 6.4548 us exceeds the 5.2031 us repeat limit. The original full-pass finding remains; no promotion.
 - M2 SSF: 0.26780 versus 0.28530; difference 0.01750 passes the 0.03000 repeat limit. The historical comparison and alternating-readout-optimization gap remain; no promotion.
 
 M1's two predetermined 180 us diagnostics gave 31.038 +/- 0.774 us and 19.474 +/- 1.153 us. Their 11.565 us difference exceeded the 4.167 us repeat limit. Both individual fits passed quality checks; neither diagnostic was promoted. The final default Ramsey trace is assessed separately above.
 
-Spectroscopy targets are FWHM 0.1–0.2 MHz and calibrated peak population 0.3–0.5. See [all measured target deviations](<M:/_Data/20250822 - Olivia/pucq4_run_started_Aug_3/PUCQ4/pucq4_first_light/PUCQ4_round_robin_validation_20260908_artifacts/spectroscopy_target_review.json>). A resolved, repeatable spectrum is not automatically a completed tuning optimization.
+Spectroscopy targets are FWHM 0.1–0.2 MHz and calibrated peak population 0.3–0.5. See [all measured target deviations](<M:/_Data/20250822 - Olivia/pucq4_run_started_Oct_7/PUCQ4/pucq4_first_light/PUCQ4_round_robin_validation_20260908_artifacts/spectroscopy_target_review.json>). A resolved, repeatable spectrum is not automatically a completed tuning optimization.
 
 ## Configuration and reuse
 

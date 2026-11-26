@@ -63,7 +63,7 @@ variation and source-current accuracy. No zero-coupling or entangled-state
 claim is made. Power-check widths and exact settings are in the report.
 
 Final94-slide report is
-`M:/_Data/20250822 - Olivia/pucq4_run_started_Aug_3/PUCQ4/pucq4_first_light/PUCQ4_Q5_Q6_avoided_crossing_20260909.pptx`.
+`M:/_Data/20250822 - Olivia/pucq4_run_started_Oct_7/PUCQ4/pucq4_first_light/PUCQ4_Q5_Q6_avoided_crossing_20260909.pptx`.
 All94slides reopened and exported in native PowerPoint; findings, tables,
 fine maps, branch-resolution summary and cleanup slides were visually checked.
 Report SHA256:1885B880D5B785DBCA4DB706D627BD0F9EFCEB764305786770084C26FF676496.

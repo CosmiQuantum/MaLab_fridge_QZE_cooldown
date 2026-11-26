@@ -80,5 +80,14 @@ in [PUCQ4_STATE.md](PUCQ4_STATE.md).
   round-robin values must be propagated deliberately to the shared configs.
 - Per-run overrides in an orchestrator win at execution time. Always inspect
   them before claiming that a shared config value was used.
+- Resonator spectroscopy uses `expt_cfg["res_spec"]`; the automatic PUCQ4
+  round-robin profile must not reset it. Explicit `PUCQ4_RES_START_MHZ`,
+  `PUCQ4_RES_STEP_MHZ`, `PUCQ4_RES_STEPS`, and `PUCQ4_RES_REPS` environment
+  overrides still take precedence in the measurement block. Other experiments
+  retain their existing row-specific profile overrides.
+- The October 8 resonator restoration places the prior accepted RR tracking
+  settings in that main dictionary (151 points, +/-1.5 MHz, 600 reps, 100 us
+  delay). Round-robin center frequencies come from the resolved system readout
+  table; `VNA_res` alone does not set its scan centers.
 - Comments and deck values are context, not measured truth. Use the evidence
   labels defined in `SOURCES.md`.

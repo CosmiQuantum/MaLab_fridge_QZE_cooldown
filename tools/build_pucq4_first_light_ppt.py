@@ -14,7 +14,7 @@ from pptx.enum.text import MSO_AUTO_SIZE, PP_ALIGN
 from pptx.util import Inches, Pt
 
 
-ROOT = Path(r"M:\_Data\20250822 - Olivia\pucq4_run_started_Aug_3\PUCQ4\pucq4_first_light")
+ROOT = Path(r"M:\_Data\20250822 - Olivia\pucq4_run_started_Oct_7\PUCQ4\pucq4_first_light")
 FULL = ROOT / "rr_full5_optimized_0mA" / "2026-08-28_16-21-09" / "documentation"
 QR = ROOT / "rr_m5_m6_qspec_rabi_followup_0mA" / "2026-08-28_16-55-52" / "documentation"
 Q6SPEC = ROOT / "rr_m6_qspec_gain_followup_0mA" / "2026-08-28_17-05-21" / "documentation"

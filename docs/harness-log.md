@@ -4582,3 +4582,193 @@ November20 live2D verified after restart: ZENO_CALIBRATION qspec_hi
 map actively advanced227682/25100000readouts (~48s elapsed,~88minremaining).
 Controller60196/child65592 statusrunning; firstcomplete2DHDF5 stillpending.
 NativeactualRO8950.365077MHz/.24DAC/7us. Primaryrepair/configcheckpointbb2222a.
+
+## 2026-11-20: user stops low-SSF Zeno run; recovery gate tightened
+
+User explicitly requested stop and SSF >50% in existing histogram contrast before restart. Stopped owned native child65592; supervisor60196 exited with expected nonzero child return, stopped tProc, clocks locked, both Yokos CURR0A/OFF/.01A/30V. This was deliberate interruption, not a new hardware fault. Current 2D map was not persisted; previous HDF5 preserved.
+Read-only audit confirmed saved startup SSF pi_amp .666605627784899 equals preceding corrected Rabi result, carrier5438.859978368855MHz, sigma.101us, full4sigma envelope.404us, reset100us. RabiR2 .9394. No missing/half-pi/stale amplitude established. Averaged2000-shot signal is not single-shot validation. Low gain remains hypothesis, not proven sole cause.
+Recovery controller IDE codex/ssf1120b/campaign.py PID62012 uses existing RR and canonical find_resonators_sandbox/ssf1120b hierarchy. Exact envelope RUN_BRIEF.txt. Sigma .101/.097/.08 comparisons and interleaved resonator power qualification; raw and plots checked. No automatic Zeno restart. Historical .24 limit was conservative, .30 stable/.60 movement; fresh qualification required before any upward promotion. Acceptance strictly contrast>0.50 independently repeated, not (1+contrast)/2>0.50. Shared configs unchanged pending evidence. Layer: verification/context. Next: review pulse scans and power spectra, then alternate readout length and gain/offset optimization under newly verified ceiling.
+
+## 2026-11-20 SSF recovery completed unsuccessfully; Zeno remains STOPPED
+
+Fresh RR sigma.101/.097/.080us gives pi.671580/.696454/.835744, RabiR2 .977/.978/.981 but contrast7.51/9.22/10.73%. Shortest diagnostic exceeds preferred pi-gain range; none recovers target. Carrier5438.856434632MHz; qspecFWHM.148956MHz. FreshT1 4.066998+/-.209365us,R2.941745, with sigma.097/full.388us and100usreset. October29 deck effectiveT1 5.35us, so lifetime also shorter; no proven sole cause.
+Power .30 at7us qualified through repeated fitted spectra and low returns; .40 rejected (30.77kHz versus30kHz limit). SSF101points/101normalplots/101HDF5, twoalternatingcycles plus5pairedconfirms:2us/.30/8950.515077MHz candidate9.35-10.61%,mean10.00%; baseline7us/.24/8950.365077MHz7.43-11.29%,mean9.07%. This is NOT >50%contrast. Candidate not promoted; same-length finalpowerqualification also still required before future promotion. Sharedcalibration/averaging unchanged. FinaltProcstopped,clockslocked,bothYokos0A/OFF.
+Minimal code: RR explicit boundedres-only characterization mode preserves normal persisted ceiling; native saves SSF then aborts<=.50/nonfinite.8guardcases+5SSFgatecases passed offline. Calibrationcontroller initially hitpersisted.24 guard beforeacquisition; newmode was required for user-authorized spectroscopyonly qualification, not ordinaryreadout. No lowlevelQICKchanges.
+Canonicalreadout qze_005/ssro1120b/2026-11-20_16-27-12; pulse/power/T1 find_resonators_sandbox/ssf1120b. Report in readoutrun documentation/recovery_review/RESULTS.txt. IDEworkspace ssf1120b holds exactplans/reviews/scripts. No automaticrestart; require reproducibleexistingSSFmetric>.50 first. RFboard attenuatorsetter lines arecommented inQICK_experiment; constructorarguments must notbe represented as instrumentreadbacks. Nextdiagnosis measurementchainSNR and prep/readoutseparation withinverifiedhardwarelimits.
+
+## 2026-11-20 other-row fresh SSF check
+User requested SSFs for the other five rows. Existing round_robin_benchmark.py,
+flags ss, three independent repetitions per M1/M3/M4/M5/M6,20000 shots/state,
+readout gain .10DAC, reset250us M1/M3 and100us others. Historical low-power
+settings; M3 uses Nov19 validated carrier/pi/readout. No new qspec/Rabi today;
+these are current-setting diagnostics, not accepted optimized benchmarks.
+Means(range), histogram contrast percent: M1 14.955(14.800-15.075),
+M3 9.892(9.435-10.240), M4 4.412(4.040-4.655),
+M5/physicalQ4 9.855(9.520-10.215), M6/physicalQ6 1.190(.775-1.515).
+All fail >50% performance target. Preparation staleness and readout limits
+remain unresolved; low contrast does not establish qubit absence or root cause.
+No config changes, no Zeno restart. All15 normal plots/HDF5 verified with finite
+20k IQ/state and metadata. Final tProc stopped/clocks locked,Yokos0A/OFF.
+Output: M:/_Data/20250822 - Olivia/pucq4_run_started_Oct_7/PUCQ4/
+find_resonators_sandbox/ssall1120. Final run2026-11-20_22-00-12 contains
+ documentation/ssf_all_review/RESULTS.txt and exact controller/config snapshots.
+IDE controller:ssall1120/check.py. Offline149file verifier passed.
+Failure classification: verification feedback; performance gate failed, acquisition
+succeeded. Preserve distinction between SSF contrast and assignment accuracy.
+
+## 2026-11-20 SSF improvement campaign ACTIVE
+User requests higher SSF on all six and authorizes higher resonator gain.
+Work controllers: IDE codex/ssup1120. Current phase power.py (power2 PID46592),
+canonical find_resonators_sandbox/ssup1120; monitor power_status.json/logs.
+Sequential higher-gain characterization .1.. .95 with stop at reproducible
+>30kHz dip shift; all Yokos zero/OFF, RF chain unchanged. No Zeno restart.
+Current permission retains prior below-shift rule; optional async question asks
+whether user also wants above-shift tests. Do not infer approval from no answer.
+Original5000rep/201point scans retained; remaining2000rep/101points/.04MHz,
+fitR2>.95,SNR>=10, independent returns and confirmation. Planned fallback.py
+reviews lower ceiling, then prep.py rechecks qspec/Rabi; optimize.py prepared
+for gain/frequency grids at qualified original length. None of these follow-up
+controllers launched yet. Updated run envelope in ssup1120/RUN_BRIEF.txt.
+All sources/configs unchanged. FirstQ1 .4 shift repeated~60kHz; .3 failed
+return-reference comparison, .2 awaits independent fallback confirmation.
+
+## SSF improvement campaign continuation, Nov20 22:47
+Initial power controller46592 completed and cleaned up. Sequential pipeline68776
+is now prep.py; its first phase pairs.py repeats M1/M4 at.1/.2/.1/.2,6000reps
+without relaxing30kHz maximumdifference. Current files IDE codex/ssup1120:
+power_review.json, paired_m*.json, pipeline_status.json. No Zeno restart.
+Power operating candidates before paired update: M1.1,M2.4,M3.2,M4.1,M5.1,M6.1.
+M4/M5 initial low reference noisy;6000rep repeats resolved them. All rejected
+higher scans retained. Boundary flags describe conservative tolerance, not exact
+physical punch-out thresholds. No above-shift permission received as of this entry.
+Pipeline next: prep.py qspec+Rabi+SSF allrows, then optimize.py eachrow. Optimize
+uses existing SingleShot and canonical Data_H5, fixed-length gain/offset grids,
+then2/4/8us candidates with independent same-length gain qualifications, final
+finegrid and3paired20k-shot confirmations. Row gain enforced perqualifiedlength.
+Originallength results from power_review; candidatepulse updates remainlocal.
+Output readout folder find_resonators_sandbox/ssopt1120; power/prep inssup1120.
+No configs or low-level pulseprograms modified. Local script syntax allpassed;
+latest optimize.py import explicitly resolves local screen before legacyhelpers.
+Longest intendedopt artifact204characters. Currentrunbrief copiedeachRRstage.
+Continue monitoring pipeline; do not launch competing acquisition. Pipeline has
+STOP between phases; perRR watchdog600s/1800s; directSSF Pyrotimeout60s,onehour
+perrow. Finalhardwarecleanup insideeachstage. A new chat must inspectstatus,
+not restart scripts or overwrite labels. Remaining: reviewallraw/plots, improve
+unresolvedrows as warranted, independentfinalRR evidence, report/promotiononly
+for validated settings; persist failure/success and safelyleaveZeno stopped.
+
+## SSF campaign status Nov20 23:17
+Pipeline68776 continues prep.py. Power work is done. Tightly paired6000rep
+M1/M4 checks still failed strict30kHz maximumrange (reference drift); original
+length ceilings remain M1.1,M2.4,M3.2,M4.1,M5.1,M6.1, allDAC.
+Fresh preparation: M1freq5515.3455257,sigma.05,pi.6865043,RabiR2.98698,
+SSF.14685; M3freq5551.3484616,sigma.124,pi.661631,R2.98756,SSF.153304;
+M5freq7065.0944599,sigma.056940825,pi.63178295,R2.96778,SSF.0985.
+M4 feature5594.644875MHz rawSNR3.50/R2.147 notaccepted; targetednarrow
+confirmation andRabi queued viarefine_prep.py atstartofitsoptimize.py stage.
+M6 hasNOresolvedqspec: rawSNR1.56,R2.060,referenceSNR1.84. Native broadfit
+6404.699MHz isnoise and NOT promoted. Retain6404.639622 seedforreadoutsearch.
+Usertold M6needs readoutimprovement thenqspec retry; ensurethatretry happens
+beforeclosingtask (pipelinecurrentlydoesnotautomaticallyretryafterreadout).
+Q2prep remaining. Allnativeqspec/Rabi plots reviewed forM1/M3/M5; records
+visual_review.json. No missing/pi2pulse indication; poorSSF persistswithpi.
+Pendingoptimize.py uses ownqualifiedlengthcaps,2/4/8us+original,loops gain
+andfrequency thenpairedconfirms. Localcontrollers syntaxpassed. Newoffline
+review_results.py andbuild_deck.py arepreparedbutnotrun; reviewrequiresall6
+completedreadoutstates; rememberindependentfinalRR whereappropriate andQ6retry.
+No sharedconfigchanges,nolongrunrestart,noabove-shiftpermissionreceived.
+
+Nov20 23:35 continuation: initialpipeline68776 onM3; M1candidate14.780% vsbaseline14.712%, no meaningfulimprovement. Finegain queue26584 waits for initialpipeline; .05DAC increments require new four-scan same-length qualification. Localfine_gain.py/fine_pipeline.py parsed withall17controllers. Planned retry.py then waits forfinequeue, retriesunresolvedQ2/M6/M4 usingboundedprior+/-1 then5MHz and independentnarrowconfirmation/Rabi/SSF. No above-shiftpermission, noZeno restart, nocoreconfigchanges. SeeIDE/ssup1120/RUN_BRIEF.txt andstatusJSONs; do notstartcompetinghardware.
+
+## Active all-row SSF optimization -- November20 23:41
+User authorized higher readout gain to improve all six rows. Preserve earlier
+no-resonance-shift constraint; no permission to use above-shift readout received.
+Calibration/power data: PUCQ4/find_resonators_sandbox/ssup1120 under the existing
+pucq4_run_started_Oct_7 root. Native SSF optimization: ssopt1120, then ssfine1120.
+IDE controller directory: codex/ssup1120. Initial pipeline PID68776, queued finer
+gain PID26584, post-readout preparation retry PID30552, offline report PID48992.
+Inspect current JSON statuses/processes before hardware access; queued processes
+wait and do not overlap acquisition. Do not rerun labels or overwrite raw data.
+At this checkpoint M1 initial sweep complete: candidate14.780%, paired baseline
+14.712%; no significant recovery. M3 optimization running, M4/M5/M6/M2 follow.
+Fresh M1/M3/M5 Rabi pi .68650/.66163/.63178 with R2 .987/.988/.968; valid
+half-oscillations, yet low SSF. M4 weak line gets independent narrow retry;
+M2 and M6 qspec unresolved (no accepted new carrier); optimize historical seeds
+then retry spectroscopy/Rabi at selected readout. Do not label seed-based SSF
+as validated preparation. Q2 retry preserves persisted RR gain cap .24 DAC.
+Original-length power ceilings (operational30kHz tolerance, not exact punchout):
+M1 .1/8us, M2 .4/7us, M3 .2/13us, M4 .1/5us, M5 .1/6us, M6 .1/45us.
+Shorter lengths independently qualified. Finer stage tests ceiling+.05DAC with
+low/high/low/high resonance confirmation before any high-gain SSF. Failed higher
+scans are preserved, not accepted. Zero currents/outputOFF, unchanged attenuators.
+SSF is histogram contrast, not assignment accuracy. Zeno remains stopped; no
+background script promotes shared configs or restarts it. All acquired candidates
+require three20k-shot confirmations. Full results are pending, not a success claim.
+Resume from pipeline_status.json, fine_pipeline_status.json, retry_status.json,
+report_status.json. On completion RESULTS.txt/summary.json and diagnostic deck
+are written to run documentation/campaign_review. report_status.json identifies
+final deck. Visual review and any configuration promotion remain separate steps.
+Failure class so far: performance/verification; hardware acquisition succeeds,
+but >50% target has not been demonstrated. Local19 scripts parse as Python3.9.
+
+Nov20 offline audit correction (verification/context): directSS canonical save_h5 stores Syst Config as JSON, whereas existing RR records inspected here use Python repr. Audit initially assumed single-quoted repr and failed before report creation; replaced directSS parsing with json.loads. M1 complete integrity audit passes28HDF5/28plots, finite IQ/counts, exact gain/length/frequency and fidelity metadata. No acquisition data changed. 149file offline harness passed again; allfive protected source hashes unchanged fromtask-start snapshots. Reportqueue48992 waits forretry completion; do not claim reports already exist.
+
+Nov20 23:45 accepted intermediate SSF evidence: M3 initial optimization complete,
+mean17.2733% (16.945-17.750%), paired baseline9.2284% (8.945-9.535%),3x20000
+shots/state each. Gain .1->.2DAC, RO8973.517677->8973.584344MHz, length13us
+unchanged; current local preparation5551.348462MHz,sigma.124us,pi.661631DAC.
+All75HDF5/75normalplots verified for finite sample counts and exact saved settings;
+median native confirmation plot visually reviewed, histogram17.12%, visibly
+shifted but substantially overlapping clouds. Improvement is real at these
+conditions but far below50%. No sharedconfigpromotion; finer-gain stage remains
+queued. M1 audit28HDF5/28plots passed. Pipeline nowM4 refine/optimization,
+other queues waiting normally. QICK clockslocked afterM3; hardware remains in
+use byM4, so do not describe entire campaign as stopped or completed.
+
+November21 14:29 user explicitly requested stop everything. Current ssup1120 acquisition, fine-gain, retry and report processes had already exited; no Python processes created since November1 were present. STOP marker placed in campaign workspace to cancel pending continuation. Fresh hardware stop acknowledged by QICK stop_tproc; clocks locked. Both Yoko3/Yoko4 verified CURR,0A,outputsOFF. Receipt IDE/codex/ssup1120/user_stop1121.json. Zeno remains stopped. No further measurement or automatic restart authorized; preserve all saved data. Historic IDE/analysis processes were not terminated.
+
+2026-11-21 afternoon: Six fresh zero-bias 0.10 DAC resonator surveys saved under PUCQ4/find_resonators_sandbox/rt1121a, 14:36:50 through 14:39:23. Grid minima M1..M6 = 8919.202, 8951.004, 8974.358, 8999.226, 9013.925, 9058.445 MHz (40 kHz spacing). Source mode CURR/0A/off verified, survey cleanup clocks locked. User confirmed unchanged RF chain. IDE workspace rt1121a contains raw/plot receipts. Next: bounded power, preparation and SSF optimization via continue_run.py; check live stage before any restart. No calibration promotion.
+
+## 2026-11-24 PUCQ4 six-row zero-bias reoptimization
+
+Fresh low-power resonator surveys for M1 through M6 are under the October 7 run, PUCQ4/find_resonators_sandbox/zb1124a. Each of the six timestamped runs has the native resonator plot and res_ge HDF5. The matching IDE controller folder is zb1124a. Both sources read CURR, 0 A, outputs off, 10 mA range and 30 V limit before the survey. All six original acquisitions finished and survey cleanup reported locked clocks. Power qualification uses the fitted minimum and a resolved baseline at each length. M5 original depth SNR was 7.69 at 2000 reps. Use baseline_m*.json for the higher-averaging review and subsequent power qualification. No shared calibration promoted.
+
+The Nov 21 fine queue stopped on missing readout_m5.json because M5's power reference drifted and the preceding pipeline skipped M5. The missing file records no acquisition. Review each row's power eligibility before scheduling downstream runs.
+
+All six 0.10 DAC references passed the notch fit (R2 > 0.95 and depth SNR >= 10). M4 and M5 used independent 6000-rep retries. Fitted magnitude minima M1 through M6 in MHz were 8919.180, 8950.954, 8974.355, 8999.258, 9014.038 and 9058.503. These minima anchor power qualification. Do not promote them as SSF-optimal readout frequencies. All eight acquisitions saved normal plots and HDF5. The baseline controller stopped the tProc, confirmed locked clocks and the final acquisition verified both sources 0 A/off. Fresh power characterization then started under the same sub-study. Inspect zb1124a/power_status.json and the live process before attempting any continuation.
+
+On Nov 24, a transient Windows reader lock on zb1124a/power_status.json interrupted the controller after the M3 ceiling confirmation was already saved. Both sources were verified zero/off, clocks locked. Recovery uses tools.ssf_progress.publish_status with bounded retries and treats a permanently missing required record as an error. Reuse the complete per-scan result and receipt when resuming. The resumed controller reconstructed M1 and M3 from disk before advancing to M4.
+
+Nov 24 completed original-length resonator power qualification, zb1124a/power_review.json. At M1/M2/M3/M4/M6 (8/7/13/5/45 us), the measured operational ceilings were 0.20/0.30/0.20/0.20/0.10 DAC. The ordinary M2 gain limit remains 0.24 DAC. M5 at 6 us had two resolved 0.10 DAC reference minima of 9014.062807 and 9014.021698 MHz in a low/high/low/high repeat, a 41.1 kHz spread exceeding 30 kHz. Neither gain passed that sequence. All five eligible rows entered the qubit-preparation queue. M5 requires a stable low reference before dependent acquisition. No shared configuration promoted.
+
+M1 preparation in zb1124a: m1_fine coarse line 0.10315 MHz FWHM, confirmed by m1_drive0 at 5515.346774 MHz, FWHM 0.10552 MHz and fitted peak population 0.497. The native calibrated-population plots show a single resolved line and just over half a Rabi period. Sigma 0.050 us, fitted pi gain 0.68153 DAC, Rabi R2 0.9958. At this preliminary point the subsequent single-shot histogram contrast was only 25.855%, below 50%. Await the alternating length/gain/frequency search and independent confirmations before shared changes. M3 repeat line FWHM 0.09635 MHz, peak 0.480, center 5551.354075 MHz. Coarse width 0.10869 MHz. The repeat width is within one acquired 5 kHz bin of 0.1 MHz; retain the measured width and use its independently repeated center for the Rabi follow-up.
+
+M1 first zero-bias readout search, zbopt24a/2026-11-24_14-11-14, saved 67 SSF HDF5 and 67 native plots. At 8 us, 0.20 DAC, 8918.442916 MHz, independent 20k-shot confirmations gave 26.645%, 25.750%, 25.785% (mean 26.06%). Paired baseline mean 13.085%. Shorter lengths at 2 and 4 us qualified ceilings of 0.30 and 0.10 DAC. No SSF promotion. Fine gain and a longer length from the historical measured range remain eligible only after same-length power qualification.
+
+M3 Rabi at the independently confirmed 5551.354075 MHz, sigma 0.124 us: measured pi 0.65168 DAC, R2 0.9916, preliminary SSF 19.42%. Original-length and alternate-length optimization zbopt24a/2026-11-24_14-30-03 gave three independent 20k-shot/state contrasts of 19.605%, 19.525%, 19.015% at 8974.058219 MHz, 13 us, 0.20 DAC. Paired baseline mean 10.184%. The 19.382% candidate mean misses the 50% acceptance gate; finer power qualification and repeat checks remain queued.
+
+M4/plot Q4 repeated qspec in zb1124a/m4_refine_qs and acquired a resolved joint-IQ center of 5594.629158 MHz (0.19757 MHz FWHM); the independent standard population plot shows 5594.632 MHz, 0.202 MHz FWHM and peak about 0.41. Rabi R2 0.9598, pi gain 0.64671 DAC, preliminary SSF 9.70%. Native readout search zbopt24a/2026-11-24_14-58-54 saved 69 points; three paired confirmations at 8999.104811 MHz/0.20 DAC/5 us averaged 10.207%, versus 5.192% baseline. Both 4 us and 8 us qualified at 0.40 DAC and warrant independent readout checks. No shared change. M6 and M2 preparation still requires fresh qspec confirmation.
+
+M6/physical Q6 preliminary readout run zbopt24a/2026-11-24_15-22-46, 34 points. The initial qspec had raw vector SNR 1.05 and state-reference separation SNR 2.55, so pulse preparation remains unverified. At 8 us/0.20 DAC/9059.283020 MHz, three 20k-shot confirmations using the historical pulse gave 3.795%, 4.375%, 3.135% histogram contrast; mean 3.768%, paired baseline 1.483%. The 2 and 4 us power references did not qualify. Retry spectroscopy at the requalified readout, including the historical 0.010 DAC discovery and 64000-rep narrow check if needed.
+
+M2 post-coarse narrow confirmation recovered in zb1124a/m2_refine_qs: joint-IQ center 5438.511117 MHz, FWHM 0.15658 MHz, vector SNR 6.47, local R2 0.666. Standard calibrated plot reports 5438.504 MHz and 0.174 MHz FWHM with fitted peak about 0.31. Fresh Rabi using sigma 0.097 us gave pi 0.68650 DAC and R2 0.9833; preliminary single-shot contrast 11.885%. Continue readout-length and bounded gain/frequency qualification. Prior unresolved status is superseded for the preparation at this readout point.
+
+M2 first readout optimization zbopt24a/2026-11-24_15-44-29, 69 acquired points. At 8949.955019 MHz, 7 us and 0.24 DAC, three 20k-shot confirmations gave 12.225%, 13.845%, 13.180% contrast (mean 13.083%, paired baseline 12.335%). No accepted SSF change. The first pass is complete on all five power-qualified rows. Fine-gain and alternate-length checks are serialized before the remaining preparation retries.
+
+M1 fine readout, zbfine24a/2026-11-24_16-01-28. Repeated power checks qualified 0.25 DAC at both 8 and 10 us. At 8 us/8918.242916 MHz, three candidate contrasts were 31.595%, 31.270%, 31.155% (mean 31.340%, paired 0.20-DAC baseline 25.923%). A 2 us/0.30 DAC diagnostic gave 19.75%. The fixed-gain 10 us screen gave 33.4%, below the 8 us screening maximum. The confirmed 8 us point fails the 50% criterion; no shared readout update.
+
+Fine readout repeats on M3 and M4 also remained below 50%. M3 at 13 us, 0.25 DAC, 8973.858219 MHz gave 24.320%, 24.816%, 25.215% (mean 24.784%, paired baseline 19.343%). M4 at 8 us, 0.40 DAC, 8999.438145 MHz gave 17.740%, 19.375%, 17.325% (mean 18.147%, paired baseline 9.840%). M4's neighboring 7 us comparison used 0.40 DAC after fresh low/trial/low/trial qualification. This was shorter than the 8 us candidate, although the archived controller labeled it longer because it indexed from the initial 5 us setting. Actual lengths are saved per point. Fine run receipts: zbfine24a/2026-11-24_16-14-12 and zbfine24a/2026-11-24_16-29-05.
+
+M2 and M6 fine-stage outcomes: M2/0.24 DAC/7 us/8950.088352 MHz gave 10.267% (paired baseline 10.918%); the preceding confirmed candidate mean of 13.083% remains higher. M6/0.20 DAC/8 us/9059.283020 MHz gave 4.262% (paired baseline 4.032%) with historical preparation and little separation. Its 0.25 DAC attempt failed the 30 kHz power qualification. M6 post-readout spectroscopy is diagnostic until independently confirmed. Fine-stage files are in zbfine24a; exact points and repeats are in zb1124a/fine_gain_m2.json and fine_gain_m6.json.
+
+Offline audit after the five paired readout searches checked 442 native SSF HDF5 records and 442 matching plots. It verified finite ground/excited I/Q shot arrays and exact shot counts, saved fidelity and configuration against the per-point records. M1 97 points, M2 83, M3 99, M4 115 and M6 48. M5 had no SSF points in the first campaign because its reference drifted. In M6's 250 MHz discovery scan the usual 1.5 MHz local joint-fit half-window contains fewer than 20 samples at 0.25 MHz spacing. Reanalysis of the saved HDF5 with a 15-grid-step half-window returned only SNR 3.23 and R2 0.183 for its highest matched feature. See m6_wide_refit.json. No broad-scan carrier accepted.
+
+M6/physical Q6 post-readout recovery at 9059.283020 MHz, gain 0.20 DAC, 8 us: two weak qspec scans agreed near 6405.16 MHz. The 64000-rep window around the historical carrier showed a rising feature at its upper edge; it did not bracket the line. A new centered 0.010 DAC/100 us scan, 101 points x 16000 reps, gave 6405.163622 MHz, FWHM 0.24272 MHz, peak population 0.299. Independent 0.006 DAC/100 us confirmation, 101 points x 32000 reps, gave 6405.151978 MHz, FWHM 0.29392 MHz, peak 0.388, SNR 7.70. Both widths pass 0.5 MHz; the narrower PUCQ4 target remains unmet. New Rabi pi 0.65168 DAC at sigma 0.05559 us, R2 0.8386. Three fresh-pulse SSFs were 3.895%, 4.075%, 4.445%. The carrier and preparation are now supported at this readout, but contrast remains below the acceptance gate. Exact records in zb1124a/m6_centered_review.json and per-scan HDF5/plots. Reoptimize readout with the new carrier, then check reduced drive.
+
+Physical Q4/M5 recovered in separate zb5r24a runs. At 8 us, a stable 0.10 DAC reference qualified; fitted baseline dip 9014.035634 MHz, R2 0.964, SNR 13.47. The old 6 us qualification remains rejected. M5 qspec reproduced at 7065.003268 MHz, FWHM 0.16452 MHz, fitted peak population 0.469, drive 0.006 DAC/100 us. Fresh Rabi with sigma 0.056940825 us gave pi 0.61686 DAC and R2 0.977. Preliminary SSF was 10.781% at the recovery readout. Native readout optimization then began under zb5opt24a/2026-11-24_17-52-53. All six rows now have measured zero-bias qspec and Rabi results; final readout/coherence acceptance is separate.
+
+November 24 zero bias, physical Q4/M5. The initial 8 us, 0.10 DAC, 9013.695634 MHz candidate averaged 11.629% contrast in three confirmations. The fine search averaged 11.112% versus 11.767% for its paired baseline. Keep the initial point for the independent preparation check. See zb5r24a/readout_m5.json and fine_gain_m5.json. M6 readout optimization with the newly measured 6405.151978 MHz carrier started after M5 stopped.
+
+Physical Q6/M6, new-pulse readout (zb6opt24a and zb6fine24a). After length and gain/frequency searches, the 8 us, 0.20 DAC, 9058.849687 MHz point averaged 7.052% contrast (6.660% to 7.521%) versus 6.407% paired baseline. Its fine-stage improvement was within two paired standard errors. The preceding broader grid averaged 5.587%. All 79 fresh-pulse search records passed raw IQ, contrast, configuration, and plot-count audit. With M5's 44 records and the preceding 442-point audit, 565 saved readout points have passed those checks.
+
+November 24 zero-bias campaign closed after six independent preparation checks. In row order M1-M6 the optimization means were 31.34%, 13.08%, 24.78%, 18.15%, 11.63%, 7.05%. Fresh checks were 31.57%, 12.00%, 23.39%, 16.00%, 12.08%, 5.28%. All six pi gains were within 0.6-0.7 DAC. M2 peak population and M6 linewidth missed preferred device targets. No row qualified for a final one-pass T1/T2R/T2E benchmark or shared setting promotion. Both sources verified at zero/OFF, QICK stopped and clocks locked. See the November 24 closeout table in docs/MEASUREMENTS.md and dated 19-slide PUCQ4_zero_bias_20261124.pptx under pucq4_first_light. Next step is a physical readout-chain check against the last documented working setup, followed by the M1 reference.

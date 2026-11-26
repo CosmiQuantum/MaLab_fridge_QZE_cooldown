@@ -23,7 +23,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-ROOT = Path("M:/_Data/20250822 - Olivia/pucq4_run_started_Aug_3/PUCQ4/pucq4_first_light")
+ROOT = Path("M:/_Data/20250822 - Olivia/pucq4_run_started_Oct_7/PUCQ4/pucq4_first_light")
 YOKOS = ("192.168.1.73", "192.168.1.77")
 LIMIT_A = 0.010
 RAMP_A_S = 0.0005
