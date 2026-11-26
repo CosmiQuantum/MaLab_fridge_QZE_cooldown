@@ -495,6 +495,66 @@ def check_gate_consistency(manifest: Dict) -> List[str]:
     return errors
 
 
+def check_session_hook(manifest: Dict) -> List[str]:
+    """The Codex hook file must parse and must name files that exist."""
+    entrypoints = manifest.get("entrypoints", {})
+    relative_name = entrypoints.get("session_hook") if isinstance(entrypoints, dict) else None
+    if not isinstance(relative_name, str):
+        return []
+    path = ROOT / relative_name
+    if not path.is_file():
+        return [f"{relative_name}: hook file is missing"]
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        return [f"{relative_name}: cannot load: {exc}"]
+    errors: List[str] = []
+    events = data.get("hooks") if isinstance(data, dict) else None
+    if not isinstance(events, dict) or not events:
+        return [f"{relative_name}: top level needs a 'hooks' object with at least one event"]
+    # The one hook this harness relies on. It must fire after a compaction, print
+    # both files, and be allowed to pass their full text.
+    compact_handlers = [
+        handler
+        for group in events.get("SessionStart", []) if isinstance(group, dict)
+        and "compact" in str(group.get("matcher", ""))
+        for handler in group.get("hooks", []) if isinstance(handler, dict)
+    ]
+    if not compact_handlers:
+        errors.append(f"{relative_name}: needs a SessionStart group whose matcher "
+                      "names the compact source")
+    for handler in compact_handlers:
+        command = str(handler.get("command", ""))
+        for needed in ("AGENTS.md", "harness_engineering/STATE.md"):
+            if needed not in command:
+                errors.append(f"{relative_name}: the compact hook must print {needed}")
+        limit = handler.get("additionalContextLimit")
+        if not isinstance(limit, int) or (limit != 0 and limit < 5000):
+            errors.append(f"{relative_name}: the compact hook needs additionalContextLimit "
+                          "0 or at least 5000, or its output is cut to a preview")
+    for event, groups in events.items():
+        if not isinstance(groups, list):
+            errors.append(f"{relative_name}: {event} must be a list of matcher groups")
+            continue
+        for group in groups:
+            handlers = group.get("hooks") if isinstance(group, dict) else None
+            if not isinstance(handlers, list) or not handlers:
+                errors.append(f"{relative_name}: a {event} group needs a 'hooks' list")
+                continue
+            for handler in handlers:
+                command = handler.get("command") if isinstance(handler, dict) else None
+                if not isinstance(handler, dict) or handler.get("type") != "command" \
+                        or not isinstance(command, str) or not command.strip():
+                    errors.append(f"{relative_name}: every {event} handler needs type "
+                                  "'command' and a command text")
+                    continue
+                for name in re.findall(r":\(top\)([^\s\"']+)", command):
+                    if not (ROOT / name).is_file():
+                        errors.append(f"{relative_name}: the hook prints {name!r}, "
+                                      "which does not exist")
+    return errors
+
+
 def check_harness_contract() -> Tuple[List[str], Dict]:
     """Check the durable context, safety, verification, and state contracts."""
     manifest, errors = load_harness_manifest()
@@ -588,6 +648,7 @@ def check_harness_contract() -> Tuple[List[str], Dict]:
 
     errors.extend(check_logs(manifest))
     errors.extend(check_gate_consistency(manifest))
+    errors.extend(check_session_hook(manifest))
 
     agents_path = ROOT / "AGENTS.md"
     try:

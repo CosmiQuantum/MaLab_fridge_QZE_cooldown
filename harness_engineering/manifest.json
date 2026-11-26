@@ -8,12 +8,14 @@
     "run_folder_checker": "tools/check_run_folder.py",
     "config_rule_checker": "tools/check_config_rules.py",
     "current_state": "harness_engineering/STATE.md",
-    "log_folder": "docs/log"
+    "log_folder": "docs/log",
+    "ssf_estimator": "tools/estimate_ssf.py",
+    "session_hook": ".codex/hooks.json"
   },
   "active_documents": {
     "AGENTS.md": 8000,
     "harness_engineering/README.md": 6000,
-    "harness_engineering/STATE.md": 10000,
+    "harness_engineering/STATE.md": 12000,
     "harness_engineering/RUN_ENVELOPE.md": 6000,
     "harness_engineering/MEASUREMENT_PLAYBOOK.md": 10000,
     "harness_engineering/PUCQ4_DEVICE.md": 8000,
@@ -52,12 +54,14 @@
       "harness_engineering/VERIFICATION.md",
       "tools/harness_check.py",
       "tools/check_run_folder.py",
-      "tools/check_config_rules.py"
+      "tools/check_config_rules.py",
+      "tools/estimate_ssf.py"
     ],
     "state_management": [
       "harness_engineering/STATE.md",
       "harness_engineering/LESSONS.md",
-      "docs/log"
+      "docs/log",
+      ".codex/hooks.json"
     ]
   },
   "hardware_requires_explicit_authorization": true,

@@ -19,6 +19,7 @@ These files tell a coding agent how to work in this repo. `AGENTS.md` in the rep
 | `TASK_TEMPLATE.md` | Brief, log entry format, done list | rarely |
 | `SOURCES.md` | Which source wins, device and design sources | rarely |
 | `manifest.json` | Machine readable list of files, size limits and gates | with the files |
+| `../.codex/hooks.json` | A Codex hook. After a chat is compacted it prints `AGENTS.md` and `STATE.md` again | rarely |
 | `archive/` | The old state and failure files, whole | never |
 | `../docs/log/` | Task log, one file per month | appended |
 | `../docs/MEASUREMENT_INDEX.md` | One line per campaign | one line per campaign |
@@ -34,11 +35,12 @@ These files tell a coding agent how to work in this repo. `AGENTS.md` in the rep
 7. A gate, a limit or a permission changes only on the user's word, with the date.
 8. After any harness change run `python tools/harness_check.py`.
 9. `AGENTS.md` is read once per chat and cut off without warning above 32 KiB. Keep it far below. A change to it reaches the agent only in a new chat.
+10. The hook in `.codex/hooks.json` does nothing until a person has reviewed and trusted it on that machine (the `/hooks` command in the Codex CLI, or the hooks settings in the app). Any change to the file needs a new review. If the hook is not trusted or the Codex surface has no hooks, the rule at the top of `AGENTS.md` still applies. Read `STATE.md` again after a compaction.
 
 ## Why it is built this way
 
 - The agent reads little. The root file is about 6 KB. A measurement task adds 30 to 50 KB of cards. Before the tune-up of 25 Nov 2026 the same task was told to read about 350 KB.
 - Rules that used to be relaxed after a miss are now numbers in one table, with a stop rule.
 - The folder structure is checked by a tool (`tools/check_run_folder.py`), not by prose.
-- Sweep settings are checked against the gates by a tool (`tools/check_config_rules.py`).
+- Sweep settings are checked against the gates by a tool (`tools/check_config_rules.py`). Whether an SSF target is reachable at all is estimated by a tool (`tools/estimate_ssf.py`).
 - The five layers of the Walking Labs lecture are still covered. Task is `TASK_TEMPLATE.md`. Context is `REPOSITORY_MAP.md`, `EXPERIMENT_CONTRACTS.md` and `PUCQ4_DEVICE.md`. Environment is `ENVIRONMENT_AND_SAFETY.md` and `RUN_ENVELOPE.md`. Verification is `VERIFICATION.md` and the tools. State is `STATE.md`, `LESSONS.md` and the log.

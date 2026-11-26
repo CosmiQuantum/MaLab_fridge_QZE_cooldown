@@ -74,7 +74,7 @@ Rows M1 to M4 come from `_PUCQ4_FIXED_CONFIG_ROWS` in `system_config.py`. Rows M
 | Qspec drive gain and length | `qubit_gain_ge`, `qubit_length_ge` | `qspec_gain`, `qspec_length_us` |
 | Gaussian sigma | `sigma` | `sigma_us` |
 | Pi amplitude | `pi_amp` | `pi_amp` |
-| Readout gain cap at zero bias | `PUCQ4_ZERO_CURRENT_READOUT_GAIN_MAX` | same tuple |
+| Readout gain cap at zero bias | `PUCQ4_ZERO_CURRENT_READOUT_GAIN_MAX`, one value per row. Only the round robin checks it, only at zero bias, and it does not look at the length | same tuple |
 
 Sweeps, reps, rounds and relaxation delays live in `expt_config.py`. The plain `expt_cfg` literals there are NOT what the round robin runs. The function `pucq4_round_robin_profile` in `expt_config.py` overrides them per row and bias.
 It sets `qubit_spec_ge`, `power_rabi_ge`, `Readout_Optimization`, `T1_ge`, `Ramsey_ge` and `SpinEcho_ge`. For `res_spec`, `tof`, `length_rabi_ge` and `Ramsey_ge_correction` the literal is what runs.
@@ -120,6 +120,7 @@ Use `PUCQ4_READOUT_FREQ_MHZ` for the readout tone, not `PUCQ4_RES_FREQ_MHZ`. Do 
 | `tools/harness_check.py` | Offline check of all Python files and of the harness itself |
 | `tools/check_run_folder.py` | `plan` before a run, `check` after a run |
 | `tools/check_config_rules.py` | Offline check of T2 sampling, relaxation delay and qspec step against the gates |
+| `tools/estimate_ssf.py` | Offline estimate of SSF at another readout gain or length, and of the gain a target would need |
 | `tools/check_res_spec_config.py` | Offline check that the profile keeps the resonator settings |
 | `tools/inspect_qspec_h5.py` | Short raw IQ summary of one qspec HDF5 |
 | `tools/inspect_ssf_optimization.py` | Short summary of SSF optimisation HDF5 files |

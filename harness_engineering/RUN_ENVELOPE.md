@@ -32,7 +32,7 @@ The user's standing preference, recorded 15 Sept 2026, is autonomous progress wi
 | Limit | Value | Source |
 |---|---|---|
 | Flux bias | Both Yokogawas stay at 0 A with output off. Any other current needs a target or range from the user in this chat. Hard device range is -10 to +10 mA. | No bias was asked for since 27 Oct 2026 (scope note in the log) |
-| Readout gain | Never above the measured onset of resonator movement for that row, length and bias. Ceilings are in `STATE.md`. Higher gain was allowed on 20 Nov only up to that onset. | User, 30 Oct and 20 Nov 2026 |
+| Readout gain | Never above the measured onset of resonator movement for that row, length and bias. Ceilings are in `STATE.md`. Higher gain was allowed on 20 Nov only up to that onset. The round robin also refuses a zero bias run above the caps in `system_config.py`. Raise a cap only after a requalification, or on the user's dated word for readout above the onset. Report it as a config change. | User, 30 Oct and 20 Nov 2026 |
 | Attenuators and RF chain | Unchanged. | standing |
 | Low level code | Do not change the QICK pulse programs or the underlying experiment classes. Config and orchestration may change. Repairs are minimal and keep the script structure. | User, 8 Sept and 18 Nov 2026 |
 | Data root and run | `M:/_Data/20250822 - Olivia`, run `pucq4_run_started_Oct_7`. Never rewrite old paths. | User, 8 Oct 2026 for the run. 20 Oct 2026 for the old paths |
@@ -41,7 +41,7 @@ The user's standing preference, recorded 15 Sept 2026, is autonomous progress wi
 | One at a time | One acquisition at a time. Never overlap two controllers. Never end a process you did not start. | standing |
 | Pulse length | 100 us or less. | device |
 
-Tune-up defaults were added on 25 Nov 2026 without a number from the user. Change them when the user gives one.
+Tune-up defaults were added on 25 Nov 2026 without a number from the user. On that day the user left these choices to the tune-up. They stand until the user gives another number.
 
 ## Always ask first
 

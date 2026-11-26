@@ -70,6 +70,7 @@ To add a lesson, add one line under the right heading. Keep it under 200 charact
 - Repeat exceeds the gate -> keep both, look at shot blocks, no cherry picking. F899
 - Calibration overrides leak between stages -> apply the coherence override right before coherence and audit in acquisition order. F666 F871
 - Long SSF series slows down -> check the exact last saved path, do not glob a growing folder. F60
+- SSF fell after the readout gain was lowered -> run `tools/estimate_ssf.py` first. If gain and root of length explain the drop, optimising inside the ceiling is unlikely to help. (25 Nov, a rough estimate)
 - SSF collapsed against an older run -> first rerun the last validated setting unchanged. If a standing limit forbids that setting, ask the user at once. G4539 G4774 (rule added 25 Nov)
 
 ## T1 and T2
