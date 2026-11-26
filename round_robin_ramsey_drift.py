@@ -1,4 +1,5 @@
 import copy
+import argparse
 import sys
 import os
 import atexit
@@ -77,6 +78,11 @@ def set_yoko_bias(yoko3_mA=0.0, yoko4_mA=0.0):
 
 ################################################ Run Configurations ####################################################
 st = time.time()
+parser = argparse.ArgumentParser()
+parser.add_argument('--fast-hours', type=float, help='Use four-fringe frequency sweeps for this many hours, including startup')
+fast_hours = parser.parse_args().fast_hours
+if fast_hours is not None and not 0 < fast_hours <= 24:
+    parser.error('--fast-hours must be in (0, 24]')
 #
 n = 1                              # one calibration/coherence round
 pre_optimize = False
@@ -148,7 +154,7 @@ substudy_txt_notes += (
 )
 study ='find_resonators_sandbox'
 if YOKO3_CURRENT_MA == 0.0 and YOKO4_CURRENT_MA == 0.0:
-    sub_study = 'ramsey_drift'
+    sub_study = 'ramsey_fast' if fast_hours else 'ramsey_drift'
 else:
     sub_study = (
         'rr6_y3_%+.1f_y4_%+.1f'
@@ -232,6 +238,10 @@ with open(review_path, encoding="utf-8-sig") as review_file:
 if [record['row'] for record in reviews] != list(range(1, 7)):
     raise ValueError('Incomplete November 24 operating points')
 points = [record['fresh_check']['settings'] for record in reviews]
+if fast_hours:
+    points[2].update(gain=0.20, length=13, ro=8974.058219)
+    points[3].update(gain=0.20, length=5, ro=8999.104811)
+    points[5].update(gain=0.10, length=45, ro=selected_flux_config['readout_frequency_ge'][5])
 if any(not 0 < p['gain'] <= p['cap'] for p in points):
     raise ValueError('November 24 measured gain ceiling exceeded')
 res_leng_vals = [p['length'] for p in points]
@@ -763,6 +773,8 @@ overnight_end = datetime.datetime.combine(
     datetime.date.today(), datetime.time(6))
 if overnight_end <= datetime.datetime.now():
     overnight_end += datetime.timedelta(days=1)
+if fast_hours:
+    overnight_end = datetime.datetime.fromtimestamp(st + fast_hours * 3600)
 while datetime.datetime.now() < overnight_end:
     if os.path.exists(os.path.join(studyDocumentationFolder, 'STOP')):
         break
@@ -840,6 +852,15 @@ while datetime.datetime.now() < overnight_end:
         for key, value in [('steps', steps), ('rounds', 1),
                            ('reps', (4800, 9600, 4800, 7200, 9600, 16000)[QubitIndex])]:
             set_qubit_expt_value('Ramsey_ge', key, QubitIndex, value)
+        if fast_hours and j > 1:
+            span_us = (16., 6., 16., 10., 6., 3.2)[QubitIndex]
+            reps = (800, 3200, 1200, 2400, 3200, 10000)[QubitIndex]
+            settings = dict(start=0., stop=span_us, steps=65 if QubitIndex == 5 else 49,
+                            reps=reps, ramsey_freq=4. / span_us)
+            for key, value in settings.items():
+                set_qubit_expt_value('Ramsey_ge', key, QubitIndex, value)
+            row_profile['Ramsey_ge']['fit_frequency_guess_MHz'] = settings['ramsey_freq']
+            set_qubit_expt_value('Readout_Optimization', 'steps', QubitIndex, 5000)
         set_qubit_expt_value('qubit_spec_ge', 'reps', QubitIndex, 32000 if QubitIndex == 5 else 6000)
         qfreq_override = os.environ.get('PUCQ4_QFREQ_MHZ')
         if qfreq_override is not None:
