@@ -70,7 +70,8 @@
     "round_robin_benchmark.py",
     "round_robin_benchmark_qspec_simple.py",
     "round_robin_benchmark_res_spec_simple.py",
-    "longitudinal_qze_005_ge_ramsey.py"
+    "longitudinal_qze_005_ge_ramsey.py",
+    "round_robin_ramsey_drift.py"
   ],
   "canonical_data_hierarchy": "<data root>/<run_name>/<device_name>/<study>/<sub_study>/<time stamp>/{optimization,study_data,documentation}",
   "raw_data_location": "study_data/Data_h5/<label>/<time stamp>_<label>_results_batch_<n>_Num_per_batch<n>.h5",
@@ -103,5 +104,11 @@
   "structure_baseline_commit": "d5b8fb4541b580de0f3ddc3e651a32360ec7a312",
   "reference_check_ignore": [
     "Device04V2.py"
+  ],
+  "retired_paths": [
+    "harness_engineering/PUCQ4_STATE.md",
+    "harness_engineering/FAILURE_MODES.md",
+    "docs/harness-log.md",
+    "docs/MEASUREMENTS.md"
   ]
 }

@@ -8,6 +8,7 @@ Paths are relative to the device folder `M:/_Data/20250822 - Olivia/pucq4_run_st
 
 | When (2026) | What | Rows | Study and sub-studies | Outcome | More |
 |---|---|---|---|---|---|
+| 25 to 26 Nov | Overnight Ramsey drift at a fixed carrier, 10 batches | M1 to M6 | `find_resonators_sandbox/` with `ramsey_drift`, run `2026-11-25_21-48-10` | Peak to peak offsets 2.8, 5.2, 2.6, 4.2, 83.5 and 105.8 kHz for M1 to M6. Nothing promoted | `docs/log/2026-11.md`, entry of 26 Nov |
 | 24 Nov | Zero bias reoptimisation. Res spec, power check, qspec, Rabi, SSF search | M1 to M6 | `find_resonators_sandbox/` with `zb1124a`, `zbopt24a`, `zbfine24a`, `zb5r24a`, `zb5opt24a`, `zb6opt24a`, `zb6fine24a` (the record names the study for `zb1124a` only) | SSF below gate on all rows, best M1 at 31 percent. Nothing promoted | `docs/archive/MEASUREMENTS_through_2026-11-25.md` lines 118 to 173 |
 | 20 to 21 Nov | SSF checks on all rows, then optimisation at higher readout gain | M1 to M6 | `find_resonators_sandbox/` with `ssall1120`, `ssup1120`, `ssopt1120`, `ssfine1120`, `rt1121a` | Below gate. User stopped everything on 21 Nov | same file, lines 51 to 116 |
 | 16 to 20 Nov | Zeno long run and SSF recovery on M2 (plot label Q2) | M2 | `qze_005/` | Stopped by the user on 20 Nov. SSF above 50 percent not recovered | `harness_engineering/archive/PUCQ4_STATE_through_2026-11-25.md` lines 1 to 151 |

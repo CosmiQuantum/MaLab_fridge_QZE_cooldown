@@ -60,6 +60,7 @@ State and tokens
 16. Search before you read. Never read a file over 40 KB whole. `REPOSITORY_MAP.md` tells you where things are.
 17. Write for the next agent in plain words with spaces, plain ASCII, short lines. No hashes, and no process ids or ACTIVE and RUNNING labels outside `STATE.md`.
 18. Do not copy rules or state into other files. Each rule has one home.
+19. If `python tools/harness_check.py` reports a retired path, you are working from rules older than this file. Read this file again before you go on.
 
 ## Ask or decide
 

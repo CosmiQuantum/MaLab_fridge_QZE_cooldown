@@ -157,4 +157,5 @@ To add a lesson, add one line under the right heading. Keep it under 200 charact
 - Failure -> classify it (task, context, environment, verification, state), fix the narrowest layer, no extra power, span or reps. F102 F107
 - Denied helper or approval -> read the source, do not work around the denial. F951
 - Design evidence looks missing -> search the design archives before a search run. F943
+- A chat that began before a harness change kept the old rules and wrote to retired paths -> start a new chat after every pull that changes `AGENTS.md`. `tools/harness_check.py` fails on a retired path. (26 Nov)
 - Status text said more than was measured -> raw configs and raw data are the authority. Say what was measured, nothing more. G4307

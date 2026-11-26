@@ -524,16 +524,19 @@ PUCQ4_ZERO_CURRENT_PULSE_MEASURED_ROWS = (True, True, True, True, True, True)
 # Filled only after the all-six low-power campaign has been reviewed. These
 # limits apply at the recorded zero-current attenuation configuration only.
 # Filled 2026-11-25 from the 24 Nov low-power campaign (30 kHz resonance-shift
-# tolerance). round_robin_benchmark.py refuses a zero-current run above these
-# gains. It does not check the readout length, and no other script checks them.
-# Each value is the lowest ceiling known for the row at its stored length and at
-# its 24 Nov working length. M1 0.25 at 8 us (none measured at the stored 6 us).
-# M2 0.24 at 7 us. M3 0.20 at 13 us. M4 0.20 at the stored 5 us (0.40 is qualified
-# at 4 and 8 us). M5 0.10 at 8 us (the stored 6 us was rejected). M6 0.10 at 45 us.
-# Set PUCQ4_READOUT_GAIN and PUCQ4_READOUT_LENGTH_US for the row.
+# tolerance). M3, M4 and M6 raised 2026-11-26 to their 24 Nov working points.
+# round_robin_benchmark.py and round_robin_ramsey_drift.py refuse a zero-current
+# run above these gains. They do not check the readout length.
+# Each value is the gain of the row's 24 Nov working point, M1..M6 at 8, 7, 13,
+# 8, 8 and 8 us. The 24 Nov evidence.json holds a cap at or above each. The
+# overnight Ramsey run of 25 Nov checked every gain against that file and ran.
+# At the stored config lengths the ceilings are lower for M4 (0.20 at 5 us) and
+# M6 (0.10 at 45 us). None is measured for M1 at 6 us. M5 at 6 us was rejected.
+# So set PUCQ4_READOUT_GAIN and PUCQ4_READOUT_LENGTH_US together for the row.
 # Details in harness_engineering/STATE.md.
-# Previous value (None, 0.24, None, None, None, None).
-PUCQ4_ZERO_CURRENT_READOUT_GAIN_MAX = (0.25, 0.24, 0.20, 0.20, 0.10, 0.10)
+# Previous values (None, 0.24, None, None, None, None), then
+# (0.25, 0.24, 0.20, 0.20, 0.10, 0.10).
+PUCQ4_ZERO_CURRENT_READOUT_GAIN_MAX = (0.25, 0.24, 0.25, 0.40, 0.10, 0.20)
 
 
 def normalize_pucq4_flux_current(current_mA):

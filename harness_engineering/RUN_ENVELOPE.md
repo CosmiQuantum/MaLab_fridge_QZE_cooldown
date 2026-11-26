@@ -37,7 +37,7 @@ The user's standing preference, recorded 15 Sept 2026, is autonomous progress wi
 | Low level code | Do not change the QICK pulse programs or the underlying experiment classes. Config and orchestration may change. Repairs are minimal and keep the script structure. | User, 8 Sept and 18 Nov 2026 |
 | Data root and run | `M:/_Data/20250822 - Olivia`, run `pucq4_run_started_Oct_7`. Never rewrite old paths. | User, 8 Oct 2026 for the run. 20 Oct 2026 for the old paths |
 | Gates | The numbers in the playbook. | User, 20 Nov 2026. The 3 points across a line and the window of 3 times the decay are tune-up defaults |
-| Long runs | No run longer than 2 hours on a row whose SSF is at or below 50 percent. | User, 20 Nov 2026 for the rule. The 2 hours are a tune-up default |
+| Long runs | The Zeno long run does not restart while SSF on its row is at or below 50 percent. Any other long run below the SSF gate needs the user's ask by name. | User, 20 Nov 2026 for Zeno. The user asked for the overnight Ramsey drift on 25 Nov 2026 |
 | One at a time | One acquisition at a time. Never overlap two controllers. Never end a process you did not start. | standing |
 | Pulse length | 100 us or less. | device |
 

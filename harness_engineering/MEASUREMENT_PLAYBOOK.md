@@ -42,7 +42,7 @@ Only `validated-measurement` values go into shared config or summary tables.
 4. When a value that used to pass now fails, first rerun the last validated setting unchanged. That one cheap run comes before any optimisation. If a limit in `RUN_ENVELOPE.md` forbids that setting, ask the user at once.
 5. Never start a dependent stage on a failed gate. Rabi needs a passing qspec. SSF needs a resolved Rabi. T1, T2R and T2E need a resolved Rabi and a readout point at or below the ceiling.
    Below the SSF gate they run only when the user asks for them by name. Their results are then `measured-below-gate` and stay out of config and deck tables.
-   Promotion, the final benchmark and any run over the Long runs limit in `RUN_ENVELOPE.md` need the SSF gate. (The by name exception is a tune-up default.)
+   Promotion, the final benchmark and the Zeno long run need the SSF gate. Another long run below the SSF gate needs the user's ask by name. (The by name exception is a tune-up default.)
 6. Say before launch how long a stage should take. Stop and report when it takes more than twice that.
 7. Every run names a hypothesis and what result would reject it. A null result counts only with a passing positive control in the same run.
 

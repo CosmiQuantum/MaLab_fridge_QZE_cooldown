@@ -51,6 +51,7 @@ Other pieces.
 | Yoko readback without changing anything | `source_readbacks` in `pucq4_12_m4_search.py`. Read it before use |
 | SSF optimisation as a child | `Combined_Optimization_Scriptsv2.py`, set with `PUCQ4_OPT_*` environment values |
 | Q2 Zeno long run | `longitudinal_qze_005_ge_ramsey.py`. It runs at module level |
+| Overnight Ramsey drift | `round_robin_ramsey_drift.py`, a copy of the round robin. All six rows at the 24 Nov working points, startup calibration, then Ramsey until 06.00 or until `documentation/STOP`. It refuses `PUCQ4_*` overrides. `--fast-hours` gives a short mode. It runs at module level. Results with `tools/analyze_overnight_ramsey.py` |
 | Yokogawa driver | `malab_yokogawa_gs200.py`. Making the object opens a socket at once |
 | Config builders | `add_qubit_experiment` in `build_task.py`, `all_qubit_state` in `build_state.py` |
 

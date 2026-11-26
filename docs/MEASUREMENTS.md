@@ -1,2 +1,0 @@
-
-November 26 overnight Ramsey closeout. ramsey_drift/2026-11-25_21-48-10 completed 10 six-row Ramsey batches, 60 plots and 60 accepted single-trace offset estimates at 47.6 min per row revisit. Final Y3/Y4 CURR/0 A/OFF. Peak-to-peak offsets M1-M6: 2.8, 5.2, 2.6, 4.2, 83.5, 105.8 kHz. Fit errors vary by row. Diagnostic data, no shared calibration promotion. Results in run documentation/ramsey_offsets.csv and .png.

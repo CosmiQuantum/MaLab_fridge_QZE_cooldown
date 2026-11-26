@@ -2,16 +2,16 @@
 
 This file is the single place for the current state. Overwrite it after every result. Never append dated blocks. History goes to `docs/log/`. Keep it under 12 KB.
 
-Last update. 2026-11-25, from the 24 Nov closeout record. No measurement was made. Two config changes were made offline and have not run on hardware yet (readout gain caps, T2 sweep steps).
+Last update. 2026-11-26, from the lab note that closed the overnight Ramsey run. The tune-up made no measurement. Config changes made offline since 25 Nov (readout gain caps, T2 sweep steps) have not been used in a round robin run yet.
 
 ## Resume here
 
 | Item | State |
 |---|---|
-| Hardware | Nothing running. Both Yokogawas in current mode, 0 A, output off. QICK tProc stopped, clocks locked. Last verified at the 24 Nov closeout. Attenuators were not touched and cannot be read back. Verify again before any run. |
-| Envelope | Closed. No open request. The 24 Nov zero bias campaign is finished. |
+| Hardware | Nothing running, as far as the record says. The overnight Ramsey run ended on 26 Nov with both Yokogawas in current mode, 0 A, output off (lab note of 26 Nov). The QICK state is not in that note. Attenuators were not touched and cannot be read back. Verify again before any run. |
+| Envelope | Closed. No open request. |
 | Next step | The user chose `check` on 25 Nov. Run the SSF check on M1 when the user asks for it in the chat. All steps are in `SSF_CHECK.md`. |
-| Long runs | None. The Zeno run on M2 (index 1, plot label Q2, study `qze_005`) was stopped by the user on 20 Nov. |
+| Long runs | None running. The overnight Ramsey drift of 25 to 26 Nov is finished. The Zeno run on M2 (index 1, plot label Q2, study `qze_005`) was stopped by the user on 20 Nov. |
 
 When you start a long run, write its process id into the Long runs row. Take it out when the run has ended.
 
@@ -30,7 +30,7 @@ Default until the user says otherwise. Set on 25 Nov, when the user left the ope
 1. Both rules stay. Readout stays at or below the caps.
 2. No further SSF optimisation loop at these powers.
 3. T1, T2R and T2E run only when the user asks for them by name, with the res spec, qspec and Rabi they need. They are averaged measurements. Their results carry the label `measured-below-gate` and stay out of config and deck tables.
-4. Promotion into shared config, the final one-pass benchmark, the Zeno long run and any other run over 2 hours stay blocked until SSF passes.
+4. Promotion into shared config, the final one-pass benchmark and the Zeno long run stay blocked until SSF passes. Another long run below the SSF gate runs only when the user asks for it by name, as for the overnight Ramsey drift of 25 Nov.
 
 The words the user can choose from. One word, or a word and a number.
 
@@ -66,21 +66,21 @@ Measured with a 30 kHz resonance shift tolerance. Working limits, not exact punc
 |---|---|
 | M1 | 0.25 DAC at 8 us and 10 us. On 20 Nov the same 8 us gave only 0.10. None measured at 6 us |
 | M2 | 0.30 DAC measured at 7 us. Working cap 0.24 DAC |
-| M3 | 0.20 DAC at 13 us. The 0.25 DAC point in the table above has no written qualification. Use 0.20 DAC, 13 us, 8974.058219 MHz (SSF 19.4 percent) until 0.25 is requalified |
+| M3 | 0.20 DAC at 13 us in the notes. 0.25 DAC at 13 us is allowed by the 24 Nov evidence file, which the overnight run of 25 Nov used |
 | M4 | 0.20 DAC at 5 us. 0.40 DAC at 4 us and 8 us. 0.45 failed at 8 us |
 | M5 | The 0.10 DAC reference qualified at 8 us. No higher gain is recorded as qualified. The 6 us reference drifted and is rejected |
-| M6 | 0.10 DAC at 45 us. 0.25 failed. 2 us and 4 us did not qualify. The 0.20 DAC point at 8 us in the table above has no written qualification. Requalify it before use |
+| M6 | 0.10 DAC at 45 us. 0.20 DAC at 8 us is allowed by the 24 Nov evidence file, which the overnight run used. 0.25 failed. 2 us and 4 us did not qualify |
 
 ## Shared config and the caps
 
 `system_config.py` still holds the 29 Oct readout point for five rows. Gains are 0.9, 0.95 and 0.95 for M1, M3 and M4 (`res_gain_ge`) and 0.95 for M5 and M6 (0 mA rows of `PUCQ4_FLUX_PULSE_CALIBRATION`). Tone, length, qubit frequency, sigma and pi amplitude there are old too. M2 holds 0.24 from 20 Nov.
 
-Since 25 Nov `PUCQ4_ZERO_CURRENT_READOUT_GAIN_MAX` holds a cap for every row, 0.25, 0.24, 0.20, 0.20, 0.10 and 0.10 DAC for M1 to M6. A zero bias round robin run above a cap stops with an error before it touches hardware. So a plain run on any row but M2 stops until the gain is set.
+`PUCQ4_ZERO_CURRENT_READOUT_GAIN_MAX` holds a cap for every row, 0.25, 0.24, 0.25, 0.40, 0.10 and 0.20 DAC for M1 to M6 (M3, M4 and M6 raised on 26 Nov). Each is the gain of the row's 24 Nov working point, at 8, 7, 13, 8, 8 and 8 us. A zero bias run above a cap stops with an error before it touches hardware. So a plain round robin run on any row but M2 stops until the gain is set.
 
-- The cap does not know the readout length. The config lengths are 6, 7, 13, 5, 6 and 45 us. M1 has no ceiling at 6 us and M5 at 6 us is rejected, so set 8 us for both.
-- The M4 cap is the 5 us ceiling. To use 0.40 DAC on M4 set 8 us (or 4 us) and raise its cap to 0.40. Report that as a config change.
+- The cap does not know the readout length. The config lengths are 6, 7, 13, 5, 6 and 45 us. At those lengths M4 has a ceiling of 0.20 and M6 of 0.10, both below their caps. M1 has no ceiling at 6 us and M5 at 6 us is rejected. So always set the length together with the gain.
+- The caps for M3, M4 and M6 rest on the 24 Nov evidence file. The tune-up could not read that file. Compare them once with its cap values.
 - For every run set `PUCQ4_READOUT_GAIN`, `PUCQ4_READOUT_GAIN_MAX`, `PUCQ4_READOUT_LENGTH_US` and `PUCQ4_READOUT_FREQ_MHZ` for the row, one row per run. Then compare them with the saved `Syst Config`.
-- Only `round_robin_benchmark.py` checks the caps, and only at zero bias. At a nonzero bias set `PUCQ4_READOUT_GAIN_MAX` yourself.
+- Only `round_robin_benchmark.py` and `round_robin_ramsey_drift.py` check the caps, and only at zero bias. At a nonzero bias set `PUCQ4_READOUT_GAIN_MAX` yourself.
 - `Combined_Optimization_Scriptsv2.py`, the `longitudinal_qze` scripts and `pucq4_12_m4_search.py` check no cap. The optimiser sweeps around the old config gain by default. Set its gain with `PUCQ4_OPT_READOUT_GAIN` and `PUCQ4_OPT_MAX_GAIN`.
 - The flux controllers `pucq4_07` to `pucq4_11` pass the stored 0.95 DAC at 0 mA. Their 0 mA stages now stop at the cap for M5 and M6.
 
@@ -91,9 +91,20 @@ Checked offline with `python tools/check_config_rules.py`.
 - Fixed on 25 Nov. T2R and T2E on M1 and M3 had 6.7 and 5.0 acquired points per fringe. The steps in `pucq4_round_robin_profile` (`expt_config.py`) were raised. Every row now has 10 or more. Not run on hardware yet. At 1200 reps the M3 echo takes about 5 minutes. Time grows with reps.
 - Still open. With the last T1 values, relaxation delays are outside 5 to 10 times T1 on most rows (M2, M4 and M6 use 14 to 37 times, M3 uses 4.8 times), and the M3 T1 window of 150 us is under 3 times its T1. Set them from a fresh T1, then run the tool again.
 
+## Overnight Ramsey drift, 25 to 26 Nov
+
+From the lab note of 26 Nov. The tune-up did not see the data.
+
+- Script `round_robin_ramsey_drift.py`, all six rows at zero bias at the 24 Nov working points. Startup res spec, qspec and Rabi, then Ramsey at a fixed carrier until 06.00.
+- 10 six-row Ramsey batches, 60 plots, one revisit per row every 47.6 minutes.
+- Peak to peak carrier offsets 2.8, 5.2, 2.6, 4.2, 83.5 and 105.8 kHz for M1 to M6. Fit errors vary by row.
+- The lab note calls it diagnostic data. In the labels of the playbook that is `measured-below-gate`. Nothing was promoted.
+- Data in `<device folder>/find_resonators_sandbox/ramsey_drift/2026-11-25_21-48-10`, results in `documentation/ramsey_offsets.csv` and the png next to it.
+- On 26 Nov the script got a fast mode (`--fast-hours`, sub-study `ramsey_fast`). It uses M3 at 0.20 DAC and 13 us, M4 at 0.20 DAC and 5 us, and M6 at 0.10 DAC and 45 us.
+
 ## Last coherence on record
 
-No T1, T2R or T2E has been validated since 29 Oct. The 29 Oct values were taken at the high readout gain and are history. A coherence run the user asks for by name runs at or below the caps. M3 then uses 0.20 DAC, 13 us, 8974.058219 MHz. M6 uses 0.10 DAC at 45 us, where this file holds no SSF.
+No T1, T2R or T2E has been validated since 29 Oct. The 29 Oct values were taken at the high readout gain and are history. A coherence run the user asks for by name runs at or below the caps.
 
 | Row | T1 us | T2R us | T2E us | Date |
 |---|---|---|---|---|

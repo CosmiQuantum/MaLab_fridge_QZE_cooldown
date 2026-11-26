@@ -649,6 +649,13 @@ def check_harness_contract() -> Tuple[List[str], Dict]:
     errors.extend(check_logs(manifest))
     errors.extend(check_gate_consistency(manifest))
     errors.extend(check_session_hook(manifest))
+    for name in manifest.get("retired_paths", []):
+        if (ROOT / str(name)).exists():
+            errors.append(
+                f"{name}: this path was retired when the harness was rewritten on "
+                "25 Nov 2026. Read AGENTS.md again. Move the lines of this file into "
+                "docs/log and harness_engineering/STATE.md, then delete the file"
+            )
 
     agents_path = ROOT / "AGENTS.md"
     try:
