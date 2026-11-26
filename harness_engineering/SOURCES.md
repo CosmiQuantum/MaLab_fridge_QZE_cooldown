@@ -1,53 +1,30 @@
-# Sources and evidence labels
+# Sources
 
-## Harness-design sources
+## Where a fact comes from, strongest first
 
-- Walking Labs, “Lecture 01. Strong Models Don't Mean Reliable Execution”:
-  https://walkinglabs.github.io/learn-harness-engineering/en/lectures/lecture-01-why-capable-agents-still-fail/
-  (read 2026-08-28). Rules implemented here: make requirements explicit, expose
-  implicit conventions, stabilize the environment, provide verification, persist
-  cross-session state, diagnose failures by layer, and use a command-verifiable
-  Definition of Done.
-- OpenAI, “Custom instructions with AGENTS.md”:
-  https://developers.openai.com/codex/agent-configuration/agents-md
-  (read 2026-08-28). The root `AGENTS.md` is the always-loaded entry point;
-  project instruction discovery is hierarchical and has a default combined size
-  limit, so detailed routed context lives in this folder.
+When two sources disagree, the higher one wins.
 
-## Device and driver sources
+1. A fresh instrument readback, or raw HDF5 from a run you can name, with its saved config.
+2. The values the code will use now (`system_config.py`, `expt_config.py`, the chosen script and its overrides).
+3. `STATE.md`.
+4. The characterisation deck and the upstream driver.
+5. Comments, archives, old logs, search seeds and memory of the chat.
 
-- Local characterization deck:
-  `C:\Users\Ma Quantum Lab\Downloads\PUCQ4 Initial Characterization (1).pptx`.
-  The extracted copy under `_ppt_extract/` is a temporary working artifact, not a
-  versioned source of truth. The deck maps physical Q4/D4 to M5 and physical
-  Q6/A5 to M6, gives M4 only a `5575 MHz` seed with unknown physical number, and
-  shows current axes from -10 to +10 mA.
-- Upstream GS200 interface:
-  https://github.com/ma-quantumlab/malab/blob/main/instruments/voltsource.py
-  The local `malab_yokogawa_gs200.py` keeps the relevant public interface with a
-  standard-library socket implementation and added current guards.
-- Executable repo sources: `system_config.py`, `expt_config.py`,
-  `round_robin_benchmark.py`, `pucq4_config.py`, the relevant `section_*.py`, and
-  `section_008_save_data_to_h5.py`.
-- Chronological run/failure evidence: `docs/harness-log.md`. It contains exact
-  `M:` output paths and diagnostic settings; raw measurements remain outside Git.
+A value in the code is not automatically validated. A validated value does not change the code until someone writes it there on purpose.
 
-## Evidence labels
+This order is about facts. It is not about limits. A limit in `STATE.md` or `RUN_ENVELOPE.md` always beats a config value. A config gain above a ceiling is never used.
 
-Use one of these labels whenever a number can be mistaken for calibration:
+The six evidence labels are defined in `MEASUREMENT_PLAYBOOK.md`.
 
-- `executable-config`: the value code will currently use after per-run overrides;
-  not automatically validated.
-- `validated-measurement`: reproducible run with bounds/configuration, accepted
-  plot/fit quality, and persisted raw data unless an explicit save limitation is
-  stated.
-- `deck-seed`: characterization/reference value used to choose a search region.
-- `rejected-candidate`: observed fit/fluctuation that failed repeatability,
-  bounds, control, or physical-quality gates.
-- `acceptance-target`: desired result such as qspec linewidth or Rabi pi window;
-  not a measured value.
+For a `validated-measurement` record the date, row with index and physical qubit, Yoko state, sweep and averaging, readout and pulse settings, the fitted value with unit, the repeat evidence, and the raw and plot paths. If a field is missing, say so. Never fill it from another run.
 
-For a validated measurement, record date, physical/index identity, Yoko state,
-sweep and averaging, attenuation/readout/pulse config, fitted value and units,
-quality/repeat evidence, and raw/plot paths. If any field is unavailable, state
-the limitation instead of filling it from a different run.
+## Device and driver
+
+- Characterisation deck on the lab PC. `C:\Users\Ma Quantum Lab\Downloads\PUCQ4 Initial Characterization (1).pptx`. It maps physical Q4 on line D4 to M5 and physical Q6 on line A5 to M6, gives M4 only a 5575 MHz seed with no physical number, and shows current axes from -10 to +10 mA. The folder `_ppt_extract/` in the repo is a working copy of that deck, not a source of truth.
+- Chip design record. Named `Device04V2.py` in `docs/q5-q6-profile-debug-plan.md`. It gives the intended qubit to resonator order. Intent is not a confirmed assignment.
+- Upstream Yokogawa GS200 driver. https://github.com/ma-quantumlab/malab/blob/main/instruments/voltsource.py . The local `malab_yokogawa_gs200.py` keeps the same interface with a socket and added current guards.
+
+## Harness design
+
+- Walking Labs, Lecture 01 on why capable agents still fail. https://walkinglabs.github.io/learn-harness-engineering/en/lectures/lecture-01-why-capable-agents-still-fail/ . Its five layers are task, context, environment, verification and state.
+- Codex reads `AGENTS.md` once at the start of a session, from the repo root down to the start folder, and stops at 32 KiB in total. A later edit needs a new session. That is why the root file is short and the cards are read on demand.

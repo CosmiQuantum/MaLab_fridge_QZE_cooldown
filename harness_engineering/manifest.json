@@ -1,25 +1,39 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "project": "MaLab_fridge_QZE_cooldown",
   "python_target": "3.9",
   "entrypoints": {
     "primary_orchestrator": "round_robin_benchmark.py",
     "offline_verifier": "tools/harness_check.py",
-    "persistent_log": "docs/harness-log.md"
+    "run_folder_checker": "tools/check_run_folder.py",
+    "config_rule_checker": "tools/check_config_rules.py",
+    "current_state": "harness_engineering/STATE.md",
+    "log_folder": "docs/log"
   },
-  "required_documents": [
-    "harness_engineering/MEASUREMENT_PLAYBOOK.md",
-    "docs/MEASUREMENTS.md",
-    "harness_engineering/README.md",
-    "harness_engineering/TASK_TEMPLATE.md",
-    "harness_engineering/REPOSITORY_MAP.md",
-    "harness_engineering/EXPERIMENT_CONTRACTS.md",
-    "harness_engineering/ENVIRONMENT_AND_SAFETY.md",
-    "harness_engineering/VERIFICATION.md",
-    "harness_engineering/PUCQ4_STATE.md",
-    "harness_engineering/FAILURE_MODES.md",
-    "harness_engineering/SOURCES.md",
-    "docs/harness-log.md"
+  "active_documents": {
+    "AGENTS.md": 8000,
+    "harness_engineering/README.md": 6000,
+    "harness_engineering/STATE.md": 10000,
+    "harness_engineering/RUN_ENVELOPE.md": 6000,
+    "harness_engineering/MEASUREMENT_PLAYBOOK.md": 10000,
+    "harness_engineering/PUCQ4_DEVICE.md": 8000,
+    "harness_engineering/EXPERIMENT_CONTRACTS.md": 13000,
+    "harness_engineering/REPOSITORY_MAP.md": 14000,
+    "harness_engineering/ENVIRONMENT_AND_SAFETY.md": 9000,
+    "harness_engineering/VERIFICATION.md": 4000,
+    "harness_engineering/LESSONS.md": 20000,
+    "harness_engineering/TASK_TEMPLATE.md": 4000,
+    "harness_engineering/SOURCES.md": 4000,
+    "docs/README.md": 3000,
+    "docs/MEASUREMENT_INDEX.md": 8000
+  },
+  "log_file_max_bytes": 60000,
+  "log_entry_max_lines": 12,
+  "archives": [
+    "harness_engineering/archive/PUCQ4_STATE_through_2026-11-25.md",
+    "harness_engineering/archive/FAILURE_MODES_through_2026-11-25.md",
+    "docs/archive/harness-log_through_2026-11-25.md",
+    "docs/archive/MEASUREMENTS_through_2026-11-25.md"
   ],
   "five_defense_layers": {
     "task_specification": [
@@ -27,33 +41,62 @@
     ],
     "context_provision": [
       "harness_engineering/REPOSITORY_MAP.md",
-      "harness_engineering/EXPERIMENT_CONTRACTS.md"
+      "harness_engineering/EXPERIMENT_CONTRACTS.md",
+      "harness_engineering/PUCQ4_DEVICE.md"
     ],
     "execution_environment": [
-      "harness_engineering/ENVIRONMENT_AND_SAFETY.md"
+      "harness_engineering/ENVIRONMENT_AND_SAFETY.md",
+      "harness_engineering/RUN_ENVELOPE.md"
     ],
     "verification_feedback": [
       "harness_engineering/VERIFICATION.md",
-      "tools/harness_check.py"
+      "tools/harness_check.py",
+      "tools/check_run_folder.py",
+      "tools/check_config_rules.py"
     ],
     "state_management": [
-      "harness_engineering/PUCQ4_STATE.md",
-      "harness_engineering/FAILURE_MODES.md",
-      "docs/harness-log.md"
+      "harness_engineering/STATE.md",
+      "harness_engineering/LESSONS.md",
+      "docs/log"
     ]
   },
   "hardware_requires_explicit_authorization": true,
   "unsafe_to_import": [
     "round_robin_benchmark.py",
     "round_robin_benchmark_qspec_simple.py",
-    "round_robin_benchmark_res_spec_simple.py"
+    "round_robin_benchmark_res_spec_simple.py",
+    "longitudinal_qze_005_ge_ramsey.py"
   ],
-  "canonical_data_hierarchy": "<data root>/<run>/<device>/<study>/<sub-study>/<timestamp>/{optimization,study_data,documentation}",
+  "canonical_data_hierarchy": "<data root>/<run_name>/<device_name>/<study>/<sub_study>/<time stamp>/{optimization,study_data,documentation}",
+  "raw_data_location": "study_data/Data_h5/<label>/<time stamp>_<label>_results_batch_<n>_Num_per_batch<n>.h5",
+  "gates": {
+    "qspec_fwhm_max_mhz": 0.5,
+    "qspec_min_points_per_fwhm": 3,
+    "ssf_min_contrast_percent_exclusive": 50,
+    "t2_min_points_per_fringe": 8,
+    "relax_delay_t1_multiple": [
+      5,
+      10
+    ],
+    "attempts_per_gate": 2
+  },
   "evidence_labels": [
-    "executable-config",
     "validated-measurement",
-    "deck-seed",
+    "measured-below-gate",
     "rejected-candidate",
+    "executable-config",
+    "deck-seed",
     "acceptance-target"
+  ],
+  "superseded_phrases": [
+    "four points per fringe",
+    "four points per T2 fringe",
+    "four actual samples per fringe",
+    "docs/harness-log.md",
+    "docs/MEASUREMENTS.md"
+  ],
+  "structure_baseline_commit": "d5b8fb4541b580de0f3ddc3e651a32360ec7a312",
+  "reference_check_ignore": [
+    "Device04V2.py"
   ]
 }

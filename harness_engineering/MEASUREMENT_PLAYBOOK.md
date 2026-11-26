@@ -1,113 +1,92 @@
-# Persistent qubit measurement playbook
+# Measurement playbook
 
-User policy recorded 2026-11-20. Mandatory for measurement work in this
-repository, including future chats. Read the safety rules and device state first.
-This is a procedure, not authorization to operate hardware. Parameter tuning is
-allowed within an explicitly authorized run envelope; ask only when required
-bounds or device information are missing or the envelope must change.
+The procedure for every measurement, calibration and diagnosis. It is the single home of the gates. User policy of 20 Nov 2026, tightened on 25 Nov 2026 with the stop rule and the label list.
 
-## Reuse and provenance
+This is a procedure. `RUN_ENVELOPE.md` says what you may run.
 
-Use existing section classes, QICK programs, plotting definitions, calibrated
-population axes, fit conventions, and orchestration. Adjust experiment config
-and sweep/x-axis bounds to resolve measurements before changing implementation.
-Do not create replacement acquisition or plotting frameworks. If the user asks
-for a new measurement, copy the nearest existing experiment and preserve the
-class/run interfaces and phase order in EXPERIMENT_CONTRACTS.md.
+## Gates
 
-Keep `<data root>/<run>/<device>/<study>/<sub-study>/<timestamp>/` with
-`optimization/`, `study_data/`, and `documentation/`, and raw batches under
-`study_data/Data_h5/<dataset label>/`. Descriptive names may change; structure,
-HDF5 saving helpers, metadata, and filename provenance must remain. A request
-for a new measurement alone does not authorize another storage architecture.
-Reuse existing plot locations and link/embed their plots in run documentation.
-Never overwrite raw data. Verify both plots and HDF5 after each acquisition.
+Only the user changes a gate. Each gate has a number, so there is nothing to interpret.
 
-## Ordered calibration and acceptance gates
+| Stage | Gate | Notes |
+|---|---|---|
+| Res spec | Dip resolved and repeatable at a gain below the movement onset | Record gain, length and bias with every dip |
+| Punch out | A measured ceiling below the onset of resonator movement | Holds only for that length, bias and RF chain |
+| Qspec | FWHM at or below 0.5 MHz, at least 3 acquired points across the FWHM, line repeats | PUCQ4 target is tighter, see `PUCQ4_DEVICE.md`. The 3 points are a tune-up default |
+| Rabi | A visibly resolved oscillation, not only a fitted number | PUCQ4 target is pi amplitude 0.6 to 0.7 DAC |
+| SSF | Histogram contrast strictly above 50 percent, confirmed by independent repeats | 50 percent is the floor, not the goal. Never convert to assignment accuracy. Never use (1+contrast)/2 |
+| T1, T2R, T2E | Decay resolved inside the sweep window, fit bounded and plausible | Sweep to at least 3 times the expected decay time (3 is a tune-up default) |
+| T2R, T2E sampling | At least 8 acquired points per fringe. With fringe frequency f in MHz and actual time step dt in us, abs(f) times dt is at most 0.125 | Use the saved time axis and the measured fringe frequency. Interpolated points do not count |
+| Relaxation delay | 5 to 10 times the measured T1 of that row and bias, for Rabi, SSF, T1, T2R and T2E | Before T1 is measured use the last T1 in `STATE.md` as a seed, then check the multiple again. Qspec may use less if the line stays reliable. Record the multiple |
 
-1. **Resume and map.** Open docs/MEASUREMENTS.md, the latest handoff, device state,
-   and source configs. Resolve physical qubit, resonator, and Python index.
-   Record accepted values, their evidence, uncertainties, bias, and applicable
-   readout chain. Seeds and stale settings are starting hypotheses only.
-2. **Find resonators.** Locate resonances at sufficiently low readout gain to
-   avoid frequency shifts/punch-out. Use existing resonator spectroscopy plots.
-3. **Measure punch-out.** Acquire a resonator frequency-versus-gain map within
-   authorized bounds. Identify the highest measured gain before a reproducible
-   resonance shift toward the bare resonator, or other nonlinear behavior.
-   Record frequency uncertainty, onset evidence, and a conservative accepted
-   ceiling below onset. If onset is unresolved, use a validated lower ceiling;
-   do not assert an unmeasured maximum. This ceiling bounds readout optimization
-   for the same bias, length, and RF chain; revalidate when those change.
-4. **Find and narrow qspec.** Start with an authorized high qubit-drive gain for
-   discovery, then reduce to the lowest gain producing a reproducible resolved
-   curve without excessive averaging. Require FWHM <= 0.5 MHz; the existing
-   PUCQ4 target remains 0.1-0.2 MHz and calibrated peak population 0.3-0.5.
-   Zoom the acquired sweep and plotting range and increase frequency resolution
-   to put several measured samples across the linewidth. Record linewidth,
-   fit uncertainty, repeatability, drive gain, reps/rounds, and elapsed time.
-   A narrow fit to an unresolved peak is not acceptance. If no reliable narrow
-   line is attainable, record the failure rather than silently relaxing the gate.
-5. **Calibrate Rabi.** Use the measured qubit frequency, find pi amplitude, and
-   adjust Gaussian sigma in system configuration. For PUCQ4 retain just over
-   half an oscillation and pi amplitude 0.6-0.7 DAC gain. Re-run after frequency
-   or sigma changes and propagate measured pi amplitude to shared settings.
-6. **Optimize SSF.** Require fidelity strictly above 50%; this is a minimum,
-   not the optimization target. Alternate length at fixed gain/offset (choose
-   the shortest plateau length) and 2D gain/frequency-offset sweeps at that
-   length. Never exceed the punch-out ceiling. Repeat to a reproducible plateau
-   and validate the chosen point independently to avoid selecting noise.
-   At <=50%, diagnose preparation, labels, readout, and calibration and
-   reoptimize; do not accept or conceal the result by relabeling it.
-7. **Propagate and minimize acquisition time.** Put accepted readout frequency
-   offset, gain, length, qubit frequency, sigma, and pi amplitude in applicable
-   shared configs and top-of-script variables for every affected active script.
-   Inventory overrides explicitly; do not overwrite unrelated devices or
-   historical run snapshots. Record file/key, old -> new, units, index, bias,
-   evidence, and downstream invalidations. Tune reps and rounds first for
-   resonator spectroscopy, then every measurement: compare lower averaging
-   against a reliable reference using repeated acquisitions, fit uncertainty,
-   visibility and total elapsed time. Define tolerances before selection;
-   choose the fastest reproducibly reliable setting and persist it in configs.
-8. **Validate coherence.** Measure T1, T2R, and T2E with appropriate time ranges
-   and reliable decay/fringe fits. Require at least eight acquired points per
-   fringe in T2R/T2E: for fringe frequency f in MHz and actual evolution-time
-   spacing dt in us, abs(f)*dt <= 1/8. Account for echo time-axis conventions.
-   Use measured fringe frequency, not only nominal detuning; adjust configured
-   detuning, sweep spacing, and extent to resolve useful fringes and the decay.
-   If no fringe exists, document why the criterion is inapplicable; do not
-   manufacture a frequency or count interpolated plot points as samples.
-9. **Set relaxation.** Rabi, SSF, T1, T2R, and T2E use a relaxation delay of
-   5-10 times measured T1 for that qubit/bias. Before T1 is known, use a
-   documented conservative previously validated estimate and revisit it after
-   T1 acquisition. Qspec may use shorter relaxation if its curve remains
-   reliable. Do not trade reset quality for speed; record the chosen multiple.
-10. **Flux characterization.** For documented tunable qubits, repeat this
-    sequence at every selected bias within characterized and authorized limits.
-    Choose and record steps using observed frequency slope/linewidth and
-    resonator tracking; refine near rapid changes or crossings, never guess an
-    unsafe universal step. Save bias-indexed calibration, readout ceiling,
-    sigma/pi amplitude, delays, reps/rounds, and uncertainties in shared configs.
-    Validate interpolation before reuse; no extrapolation. Preserve required
-    current-frequency, current-gain, sigma, and coherence maps and device reports.
+## Evidence labels
 
-## Recovery and continuous maintenance
+Use only these six labels. Never invent another label, review type or acceptance category.
 
-Missing qspec does not imply a missing qubit. Check the resonator mapping,
-readout resonance and offset, gain/length, punch-out ceiling, current/bias,
-and prior good evidence before increasing drive or averaging. Recover the
-readout point, then retry qspec. Broad lines require drive reduction and a
-resolved sweep. Poor SSF requires rechecking preparation and the readout loop.
-Frequency/sigma/pi changes invalidate downstream preparation/SSF calibration;
-readout-chain or bias changes invalidate the applicable readout evidence.
-Repeat the affected stages and validate dependent measurements.
+| Label | Meaning |
+|---|---|
+| `validated-measurement` | Passed every gate that applies, repeated, raw data saved |
+| `measured-below-gate` | A real, repeatable measurement that misses a gate or target. Record the miss |
+| `rejected-candidate` | Failed repeat, bounds or control. Not a measurement of the qubit |
+| `executable-config` | What the code will use now. Not automatically validated |
+| `deck-seed` | A value from a deck, an old log or an archive. A starting guess |
+| `acceptance-target` | A wished value, such as a linewidth target |
 
-After every meaningful accepted or rejected result, update the canonical run's
-documentation with plots, raw-data links, exact config, conclusion and next
-action; update docs/MEASUREMENTS.md with the current entry point and append
-docs/harness-log.md. Record safe hardware state and resume instructions before
-pausing. Promote validated settings into device state and configs, keeping
-failed candidates explicitly separate. Classify failures with FAILURE_MODES.md;
-update this playbook when a durable lesson changes the procedure. Preserve
-history and supersede obsolete guidance explicitly. Future agents perform this
-maintenance during work; no background process or cross-repository memory is
-implied. The eight-point rule supersedes older four-point guidance.
+Only `validated-measurement` values go into shared config or summary tables.
+
+## Stop rule
+
+1. A missed gate is recorded as a miss with its number. Never relax, rename or reinterpret a gate to pass.
+2. Two attempts per gate and row. An attempt is one full pass of the stage as written under Order of work. The second attempt must change one named thing for a stated reason. More averaging alone is not a reason. (Two is a tune-up default. The user may change it.)
+3. After the second miss, label the result `measured-below-gate`, update `STATE.md`, and move on to work that does not depend on it. Tell the user in one short block. Give the number, the gate, what was tried, and the one decision you need.
+4. When a value that used to pass now fails, first rerun the last validated setting unchanged. That one cheap run comes before any optimisation. If a limit in `RUN_ENVELOPE.md` forbids that setting, ask the user at once.
+5. Never start a dependent stage on a failed gate. Rabi needs a passing qspec. SSF needs a resolved Rabi. T1, T2R and T2E need a resolved Rabi and a readout point at or below the ceiling.
+   Below the SSF gate they run only when the user asks for them by name. Their results are then `measured-below-gate` and stay out of config and deck tables.
+   Promotion, the final benchmark and any run over the Long runs limit in `RUN_ENVELOPE.md` need the SSF gate. (The by name exception is a tune-up default.)
+6. Say before launch how long a stage should take. Stop and report when it takes more than twice that.
+7. Every run names a hypothesis and what result would reject it. A null result counts only with a passing positive control in the same run.
+
+## Order of work
+
+Do the stages in order. Skip a stage only when `STATE.md` holds a `validated-measurement` for it that nothing has invalidated since.
+
+1. Resume. Read `STATE.md`. Name row, index and physical qubit. Treat every stored number as a seed.
+2. Find the resonator at low readout gain with the existing res spec. For speed use high reps and one round.
+3. Measure punch out. Take frequency against gain inside the allowed range. The ceiling is the highest gain before a repeatable shift. If the onset is not resolved, use a lower validated ceiling. Never state a maximum you did not measure.
+4. Find the qubit. Start with a higher drive gain to locate the line, then lower it to the smallest gain that gives a repeatable resolved line. Zoom the sweep so several points sit on the line. Record FWHM, fit error, drive gain, reps, rounds and time taken. If no line is found, check the list under Recovery before raising drive or averaging.
+5. Calibrate Rabi at the measured frequency. Tune sigma, find the pi amplitude. Run it again after any change of frequency or sigma.
+6. Optimise SSF. Alternate a length sweep (shortest length on the plateau) with a 2D sweep of gain against frequency offset at that length. Stay at or below the punch out ceiling. Confirm the chosen point with independent repeats so that noise is not selected.
+7. Propagate. Write validated readout offset, gain, length, qubit frequency, sigma and pi amplitude into the shared config and into the top-of-script values of every active script that overrides them. Report file and key, old to new, unit, row, bias, evidence path, and what must be measured again.
+8. Cut acquisition time. First for res spec, then for each stage, compare lower reps and rounds with a reliable reference by repeats, fit error and time. Fix the tolerance before choosing. Keep the fastest setting that stays reliable.
+9. Measure T1, then set the relaxation delay from it. Then T2R and T2E with the sampling gate. Before the run, `python tools/check_config_rules.py --t1 "M1=<us>,M2=<us>"` shows offline whether the sweep settings meet the sampling and relaxation gates. If there is no fringe, write why the gate does not apply. Never make up a frequency.
+10. Flux. For the tunable qubits repeat stages 2 to 9 at each bias the user allowed. Choose the step from the measured slope and refine near fast changes and crossings. Save calibration by bias in the shared config. Check interpolation before use. Never extrapolate.
+
+## What a change invalidates
+
+| What changed | Measure again |
+|---|---|
+| Qubit frequency | Qspec fit, Rabi, then SSF |
+| Sigma or pi amplitude | Rabi, then SSF, T1 and T2 as far as they are used |
+| Readout frequency, gain or length | SSF, and check every population plot |
+| Readout length or RF chain | Punch out ceiling |
+| Yoko current | Everything from stage 2. Never reuse zero bias values at another bias |
+| Warm up, cooldown or a long pause | Res spec and qspec before any pulse work |
+
+## Recovery
+
+- No qspec line does not mean no qubit. Check in this order. Row mapping, the readout dip and offset, readout gain and length against the ceiling, the bias, the last good evidence. Recover the readout point first, then retry qspec with a wide saved locator.
+- A broad line needs less drive and a finer sweep.
+- Low SSF with a good Rabi is a readout question. Report both numbers as they are. Then apply rule 4 of the stop rule.
+- A fit that returns a number is not a result. Look at the raw trace.
+
+## After every result, accepted or failed
+
+1. Run `python tools/check_run_folder.py check` on the new run folder, in the Conda form, because it needs `h5py`. Both the plot and the HDF5 must exist and hold data. `CHECK INCOMPLETE` means the data was not opened and the check does not count.
+2. Compare what you asked for with what was saved. Sweeps, reps and delays are in the saved `Exp Config`. Readout gain, length and tone, qubit frequency, sigma and pi amplitude are in the saved `Syst Config`. Overrides have been silently dropped before.
+3. Overwrite `STATE.md` (values, hardware state, next step).
+4. Append one entry of at most 12 lines to `docs/log/` (format in `TASK_TEMPLATE.md`).
+5. When a campaign closes, add one line to `docs/MEASUREMENT_INDEX.md`.
+6. Put plots and notes in the run's own `documentation/` folder. Link them. Do not copy raw data.
+7. A new durable lesson gets one line in `LESSONS.md`.
+
+Before you pause or the chat ends, bring the hardware to the parked state and write that state into `STATE.md`.

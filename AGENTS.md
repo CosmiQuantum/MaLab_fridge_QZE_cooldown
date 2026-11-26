@@ -1,222 +1,87 @@
-# Repository guide for coding agents
+# Rules for coding agents in this repo
 
-## Purpose
+This repo runs QICK measurements on superconducting qubits in the lab and analyses the data. Running an experiment script is a lab operation on real hardware. It is never a software test.
 
-This repository controls QICK-based superconducting-qubit experiments and analyzes
-the resulting data. Treat experiment execution as hardware operation, not as an
-ordinary software test.
+The detailed harness starts at `harness_engineering/README.md`. This file holds the rules that always apply and tells you which card to read.
 
-The main orchestration entry point is `round_robin_benchmark.py`. Experiment
-implementations are the numbered `section_*.py` files. Shared experiment settings
-live in `expt_config.py` and `system_config.py`; PUCQ4-specific settings live in
-`pucq4_config.py`.
+## Start of every chat, and again after your context was compacted
 
-## Harness entry point
+1. Read `harness_engineering/STATE.md`. It is short. It holds the current state, the open blocker and the next step.
+2. Find your task below and read only the cards named there.
+3. Never read a file under `archive/` from top to bottom. Search it.
 
-The detailed, repository-specific harness starts at
-[`harness_engineering/README.md`](harness_engineering/README.md). This root file
-keeps the rules that must always be visible; the harness folder supplies routed
-context, task templates, environment setup, verification ladders, persistent
-PUCQ4 state, and diagnosed failure modes.
+| Task | Read in `harness_engineering/` |
+|---|---|
+| Measure, calibrate or diagnose on hardware | `RUN_ENVELOPE.md`, `MEASUREMENT_PLAYBOOK.md`, the identity map in `PUCQ4_DEVICE.md`, Before a run and Long runs in `ENVIRONMENT_AND_SAFETY.md`, the overrides in `REPOSITORY_MAP.md` |
+| Write or change acquisition code | `EXPERIMENT_CONTRACTS.md`, `REPOSITORY_MAP.md` |
+| Find a class, config key, label or tool | `REPOSITORY_MAP.md` |
+| Python setup on the lab PC, Yokogawa steps | `ENVIRONMENT_AND_SAFETY.md` |
+| Something failed or looks wrong | `LESSONS.md`, searched by symptom |
+| Analyse saved data, build a report or deck | `VERIFICATION.md`, deck rules in `PUCQ4_DEVICE.md` |
+| Change the harness itself | `README.md` |
 
-Before substantive work:
+## Rules that always hold
 
-1. Read the mandatory safety and source-of-truth sections in the harness index.
-2. Follow its task-type routing table rather than loading every document blindly.
-3. For PUCQ4 configuration or hardware work, read
-   `harness_engineering/PUCQ4_STATE.md` before interpreting a qubit number.
-4. Define acceptance criteria with `harness_engineering/TASK_TEMPLATE.md`.
-5. If a task fails, classify the failure using
-   `harness_engineering/FAILURE_MODES.md` and record the durable lesson in
-   `docs/harness-log.md`.
+Hardware
 
-## Mandatory measurement workflow
+1. Touch hardware only for a measurement the user asked for in this chat, and only inside `harness_engineering/RUN_ENVELOPE.md`. Hardware means running or importing an acquisition script, QICK or Pyro, the Yokogawas, the attenuators, or writing to the `M:` drive.
+2. Never import `round_robin_benchmark.py` or any other acquisition script. They start hardware at import. Read them as text.
+3. Never guess a device parameter, port, frequency, gain, attenuation or path. A value from config, a deck, a log or an archive is a seed until a fresh measurement confirms it. A limit in `STATE.md` or `RUN_ENVELOPE.md` always beats a config value.
+4. One acquisition at a time. After any crash or kill, read back both Yokogawas and bring them to 0 A with output off.
 
-For every measurement, calibration, diagnosis, or acquisition-code task, read
-`harness_engineering/MEASUREMENT_PLAYBOOK.md` and start from
-`docs/MEASUREMENTS.md`. These rules apply to future agent sessions in this repo.
-Reuse existing measurement classes, orchestration, and plotting definitions.
-New measurements requested by the user must retain the same overall structure.
-Preserve the saving hierarchy; descriptive path components may be renamed, but
-do not change the hierarchy, raw-data format, or provenance conventions.
-Update the central index and durable log after meaningful results, including
-rejected settings and the exact next step. Never promote a seed to calibration.
-Qspec acceptance requires FWHM <= 0.5 MHz (retain tighter device targets),
-SSF must exceed 50%, and T2R/T2E require at least eight points per fringe.
-Use 5-10 times measured T1 for Rabi, SSF, and coherence relaxation delays.
-The playbook defines the ordered calibration and recovery procedure.
+Structure
 
-## Hardware safety boundaries
+5. Reuse the existing classes, QICK programs, plots and `Data_H5` saving. First try run settings of an existing script. A new pulse sequence is a copy of the nearest `section_*.py` with the same interface. No second framework, no new raw data format, and no new helper script when an existing script with its run flags does the job.
+6. Every run saves into `<data root>/<run_name>/<device_name>/<study>/<sub_study>/<time stamp>/` with exactly `optimization/`, `study_data/` and `documentation/` inside. Raw data goes to `study_data/Data_h5/<label>/`, plots and notes go to `documentation/`. Never add, drop or rename a level.
+7. One sub-study per sweep, with a name a person can read. Check the path length before launch with `python tools/check_run_folder.py plan`.
+8. Name every qubit with row, Python index and physical qubit. Physical Q4 is M5, index 4. M4, index 3, is not physical Q4.
+9. Run `git status` before you edit. Changes you did not make belong to the user. Commit or push only when asked.
 
-- Never run experiment scripts, connect to Pyro/QICK/Visdom, change attenuators,
-  or write to the `M:` data drive unless the user explicitly asks for a lab run.
-- Importing `round_robin_benchmark.py` is unsafe: its module-level code creates
-  directories and begins a potentially long hardware loop.
-- Do not guess device parameters, qubit frequencies, gains, attenuations, output
-  paths, or enabled `run_flags`. Ask when the requested change depends on them.
-- Preserve raw data and user experiment changes. Do not delete or rewrite data
-  artifacts, and inspect `git status` before editing.
-- Keep hardware-free verification separate from hardware validation. Never claim
-  that an offline check proves an experiment works on the instrument.
+Science
 
-## Working conventions
+10. The gates are fixed numbers. Only the user changes them.
 
-- Target Python 3.9 syntax unless the project interpreter is deliberately updated.
-- Prefer small, localized edits. The experiment scripts contain substantial
-  module-level configuration, so avoid broad formatting or refactoring.
-- Keep units and indexing explicit. Qubit numbers used in filenames/UI may be
-  one-based while Python list indices are zero-based; preserve the local convention.
-- When changing a configuration value, state the old value, new value, affected
-  qubits/experiment, and physical unit in the handoff.
-- Do not add secrets, host credentials, or generated measurement data to Git.
+| Stage | Gate |
+|---|---|
+| Qspec | FWHM at or below 0.5 MHz, at least 3 acquired points across the line |
+| SSF | histogram contrast above 50 percent, never converted to another metric |
+| T2R and T2E | at least 8 acquired points per fringe |
+| Relaxation delay | 5 to 10 times the measured T1 |
+| Readout gain | below the onset of resonator movement |
 
-## Required structure for new experiment code
+11. A miss is written down as a miss. Never relax, rename or reinterpret a gate, and never invent a new acceptance label or review to pass.
+12. A fitted number, a saved plot or a finished script is not a result. Look at the raw data, the sampling and a repeat.
+13. Two attempts per gate and row, then stop that stage, record it and tell the user what you need. When a value that used to pass now fails, first rerun the last validated setting unchanged. If a limit in `RUN_ENVELOPE.md` forbids that setting, ask.
+14. Never start a stage that depends on a failed gate, unless the user asked for that stage by name. Then label its result `measured-below-gate`.
 
-Use the existing files as templates; do not invent a second experiment framework.
-For a new numbered experiment, copy the closest `section_*.py` by experiment type.
-For a new orchestration script, copy `round_robin_benchmark.py` and retain its
-phase ordering. Analysis, migration, and small maintenance utilities are exempt
-from the experiment-class rules unless they operate hardware.
+State and tokens
 
-### Experiment modules (`section_*.py`)
+15. After every result, pass or miss, run `python tools/check_run_folder.py check` on the new folder, overwrite `harness_engineering/STATE.md`, and append one entry of at most 12 lines to the month file in `docs/log/` (format in `harness_engineering/TASK_TEMPLATE.md`).
+16. Search before you read. Never read a file over 40 KB whole. `REPOSITORY_MAP.md` tells you where things are.
+17. Write for the next agent in plain words with spaces, plain ASCII, short lines. No hashes, and no process ids or ACTIVE and RUNNING labels outside `STATE.md`.
+18. Do not copy rules or state into other files. Each rule has one home.
 
-- Expose a high-level experiment/measurement class with both `__init__` and
-  `run`. Keep hardware acquisition inside `run`, not at class definition time.
-- Match the established constructor vocabulary where applicable:
-  `QubitIndex`, `number_of_qubits`, `outerFolder`, `round_num`, `signal`,
-  `save_figs`, and `experiment`. Preserve capitalization because callers use it.
-- Store those inputs on `self`, including `self.outerFolder`, `self.round_num`,
-  `self.save_figs`, and `self.experiment`. Keep the existing return-value style of
-  the nearest analogous experiment so the round-robin collector can consume it.
-- Set `self.expt_name`, then obtain experiment settings through
-  `expt_cfg[self.expt_name]` or `add_qubit_experiment(...)`, matching the nearest
-  existing implementation. Use the passed `QICK_experiment` object's
-  `readout_cfg` and `qubit_cfg`; do not create parallel config dictionaries or
-  embed replacement device configuration in the class.
-- Keep low-level `AveragerProgramV2` program classes separate from the high-level
-  wrapper, following the nearest existing `section_*.py` file.
-- Gate plot output with `self.save_figs`. Build paths with
-  `os.path.join(self.outerFolder, ...)`, create an experiment-specific plot
-  subfolder using the established helper, and retain filenames containing round,
-  one-based displayed qubit number, timestamp, and experiment name when the
-  analogous file does so.
-- Do not save the round-robin HDF5 dataset from a section class. Return results and
-  configuration to the orchestrator; the orchestrator saves them through
-  `Data_H5`.
-- Standalone `pucq4_*.py` acquisition scripts are orchestrators for their own
-  run. They must use `pucq4_config.create_data_dict` and
-  `pucq4_config.save_h5`/`Data_H5`, retain `Dates`, `Round Num`, `Batch Num`,
-  `Exp Config`, and `Syst Config`, and save under
-  `subStudyDataFolder/Data_h5/<dataset label>/`. Do not introduce new NPZ/CSV
-  raw-data formats for these scripts.
-- This lab computer still fails on generated Windows paths longer than 260
-  characters. Before a hardware run, calculate the longest intended artifact
-  path (including the timestamped `Data_H5` filename) and shorten the sub-study
-  or dataset label if needed. After acquisition, verify that both the expected
-  plot and HDF5 file exist; a saved plot alone does not prove raw data persisted.
+## Ask or decide
 
-### Round-robin orchestration scripts
+The user wants to give one request and then be left alone. Decide alone and record it when the choice is inside the envelope. That covers which script and flags, the order of stages, prerequisite stages, sweep ranges, reps, names, and writing validated values into config.
 
-Retain the existing sequence and naming scheme:
+Ask once, in one short message with the number or choice you need, for the items on the ask list in `RUN_ENVELOPE.md`.
+The main ones are any nonzero Yoko current, readout gain above a ceiling, a missing device parameter, a new folder level or data format, a changed gate, a run over about 6 hours, deleting data, and a conflict between two of the user's rules.
+While you wait, carry on with the parts that do not depend on the answer.
 
-1. Imports, including experiment classes, `Data_H5`, `QICK_experiment`, and values
-   from `expt_config`.
-2. `Run Configurations`, including `run_flags`, qubit selection, save/plot options,
-   run metadata, and per-device values.
-3. `Data Saving Setup`, with this hierarchy:
-   `<data root>/<run_name>/<device_name>/<study>/<sub_study>/<timestamp>/`, then
-   `optimization/`, `study_data/`, and `documentation/`.
-4. Logging under `documentation/` and notes saved as `sub_study_notes.txt`.
-5. Per-experiment key lists and object-array dictionaries created with
-   `create_data_dict`.
-6. The round/qubit loop: create `QICK_experiment`, select the qubit-specific
-   `readout_cfg`/`qubit_cfg` values, gate each experiment with `run_flags`, call its
-   `run`, collect results plus `Exp Config` and `Syst Config`, then release objects.
-7. Batch saving through `Data_H5(subStudyDataFolder, ..., batch_num, save_r)` using
-   the established dataset labels, followed by dictionary reinitialization.
-
-New scripts must receive or construct the same folder variables rather than save
-plots or data to ad-hoc relative directories. A different data root, hierarchy,
-dataset label, or class/run interface requires explicit user approval and must be
-called out in the task log.
-
-## Verification
-
-Safe default check (parses every tracked Python file without importing it):
+## Checks
 
 ```powershell
-& 'C:\Users\Ma Quantum Lab\anaconda3\python.exe' tools/harness_check.py
-```
-
-The check also reviews newly added `section_*.py` and `round_robin*.py` files for
-the structural contracts above. These checks are intentionally limited to new
-files so they do not demand unrelated rewrites of historical scripts.
-
-Before running any Python command, use the interpreter configured for this PyCharm
-module rather than assuming the path above is still current.
-
-For each task, also inspect the focused diff:
-
-```powershell
+python tools/harness_check.py
 git diff --check
-git diff -- <changed-files>
 ```
 
-Hardware validation is a separate, user-authorized step. Record the exact script,
-run flags, device, qubits, sweep bounds, attenuations, output location, and abort
-condition before starting it.
+The first command parses every Python file without importing it and checks the harness files. If plain `python` fails on the lab PC, use the Conda form in `ENVIRONMENT_AND_SAFETY.md`.
 
-## Definition of done
+## Done means
 
-A coding task is complete only when:
-
-1. Its requested behavior and non-goals are explicit.
-2. The safe offline verifier passes.
-3. The focused diff contains no accidental configuration or data-path changes.
-4. Hardware validation is either completed with recorded results or clearly marked
-   as not run and requiring an authorized lab session.
-5. New repository knowledge or a repeated failure mode is captured in the
-   relevant `harness_engineering/` document and `docs/harness-log.md`.
-
-## PUCQ4 calibration acceptance rules
-
-- PUCQ4 has exactly two flux-tunable qubits: physical Q4 on Yoko 3
-  (`192.168.1.73`, DC line D4, resonator row M5) and physical Q6 on Yoko 4
-  (`192.168.1.77`, DC line A5, resonator row M6). Treat the other qubits as
-  fixed-frequency unless new device documentation explicitly supersedes this.
-- At zero current, verify both Yokogawas are in current mode at 0 A before a
-  benchmark. Use the PowerPoint characterization range as the hard boundary for
-  later current sweeps; never extrapolate the current range.
-- Tune qspec drive gain for a clean, distinguishable line near 0.1-0.2 MHz FWHM
-  and calibrated peak population around 0.3-0.5. Use enough frequency points to
-  resolve each peak with several samples. Do not modify the underlying qspec
-  QICK program to achieve this.
-- Tune Gaussian sigma so amplitude Rabi has just over half an oscillation and a
-  fitted pi amplitude in the 0.6-0.7 DAC-gain window. Re-run Rabi after any qspec
-  frequency or sigma change, then propagate the measured pi amplitude to all
-  shared configs.
-- Optimize single-shot readout by alternating: (1) length at fixed gain/offset,
-  choosing the shortest length at the fidelity plateau, and (2) a 2D resonator
-  gain/frequency-offset sweep at that length. Repeat until improvement is no
-  longer significant. If qubit frequency, qspec power, sigma, or pi amplitude
-  changes materially, revalidate SSF.
-- Final PUCQ4 evidence must come from one-pass `round_robin_benchmark.py` output
-  with its normal calibrated population plots and canonical HDF5 hierarchy.
-  Required plots are res spec, qspec, Rabi, SSF, T1, T2R, and T2E for every
-  physically assigned qubit. T2 sampling must provide at least eight points per
-  fringe.
-- Maintain a reusable PowerPoint in the `pucq4_first_light` run folder. Slides
-  begin with a zero-Yoko-current device-map table listing each physical qubit,
-  its repository/resonator index, attached resonator frequency, qubit frequency,
-  T1, T2R, and T2E (with units and one-based/zero-based conventions explicit).
-  After the Yoko characterization, include a corresponding current-sweep summary
-  table for the two flux-tunable qubits. Populate both tables only from validated
-  round-robin/current-sweep results, not seeds or diagnostic fit candidates. Slides
-  group all qubits by experiment (res spec, qspec, Rabi, SSF, T1, T2R, T2E),
-  followed by final readout-length and gain/frequency optimization slides.
-  Annotate relevant configurations and use the plots generated by round robin.
-- For Yoko 3/Q4 and Yoko 4/Q6 current characterization, add current-versus-
-  frequency qspec and res-spec maps, current-versus-gain Rabi maps, the selected
-  sigma-versus-current calibration (pi amplitude 0.6-0.7), and T1/T2R/T2E maps.
-  Save current-indexed sigmas in shared configuration for reuse and add the
-  final maps plus acquisition settings to the reusable PowerPoint.
+1. The goal is met, or the miss is recorded with its number and what was tried.
+2. `python tools/harness_check.py` passes and the diff holds no stray config or path change.
+3. After hardware work the run folder check passed, the hardware is parked, and both facts are in `STATE.md`.
+4. Offline checks are never reported as hardware validation.
+5. Every changed config value is reported as old to new with unit, row and evidence.

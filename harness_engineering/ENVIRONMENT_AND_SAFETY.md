@@ -1,103 +1,89 @@
 # Environment and hardware safety
 
-## Authorization boundary
+## What counts as hardware
 
-Treat experiment execution as physical lab operation.
+Each of these is a lab operation and needs an open envelope (`RUN_ENVELOPE.md`).
 
-Without an explicit request for a lab run, do not:
+- Building `QICK_experiment` or connecting to the Pyro proxy. The constructor connects and creates a folder.
+- Running or importing a round robin, a numbered `pucq4_NN` script, a `longitudinal_qze` script or any other acquisition script.
+- Building the Yokogawa driver object, or changing current, output or range.
+- Changing attenuators or filters.
+- Starting or checking Visdom as part of an experiment. Leave live plotting off unless the user asks.
+- Creating run folders or writing data on `M:`.
 
-- instantiate `QICK_experiment` or connect to the Pyro/QICK proxy;
-- run or import round-robin, numbered PUCQ4, or other acquisition scripts;
-- start/check Visdom as part of an experiment;
-- instantiate the Yokogawa driver, change current/output/range, or assume its
-  present state;
-- change RF attenuators or filters;
-- create experiment folders or write data on `M:`.
+Reading source, parsing with `ast`, git commands and analysing saved files are offline. An offline check never proves how the instrument behaves.
 
-Reading source, parsing Python with `ast`, inspecting Git state/diffs, and
-analyzing already supplied local artifacts are offline actions. Hardware-free
-verification never proves instrument behavior.
+## Python on the lab PC
 
-## Python environment
-
-Target Python 3.9 syntax. Before every Python/pip/pytest/formatter command, obtain
-the interpreter configured for this PyCharm module; do not infer it from PATH.
-
-As observed on 2026-08-28, PyCharm used:
-
-`C:\Users\Ma Quantum Lab\anaconda3\python.exe` (Python 3.9.13)
-
-Directly invoking that executable has produced a NumPy DLL-load failure because
-the Conda runtime was not activated. The working pattern was:
+- Target Python 3.9 syntax. The interpreter on record is `C:\Users\Ma Quantum Lab\anaconda3\python.exe` (3.9.13). Ask the IDE for the configured interpreter if a command fails. In the harness files `python` stands for this interpreter. Do not use another `python` that PATH happens to find.
+- Calling that `python.exe` directly gave a NumPy DLL error. Activate Conda first. The form that worked is
 
 ```powershell
 cmd.exe /d /c "call ""C:\Users\Ma Quantum Lab\anaconda3\Scripts\activate.bat"" ""C:\Users\Ma Quantum Lab\anaconda3"" && ""C:\Users\Ma Quantum Lab\anaconda3\python.exe"" tools\harness_check.py"
 ```
 
-Re-query the IDE environment first; the recorded path is diagnostic history, not
-permission to assume the SDK forever. Do not install dependencies merely to make
-an unrelated check pass without user approval.
+- `tools/harness_check.py`, `tools/check_config_rules.py` and `tools/check_run_folder.py plan` use only the standard library, so they also run without activation.
+- `tools/check_run_folder.py check` opens HDF5 files and needs `h5py`. Run it in the Conda form above. If it ends with `CHECK INCOMPLETE`, the data was not opened and the check does not count.
+- PowerShell splits a comma list into separate arguments. Put every comma list in double quotes, like `--expect "res_ge,qspec_ge"`.
+- Do not install packages to make a check pass unless the user agrees.
+- PowerShell facts that cost time before. `.ps1` files are blocked, so use inline commands and never change the execution policy. Put Python code in a small `.py` file, because `python -c` loses double quotes. Set `PYTHONIOENCODING=utf-8`. Never rewrite a whole text file through `Get-Content` and `Set-Content`. Write JSON as UTF-8 without BOM.
+- Connection points for context only. Pyro name server `192.168.1.139:8888`, proxy name `myqick`, fridge `BOB`. They are not permission to connect.
 
-## Known connection points
+## Before a run
 
-- `system_config.QICK_experiment` creates folders and calls `socProxy.makeProxy`
-  during construction.
-- `socProxy.py` currently defaults to Pyro name server `192.168.1.139:8888` and
-  proxy name `myqick`.
-- `expt_config.py` currently selects fridge `BOB` and six list rows.
-- Yoko 3: `192.168.1.73`, physical Q4/DC D4, resonator M5/Python index 4.
-- Yoko 4: `192.168.1.77`, physical Q6/DC A5, resonator M6/Python index 5.
+One list. Do it once per run and write the answers into the run's `sub_study_notes.txt` or the log.
 
-These addresses are operational context, not credentials and not authorization
-to connect.
+1. `git status`. Changes you did not make belong to the user. Leave them.
+2. Name row, index and physical qubit. Name the bias.
+3. Read the run settings block of the script as text. Check `run_flags`, the rows, `n`, and every override that will be active.
+4. Check the readout gain that will really be used against the ceiling in `STATE.md`. The shared config still holds higher gains.
+5. Run `python tools/check_run_folder.py plan --study <study> --sub-study <sub_study>`. Check that the planned folder holds no raw file the run would overwrite.
+6. Both Yokogawas read current mode, 0 A, output off (unless the user allowed a bias). No other acquisition is running.
+7. Work out the run time from points, reps, rounds and delays. Say it. Set a hard bound and a no-progress watchdog.
+8. Name the stop condition and the parked state the run must end in.
 
-## Hardware preflight
+## Stop a run when
 
-Before an authorized QICK run:
+- QICK, Pyro, timing or buffer errors appear.
+- A Yoko readback is unexpected.
+- A sweep would leave the envelope.
+- A trace is clearly saturated or flat, so that going on makes no sense.
+- Raw data failed to save. Never start the next stage after a failed save.
 
-1. Inspect `git status` and the complete run-control block as text.
-2. Record the task template's hardware envelope.
-3. Confirm physical-qubit/resonator/Python-index mapping.
-4. Confirm current executable `system_config.py`, `expt_config.py`, and any
-   per-run overrides; stale comments do not count.
-5. Compute the full Windows plot and HDF5 paths; keep each below 260 characters.
-6. Confirm disk/data destination and that no existing raw artifact will be
-   overwritten.
-7. Define a bounded duration/progress signal and abort condition.
-8. State the intended safe final hardware state.
+## Long runs
 
-Abort on QICK/Pyro connection, timing, buffer, or acquisition errors; unexpected
-current/output readback; an out-of-envelope sweep; a clearly saturated/flat trace
-that invalidates the planned continuation; or data-save failure before beginning
-the next dependent stage.
+Anything over a few minutes must survive the chat tool. A command the tool started can die when the tool call ends.
 
-## Yokogawa rules
+- Launch hidden and detached through a small `.cmd` file that activates Conda, stops if activation fails, sets one override per line, and calls the interpreter with normal quoting.
+- Name it `launch_<sub_study>.cmd` in the repo root (git ignores that name) and send its output to `launch_<sub_study>.log` next to it. The time stamp folder does not exist before the start, so move both files into the run's `documentation/` folder when the run has ended.
+- The round robin writes its own log to `documentation/RR_script.log`.
+- When Python starts the child, reuse `activated_subprocess_env` from `pucq4_07_flux_campaign.py`. It adds the Conda DLL folders.
+- Write the process id of the parent you started into the launch log and into the Long runs row of `STATE.md`.
+- Confirm the start from the log and from the first saved file. A queue status alone is not proof.
+- Use `PUCQ4_PHASE_CHECKPOINTS=1` so that each finished stage is saved. It works only with one row, one pass, `save_r` 1 and the seven standard stages, and not with timed SSF. Without it the HDF5 is saved only at the end of the pass. A time limit must never cost acquired data.
+- Give the parent a wall clock bound, a 600 s no-progress watchdog and no automatic hardware retry.
+- Status file writes go through `tools/ssf_progress.py`. A locked status file on `M:` must never end a run. Raw files are the truth.
+- One acquisition at a time. A queued stage waits for the saved result of the one before it.
+- Stop with the `STOP` marker file at a cycle boundary, or stop only the parent you started so that the child can finish and save. The marker sits in a different place per script. Round robin timed SSF reads `documentation/STOP`. `longitudinal_qze_005_ge_ramsey.py` reads `STOP` in the sub-study folder. `pucq4_13_avoided_crossing.py` reads `STOP` in its run folder.
+- For a few runs, start single row runs one after another. For a real queue see section 5 of `EXPERIMENT_CONTRACTS.md`.
+- A running process keeps the code it imported. Change shared config only between children.
+- Other old Python processes exist on this PC. Never end a process you did not start.
+- After any crash, kill or lost terminal, read back both Yokogawas, ramp to 0 A, switch output off and verify. Throw away the partial row.
 
-Only physical Q4/M5 and physical Q6/M6 are documented as flux tunable on this
-chip. For the zero-current baseline:
+## Yokogawa procedure
 
-- query identity, mode, output, level, range, and voltage limit;
-- require current-source mode;
-- use the 0.01 A (10 mA) range;
-- ramp to `0.0` A at `0.0005` A/s unless a separately authorized protocol says
-  otherwise;
-- verify the requested current within a recorded tolerance;
-- turn output off at zero and verify it.
+Limits and addresses are in `PUCQ4_DEVICE.md`.
 
-For characterization sweeps, the supplied deck visibly covers -10 to +10 mA.
-Treat that as the hard task boundary unless the user supplies new device evidence
-and explicitly authorizes another range. The local driver's generic 15 mA guard
-does not authorize a 15 mA experiment.
+1. Query identity, mode, output, level, range and voltage limit. Require current mode and the 0.01 A range. `source_readbacks` in `pucq4_12_m4_search.py` is a read only example.
+2. Ramp to the target at 0.0005 A per second. Verify the level within a stated tolerance.
+3. At the end ramp to 0 A, switch output off and verify.
 
-Never jump current, silently enable output, extrapolate from a search seed, or
-leave a source in an unknown state after an exception.
+Never jump the current, never switch output on silently, never leave a source in an unknown state after an error.
 
-## Data safety
+## Data and git safety
 
-- Preserve user code changes and raw data. Never delete or rewrite generated
-  measurements as cleanup.
-- Generated measurement data, copied deck extraction artifacts, host credentials,
-  and lab secrets do not belong in Git.
-- After every acquisition, verify the expected plot and HDF5 independently.
-- If save fails after acquisition, record exactly which in-memory/raw evidence was
-  lost and do not claim the run is reproducible.
+- Keep the user's code changes and all raw data. Deleting measurements is never cleanup.
+- Measurement data, deck extraction files, credentials and lab secrets do not go into git.
+- If a save failed after acquisition, write down exactly what was lost. Do not call that run reproducible.
+- Commit or push only when the user asked for it in this chat.
+- Write harness files in plain ASCII. PowerShell 5 has damaged other encodings here before.

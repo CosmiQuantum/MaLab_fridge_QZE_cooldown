@@ -1,104 +1,38 @@
-# Verification and feedback
+# Verification
 
-Verification closes the gap between “the agent thinks it is done” and observable
-correctness. Use the highest authorized rung; do not skip the safe lower rungs.
+Use the highest step you are allowed to use, and never skip the lower ones. In the final message say which steps passed and which did not run.
 
-## Verification ladder
+## Steps
 
-### 0. Specification and state
+| Step | What | Command or action |
+|---|---|---|
+| 0 | State and brief | Read `STATE.md`. Goal, non-goals, row and index, units and acceptance are written down. `git status` looked at. |
+| 1 | Offline check | `python tools/harness_check.py` |
+| 2 | Diff review | `git diff --check` and `git diff -- <changed files>`. No stray change to run flags, frequency, gain, attenuation, path or raw data. |
+| 3 | Pure logic | Test a pure function with made up input. Never import an acquisition script to reach a helper. |
+| 4 | Saved data | For analysis of an existing run. Name the HDF5 path and label, check axes and units, compare the fit with the acquired range and the raw trace. |
+| 5 | Hardware | Only inside the envelope. Then `python tools/check_run_folder.py check "<data_set folder>" --expect "<labels>"` in the Conda form, and compare the saved `Exp Config` and `Syst Config` with what you asked for. |
 
-- Resolve goal, non-goals, scope, units, indexing, authority, and acceptance
-  criteria.
-- Inspect `git status` before edits.
-- Read current source values and the relevant state/log entry.
+## What the offline check does
 
-### 1. Hardware-safe static check
+`tools/harness_check.py` parses every Python file as Python 3.9 without importing it. It finds syntax errors and merge markers. It checks new acquisition scripts against the saving contract. It checks the harness files for size, plain ASCII, broken file references, superseded phrases and the log entry format. It contacts no hardware.
 
-Use the configured PyCharm Python environment as described in
-`ENVIRONMENT_AND_SAFETY.md`, then run:
+It does not validate a pulse program, a dependency, a fit or a plot.
 
-```powershell
-tools/harness_check.py
-```
+## What the run folder check does
 
-The checker parses tracked and new Python files as Python 3.9 without importing
-them. It detects syntax/conflict markers, checks new experiment/orchestration
-structure, validates `harness_engineering/manifest.json`, checks all required
-harness files, and confirms that `AGENTS.md` points to the harness.
+`tools/check_run_folder.py check` verifies the three subfolders, that raw data sits only under `study_data/Data_h5/<label>/`, the file names, path lengths, the notes file, that plots exist, and (when `h5py` is installed) that the HDF5 files hold real arrays and the standard keys.
 
-It does not connect to QICK, validate a pulse program, verify dependencies, or
-prove a fit/plot is scientifically correct.
+It needs `h5py`, so run it in the Conda form. Without `h5py` it ends with `CHECK INCOMPLETE` and that does not count as a pass. A NOTE about missing standard keys must be looked at. Folders written by `Combined_Optimization_Scriptsv2.py` and the `longitudinal_qze_005` scripts fail this check by design.
 
-### 2. Focused change review
+It does not judge the science. The gates in `MEASUREMENT_PLAYBOOK.md` do that.
 
-```powershell
-git diff --check
-git diff -- <changed files>
-```
+## What the config rule check does
 
-Because harness files may initially be untracked, also inspect their full content
-or use `git diff --no-index -- NUL <file>` on Windows. Confirm there are no
-accidental run-flag, frequency, gain, attenuation, path, or raw-data changes.
+`tools/check_config_rules.py` reads the sweep settings the round robin would use and reports every row whose T2 sampling, relaxation delay or qspec step misses a gate. It is offline. It cannot see environment overrides or values fitted during a run, so the saved `Exp Config` stays the truth after a run.
 
-### 3. Pure-logic verification
+## Words to use
 
-When a changed behavior can be isolated from hardware, test the pure function or
-analysis logic with synthetic inputs. Never import an acquisition orchestrator to
-reach a helper. Extracting pure logic requires a separate, scoped code change and
-must preserve the experiment interface.
-
-### 4. Artifact verification
-
-For analysis of an existing run:
-
-- cite the raw HDF5 path and dataset label;
-- confirm plot axes/units and that requested calibration was applied;
-- compare fitted center/time with acquired bounds and raw structure;
-- inspect residuals/uncertainty/repeatability rather than accepting a scalar;
-- distinguish missing data, rejected data, and an actual physical null result.
-
-### 5. Authorized hardware validation
-
-Run only inside the recorded hardware envelope. Record actual script, Git/config
-state, flags, rows, bounds, reps/rounds, attenuators, output folder, duration,
-abort events, and final instrument state. Verify both plots and HDF5 output before
-starting a dependent experiment.
-
-## PUCQ4 scientific acceptance gates
-
-- Resonator spectroscopy: a reproducible, unsaturated feature with enough points
-  to locate the center/readout slope; state whether the result is high-power,
-  low-power, or punch-out.
-- Qubit spectroscopy: use the unchanged repository QICK program. The current user
-  target is a distinguishable calibrated-population peak around 0.3-0.5 with
-  approximately 0.1-0.2 MHz FWHM and several acquired points across the line.
-  Reproduce a new/shifted candidate before updating shared config.
-- Rabi: just over half an oscillation in the default plot and a fitted pi
-  amplitude near 0.6-0.7 DAC gain. A sigma or qfreq change requires a new Rabi.
-- T1/T2R/T2E: a resolved decay/fringe, physically plausible bounded fit, and
-  sufficient delay range. T2 sampling must give at least four points per fringe;
-  current 0.2 us spacing at 0.5 MHz detuning gives ten.
-- Single shot: optimize readout length and gain/frequency iteratively. Choose the
-  shortest length at the fidelity plateau, then repeat the 2D sweep. Accept only
-  stable repeated fidelity; a numerical maximum on a sparse/noisy grid is not
-  enough.
-- Final characterization: one pass of the normal round-robin chain, canonical
-  population plots, complete HDF5/config provenance, and no diagnostic override
-  left active.
-
-## Change propagation checks
-
-- qfreq change -> re-run qspec fit and Rabi.
-- sigma or pi-amplitude change -> re-run Rabi, then T1/T2 and SSF as relevant.
-- readout frequency/gain/length change -> re-run SSF and confirm all population
-  calibrated experiments still look correct.
-- Yoko current change -> re-find resonator/qfreq as planned, select the
-  current-specific sigma/pi amplitude, and never reuse zero-current coherence as
-  though it were measured at that bias.
-
-## Completion claim
-
-State which rungs passed and which did not run. “Offline verifier passed” and
-“hardware validated” are deliberately different claims. If a requested endpoint
-depends on unavailable authorization or new external evidence, report it as
-pending rather than declaring success.
+- "Offline check passed" and "validated on hardware" are different claims. Never use one for the other.
+- "Measured" means raw data was saved and looked at. "Validated" means it also passed every gate with a repeat.
+- A result that depends on a permission or on evidence you do not have is "pending".
