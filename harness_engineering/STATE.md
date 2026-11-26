@@ -10,7 +10,7 @@ Last update. 2026-11-25, from the 24 Nov closeout record. No measurement was mad
 |---|---|
 | Hardware | Nothing running. Both Yokogawas in current mode, 0 A, output off. QICK tProc stopped, clocks locked. Last verified at the 24 Nov closeout. Attenuators were not touched and cannot be read back. Verify again before any run. |
 | Envelope | Closed. No open request. The 24 Nov zero bias campaign is finished. |
-| Next step | Waits for one word from the user, see the open decision. Measurements the user asks for by name can run meanwhile. |
+| Next step | The user chose `check` on 25 Nov. Run the SSF check on M1 when the user asks for it in the chat. All steps are in `SSF_CHECK.md`. |
 | Long runs | None. The Zeno run on M2 (index 1, plot label Q2, study `qze_005`) was stopped by the user on 20 Nov. |
 
 When you start a long run, write its process id into the Long runs row. Take it out when the run has ended.
@@ -32,11 +32,11 @@ Default until the user says otherwise. Set on 25 Nov, when the user left the ope
 3. T1, T2R and T2E run only when the user asks for them by name, with the res spec, qspec and Rabi they need. They are averaged measurements. Their results carry the label `measured-below-gate` and stay out of config and deck tables.
 4. Promotion into shared config, the final one-pass benchmark, the Zeno long run and any other run over 2 hours stay blocked until SSF passes.
 
-The choice left for the user. One word, or a word and a number.
+The words the user can choose from. One word, or a word and a number.
 
 | Word | Meaning |
 |---|---|
-| check | One SSF run on M1 at the 29 Oct point (8918.375 MHz, 0.90 DAC, 6 us), once. It tests the estimate and the chain. Raise the M1 cap for that one run and put it back to 0.25 right after |
+| check | One pass on M1 at the 29 Oct point, above the cap once. It tests the estimate and the chain. CHOSEN by the user on 25 Nov 2026, not run yet. Steps in `SSF_CHECK.md` |
 | power | Allow readout above the onset for SSF, up to the 29 Oct points. If the chain is unchanged the 29 Oct contrast should come back. Then raise the caps in `system_config.py` to those gains |
 | gate | Keep the low power. Give the new SSF gate as a number, or say drop |
 | hardware | Keep both rules and improve the readout chain first |

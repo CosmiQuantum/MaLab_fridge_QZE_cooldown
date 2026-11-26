@@ -43,6 +43,14 @@ The user's standing preference, recorded 15 Sept 2026, is autonomous progress wi
 
 Tune-up defaults were added on 25 Nov 2026 without a number from the user. On that day the user left these choices to the tune-up. They stand until the user gives another number.
 
+## One-off permissions from the user
+
+A row with status unused allows its one run. For that run only it beats the Readout gain limit above and the ceilings, caps and default 1 in `STATE.md`. Do not ask again. The envelope still opens only when the user asks for the run in the chat. The run uses the permission up. A run that saved no data does not. Then write used and the date here.
+
+| Date | The user's word | What it allows | Status |
+|---|---|---|---|
+| 25 Nov 2026 | "Check first", as answer to the SSF question | One round robin pass on M1 (index 0) at zero bias at the 29 Oct point (tone 8918.375 MHz, 0.90 DAC, 6 us). The pass runs qspec, Rabi and SSF, and all three read out at 0.90 DAC. One more pass only if qspec or Rabi miss their gates (tune-up default). The M1 cap is raised for this run only. Steps in `SSF_CHECK.md` | unused |
+
 ## Always ask first
 
 Ask in one short message that gives the number or choice you need. Then carry on with any other part of the request while you wait.

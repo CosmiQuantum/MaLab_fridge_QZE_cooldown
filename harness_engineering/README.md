@@ -8,7 +8,8 @@ These files tell a coding agent how to work in this repo. `AGENTS.md` in the rep
 |---|---|---|
 | `../AGENTS.md` | The rules that always apply, and the task table | rarely |
 | `STATE.md` | Current state, blocker, next step, where the data is | after every result, overwritten |
-| `RUN_ENVELOPE.md` | What may run without asking, the fixed limits, the ask list | only on the user's word |
+| `RUN_ENVELOPE.md` | What may run without asking, the fixed limits, the ask list, one-off permissions | only on the user's word |
+| `SSF_CHECK.md` | Steps for the one SSF check on M1 that the user allowed on 25 Nov 2026. Temporary | once, after the check |
 | `MEASUREMENT_PLAYBOOK.md` | Gates, evidence labels, stop rule, order of work | when the user changes a rule |
 | `PUCQ4_DEVICE.md` | Qubit map, flux and RF facts, device targets, deck rules | rarely |
 | `EXPERIMENT_CONTRACTS.md` | Folder structure, raw data, class and script structure | rarely |
