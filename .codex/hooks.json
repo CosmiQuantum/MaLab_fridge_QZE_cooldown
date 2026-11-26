@@ -1,0 +1,19 @@
+{
+  "description": "After a chat is compacted, print the root rules and the current state again so the agent has them back in context.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "^compact$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "git grep --untracked --no-line-number -h -v -e ZZNOMATCHZZ -- \":(top)AGENTS.md\" \":(top)harness_engineering/STATE.md\"",
+            "statusMessage": "Reloading the rules and the current state",
+            "additionalContextLimit": 8000,
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

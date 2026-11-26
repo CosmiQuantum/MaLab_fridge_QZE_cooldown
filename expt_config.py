@@ -915,14 +915,17 @@ def pucq4_round_robin_profile(qubit_index, calibration_by_qubit):
         profile["T1_ge"].update(relax_delay=(250.0, 100.0, 250.0, 250.0, 100.0, 150.0)[i])
         profile["Ramsey_ge"].update(start=0.0)
         profile["Ramsey_ge"].update(stop=(60.0, 25.0, 80.0, 40.0, 12.0, 15.0)[i])
-        profile["Ramsey_ge"].update(steps=(201, 251, 268, 201, 241, 301)[i])
+        # M1 and M3 steps raised 2026-11-25 (were 201 and 268) so that every row
+        # has at least eight acquired points per fringe (0.2 us step at 0.5 MHz).
+        profile["Ramsey_ge"].update(steps=(301, 251, 401, 201, 241, 301)[i])
         profile["Ramsey_ge"].update(reps=(1200, 2400, 1200, 1200, 2400, 2400)[i])
         profile["Ramsey_ge"].update(rounds=(1, 1, 1, 1, 2, 1)[i])
         profile["Ramsey_ge"].update(relax_delay=(250.0, 100.0, 250.0, 250.0, 100.0, 150.0)[i])
         profile["Ramsey_ge"].update(ramsey_freq=(0.5, 1.0, 0.5, 0.5, 2.0, 1.0)[i])
         profile["SpinEcho_ge"].update(start=0.01)
         profile["SpinEcho_ge"].update(stop=(100.0, 50.0, 150.0, 60.0, 40.0, 30.0)[i])
-        profile["SpinEcho_ge"].update(steps=(251, 251, 376, 301, 401, 301)[i])
+        # M1 and M3 steps raised 2026-11-25 (were 251 and 376), same reason.
+        profile["SpinEcho_ge"].update(steps=(501, 251, 751, 301, 401, 301)[i])
         profile["SpinEcho_ge"].update(reps=(1200, 2400, 1200, 1200, 2400, 2400)[i])
         profile["SpinEcho_ge"].update(rounds=(1, 1, 1, 1, 2, 1)[i])
         profile["SpinEcho_ge"].update(relax_delay=(250.0, 100.0, 250.0, 250.0, 100.0, 150.0)[i])

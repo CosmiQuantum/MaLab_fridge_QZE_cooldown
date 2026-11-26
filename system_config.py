@@ -523,7 +523,17 @@ PUCQ4_ZERO_CURRENT_PULSE_MEASURED_ROWS = (True, True, True, True, True, True)
 
 # Filled only after the all-six low-power campaign has been reviewed. These
 # limits apply at the recorded zero-current attenuation configuration only.
-PUCQ4_ZERO_CURRENT_READOUT_GAIN_MAX = (None, 0.24, None, None, None, None)
+# Filled 2026-11-25 from the 24 Nov low-power campaign (30 kHz resonance-shift
+# tolerance). round_robin_benchmark.py refuses a zero-current run above these
+# gains. It does not check the readout length, and no other script checks them.
+# Each value is the lowest ceiling known for the row at its stored length and at
+# its 24 Nov working length. M1 0.25 at 8 us (none measured at the stored 6 us).
+# M2 0.24 at 7 us. M3 0.20 at 13 us. M4 0.20 at the stored 5 us (0.40 is qualified
+# at 4 and 8 us). M5 0.10 at 8 us (the stored 6 us was rejected). M6 0.10 at 45 us.
+# Set PUCQ4_READOUT_GAIN and PUCQ4_READOUT_LENGTH_US for the row.
+# Details in harness_engineering/STATE.md.
+# Previous value (None, 0.24, None, None, None, None).
+PUCQ4_ZERO_CURRENT_READOUT_GAIN_MAX = (0.25, 0.24, 0.20, 0.20, 0.10, 0.10)
 
 
 def normalize_pucq4_flux_current(current_mA):

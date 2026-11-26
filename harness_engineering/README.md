@@ -1,84 +1,47 @@
-# Harness engineering entry point
+# The harness
 
-This folder is the repository's durable execution harness. It turns the five
-failure layers from the Walking Labs tutorial into repo-specific instructions,
-safe tools, verification feedback, and persistent experiment state. It does not
-authorize a hardware run.
+These files tell a coding agent how to work in this repo. `AGENTS.md` in the repo root is loaded at the start of every chat. It names the card to read for each task. Nothing here allows a hardware run by itself.
 
-## Mandatory start sequence
+## Files
 
-1. Inspect `git status`; assume existing modifications and data belong to the
-   user.
-2. Read [ENVIRONMENT_AND_SAFETY.md](ENVIRONMENT_AND_SAFETY.md), even for an
-   offline task.
-3. Write or mentally resolve the brief in [TASK_TEMPLATE.md](TASK_TEMPLATE.md):
-   goal, non-goals, scope, evidence, and command-verifiable completion criteria.
-4. Use the routing table below for only the context the task needs.
-5. Check the live source files before relying on a copied number in a document.
-6. Verify at the highest safe rung in [VERIFICATION.md](VERIFICATION.md).
-7. Add durable discoveries and failed approaches to `docs/harness-log.md`, then
-   update the relevant harness document if the lesson changes future behavior.
+| File | Holds | Changes |
+|---|---|---|
+| `../AGENTS.md` | The rules that always apply, and the task table | rarely |
+| `STATE.md` | Current state, blocker, next step, where the data is | after every result, overwritten |
+| `RUN_ENVELOPE.md` | What may run without asking, the fixed limits, the ask list, one-off permissions | only on the user's word |
+| `SSF_CHECK.md` | Steps for the one SSF check on M1 that the user allowed on 25 Nov 2026. Temporary | once, after the check |
+| `MEASUREMENT_PLAYBOOK.md` | Gates, evidence labels, stop rule, order of work | when the user changes a rule |
+| `PUCQ4_DEVICE.md` | Qubit map, flux and RF facts, device targets, deck rules | rarely |
+| `EXPERIMENT_CONTRACTS.md` | Folder structure, raw data, class and script structure | rarely |
+| `REPOSITORY_MAP.md` | Where classes, config keys, labels and tools are | when code moves |
+| `ENVIRONMENT_AND_SAFETY.md` | Hardware boundary, Python on the lab PC, long runs, Yokogawa steps | rarely |
+| `VERIFICATION.md` | The check steps and what each tool proves | rarely |
+| `LESSONS.md` | One line per lesson, searched by symptom | one line per new lesson |
+| `TASK_TEMPLATE.md` | Brief, log entry format, done list | rarely |
+| `SOURCES.md` | Which source wins, device and design sources | rarely |
+| `manifest.json` | Machine readable list of files, size limits and gates | with the files |
+| `../.codex/hooks.json` | A Codex hook. After a chat is compacted it prints `AGENTS.md` and `STATE.md` again | rarely |
+| `archive/` | The old state and failure files, whole | never |
+| `../docs/log/` | Task log, one file per month | appended |
+| `../docs/MEASUREMENT_INDEX.md` | One line per campaign | one line per campaign |
 
-## Five-layer implementation
+## Upkeep rules
 
-| Tutorial defense layer | Repository implementation |
-| --- | --- |
-| Task specification | [TASK_TEMPLATE.md](TASK_TEMPLATE.md) makes behavior, non-goals, authority, and Definition of Done explicit. |
-| Context provision | [REPOSITORY_MAP.md](REPOSITORY_MAP.md) and [EXPERIMENT_CONTRACTS.md](EXPERIMENT_CONTRACTS.md) expose architecture and local conventions. |
-| Execution environment | [ENVIRONMENT_AND_SAFETY.md](ENVIRONMENT_AND_SAFETY.md) records the PyCharm/Conda setup and separates offline work from lab operation. |
-| Verification feedback | [VERIFICATION.md](VERIFICATION.md) and `tools/harness_check.py` provide an executable, hardware-safe first rung and an evidence ladder. |
-| State management | [PUCQ4_STATE.md](PUCQ4_STATE.md), [FAILURE_MODES.md](FAILURE_MODES.md), and `docs/harness-log.md` preserve validated state and diagnostic history. |
+1. One home per rule. Before you add a rule, search for it. If it exists, change it there. Never copy a rule into a second file.
+2. State is overwritten, history is appended. `STATE.md` never grows by dated blocks. The log gets one short entry.
+3. Every file has a size limit in `manifest.json`. `tools/harness_check.py` fails when a file passes it. When a file is full, cut or move text. Do not raise the limit to make room for history.
+4. Plain ASCII, plain words with spaces, short lines.
+5. When a rule replaces an older one, delete the old wording everywhere and add its key phrase to `superseded_phrases` in `manifest.json`. The check then fails if the old wording comes back.
+6. A repeated failure is a harness defect. Find which layer failed (task, context, environment, verification, state), fix the narrowest one, add one line to `LESSONS.md`.
+7. A gate, a limit or a permission changes only on the user's word, with the date.
+8. After any harness change run `python tools/harness_check.py`.
+9. `AGENTS.md` is read once per chat and cut off without warning above 32 KiB. Keep it far below. A change to it reaches the agent only in a new chat.
+10. The hook in `.codex/hooks.json` does nothing until a person has reviewed and trusted it on that machine (the `/hooks` command in the Codex CLI, or the hooks settings in the app). Any change to the file needs a new review. If the hook is not trusted or the Codex surface has no hooks, the rule at the top of `AGENTS.md` still applies. Read `STATE.md` again after a compaction.
 
-## Task routing
+## Why it is built this way
 
-All measurement, calibration, diagnosis, and acquisition-code tasks must first
-read [MEASUREMENT_PLAYBOOK.md](MEASUREMENT_PLAYBOOK.md) and
-[the central measurement index](../docs/MEASUREMENTS.md). Follow the ordered
-gates, reuse existing plots/classes, and persist evidence and resume state.
-The current eight-points-per-fringe requirement supersedes older four-point text.
-
-| Task | Read before acting |
-| --- | --- |
-| Explain or review code | Repository map, then the directly relevant source files |
-| Add or change `section_*.py` | Experiment contracts and verification |
-| Add or change orchestration | Repository map, experiment contracts, safety, verification |
-| Change PUCQ4 config or analyze a run | PUCQ4 state, sources, verification |
-| Run QICK/Pyro/Visdom, an experiment script, or a Yoko | Safety, PUCQ4 state, task template hardware envelope, verification |
-| Diagnose a failure | Failure modes, chronological log, then the relevant layer document |
-| Prepare the PUCQ4 PowerPoint or Yoko maps | PUCQ4 state and sources; use only validated artifacts |
-
-## Source-of-truth order
-
-Use this order when facts disagree:
-
-1. A newly verified instrument readback or raw HDF5 result with its exact run
-   path and configuration.
-2. Current executable values in `system_config.py`, `expt_config.py`, and the
-   explicitly selected orchestration script.
-3. Accepted results in [PUCQ4_STATE.md](PUCQ4_STATE.md) and the chronological
-   log.
-4. The characterization PowerPoint and upstream driver as reference evidence.
-5. Comments, search seeds, rejected fit candidates, and chat recollection.
-
-Executable config is not automatically validated calibration. Conversely, a
-validated measurement does not change executable config until the relevant
-source files are deliberately updated and reviewed.
-
-## Harness maintenance rule
-
-Treat every repeat failure as a harness defect. Classify it as specification,
-context, environment, verification, or state; fix the narrowest responsible
-layer; re-run the safe check; and record whether the failure reproduced. Do not
-hide critical safety rules only in a long log, and do not turn transient guesses
-into permanent instructions.
-
-For a large or long-running objective, work in bounded
-inspect/design/change/review/verify blocks. After each meaningful accepted or
-rejected result, persist the evidence, current safe hardware state, and exact next
-step; do not wait for the chat session to end. This makes a new session a resume,
-not a fresh rediscovery pass, and prevents a shrinking context window from
-becoming permission to skip verification.
-
-The machine-readable contract is `manifest.json`. The offline verifier checks
-that its required documents exist, that `AGENTS.md` points here, and that the
-hardware-authorization guard remains enabled.
+- The agent reads little. The root file is about 6 KB. A measurement task adds 30 to 50 KB of cards. Before the tune-up of 25 Nov 2026 the same task was told to read about 350 KB.
+- Rules that used to be relaxed after a miss are now numbers in one table, with a stop rule.
+- The folder structure is checked by a tool (`tools/check_run_folder.py`), not by prose.
+- Sweep settings are checked against the gates by a tool (`tools/check_config_rules.py`). Whether an SSF target is reachable at all is estimated by a tool (`tools/estimate_ssf.py`).
+- The five layers of the Walking Labs lecture are still covered. Task is `TASK_TEMPLATE.md`. Context is `REPOSITORY_MAP.md`, `EXPERIMENT_CONTRACTS.md` and `PUCQ4_DEVICE.md`. Environment is `ENVIRONMENT_AND_SAFETY.md` and `RUN_ENVELOPE.md`. Verification is `VERIFICATION.md` and the tools. State is `STATE.md`, `LESSONS.md` and the log.
